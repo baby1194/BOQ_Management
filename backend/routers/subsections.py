@@ -24,24 +24,34 @@ async def get_subsection_summaries(db: Session = Depends(get_db)):
         subsection_totals = {}
         
         for item in boq_items:
-            subsection = item.subsection or "Uncategorized"
+            # Ensure subsection is a string and handle numeric subsections properly
+            if item.subsection is not None:
+                # Convert numeric subsections to strings (e.g., 3.0 -> "3")
+                if isinstance(item.subsection, (int, float)):
+                    subsection = str(int(float(item.subsection)))
+                else:
+                    subsection = str(item.subsection)
+            else:
+                subsection = "Uncategorized"
             
             if subsection not in subsection_totals:
                 subsection_totals[subsection] = {
                     "subsection": subsection,
                     "description": "",  # Will be loaded from subsection_info table
-                    "total_estimate": 0,
-                    "total_submitted": 0,
-                    "internal_total": 0,
-                    "total_approved": 0,
+                    "total_estimate": 0.0,
+                    "total_submitted": 0.0,
+                    "internal_total": 0.0,
+                    "total_approved": 0.0,
+                    "approved_signed_total": 0.0,
                     "item_count": 0
                 }
             
             totals = subsection_totals[subsection]
-            totals["total_estimate"] += item.total_estimate or 0
-            totals["total_submitted"] += item.total_submitted or 0
-            totals["internal_total"] += item.internal_total or 0
-            totals["total_approved"] += item.total_approved_by_project_manager or 0
+            totals["total_estimate"] += float(item.total_estimate or 0)
+            totals["total_submitted"] += float(item.total_submitted or 0)
+            totals["internal_total"] += float(item.internal_total or 0)
+            totals["total_approved"] += float(item.total_approved_by_project_manager or 0)
+            totals["approved_signed_total"] += float(item.approved_signed_total or 0)
             totals["item_count"] += 1
         
         print(subsection_totals)
@@ -89,10 +99,20 @@ async def update_subsection_description(
 ):
     """Update the description for a specific subsection"""
     try:
+        logger.info(f"Updating subsection description for subsection '{subsection}': {description_update.description}")
+        
+        # Validate input
+        if not isinstance(subsection, str):
+            raise ValueError(f"Subsection must be a string, got {type(subsection)}: {subsection}")
+        
+        if not isinstance(description_update.description, str):
+            raise ValueError(f"Description must be a string, got {type(description_update.description)}: {description_update.description}")
+        
         # Check if subsection_info table exists
         result = db.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='subsection_info'"))
         if not result.fetchone():
             # Create the table if it doesn't exist
+            logger.info("Creating subsection_info table")
             db.execute(text("""
                 CREATE TABLE IF NOT EXISTS subsection_info (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,8 +123,10 @@ async def update_subsection_description(
                 )
             """))
             db.commit()
+            logger.info("subsection_info table created successfully")
         
         # Try to update existing description
+        logger.info(f"Executing UPDATE for subsection '{subsection}'")
         result = db.execute(
             text("UPDATE subsection_info SET description = :description, updated_at = :updated_at WHERE subsection = :subsection"),
             {"description": description_update.description, "updated_at": datetime.now(), "subsection": subsection}
@@ -112,14 +134,14 @@ async def update_subsection_description(
         
         if result.rowcount == 0:
             # No existing record, insert new one
+            logger.info(f"No existing record found, inserting new one for subsection '{subsection}'")
             db.execute(
                 text("INSERT INTO subsection_info (subsection, description, created_at, updated_at) VALUES (:subsection, :description, :created_at, :updated_at)"),
                 {"subsection": subsection, "description": description_update.description, "created_at": datetime.now(), "updated_at": datetime.now()}
             )
         
         db.commit()
-        
-        logger.info(f"Updated description for subsection '{subsection}': {description_update.description}")
+        logger.info(f"Description updated successfully for subsection '{subsection}'")
         
         return {
             "success": True,
@@ -130,7 +152,10 @@ async def update_subsection_description(
         
     except Exception as e:
         logger.error(f"Error updating subsection description: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        logger.error(f"Subsection: {subsection}, Description: {description_update.description if description_update else 'None'}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail=f"Internal server error: {str(e)}"
         )

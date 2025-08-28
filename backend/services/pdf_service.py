@@ -1,4 +1,4 @@
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import letter, A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -196,7 +196,7 @@ class PDFService:
             filename = f"summary_report_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            doc = SimpleDocTemplate(str(filepath), pagesize=A4)
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
             story = []
             styles = getSampleStyleSheet()
             
@@ -271,4 +271,352 @@ class PDFService:
             
         except Exception as e:
             logger.error(f"Error generating summary PDF: {str(e)}")
+            raise
+
+    def export_structures_summary(self, summaries):
+        """Export structures summary to PDF"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"structures_summary_{timestamp}.pdf"
+            filepath = self.exports_dir / filename
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                spaceAfter=30,
+                alignment=1  # Center alignment
+            )
+            story.append(Paragraph("Structures Summary Report", title_style))
+            story.append(Spacer(1, 12))
+            
+            # Create table for summary data
+            if summaries:
+                headers = list(summaries[0].keys())
+                data = [headers]
+                
+                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in headers}
+                
+                for summary in summaries:
+                    row_data = []
+                    for key in headers:
+                        value = summary[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    data.append(row_data)
+                    
+                    # Calculate grand totals
+                    for key in headers:
+                        if isinstance(summary[key], (int, float)):
+                            grand_totals[key] += summary[key]
+                
+                # Add grand totals row
+                xxx=0
+                totals_row = []
+                for key in headers:
+                    if isinstance(grand_totals[key], (int, float)):
+                        if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                        else:
+                            totals_row.append(str(grand_totals[key]))
+                    else:
+                        if xxx==0:
+                            totals_row.append("GRAND TOTAL")
+                            xxx=1 #only add grand total once
+                        else:
+                            totals_row.append("")
+                data.append(totals_row)
+                
+                table = Table(data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                
+                story.append(table)
+            
+            doc.build(story)
+            logger.info(f"Generated structures summary PDF: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating structures summary PDF: {str(e)}")
+            raise
+
+    def export_systems_summary(self, summaries):
+        """Export systems summary to PDF"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"systems_summary_{timestamp}.pdf"
+            filepath = self.exports_dir / filename
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                spaceAfter=30,
+                alignment=1  # Center alignment
+            )
+            story.append(Paragraph("Systems Summary Report", title_style))
+            story.append(Spacer(1, 12))
+            
+            # Create table for summary data
+            if summaries:
+                headers = list(summaries[0].keys())
+                data = [headers]
+                
+                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in headers}
+                
+                for summary in summaries:
+                    row_data = []
+                    for key in headers:
+                        value = summary[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    data.append(row_data)
+                    
+                    # Calculate grand totals
+                    for key in headers:
+                        if isinstance(summary[key], (int, float)):
+                            grand_totals[key] += summary[key]
+                
+                # Add grand totals row
+                totals_row = []
+                xxx=0
+                for key in headers:
+                    if isinstance(grand_totals[key], (int, float)):
+                        if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                        else:
+                            totals_row.append(str(grand_totals[key]))
+                    else:
+                        if xxx==0:
+                            totals_row.append("GRAND TOTAL")
+                            xxx=1 #only add grand total once
+                        else:
+                            totals_row.append("")
+                data.append(totals_row)
+                
+                table = Table(data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                
+                story.append(table)
+            
+            doc.build(story)
+            logger.info(f"Generated systems summary PDF: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating systems summary PDF: {str(e)}")
+            raise
+
+    def export_subsections_summary(self, summaries):
+        """Export subsections summary to PDF"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"subsections_summary_{timestamp}.pdf"
+            filepath = self.exports_dir / filename
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                spaceAfter=30,
+                alignment=1  # Center alignment
+            )
+            story.append(Paragraph("Subsections Summary Report", title_style))
+            story.append(Spacer(1, 12))
+            
+            # Create table for summary data
+            if summaries:
+                headers = list(summaries[0].keys())
+                data = [headers]
+                
+                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in headers}
+                
+                for summary in summaries:
+                    row_data = []
+                    for key in headers:
+                        value = summary[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    data.append(row_data)
+                    
+                    # Calculate grand totals
+                    for key in headers:
+                        if isinstance(summary[key], (int, float)):
+                            grand_totals[key] += summary[key]
+                
+                # Add grand totals row
+                xxx=0
+                totals_row = []
+                for key in headers:
+                    if isinstance(grand_totals[key], (int, float)):
+                        if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                        else:
+                            totals_row.append(str(grand_totals[key]))
+                    else:
+                        if xxx==0:
+                            totals_row.append("GRAND TOTAL")
+                            xxx=1 #only add grand total once
+                        else:
+                            totals_row.append("")
+                data.append(totals_row)
+                
+                table = Table(data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                
+                story.append(table)
+            
+            doc.build(story)
+            logger.info(f"Generated subsections summary PDF: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating subsections summary PDF: {str(e)}")
+            raise
+
+    def export_boq_items(self, items):
+        """Export BOQ items to PDF"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"boq_items_{timestamp}.pdf"
+            filepath = self.exports_dir / filename
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                spaceAfter=30,
+                alignment=1  # Center alignment
+            )
+            story.append(Paragraph("BOQ Items Report", title_style))
+            story.append(Spacer(1, 12))
+            
+            # Create table for BOQ items data
+            if items:
+                headers = list(items[0].keys())
+                data = [headers]
+                
+                grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in headers}
+                
+                for item in items:
+                    row_data = []
+                    for key in headers:
+                        value = item[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower() or 'price' in key.lower() or 'sum' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    data.append(row_data)
+                    
+                    # Calculate grand totals
+                    for key in headers:
+                        if isinstance(item[key], (int, float)):
+                            grand_totals[key] += item[key]
+                
+                # Add grand totals row
+                totals_row = []
+                for key in headers:
+                    if isinstance(grand_totals[key], (int, float)):
+                        if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower() or 'price' in key.lower() or 'sum' in key.lower():
+                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                        else:
+                            totals_row.append(str(grand_totals[key]))
+                    else:
+                        totals_row.append("")
+                totals_row[0] = "GRAND TOTAL"
+                data.append(totals_row)
+                
+                table = Table(data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                
+                story.append(table)
+            
+            doc.build(story)
+            logger.info(f"Generated BOQ items PDF: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating BOQ items PDF: {str(e)}")
             raise 

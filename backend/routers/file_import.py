@@ -59,7 +59,7 @@ async def upload_file(
         updated_count = 0
         
         for item_data in items:
-            print("_________________", item_data)
+            # print("_________________", item_data)
             try:
                 # Check if item already exists by section_number
                 existing_item = db.query(models.BOQItem).filter(

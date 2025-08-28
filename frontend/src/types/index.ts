@@ -1,7 +1,8 @@
 export interface BOQItem {
   id: number;
-  serial_number?: number;
-  structure?: number;
+  serial_number?: number; // Integer
+  structure?: number; // Integer
+  system?: string;
   section_number: string;
   description: string;
   unit: string;
@@ -16,6 +17,8 @@ export interface BOQItem {
   total_submitted: number;
   internal_total: number;
   total_approved_by_project_manager: number;
+  approved_signed_quantity: number;
+  approved_signed_total: number;
   notes?: string;
   subsection?: string;
   created_at: string;
@@ -25,6 +28,7 @@ export interface BOQItem {
 export interface BOQItemCreate {
   serial_number?: number;
   structure?: number;
+  system?: string;
   section_number: string;
   description: string;
   unit: string;
@@ -39,6 +43,8 @@ export interface BOQItemCreate {
   total_submitted: number;
   internal_total: number;
   total_approved_by_project_manager: number;
+  approved_signed_quantity: number;
+  approved_signed_total: number;
   notes?: string;
   subsection?: string;
 }
@@ -46,6 +52,7 @@ export interface BOQItemCreate {
 export interface BOQItemUpdate {
   serial_number?: number;
   structure?: number;
+  system?: string;
   description?: string;
   unit?: string;
   original_contract_quantity?: number;
@@ -59,6 +66,8 @@ export interface BOQItemUpdate {
   total_submitted?: number;
   internal_total?: number;
   total_approved_by_project_manager?: number;
+  approved_signed_quantity?: number;
+  approved_signed_total?: number;
   notes?: string;
   subsection?: string;
 }
@@ -253,5 +262,39 @@ export interface SubsectionSummary {
   total_submitted: number;
   internal_total: number;
   total_approved: number;
+  approved_signed_total: number;
   item_count: number;
+}
+
+export interface SystemSummary {
+  system: string;
+  description: string;
+  total_estimate: number;
+  total_submitted: number;
+  internal_total: number;
+  total_approved: number;
+  approved_signed_total: number;
+  item_count: number;
+}
+
+export interface StructureSummary {
+  structure: number;
+  description: string;
+  total_estimate: number;
+  total_submitted: number;
+  internal_total: number;
+  total_approved: number;
+  approved_signed_total: number;
+  item_count: number;
+}
+
+export interface SummaryExportRequest {
+  include_structure: boolean;
+  include_description: boolean;
+  include_total_estimate: boolean;
+  include_total_submitted: boolean;
+  include_internal_total: boolean;
+  include_total_approved: boolean;
+  include_approved_signed_total: boolean;
+  include_item_count: boolean;
 }

@@ -6,6 +6,7 @@ from datetime import datetime
 class BOQItemBase(BaseModel):
     serial_number: Optional[float] = None
     structure: Optional[float] = None
+    system: Optional[str] = Field(None, max_length=100)  # Add missing system field
     section_number: str = Field(..., min_length=1, max_length=50)
     description: str = Field("", min_length=0)  # Allow empty descriptions
     unit: str = Field(..., min_length=1, max_length=20)
@@ -20,6 +21,8 @@ class BOQItemBase(BaseModel):
     total_submitted: float = Field(0.0, ge=0)
     internal_total: float = Field(0.0, ge=0)
     total_approved_by_project_manager: float = Field(0.0, ge=0)
+    approved_signed_quantity: float = Field(0.0, ge=0)
+    approved_signed_total: float = Field(0.0, ge=0)
     notes: Optional[str] = None
     subsection: Optional[str] = Field(None, max_length=50)
 
@@ -29,6 +32,7 @@ class BOQItemCreate(BOQItemBase):
 class BOQItemUpdate(BaseModel):
     serial_number: Optional[float] = None
     structure: Optional[float] = None
+    system: Optional[str] = Field(None, max_length=100)  # Add missing system field
     description: Optional[str] = Field(None, min_length=0)
     unit: Optional[str] = Field(None, min_length=1, max_length=20)
     original_contract_quantity: Optional[float] = Field(None, ge=0)
@@ -42,6 +46,8 @@ class BOQItemUpdate(BaseModel):
     total_submitted: Optional[float] = Field(None, ge=0)
     internal_total: Optional[float] = Field(None, ge=0)
     total_approved_by_project_manager: Optional[float] = Field(None, ge=0)
+    approved_signed_quantity: Optional[float] = Field(None, ge=0)
+    approved_signed_total: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
     subsection: Optional[str] = Field(None, max_length=50)
 
@@ -366,7 +372,45 @@ class SubsectionSummary(BaseModel):
     total_submitted: float
     internal_total: float
     total_approved: float
+    approved_signed_total: float
+    item_count: int
+
+class SystemSummary(BaseModel):
+    system: str
+    description: str
+    total_estimate: float
+    total_submitted: float
+    internal_total: float
+    total_approved: float
+    approved_signed_total: float
+    item_count: int
+
+class StructureSummary(BaseModel):
+    structure: int
+    description: str
+    total_estimate: float
+    total_submitted: float
+    internal_total: float
+    total_approved: float
+    approved_signed_total: float
     item_count: int
 
 class SubsectionDescriptionUpdate(BaseModel):
     description: str = Field(..., min_length=0, max_length=500)
+
+class SystemDescriptionUpdate(BaseModel):
+    description: str = Field(..., min_length=0, max_length=500)
+
+class StructureDescriptionUpdate(BaseModel):
+    description: str = Field(..., min_length=0, max_length=500)
+
+class SummaryExportRequest(BaseModel):
+    include_structure: bool = True
+    include_description: bool = True
+    include_total_estimate: bool = True
+    include_total_submitted: bool = True
+    include_internal_total: bool = True
+    include_total_approved: bool = True
+    include_approved_signed_total: bool = True
+    include_item_count: bool = True
+    data: list = []  # Optional: pass the actual data from frontend

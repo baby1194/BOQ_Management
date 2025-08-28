@@ -10,6 +10,7 @@ import {
   ImportResponse,
   PDFExportRequest,
   PDFExportResponse,
+  SummaryExportRequest,
   ImportLog,
   CalculationSheet,
   CalculationSheetWithEntries,
@@ -23,6 +24,8 @@ import {
   BOQItemQuantityUpdateUpdate,
   BOQItemWithLatestContractUpdate,
   SubsectionSummary,
+  SystemSummary,
+  StructureSummary,
 } from "../types";
 
 const api = axios.create({
@@ -293,6 +296,64 @@ export const exportApi = {
   exportSummary: () =>
     api.post<PDFExportResponse>("/export/summary").then((res) => res.data),
 
+  // Summary export endpoints
+  exportStructuresSummary: (request: SummaryExportRequest, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/structures-summary", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
+  exportSystemsSummary: (request: SummaryExportRequest, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/systems-summary", { ...request, data })
+      .then((res) => res.data),
+
+  exportSubsectionsSummary: (request: SummaryExportRequest, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/subsections-summary", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
+  exportStructuresSummaryExcel: (request: SummaryExportRequest, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/structures-summary/excel", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
+  exportSystemsSummaryExcel: (request: SummaryExportRequest, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/systems-summary/excel", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
+  exportSubsectionsSummaryExcel: (
+    request: SummaryExportRequest,
+    data?: any[]
+  ) =>
+    api
+      .post<PDFExportResponse>("/export/subsections-summary/excel", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
+  // BOQ Items export endpoints
+  exportBOQItemsExcel: (request: any, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/boq-items/excel", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
   listPDFs: () => api.get<string[]>("/export/list").then((res) => res.data),
 
   downloadPDF: (filename: string) =>
@@ -355,21 +416,41 @@ export const contractUpdatesApi = {
     api.delete(`/contract-updates/${updateId}`).then((res) => res.data),
 };
 
-// Subsections API
+// Subsection API
 export const subsectionsApi = {
   getSummaries: () =>
     api
       .get<SubsectionSummary[]>("/subsections/summaries")
       .then((res) => res.data),
-
   updateDescription: (subsection: string, description: string) =>
     api
-      .put<{
-        success: boolean;
-        message: string;
-        subsection: string;
-        description: string;
-      }>(`/subsections/${encodeURIComponent(subsection)}/description`, {
+      .put(`/subsections/${encodeURIComponent(subsection)}/description`, {
+        description,
+      })
+      .then((res) => res.data),
+};
+
+// Systems API
+export const systemsApi = {
+  getSummaries: () =>
+    api.get<SystemSummary[]>("/systems/summaries").then((res) => res.data),
+  updateDescription: (system: string, description: string) =>
+    api
+      .put(`/systems/${encodeURIComponent(system)}/description`, {
+        description,
+      })
+      .then((res) => res.data),
+};
+
+// Structures API
+export const structuresApi = {
+  getSummaries: () =>
+    api
+      .get<StructureSummary[]>("/structures/summaries")
+      .then((res) => res.data),
+  updateDescription: (structure: number, description: string) =>
+    api
+      .put(`/structures/${structure}/description`, {
         description,
       })
       .then((res) => res.data),

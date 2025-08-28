@@ -194,6 +194,536 @@ async def export_summary(db: Session = Depends(get_db)):
             detail="Internal server error"
         )
 
+@router.post("/structures-summary", response_model=schemas.PDFExportResponse)
+async def export_structures_summary(
+    request: schemas.SummaryExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export structures summary to PDF"""
+    try:
+        pdf_service = PDFService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if request.data:
+            summaries = request.data
+        else:
+            from routers.structures import get_structure_summaries
+            summaries = await get_structure_summaries(db)
+        
+        # Filter columns based on request
+        filtered_summaries = []
+        for summary in summaries:
+            filtered_summary = {}
+            # Handle both dictionary and object access
+            if request.include_structure:
+                filtered_summary["structure"] = summary.get("structure") if isinstance(summary, dict) else summary.structure
+            if request.include_description:
+                filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_estimate:
+                filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+            if request.include_total_submitted:
+                filtered_summary["total_submitted"] = summary.get("total_submitted") if isinstance(summary, dict) else summary.total_submitted
+            if request.include_internal_total:
+                filtered_summary["internal_total"] = summary.get("internal_total") if isinstance(summary, dict) else summary.internal_total
+            if request.include_total_approved:
+                filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
+            if request.include_approved_signed_total:
+                filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_item_count:
+                filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            if filtered_summary:  # Only add if at least one column is selected
+                filtered_summaries.append(filtered_summary)
+        
+        # Generate PDF
+        pdf_path = pdf_service.export_structures_summary(filtered_summaries)
+        
+        # Return the filename for download using the download endpoint
+        filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported structures summary",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting structures summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/systems-summary", response_model=schemas.PDFExportResponse)
+async def export_systems_summary(
+    request: schemas.SummaryExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export systems summary to PDF"""
+    try:
+        pdf_service = PDFService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if request.data:
+            summaries = request.data
+        else:
+            from routers.systems import get_system_summaries
+            summaries = await get_system_summaries(db)
+        
+        # Filter columns based on request
+        filtered_summaries = []
+        for summary in summaries:
+            filtered_summary = {}
+            # Handle both dictionary and object access
+            if request.include_structure:
+                filtered_summary["system"] = summary.get("system") if isinstance(summary, dict) else summary.system
+            if request.include_description:
+                filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_estimate:
+                filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+            if request.include_total_submitted:
+                filtered_summary["total_submitted"] = summary.get("total_submitted") if isinstance(summary, dict) else summary.total_submitted
+            if request.include_internal_total:
+                filtered_summary["internal_total"] = summary.get("internal_total") if isinstance(summary, dict) else summary.internal_total
+            if request.include_total_approved:
+                filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
+            if request.include_approved_signed_total:
+                filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_item_count:
+                filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            if filtered_summary:  # Only add if at least one column is selected
+                filtered_summaries.append(filtered_summary)
+        
+        # Generate PDF
+        pdf_path = pdf_service.export_systems_summary(filtered_summaries)
+        
+        # Return the filename for download using the download endpoint
+        filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported systems summary",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting systems summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/subsections-summary", response_model=schemas.PDFExportResponse)
+async def export_subsections_summary(
+    request: schemas.SummaryExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export subsections summary to PDF"""
+    try:
+        pdf_service = PDFService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if request.data:
+            summaries = request.data
+        else:
+            from routers.subsections import get_subsection_summaries
+            summaries = await get_subsection_summaries(db)
+        
+        # Filter columns based on request
+        filtered_summaries = []
+        for summary in summaries:
+            filtered_summary = {}
+            # Handle both dictionary and object access
+            if request.include_structure:
+                filtered_summary["subsection"] = summary.get("subsection") if isinstance(summary, dict) else summary.subsection
+            if request.include_description:
+                filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_estimate:
+                filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+            if request.include_total_submitted:
+                filtered_summary["total_submitted"] = summary.get("total_submitted") if isinstance(summary, dict) else summary.total_submitted
+            if request.include_internal_total:
+                filtered_summary["internal_total"] = summary.get("internal_total") if isinstance(summary, dict) else summary.internal_total
+            if request.include_total_approved:
+                filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
+            if request.include_approved_signed_total:
+                filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_item_count:
+                filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            if filtered_summary:  # Only add if at least one column is selected
+                filtered_summaries.append(filtered_summary)
+        
+        # Generate PDF
+        pdf_path = pdf_service.export_subsections_summary(filtered_summaries)
+        
+        # Return the filename for download using the download endpoint
+        filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported subsections summary",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting subsections summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/structures-summary/excel", response_model=schemas.PDFExportResponse)
+async def export_structures_summary_excel(
+    request: schemas.SummaryExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export structures summary to Excel"""
+    try:
+        excel_service = ExcelService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if request.data:
+            summaries = request.data
+        else:
+            from routers.structures import get_structure_summaries
+            summaries = await get_structure_summaries(db)
+        
+        # Filter columns based on request
+        filtered_summaries = []
+        for summary in summaries:
+            filtered_summary = {}
+            # Handle both dictionary and object access
+            if request.include_structure:
+                filtered_summary["structure"] = summary.get("structure") if isinstance(summary, dict) else summary.structure
+            if request.include_description:
+                filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_estimate:
+                filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+            if request.include_total_submitted:
+                filtered_summary["total_submitted"] = summary.get("total_submitted") if isinstance(summary, dict) else summary.total_submitted
+            if request.include_internal_total:
+                filtered_summary["internal_total"] = summary.get("internal_total") if isinstance(summary, dict) else summary.internal_total
+            if request.include_total_approved:
+                filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
+            if request.include_approved_signed_total:
+                filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_item_count:
+                filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            if filtered_summary:  # Only add if at least one column is selected
+                filtered_summaries.append(filtered_summary)
+        
+        # Generate Excel
+        excel_path = excel_service.export_structures_summary(filtered_summaries)
+        
+        # Return the filename for download using the download endpoint
+        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported structures summary to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting structures summary to Excel: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/systems-summary/excel", response_model=schemas.PDFExportResponse)
+async def export_systems_summary_excel(
+    request: schemas.SummaryExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export systems summary to Excel"""
+    try:
+        excel_service = ExcelService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if request.data:
+            summaries = request.data
+        else:
+            from routers.systems import get_system_summaries
+            summaries = await get_system_summaries(db)
+        
+        # Filter columns based on request
+        filtered_summaries = []
+        for summary in summaries:
+            filtered_summary = {}
+            # Handle both dictionary and object access
+            if request.include_structure:
+                filtered_summary["system"] = summary.get("system") if isinstance(summary, dict) else summary.system
+            if request.include_description:
+                filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_estimate:
+                filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+            if request.include_total_submitted:
+                filtered_summary["total_submitted"] = summary.get("total_submitted") if isinstance(summary, dict) else summary.total_submitted
+            if request.include_internal_total:
+                filtered_summary["internal_total"] = summary.get("internal_total") if isinstance(summary, dict) else summary.internal_total
+            if request.include_total_approved:
+                filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
+            if request.include_approved_signed_total:
+                filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_item_count:
+                filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            if filtered_summary:  # Only add if at least one column is selected
+                filtered_summaries.append(filtered_summary)
+        
+        # Generate Excel
+        excel_path = excel_service.export_systems_summary(filtered_summaries)
+        
+        # Return the filename for download using the download endpoint
+        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported systems summary to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting systems summary to Excel: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/subsections-summary/excel", response_model=schemas.PDFExportResponse)
+async def export_subsections_summary_excel(
+    request: schemas.SummaryExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export subsections summary to Excel"""
+    try:
+        excel_service = ExcelService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if request.data:
+            summaries = request.data
+        else:
+            from routers.subsections import get_subsection_summaries
+            summaries = await get_subsection_summaries(db)
+        
+        # Filter columns based on request
+        filtered_summaries = []
+        for summary in summaries:
+            filtered_summary = {}
+            # Handle both dictionary and object access
+            if request.include_structure:
+                filtered_summary["subsection"] = summary.get("subsection") if isinstance(summary, dict) else summary.subsection
+            if request.include_description:
+                filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_estimate:
+                filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+            if request.include_total_submitted:
+                filtered_summary["total_submitted"] = summary.get("total_submitted") if isinstance(summary, dict) else summary.total_submitted
+            if request.include_internal_total:
+                filtered_summary["internal_total"] = summary.get("internal_total") if isinstance(summary, dict) else summary.internal_total
+            if request.include_total_approved:
+                filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
+            if request.include_approved_signed_total:
+                filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_item_count:
+                filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            if filtered_summary:  # Only add if at least one column is selected
+                filtered_summaries.append(filtered_summary)
+        
+        # Generate Excel
+        excel_path = excel_service.export_subsections_summary(filtered_summaries)
+        
+        # Return the filename for download using the download endpoint
+        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported subsections summary to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting subsections summary to Excel: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/boq-items", response_model=schemas.PDFExportResponse)
+async def export_boq_items(
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """Export BOQ items to PDF"""
+    try:
+        pdf_service = PDFService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if "data" in request and request["data"]:
+            items = request["data"]
+        else:
+            items = db.query(models.BOQItem).all()
+        
+        # Filter columns based on request
+        filtered_items = []
+        for item in items:
+            filtered_item = {}
+            # Handle both dictionary and object access
+            if request.get("include_serial_number"):
+                filtered_item["serial_number"] = item.get("serial_number") if isinstance(item, dict) else item.serial_number
+            if request.get("include_structure"):
+                filtered_item["structure"] = item.get("structure") if isinstance(item, dict) else item.structure
+            if request.get("include_system"):
+                filtered_item["system"] = item.get("system") if isinstance(item, dict) else item.system
+            if request.get("include_section_number"):
+                filtered_item["section_number"] = item.get("section_number") if isinstance(item, dict) else item.section_number
+            if request.get("include_description"):
+                filtered_item["description"] = item.get("description") if isinstance(item, dict) else item.description
+            if request.get("include_unit"):
+                filtered_item["unit"] = item.get("unit") if isinstance(item, dict) else item.unit
+            if request.get("include_original_contract_quantity"):
+                filtered_item["original_contract_quantity"] = item.get("original_contract_quantity") if isinstance(item, dict) else item.original_contract_quantity
+            if request.get("include_price"):
+                filtered_item["price"] = item.get("price") if isinstance(item, dict) else item.price
+            if request.get("include_total_contract_sum"):
+                filtered_item["total_contract_sum"] = item.get("total_contract_sum") if isinstance(item, dict) else item.total_contract_sum
+            if request.get("include_estimated_quantity"):
+                filtered_item["estimated_quantity"] = item.get("estimated_quantity") if isinstance(item, dict) else item.estimated_quantity
+            if request.get("include_quantity_submitted"):
+                filtered_item["quantity_submitted"] = item.get("quantity_submitted") if isinstance(item, dict) else item.quantity_submitted
+            if request.get("include_internal_quantity"):
+                filtered_item["internal_quantity"] = item.get("internal_quantity") if isinstance(item, dict) else item.internal_quantity
+            if request.get("include_approved_by_project_manager"):
+                filtered_item["approved_by_project_manager"] = item.get("approved_by_project_manager") if isinstance(item, dict) else item.approved_by_project_manager
+            if request.get("include_approved_signed_quantity"):
+                filtered_item["approved_signed_quantity"] = item.get("approved_signed_quantity") if isinstance(item, dict) else item.approved_signed_quantity
+            if request.get("include_total_estimate"):
+                filtered_item["total_estimate"] = item.get("total_estimate") if isinstance(item, dict) else item.total_estimate
+            if request.get("include_total_submitted"):
+                filtered_item["total_submitted"] = item.get("total_submitted") if isinstance(item, dict) else item.total_submitted
+            if request.get("include_internal_total"):
+                filtered_item["internal_total"] = item.get("internal_total") if isinstance(item, dict) else item.internal_total
+            if request.get("include_total_approved_by_project_manager"):
+                filtered_item["total_approved_by_project_manager"] = item.get("total_approved_by_project_manager") if isinstance(item, dict) else item.total_approved_by_project_manager
+            if request.get("include_approved_signed_total"):
+                filtered_item["approved_signed_total"] = item.get("approved_signed_total") if isinstance(item, dict) else item.approved_signed_total
+            if request.get("include_subsection"):
+                filtered_item["subsection"] = item.get("subsection") if isinstance(item, dict) else item.subsection
+            if request.get("include_notes"):
+                filtered_item["notes"] = item.get("notes") if isinstance(item, dict) else item.notes
+            
+            if filtered_item:  # Only add if at least one column is selected
+                filtered_items.append(filtered_item)
+        
+        # Generate PDF
+        pdf_path = pdf_service.export_boq_items(filtered_items)
+        
+        # Return the filename for download using the download endpoint
+        filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported BOQ items",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_items)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting BOQ items: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/boq-items/excel", response_model=schemas.PDFExportResponse)
+async def export_boq_items_excel(
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """Export BOQ items to Excel"""
+    try:
+        excel_service = ExcelService()
+        
+        # Use the data passed from frontend if available, otherwise fetch from database
+        if "data" in request and request["data"]:
+            items = request["data"]
+        else:
+            items = db.query(models.BOQItem).all()
+        
+        # Filter columns based on request
+        filtered_items = []
+        for item in items:
+            filtered_item = {}
+            # Handle both dictionary and object access
+            if request.get("include_serial_number"):
+                filtered_item["serial_number"] = item.get("serial_number") if isinstance(item, dict) else item.serial_number
+            if request.get("include_structure"):
+                filtered_item["structure"] = item.get("structure") if isinstance(item, dict) else item.structure
+            if request.get("include_system"):
+                filtered_item["system"] = item.get("system") if isinstance(item, dict) else item.system
+            if request.get("include_section_number"):
+                filtered_item["section_number"] = item.get("section_number") if isinstance(item, dict) else item.section_number
+            if request.get("include_description"):
+                filtered_item["description"] = item.get("description") if isinstance(item, dict) else item.description
+            if request.get("include_unit"):
+                filtered_item["unit"] = item.get("unit") if isinstance(item, dict) else item.unit
+            if request.get("include_original_contract_quantity"):
+                filtered_item["original_contract_quantity"] = item.get("original_contract_quantity") if isinstance(item, dict) else item.original_contract_quantity
+            if request.get("include_price"):
+                filtered_item["price"] = item.get("price") if isinstance(item, dict) else item.price
+            if request.get("include_total_contract_sum"):
+                filtered_item["total_contract_sum"] = item.get("total_contract_sum") if isinstance(item, dict) else item.total_contract_sum
+            if request.get("include_estimated_quantity"):
+                filtered_item["estimated_quantity"] = item.get("estimated_quantity") if isinstance(item, dict) else item.estimated_quantity
+            if request.get("include_quantity_submitted"):
+                filtered_item["quantity_submitted"] = item.get("quantity_submitted") if isinstance(item, dict) else item.quantity_submitted
+            if request.get("include_internal_quantity"):
+                filtered_item["internal_quantity"] = item.get("internal_quantity") if isinstance(item, dict) else item.internal_quantity
+            if request.get("include_approved_by_project_manager"):
+                filtered_item["approved_by_project_manager"] = item.get("approved_by_project_manager") if isinstance(item, dict) else item.approved_by_project_manager
+            if request.get("include_approved_signed_quantity"):
+                filtered_item["approved_signed_quantity"] = item.get("approved_signed_quantity") if isinstance(item, dict) else item.approved_signed_quantity
+            if request.get("include_total_estimate"):
+                filtered_item["total_estimate"] = item.get("total_estimate") if isinstance(item, dict) else item.total_estimate
+            if request.get("include_total_submitted"):
+                filtered_item["total_submitted"] = item.get("total_submitted") if isinstance(item, dict) else item.total_submitted
+            if request.get("include_internal_total"):
+                filtered_item["internal_total"] = item.get("internal_total") if isinstance(item, dict) else item.internal_total
+            if request.get("include_total_approved_by_project_manager"):
+                filtered_item["total_approved_by_project_manager"] = item.get("total_approved_by_project_manager") if isinstance(item, dict) else item.total_approved_by_project_manager
+            if request.get("include_approved_signed_total"):
+                filtered_item["approved_signed_total"] = item.get("approved_signed_total") if isinstance(item, dict) else item.approved_signed_total
+            if request.get("include_subsection"):
+                filtered_item["subsection"] = item.get("subsection") if isinstance(item, dict) else item.subsection
+            if request.get("include_notes"):
+                filtered_item["notes"] = item.get("notes") if isinstance(item, dict) else item.notes
+            
+            if filtered_item:  # Only add if at least one column is selected
+                filtered_items.append(filtered_item)
+        
+        # Generate Excel
+        excel_path = excel_service.export_boq_items(filtered_items)
+        
+        # Return the filename for download using the download endpoint
+        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported BOQ items to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(filtered_items)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting BOQ items to Excel: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 @router.get("/download/{filename}")
 async def download_file(filename: str):
     """Download a generated file (PDF or Excel)"""

@@ -18,34 +18,94 @@ class ExcelService:
         """Read BOQ items from Excel file"""
         try:
             df = pd.read_excel(file_path, sheet_name=0)
+            
+            # Clean column names by stripping whitespace
+            df.columns = df.columns.str.strip()
+            # print("_____Cleaned column names_____", list(df.columns))
+            
             items = []
             
             for _, row in df.iterrows():
+                # print("_____row_____", row)
+                # print("_____row types_____", row.dtypes)
+                # print("_____Serial Number raw_____", row.get('Serial Number'), "Type:", type(row.get('Serial Number')))
+                # print("_____Description raw_____", row.get('Description'), "Type:", type(row.get('Description')))
+                
+                # Check if we have the minimum required data
                 if pd.notna(row.get('Section Number', '')) and pd.notna(row.get('Description', '')):
                     section_number = str(row.get('Section Number', '')).strip()
                     parts = section_number.split('.')
                     subsection = '.'.join(parts[:3]) if len(parts) >= 3 else section_number
                     
+                    # Extract all values with proper null handling
+                    serial_number = row.get('Serial Number')
+                    structure = row.get('Structure')
+                    system = row.get('System')
+                    description = row.get('Description')
+                    unit = row.get('Unit')
+                    original_contract_quantity = row.get('Original Contract Quantity')
+                    price = row.get('Price')
+                    total_contract_sum = row.get('Total Contract Sum')
+                    estimated_quantity = row.get('Estimated Quantity')
+                    quantity_submitted = row.get('Quantity Submitted')
+                    internal_quantity = row.get('Internal Quantity')
+                    approved_by_project_manager = row.get('Approved by Project Manager')
+                    total_estimate = row.get('Total Estimate')
+                    total_submitted = row.get('Total Submitted')
+                    internal_total = row.get('Internal Total')
+                    total_approved_by_project_manager = row.get('Total Approved by Project Manager')
+                    notes = row.get('NOTES')
+                    
+                    # print("_____Extracted values_____")
+                    # print("serial_number:", serial_number, "pd.notna:", pd.notna(serial_number))
+                    # print("description:", description, "pd.notna:", pd.notna(description))
+                    
+                    # More robust null checking
+                    def safe_float(value):
+                        if pd.isna(value) or value == '' or value is None:
+                            return None
+                        try:
+                            return float(value)
+                        except (ValueError, TypeError):
+                            return None
+                    
+                    def safe_int(value):
+                        if pd.isna(value) or value == '' or value is None:
+                            return None
+                        try:
+                            return int(float(value))  # Convert float to int for cases like 59.0 -> 59
+                        except (ValueError, TypeError):
+                            return None
+                    
+                    def safe_str(value):
+                        if pd.isna(value) or value is None:
+                            return ''
+                        return str(value).strip()
+                    
                     item = {
-                        'serial_number': float(row.get('Serial Number', 0)) if pd.notna(row.get('Serial Number', 0)) else None,
-                        'structure': float(row.get('Structure', 0)) if pd.notna(row.get('Structure', 0)) else None,
+                        'serial_number': safe_int(serial_number),
+                        'structure': safe_int(structure),
+                        'system': safe_str(system),
                         'section_number': section_number,
-                        'description': str(row.get('Description', '')).strip(),
-                        'unit': str(row.get('Unit', '')).strip(),
-                        'original_contract_quantity': float(row.get('Original Contract Quantity', 0)) if pd.notna(row.get('Original Contract Quantity', 0)) else 0,
-                        'price': float(row.get('Price', 0)) if pd.notna(row.get('Price', 0)) else 0,
-                        'total_contract_sum': float(row.get('Total Contract Sum', 0)) if pd.notna(row.get('Total Contract Sum', 0)) else 0,
-                        'estimated_quantity': float(row.get('Estimated Quantity', 0)) if pd.notna(row.get('Estimated Quantity', 0)) else 0,
-                        'quantity_submitted': float(row.get('Quantity Submitted', 0)) if pd.notna(row.get('Quantity Submitted', 0)) else 0,
-                        'internal_quantity': float(row.get('Internal Quantity', 0)) if pd.notna(row.get('Internal Quantity', 0)) else 0,
-                        'approved_by_project_manager': float(row.get('Approved by Project Manager', 0)) if pd.notna(row.get('Approved by Project Manager', 0)) else 0,
-                        'total_estimate': float(row.get('Total Estimate', 0)) if pd.notna(row.get('Total Estimate', 0)) else 0,
-                        'total_submitted': float(row.get('Total Submitted', 0)) if pd.notna(row.get('Total Submitted', 0)) else 0,
-                        'internal_total': float(row.get('Internal Total', 0)) if pd.notna(row.get('Internal Total', 0)) else 0,
-                        'total_approved_by_project_manager': float(row.get('Total Approved by Project Manager', 0)) if pd.notna(row.get('Total Approved by Project Manager', 0)) else 0,
-                        'notes': str(row.get('NOTES', '')).strip() if pd.notna(row.get('NOTES', '')) else None,
+                        'description': safe_str(description),
+                        'unit': safe_str(unit),
+                        'original_contract_quantity': safe_float(original_contract_quantity) or 0,
+                        'price': safe_float(price) or 0,
+                        'total_contract_sum': safe_float(total_contract_sum) or 0,
+                        'estimated_quantity': safe_float(estimated_quantity) or 0,
+                        'quantity_submitted': safe_float(quantity_submitted) or 0,
+                        'internal_quantity': safe_float(internal_quantity) or 0,
+                        'approved_by_project_manager': safe_float(approved_by_project_manager) or 0,
+                        'total_estimate': safe_float(total_estimate) or 0,
+                        'total_submitted': safe_float(total_submitted) or 0,
+                        'internal_total': safe_float(internal_total) or 0,
+                        'total_approved_by_project_manager': safe_float(total_approved_by_project_manager) or 0,
+                        'approved_signed_quantity': 0.0,  # Default value for new column
+                        'approved_signed_total': 0.0,  # Default value for new column
+                        'notes': safe_str(notes),
                         'subsection': subsection
                     }
+                    # print("_____item_____", item)
                     items.append(item)
             
             logger.info(f"Successfully read {len(items)} items from BOQ file")
@@ -96,8 +156,7 @@ class ExcelService:
             
             entries = []
             
-            # Process columns J, K, L, etc. (starting from column 9, which is J)
-            col_index = 9  # J column
+            col_index = 4
             
             while col_index < df.shape[1]:
                 # Check if section number exists in row 4 (J5, K5, L5, etc.)
@@ -559,4 +618,350 @@ class ExcelService:
             
         except Exception as e:
             logger.error(f"Error generating all concentration sheets Excel: {str(e)}")
+            raise
+
+    def export_structures_summary(self, summaries):
+        """Export structures summary to Excel"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"structures_summary_{timestamp}.xlsx"
+            filepath = self.exports_dir / filename
+            
+            if not summaries:
+                raise ValueError("No data to export")
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(summaries)
+            
+            # Format numeric columns
+            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+            
+            # Add grand totals row
+            totals_row = {}
+            for col in df.columns:
+                if col in numeric_columns and col in df.columns:
+                    # Extract numeric values for calculation
+                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
+                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
+                elif col == 'structure':
+                    totals_row[col] = "GRAND TOTAL"
+                elif col == 'description':
+                    totals_row[col] = ""
+                else:
+                    totals_row[col] = ""
+            
+            df_totals = pd.DataFrame([totals_row])
+            df_final = pd.concat([df, df_totals], ignore_index=True)
+            
+            # Export to Excel
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                df_final.to_excel(writer, sheet_name='Structures Summary', index=False)
+                
+                # Apply formatting
+                workbook = writer.book
+                worksheet = writer.sheets['Structures Summary']
+                
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Style header row
+                from openpyxl.styles import Font, PatternFill, Alignment
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                header_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for cell in worksheet[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+                
+                # Style totals row
+                totals_row_num = len(df_final) + 1
+                totals_font = Font(bold=True, color="FFFFFF")
+                totals_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")
+                totals_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for col in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=totals_row_num, column=col)
+                    cell.font = totals_font
+                    cell.fill = totals_fill
+                    cell.alignment = totals_alignment
+            
+            logger.info(f"Generated structures summary Excel: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating structures summary Excel: {str(e)}")
+            raise
+
+    def export_systems_summary(self, summaries):
+        """Export systems summary to Excel"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"systems_summary_{timestamp}.xlsx"
+            filepath = self.exports_dir / filename
+            
+            if not summaries:
+                raise ValueError("No data to export")
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(summaries)
+            
+            # Format numeric columns
+            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+            
+            # Add grand totals row
+            totals_row = {}
+            for col in df.columns:
+                if col in numeric_columns and col in df.columns:
+                    # Extract numeric values for calculation
+                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
+                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
+                elif col == 'system':
+                    totals_row[col] = "GRAND TOTAL"
+                elif col == 'description':
+                    totals_row[col] = ""
+                else:
+                    totals_row[col] = ""
+            
+            df_totals = pd.DataFrame([totals_row])
+            df_final = pd.concat([df, df_totals], ignore_index=True)
+            
+            # Export to Excel
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                df_final.to_excel(writer, sheet_name='Systems Summary', index=False)
+                
+                # Apply formatting
+                workbook = writer.book
+                worksheet = writer.sheets['Systems Summary']
+                
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Style header row
+                from openpyxl.styles import Font, PatternFill, Alignment
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                header_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for cell in worksheet[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+                
+                # Style totals row
+                totals_row_num = len(df_final) + 1
+                totals_font = Font(bold=True, color="FFFFFF")
+                totals_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")
+                totals_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for col in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=totals_row_num, column=col)
+                    cell.font = totals_font
+                    cell.fill = totals_fill
+                    cell.alignment = totals_alignment
+            
+            logger.info(f"Generated systems summary Excel: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating systems summary Excel: {str(e)}")
+            raise
+
+    def export_subsections_summary(self, summaries):
+        """Export subsections summary to Excel"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"subsections_summary_{timestamp}.xlsx"
+            filepath = self.exports_dir / filename
+            
+            if not summaries:
+                raise ValueError("No data to export")
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(summaries)
+            
+            # Format numeric columns
+            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+            
+            # Add grand totals row
+            totals_row = {}
+            for col in df.columns:
+                if col in numeric_columns and col in df.columns:
+                    # Extract numeric values for calculation
+                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
+                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
+                elif col == 'subsection':
+                    totals_row[col] = "GRAND TOTAL"
+                elif col == 'description':
+                    totals_row[col] = ""
+                else:
+                    totals_row[col] = ""
+            
+            df_totals = pd.DataFrame([totals_row])
+            df_final = pd.concat([df, df_totals], ignore_index=True)
+            
+            # Export to Excel
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                df_final.to_excel(writer, sheet_name='Subsections Summary', index=False)
+                
+                # Apply formatting
+                workbook = writer.book
+                worksheet = writer.sheets['Subsections Summary']
+                
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Style header row
+                from openpyxl.styles import Font, PatternFill, Alignment
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                header_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for cell in worksheet[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+                
+                # Style totals row
+                totals_row_num = len(df_final) + 1
+                totals_font = Font(bold=True, color="FFFFFF")
+                totals_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")
+                totals_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for col in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=totals_row_num, column=col)
+                    cell.font = totals_font
+                    cell.fill = totals_fill
+                    cell.alignment = totals_alignment
+            
+            logger.info(f"Generated subsections summary Excel: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating subsections summary Excel: {str(e)}")
+            raise
+
+    def export_boq_items(self, items):
+        """Export BOQ items to Excel"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"boq_items_{timestamp}.xlsx"
+            filepath = self.exports_dir / filename
+            
+            if not items:
+                raise ValueError("No data to export")
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(items)
+            
+            # Format numeric columns
+            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved_by_project_manager', 'approved_signed_total', 'price', 'total_contract_sum', 'original_contract_quantity', 'estimated_quantity', 'quantity_submitted', 'internal_quantity', 'approved_by_project_manager', 'approved_signed_quantity']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+            
+            # Add grand totals row
+            totals_row = {}
+            for col in df.columns:
+                if col in numeric_columns and col in df.columns:
+                    # Extract numeric values for calculation
+                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
+                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
+                elif col == 'section_number':
+                    totals_row[col] = "GRAND TOTAL"
+                else:
+                    totals_row[col] = ""
+            
+            df_totals = pd.DataFrame([totals_row])
+            df_final = pd.concat([df, df_totals], ignore_index=True)
+            
+            # Export to Excel
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                df_final.to_excel(writer, sheet_name='BOQ Items', index=False)
+                
+                # Apply formatting
+                workbook = writer.book
+                worksheet = writer.sheets['BOQ Items']
+                
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Style header row
+                from openpyxl.styles import Font, PatternFill, Alignment
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                header_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for cell in worksheet[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+                
+                # Style totals row
+                totals_row_num = len(df_final) + 1
+                totals_font = Font(bold=True, color="FFFFFF")
+                totals_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")
+                totals_alignment = Alignment(horizontal="center", vertical="center")
+                
+                for col in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=totals_row_num, column=col)
+                    cell.font = totals_font
+                    cell.fill = totals_fill
+                    cell.alignment = totals_alignment
+            
+            logger.info(f"Generated BOQ items Excel: {filepath}")
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"Error generating BOQ items Excel: {str(e)}")
             raise 

@@ -9,8 +9,9 @@ class BOQItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Original BOQ.xlsx columns
-    serial_number = Column(Float, nullable=True)
-    structure = Column(Float, nullable=True)
+    serial_number = Column(Integer, nullable=True)
+    structure = Column(Integer, nullable=True)
+    system = Column(String(100), nullable=True)  # New System column
     section_number = Column(String(50), unique=True, index=True, nullable=False)  # Primary identifier
     description = Column(Text, nullable=False)
     unit = Column(String(20), nullable=False)
@@ -25,6 +26,11 @@ class BOQItem(Base):
     total_submitted = Column(Float, default=0.0)
     internal_total = Column(Float, default=0.0)
     total_approved_by_project_manager = Column(Float, default=0.0)
+    
+    # New Approved Signed columns
+    approved_signed_quantity = Column(Float, default=0.0)
+    approved_signed_total = Column(Float, default=0.0)
+    
     notes = Column(Text, nullable=True)
     
     # Computed fields

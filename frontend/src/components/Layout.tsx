@@ -19,6 +19,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: "/summary-subsections",
       icon: BarChart3,
     },
+    {
+      name: "Summary of Systems",
+      href: "/summary-systems",
+      icon: BarChart3,
+    },
+    {
+      name: "Summary of Structures",
+      href: "/summary-structures",
+      icon: BarChart3,
+    },
     { name: "Import", href: "/import", icon: Upload },
   ];
 

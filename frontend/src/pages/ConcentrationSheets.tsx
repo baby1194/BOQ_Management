@@ -41,10 +41,6 @@ const ConcentrationSheets: React.FC = () => {
     contractNo: "",
     developerName: "",
   });
-  const [editingProjectInfo, setEditingProjectInfo] = useState(false);
-  const [projectInfoDraft, setProjectInfoDraft] = useState(projectInfo);
-  const [savingProjectInfo, setSavingProjectInfo] = useState(false);
-  const [projectInfoError, setProjectInfoError] = useState<string | null>(null);
 
   // Load project info from selected sheet
   const loadProjectInfoFromSheet = (sheet: ConcentrationSheetWithBOQ) => {
@@ -63,49 +59,8 @@ const ConcentrationSheets: React.FC = () => {
       developerName: sheet.developer_name || "",
     };
     setProjectInfo(info);
-    setProjectInfoDraft(info);
 
     console.log("Project info loaded:", info);
-  };
-
-  const handleProjectInfoDraftChange = (field: string, value: string) => {
-    setProjectInfoDraft((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleEditProjectInfo = () => {
-    setProjectInfoDraft(projectInfo);
-    setEditingProjectInfo(true);
-    setProjectInfoError(null);
-  };
-
-  const handleCancelProjectInfo = () => {
-    setEditingProjectInfo(false);
-    setProjectInfoDraft(projectInfo);
-    setProjectInfoError(null);
-  };
-
-  const handleSaveProjectInfo = async () => {
-    if (!selectedSheet) return;
-
-    setSavingProjectInfo(true);
-    setProjectInfoError(null);
-    try {
-      await concentrationApi.updateProjectInfo(selectedSheet.id, {
-        project_name: projectInfoDraft.projectName,
-        contractor_in_charge: projectInfoDraft.contractorInCharge,
-        contract_no: projectInfoDraft.contractNo,
-        developer_name: projectInfoDraft.developerName,
-      });
-
-      setProjectInfo(projectInfoDraft);
-      setEditingProjectInfo(false);
-      setError(null);
-    } catch (err) {
-      console.error("Error saving project info:", err);
-      setProjectInfoError("Failed to save project info");
-    } finally {
-      setSavingProjectInfo(false);
-    }
   };
 
   // Delete single concentration sheet
@@ -764,93 +719,29 @@ const ConcentrationSheets: React.FC = () => {
                       <label className="block text-gray-600 font-medium">
                         Project Name:
                       </label>
-                      {editingProjectInfo ? (
-                        <input
-                          type="text"
-                          value={projectInfoDraft.projectName}
-                          onChange={(e) =>
-                            handleProjectInfoDraftChange(
-                              "projectName",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                          disabled={savingProjectInfo}
-                        />
-                      ) : (
-                        <p className="text-gray-900">
-                          {projectInfo.projectName}
-                        </p>
-                      )}
+                      <p className="text-gray-900">{projectInfo.projectName}</p>
                     </div>
                     <div>
                       <label className="block text-gray-600 font-medium">
                         Contractor in Charge:
                       </label>
-                      {editingProjectInfo ? (
-                        <input
-                          type="text"
-                          value={projectInfoDraft.contractorInCharge}
-                          onChange={(e) =>
-                            handleProjectInfoDraftChange(
-                              "contractorInCharge",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                          disabled={savingProjectInfo}
-                        />
-                      ) : (
-                        <p className="text-gray-900">
-                          {projectInfo.contractorInCharge}
-                        </p>
-                      )}
+                      <p className="text-gray-900">
+                        {projectInfo.contractorInCharge}
+                      </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
+                      <label className="block text-gray-300 font-medium">
                         Contract No:
                       </label>
-                      {editingProjectInfo ? (
-                        <input
-                          type="text"
-                          value={projectInfoDraft.contractNo}
-                          onChange={(e) =>
-                            handleProjectInfoDraftChange(
-                              "contractNo",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                          disabled={savingProjectInfo}
-                        />
-                      ) : (
-                        <p className="text-gray-900">
-                          {projectInfo.contractNo}
-                        </p>
-                      )}
+                      <p className="text-gray-900">{projectInfo.contractNo}</p>
                     </div>
                     <div>
                       <label className="block text-gray-600 font-medium">
                         Developer Name:
                       </label>
-                      {editingProjectInfo ? (
-                        <input
-                          type="text"
-                          value={projectInfoDraft.developerName}
-                          onChange={(e) =>
-                            handleProjectInfoDraftChange(
-                              "developerName",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                          disabled={savingProjectInfo}
-                        />
-                      ) : (
-                        <p className="text-gray-900">
-                          {projectInfo.developerName}
-                        </p>
-                      )}
+                      <p className="text-gray-900">
+                        {projectInfo.developerName}
+                      </p>
                     </div>
                     <div>
                       <label className="block text-gray-600 font-medium">
@@ -892,38 +783,6 @@ const ConcentrationSheets: React.FC = () => {
                       <p className="text-gray-900">
                         {formatCurrency(selectedSheet.boq_item.price)}
                       </p>
-                    </div>
-                    <div className="md:col-span-2 flex gap-2 mt-2">
-                      {editingProjectInfo ? (
-                        <>
-                          <button
-                            onClick={handleSaveProjectInfo}
-                            disabled={savingProjectInfo}
-                            className="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            {savingProjectInfo ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            onClick={handleCancelProjectInfo}
-                            disabled={savingProjectInfo}
-                            className="px-4 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={handleEditProjectInfo}
-                          className="px-4 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-                        >
-                          Edit
-                        </button>
-                      )}
-                      {projectInfoError && (
-                        <span className="text-red-600 ml-2">
-                          {projectInfoError}
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -1124,9 +983,6 @@ const ConcentrationSheets: React.FC = () => {
                               <tr className="bg-gray-50 border-t-2 border-gray-300">
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   TOTALS
-                                </td>
-                                <td className="px-3 py-3 text-sm text-gray-500">
-                                  -
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -

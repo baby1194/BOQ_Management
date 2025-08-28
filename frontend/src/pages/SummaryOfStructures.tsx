@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { subsectionsApi, exportApi } from "../services/api";
-import { SubsectionSummary, SummaryExportRequest } from "../types";
+import { structuresApi, exportApi } from "../services/api";
+import { StructureSummary, SummaryExportRequest } from "../types";
 import { formatCurrency } from "../utils/format";
 import ExportModal from "../components/ExportModal";
 
-const SummaryOfSubsections: React.FC = () => {
-  const [subsectionSummaries, setSubsectionSummaries] = useState<
-    SubsectionSummary[]
+const SummaryOfStructures: React.FC = () => {
+  const [structureSummaries, setStructureSummaries] = useState<
+    StructureSummary[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,17 +19,17 @@ const SummaryOfSubsections: React.FC = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Fetch subsection summaries
-  const fetchSubsectionSummaries = async () => {
+  // Fetch structure summaries
+  const fetchStructureSummaries = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await subsectionsApi.getSummaries();
-      setSubsectionSummaries(response);
+      const response = await structuresApi.getSummaries();
+      setStructureSummaries(response);
     } catch (err) {
-      console.error("Error fetching subsection summaries:", err);
-      setError("Failed to fetch subsection summaries");
+      console.error("Error fetching structure summaries:", err);
+      setError("Failed to fetch structure summaries");
     } finally {
       setLoading(false);
     }
@@ -37,10 +37,10 @@ const SummaryOfSubsections: React.FC = () => {
 
   // Start editing a description
   const startEditingDescription = (
-    subsection: string,
+    structure: number,
     currentDescription: string
   ) => {
-    setEditingDescription(subsection);
+    setEditingDescription(structure.toString());
     setEditingValue(currentDescription);
   };
 
@@ -51,20 +51,20 @@ const SummaryOfSubsections: React.FC = () => {
   };
 
   // Save description changes
-  const saveDescription = async (subsection: string) => {
+  const saveDescription = async (structure: number) => {
     try {
       setSaving(true);
       setError(null);
 
-      const response = await subsectionsApi.updateDescription(
-        subsection,
+      const response = await structuresApi.updateDescription(
+        structure,
         editingValue
       );
 
       // Update local state
-      setSubsectionSummaries((prev) =>
+      setStructureSummaries((prev) =>
         prev.map((summary) =>
-          summary.subsection === subsection
+          summary.structure === structure
             ? { ...summary, description: editingValue }
             : summary
         )
@@ -74,7 +74,7 @@ const SummaryOfSubsections: React.FC = () => {
       setEditingValue("");
 
       // Show success message
-      setSuccessMessage(`Description saved for subsection: ${subsection}`);
+      setSuccessMessage(`Description saved for structure: ${structure}`);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error("Error saving description:", err);
@@ -90,9 +90,9 @@ const SummaryOfSubsections: React.FC = () => {
   };
 
   // Handle key press for saving on Enter
-  const handleKeyPress = (e: React.KeyboardEvent, subsection: string) => {
+  const handleKeyPress = (e: React.KeyboardEvent, structure: number) => {
     if (e.key === "Enter") {
-      saveDescription(subsection);
+      saveDescription(structure);
     } else if (e.key === "Escape") {
       cancelEditing();
     }
@@ -108,10 +108,10 @@ const SummaryOfSubsections: React.FC = () => {
       setError(null);
 
       // Filter the current table data based on the request
-      const filteredData = subsectionSummaries.map((summary) => {
+      const filteredData = structureSummaries.map((summary) => {
         const filteredSummary: any = {};
         if (request.include_structure)
-          filteredSummary.subsection = summary.subsection;
+          filteredSummary.structure = summary.structure;
         if (request.include_description)
           filteredSummary.description = summary.description;
         if (request.include_total_estimate)
@@ -131,12 +131,12 @@ const SummaryOfSubsections: React.FC = () => {
 
       let response;
       if (format === "pdf") {
-        response = await exportApi.exportSubsectionsSummary(
+        response = await exportApi.exportStructuresSummary(
           request,
           filteredData
         );
       } else {
-        response = await exportApi.exportSubsectionsSummaryExcel(
+        response = await exportApi.exportStructuresSummaryExcel(
           request,
           filteredData
         );
@@ -153,7 +153,7 @@ const SummaryOfSubsections: React.FC = () => {
         // Extract filename from the path
         const filename =
           response.pdf_path.split("/").pop() ||
-          `subsections_summary.${format === "pdf" ? "pdf" : "xlsx"}`;
+          `structures_summary.${format === "pdf" ? "pdf" : "xlsx"}`;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
@@ -161,13 +161,13 @@ const SummaryOfSubsections: React.FC = () => {
 
         // Show success message
         setSuccessMessage(
-          `Successfully exported subsections summary as ${format.toUpperCase()}`
+          `Successfully exported structures summary as ${format.toUpperCase()}`
         );
         setTimeout(() => setSuccessMessage(null), 5000);
         setShowExportModal(false);
       }
     } catch (err) {
-      console.error(`Error exporting subsections summary as ${format}:`, err);
+      console.error(`Error exporting structures summary as ${format}:`, err);
       setError(`Failed to export as ${format.toUpperCase()}`);
     } finally {
       setExporting(false);
@@ -175,7 +175,7 @@ const SummaryOfSubsections: React.FC = () => {
   };
 
   // Calculate grand totals
-  const grandTotals = subsectionSummaries.reduce(
+  const grandTotals = structureSummaries.reduce(
     (acc, summary) => ({
       totalEstimate: acc.totalEstimate + summary.total_estimate,
       totalSubmitted: acc.totalSubmitted + summary.total_submitted,
@@ -195,7 +195,7 @@ const SummaryOfSubsections: React.FC = () => {
 
   // Load data on component mount
   useEffect(() => {
-    fetchSubsectionSummaries();
+    fetchStructureSummaries();
   }, []);
 
   if (loading) {
@@ -203,10 +203,10 @@ const SummaryOfSubsections: React.FC = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Summary of Subsections
+            Summary of Structures
           </h1>
           <p className="mt-2 text-gray-600">
-            Summary of BOQ items grouped by subsection
+            Summary of BOQ items grouped by structure
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
@@ -223,15 +223,15 @@ const SummaryOfSubsections: React.FC = () => {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Summary of Subsections
+            Summary of Structures
           </h1>
           <p className="mt-2 text-gray-600">
-            Summary of BOQ items grouped by subsection (
-            {subsectionSummaries.length} subsections)
+            Summary of BOQ items grouped by structure (
+            {structureSummaries.length} structures)
           </p>
           <p className="mt-1 text-sm text-gray-500">
             This table is automatically updated when BOQ items are imported or
-            modified. You can edit subsection descriptions by clicking on them.
+            modified. You can edit structure descriptions by clicking on them.
           </p>
         </div>
         <div>
@@ -269,10 +269,10 @@ const SummaryOfSubsections: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Subsection
+                  Structure
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Subsection Description
+                  Structure Description
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Estimate
@@ -295,27 +295,27 @@ const SummaryOfSubsections: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {subsectionSummaries.map((summary) => (
-                <tr key={summary.subsection} className="hover:bg-gray-50">
+              {structureSummaries.map((summary) => (
+                <tr key={summary.structure} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {summary.subsection}
+                    {summary.structure}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
-                    {editingDescription === summary.subsection ? (
+                    {editingDescription === summary.structure.toString() ? (
                       <div className="flex items-center space-x-2">
                         <input
                           type="text"
                           value={editingValue}
                           onChange={(e) => handleInputChange(e.target.value)}
                           onKeyDown={(e) =>
-                            handleKeyPress(e, summary.subsection)
+                            handleKeyPress(e, summary.structure)
                           }
                           className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           disabled={saving}
                           autoFocus
                         />
                         <button
-                          onClick={() => saveDescription(summary.subsection)}
+                          onClick={() => saveDescription(summary.structure)}
                           disabled={saving}
                           className="text-green-600 hover:text-green-800 disabled:opacity-50 text-sm px-2 py-1"
                         >
@@ -334,7 +334,7 @@ const SummaryOfSubsections: React.FC = () => {
                         className="cursor-pointer hover:bg-blue-50 px-2 py-1 rounded -ml-2"
                         onClick={() =>
                           startEditingDescription(
-                            summary.subsection,
+                            summary.structure,
                             summary.description
                           )
                         }
@@ -392,7 +392,7 @@ const SummaryOfSubsections: React.FC = () => {
                   {formatCurrency(grandTotals.approvedSignedTotal)}
                 </td>
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {subsectionSummaries.reduce(
+                  {structureSummaries.reduce(
                     (sum, summary) => sum + summary.item_count,
                     0
                   )}
@@ -404,12 +404,12 @@ const SummaryOfSubsections: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {!loading && subsectionSummaries.length === 0 && (
+      {!loading && structureSummaries.length === 0 && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-center text-gray-500">
-            <p className="text-lg font-medium">No subsections found</p>
+            <p className="text-lg font-medium">No structures found</p>
             <p className="text-sm mt-1">
-              Import BOQ items to see subsection summaries here
+              Import BOQ items to see structure summaries here
             </p>
           </div>
         </div>
@@ -439,8 +439,8 @@ const SummaryOfSubsections: React.FC = () => {
               <p>
                 This summary table is automatically calculated from your BOQ
                 items. When you import new BOQ data or modify existing items,
-                the totals will be updated automatically. You can edit
-                subsection descriptions by clicking on them in the table.
+                the totals will be updated automatically. You can edit structure
+                descriptions by clicking on them in the table.
               </p>
             </div>
           </div>
@@ -452,11 +452,11 @@ const SummaryOfSubsections: React.FC = () => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         onExport={handleExport}
-        title="Export Subsections Summary"
+        title="Export Structures Summary"
         loading={exporting}
       />
     </div>
   );
 };
 
-export default SummaryOfSubsections;
+export default SummaryOfStructures;

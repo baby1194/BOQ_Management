@@ -65,6 +65,7 @@ async def create_boq_item(item: schemas.BOQItemCreate, db: Session = Depends(get
         db_item = models.BOQItem(
             serial_number=item.serial_number,
             structure=item.structure,
+            system=item.system,
             section_number=item.section_number,
             description=item.description,
             unit=item.unit,
@@ -79,6 +80,8 @@ async def create_boq_item(item: schemas.BOQItemCreate, db: Session = Depends(get
             total_submitted=item.total_submitted,
             internal_total=item.internal_total,
             total_approved_by_project_manager=item.total_approved_by_project_manager,
+            approved_signed_quantity=item.approved_signed_quantity,
+            approved_signed_total=item.approved_signed_total,
             notes=item.notes,
             subsection=item.subsection
         )
@@ -123,6 +126,24 @@ async def update_boq_item(
             new_quantity = update_data.get('original_contract_quantity', db_item.original_contract_quantity)
             new_price = update_data.get('price', db_item.price)
             update_data['total_contract_sum'] = new_quantity * new_price
+        
+        # Recalculate approved signed total if approved_signed_quantity changed
+        if 'approved_signed_quantity' in update_data:
+            new_approved_quantity = update_data.get('approved_signed_quantity')
+            update_data['approved_signed_total'] = new_approved_quantity * db_item.price
+        
+        # Recalculate other totals if their base quantities changed
+        if 'estimated_quantity' in update_data:
+            update_data['total_estimate'] = update_data.get('estimated_quantity') * db_item.price
+        
+        if 'quantity_submitted' in update_data:
+            update_data['total_submitted'] = update_data.get('quantity_submitted') * db_item.price
+        
+        if 'internal_quantity' in update_data:
+            update_data['internal_total'] = update_data.get('internal_quantity') * db_item.price
+        
+        if 'approved_by_project_manager' in update_data:
+            update_data['total_approved_by_project_manager'] = update_data.get('approved_by_project_manager') * db_item.price
         
         for field, value in update_data.items():
             setattr(db_item, field, value)
@@ -211,6 +232,7 @@ async def create_bulk_boq_items(
             db_item = models.BOQItem(
                 serial_number=item.serial_number,
                 structure=item.structure,
+                system=item.system,
                 section_number=item.section_number,
                 description=item.description,
                 unit=item.unit,
@@ -225,6 +247,8 @@ async def create_bulk_boq_items(
                 total_submitted=item.total_submitted,
                 internal_total=item.internal_total,
                 total_approved_by_project_manager=item.total_approved_by_project_manager,
+                approved_signed_quantity=item.approved_signed_quantity,
+                approved_signed_total=item.approved_signed_total,
                 notes=item.notes,
                 subsection=item.subsection
             )
