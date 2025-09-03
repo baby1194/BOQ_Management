@@ -554,8 +554,8 @@ async def export_subsections_summary_excel(
             detail="Internal server error"
         )
 
-@router.post("/boq-items", response_model=schemas.PDFExportResponse)
-async def export_boq_items(
+@router.post("/boq-items/pdf", response_model=schemas.PDFExportResponse)
+async def export_boq_items_pdf(
     request: dict,
     db: Session = Depends(get_db)
 ):

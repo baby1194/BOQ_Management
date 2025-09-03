@@ -1,4 +1,4 @@
-from reportlab.lib.pagesizes import letter, A4, landscape
+from reportlab.lib.pagesizes import A3, letter, A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -52,7 +52,11 @@ class PDFService:
                     ]
                 ]
                 
-                table = Table(data)
+                # Calculate optimal column widths for concentration sheet summary
+                summary_headers = ['Sub-chapter', 'Items', 'Total Estimate', 'Total Submitted', 'Total PNIMI', 'Total Approved']
+                column_widths = self._calculate_column_widths(data, summary_headers, 'A4', 12, 12)
+                
+                table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -164,7 +168,11 @@ class PDFService:
                     'TOTALS'
                 ])
                 
-                entries_table = Table(entries_data)
+                # Calculate optimal column widths for concentration sheet entries
+                concentration_headers = ['Description', 'Unit', 'Contract Qty', 'Price', 'Contract Sum', 'Submitted Qty', 'Est. Qty', 'Submitted Sum', 'Est. Sum', 'Totals']
+                column_widths = self._calculate_column_widths(entries_data, concentration_headers, 'A4', 8, 8)
+                
+                entries_table = Table(entries_data, colWidths=column_widths)
                 entries_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -249,7 +257,10 @@ class PDFService:
                 f"${grand_totals['approved']:,.2f}"
             ])
             
-            table = Table(data)
+            # Calculate optimal column widths based on content
+            column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
+            
+            table = Table(data, colWidths=column_widths)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -337,7 +348,10 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                table = Table(data)
+                # Calculate optimal column widths based on content
+                column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
+                
+                table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -425,7 +439,10 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                table = Table(data)
+                # Calculate optimal column widths based on content
+                column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
+                
+                table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -513,7 +530,10 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                table = Table(data)
+                # Calculate optimal column widths based on content
+                column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
+                
+                table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -544,7 +564,7 @@ class PDFService:
             filename = f"boq_items_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A3))
             story = []
             styles = getSampleStyleSheet()
             
@@ -566,6 +586,7 @@ class PDFService:
                 
                 grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in headers}
                 
+                # First pass: collect all data and calculate totals
                 for item in items:
                     row_data = []
                     for key in headers:
@@ -597,7 +618,11 @@ class PDFService:
                 totals_row[0] = "GRAND TOTAL"
                 data.append(totals_row)
                 
-                table = Table(data)
+                # Calculate optimal column widths based on content
+                column_widths = self._calculate_column_widths(data, headers, 'A3', 8, 8)
+                
+                # Create table with calculated column widths
+                table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -619,4 +644,60 @@ class PDFService:
             
         except Exception as e:
             logger.error(f"Error generating BOQ items PDF: {str(e)}")
-            raise 
+            raise
+
+    def _calculate_column_widths(self, data, headers, page_size='A3', header_font_size=8, data_font_size=8):
+        """Calculate optimal column widths based on actual rendered content width"""
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+        
+        # Get page width based on page size (landscape orientation)
+        if page_size == 'A3':
+            page_width = 842  # A3 landscape width in points
+        else:  # A4
+            page_width = 595  # A4 landscape width in points
+            
+        margin = 36  # 0.5 inch margin on each side
+        available_width = page_width - (2 * margin)
+        
+        # Font settings for width calculation
+        header_font = 'Helvetica-Bold'
+        data_font = 'Helvetica'
+        
+        # Calculate maximum width needed for each column
+        column_max_widths = []
+        
+        for col_idx, header in enumerate(headers):
+            max_width = 0
+            
+            # Check header width with bold font
+            header_width = stringWidth(header, header_font, header_font_size)
+            max_width = max(max_width, header_width)
+            
+            # Check all data rows for this column
+            for row in data:
+                if col_idx < len(row):
+                    cell_value = str(row[col_idx]) if row[col_idx] is not None else ""
+                    cell_width = stringWidth(cell_value, data_font, data_font_size)
+                    max_width = max(max_width, cell_width)
+            
+            # Add padding (30% extra for better readability and cell spacing)
+            max_width = max_width * 1.3
+            
+            # Set minimum and maximum column widths based on page size
+            min_width = 60 if page_size == 'A4' else 75  # Minimum width for readability
+            max_width = min(max_width, 270 if page_size == 'A4' else 370)  # Maximum width
+            column_max_widths.append(max(min_width, max_width))
+        
+        # Calculate total width needed
+        total_width = sum(column_max_widths)
+        
+        # If total width exceeds available width, scale down proportionally
+        if total_width > available_width:
+            scale_factor = available_width / total_width
+            column_max_widths = [width * scale_factor for width in column_max_widths]
+        
+        # Ensure minimum width for each column (final check)
+        min_final_width = 50 if page_size == 'A4' else 65
+        column_max_widths = [max(min_final_width, width) for width in column_max_widths]
+        
+        return column_max_widths 

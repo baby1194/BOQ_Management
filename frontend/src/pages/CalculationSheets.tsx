@@ -20,6 +20,10 @@ const CalculationSheets: React.FC = () => {
   const [deletingEntry, setDeletingEntry] = useState<number | null>(null);
   const [populatingEntries, setPopulatingEntries] = useState(false);
   const [populatingAllEntries, setPopulatingAllEntries] = useState(false);
+  const [editingComment, setEditingComment] = useState(false);
+  const [commentValue, setCommentValue] = useState("");
+  const [updatingComment, setUpdatingComment] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   // Fetch all calculation sheets
   const fetchSheets = async () => {
@@ -57,14 +61,60 @@ const CalculationSheets: React.FC = () => {
   // Handle sheet selection
   const handleSheetSelect = (sheet: CalculationSheet) => {
     setSelectedSheet(sheet);
+    setCommentValue(sheet.comment || "");
+    setEditingComment(false);
     fetchEntries(sheet.id);
+  };
+
+  // Handle comment update
+  const handleCommentUpdate = async () => {
+    if (!selectedSheet) return;
+
+    try {
+      setUpdatingComment(true);
+      const updatedSheet = await calculationSheetsApi.updateComment(
+        selectedSheet.id,
+        commentValue
+      );
+
+      // Update the selected sheet with the new comment
+      setSelectedSheet(updatedSheet);
+
+      // Update the sheet in the sheets list
+      setSheets((prev) =>
+        prev.map((sheet) =>
+          sheet.id === selectedSheet.id
+            ? { ...sheet, comment: updatedSheet.comment }
+            : sheet
+        )
+      );
+
+      setEditingComment(false);
+      setError(null);
+    } catch (err) {
+      console.error("Error updating comment:", err);
+      setError("Failed to update comment");
+    } finally {
+      setUpdatingComment(false);
+    }
+  };
+
+  // Handle comment edit start
+  const handleCommentEditStart = () => {
+    setEditingComment(true);
+  };
+
+  // Handle comment edit cancel
+  const handleCommentEditCancel = () => {
+    setCommentValue(selectedSheet?.comment || "");
+    setEditingComment(false);
   };
 
   // Delete calculation sheet
   const handleDeleteSheet = async (sheetId: number) => {
     if (
       !confirm(
-        "Are you sure you want to delete this calculation sheet? This action cannot be undone."
+        "Are you sure you want to delete this calculation sheet? This will also delete related concentration entries and update BOQ items. This action cannot be undone."
       )
     ) {
       return;
@@ -72,13 +122,22 @@ const CalculationSheets: React.FC = () => {
 
     try {
       setDeletingSheet(true);
-      await calculationSheetsApi.delete(sheetId);
+      const response = await calculationSheetsApi.delete(sheetId);
 
       setSheets((prev) => prev.filter((sheet) => sheet.id !== sheetId));
       if (selectedSheet?.id === sheetId) {
         setSelectedSheet(null);
         setEntries([]);
       }
+
+      // Show synchronization message if available
+      if (response.sync_result && response.sync_result.success) {
+        const syncMsg = `Synchronized: ${response.sync_result.entries_deleted} concentration entries deleted, ${response.sync_result.boq_items_updated} BOQ items updated`;
+        setError(null);
+        // You could show a success message here instead of error
+        console.log("Sync result:", syncMsg);
+      }
+
       setError(null);
     } catch (err) {
       console.error("Error deleting calculation sheet:", err);
@@ -90,15 +149,26 @@ const CalculationSheets: React.FC = () => {
 
   // Delete entry
   const handleDeleteEntry = async (entryId: number) => {
-    if (!confirm("Are you sure you want to delete this entry?")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this entry? This will also delete related concentration entries and update BOQ items."
+      )
+    ) {
       return;
     }
 
     try {
       setDeletingEntry(entryId);
-      await calculationSheetsApi.deleteEntry(entryId);
+      const response = await calculationSheetsApi.deleteEntry(entryId);
 
       setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+
+      // Show synchronization message if available
+      if (response.sync_result && response.sync_result.success) {
+        const syncMsg = `Synchronized: ${response.sync_result.entries_deleted} concentration entries deleted, ${response.sync_result.boq_items_updated} BOQ items updated`;
+        console.log("Sync result:", syncMsg);
+      }
+
       setError(null);
     } catch (err) {
       console.error("Error deleting entry:", err);
@@ -217,6 +287,44 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
+  // Sync all calculation sheets with concentration sheets and BOQ items
+  const handleSyncAll = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to synchronize all calculation sheets? This will update concentration entries and BOQ items to match calculation sheet data."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setSyncingAll(true);
+      setError(null);
+      const response = await calculationSheetsApi.syncAll();
+
+      if (response.success) {
+        setError(null);
+        alert(
+          `✅ ${response.message}\n\nSheets Processed: ${response.details.sheets_processed}\nEntries Updated: ${response.details.entries_updated}\nBOQ Items Updated: ${response.details.boq_items_updated}`
+        );
+        // Refresh data to show updated values
+        await fetchSheets();
+        if (selectedSheet) {
+          await fetchEntries(selectedSheet.id);
+        }
+      } else {
+        setError(
+          response.message || "Failed to synchronize calculation sheets"
+        );
+      }
+    } catch (err) {
+      console.error("Error syncing all calculation sheets:", err);
+      setError("Failed to synchronize calculation sheets");
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
   // Filter sheets based on search and filters
   const filteredSheets = sheets.filter((sheet) => {
     const matchesSearch =
@@ -307,6 +415,32 @@ const CalculationSheets: React.FC = () => {
             <p className="text-xs text-gray-500 text-center mt-2 max-w-xs mx-auto">
               Processes all calculation sheets at once. May take time for large
               datasets.
+            </p>
+          </div>
+
+          {/* Sync All Button */}
+          <div className="mb-4">
+            <button
+              onClick={handleSyncAll}
+              disabled={syncingAll || sheets.length === 0}
+              className="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              title="Synchronize all calculation sheets with concentration sheets and BOQ items"
+            >
+              {syncingAll ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Syncing All...</span>
+                </>
+              ) : (
+                <>
+                  <span>🔄</span>
+                  <span>Sync All Sheets</span>
+                </>
+              )}
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-2 max-w-xs mx-auto">
+              Updates concentration entries and BOQ items to match calculation
+              sheet data.
             </p>
           </div>
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
@@ -474,6 +608,60 @@ const CalculationSheets: React.FC = () => {
                         ).toLocaleDateString()}
                       </p>
                     </div>
+                  </div>
+
+                  {/* Comment Field */}
+                  <div className="mt-4">
+                    <label className="block text-gray-600 font-medium mb-2">
+                      Comment:
+                    </label>
+                    {editingComment ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={commentValue}
+                          onChange={(e) => setCommentValue(e.target.value)}
+                          placeholder="Enter your comment here..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          rows={3}
+                        />
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={handleCommentUpdate}
+                            disabled={updatingComment}
+                            className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          >
+                            {updatingComment ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            onClick={handleCommentEditCancel}
+                            disabled={updatingComment}
+                            className="bg-gray-300 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start space-x-2">
+                        <div className="flex-1">
+                          {selectedSheet.comment ? (
+                            <p className="text-gray-900 bg-gray-50 p-3 rounded-md border">
+                              {selectedSheet.comment}
+                            </p>
+                          ) : (
+                            <p className="text-gray-500 italic bg-gray-50 p-3 rounded-md border">
+                              No comment added yet. Click edit to add a comment.
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={handleCommentEditStart}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

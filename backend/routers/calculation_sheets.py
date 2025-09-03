@@ -5,6 +5,7 @@ import logging
 from database.database import get_db
 from models import models
 from schemas import schemas
+from services.sync_service import SyncService
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ async def get_calculation_sheet_with_entries(
         calculation_sheet_no=sheet.calculation_sheet_no,
         drawing_no=sheet.drawing_no,
         description=sheet.description,
+        comment=sheet.comment,
         import_date=sheet.import_date,
         created_at=sheet.created_at,
         updated_at=sheet.updated_at,
@@ -69,22 +71,64 @@ async def get_calculation_sheet_with_entries(
     
     return response
 
-@router.delete("/{sheet_id}")
-async def delete_calculation_sheet(
+@router.put("/{sheet_id}/comment", response_model=schemas.CalculationSheet)
+async def update_calculation_sheet_comment(
     sheet_id: int,
+    comment_update: schemas.CalculationSheetUpdate,
     db: Session = Depends(get_db)
 ):
     """
-    Delete a calculation sheet and all its entries
+    Update the comment field of a calculation sheet
     """
     sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
     if not sheet:
         raise HTTPException(status_code=404, detail="Calculation sheet not found")
     
     try:
+        # Update only the comment field
+        sheet.comment = comment_update.comment
+        db.commit()
+        db.refresh(sheet)
+        return sheet
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating calculation sheet comment: {str(e)}")
+
+@router.delete("/{sheet_id}")
+async def delete_calculation_sheet(
+    sheet_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a calculation sheet and all its entries, with automatic synchronization
+    """
+    sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Calculation sheet not found")
+    
+    try:
+        # Initialize sync service
+        sync_service = SyncService(db)
+        
+        # Sync the deletion (this will handle concentration entries and BOQ items)
+        sync_result = sync_service.sync_calculation_sheet_deletion(sheet_id)
+        
+        if not sync_result["success"]:
+            logger.warning(f"Sync failed during calculation sheet deletion: {sync_result['message']}")
+        
+        # Delete the calculation sheet
         db.delete(sheet)
         db.commit()
-        return {"message": "Calculation sheet deleted successfully"}
+        
+        # Prepare response message
+        message = "Calculation sheet deleted successfully"
+        if sync_result["success"]:
+            message += f". Synchronized: {sync_result['entries_deleted']} concentration entries deleted, {sync_result['boq_items_updated']} BOQ items updated"
+        
+        return {
+            "message": message,
+            "sync_result": sync_result
+        }
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting calculation sheet: {str(e)}")
@@ -95,19 +139,101 @@ async def delete_calculation_entry(
     db: Session = Depends(get_db)
 ):
     """
-    Delete a specific calculation entry
+    Delete a specific calculation entry with automatic synchronization
     """
     entry = db.query(models.CalculationEntry).filter(models.CalculationEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Calculation entry not found")
     
     try:
+        # Initialize sync service
+        sync_service = SyncService(db)
+        
+        # Sync the deletion (this will handle concentration entries and BOQ items)
+        sync_result = sync_service.sync_calculation_entry_deletion(entry_id)
+        
+        if not sync_result["success"]:
+            logger.warning(f"Sync failed during calculation entry deletion: {sync_result['message']}")
+        
+        # Delete the calculation entry
         db.delete(entry)
         db.commit()
-        return {"message": "Calculation entry deleted successfully"}
+        
+        # Prepare response message
+        message = "Calculation entry deleted successfully"
+        if sync_result["success"]:
+            message += f". Synchronized: {sync_result['entries_deleted']} concentration entries deleted, {sync_result['boq_items_updated']} BOQ items updated"
+        
+        return {
+            "message": message,
+            "sync_result": sync_result
+        }
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting calculation entry: {str(e)}")
+
+@router.put("/entries/{entry_id}", response_model=schemas.CalculationEntry)
+async def update_calculation_entry(
+    entry_id: int,
+    entry_update: schemas.CalculationEntryUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update a calculation entry with automatic synchronization
+    """
+    entry = db.query(models.CalculationEntry).filter(models.CalculationEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Calculation entry not found")
+    
+    try:
+        # Update fields if provided
+        update_data = entry_update.dict(exclude_unset=True)
+        
+        for field, value in update_data.items():
+            setattr(entry, field, value)
+        
+        db.commit()
+        db.refresh(entry)
+        
+        # Initialize sync service and sync the update
+        sync_service = SyncService(db)
+        sync_result = sync_service.sync_calculation_entry_update(entry_id)
+        
+        if not sync_result["success"]:
+            logger.warning(f"Sync failed during calculation entry update: {sync_result['message']}")
+        
+        logger.info(f"Updated calculation entry {entry_id} and synced changes")
+        return entry
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating calculation entry: {str(e)}")
+
+@router.post("/sync-all", response_model=dict)
+async def sync_all_calculation_sheets(db: Session = Depends(get_db)):
+    """
+    Synchronize all calculation sheets with concentration sheets and BOQ items
+    """
+    try:
+        sync_service = SyncService(db)
+        result = sync_service.sync_all_calculation_sheets()
+        
+        if result["success"]:
+            return {
+                "success": True,
+                "message": result["message"],
+                "details": {
+                    "sheets_processed": result["sheets_processed"],
+                    "entries_updated": result["entries_updated"],
+                    "boq_items_updated": result["boq_items_updated"]
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result["message"])
+            
+    except Exception as e:
+        logger.error(f"Error in sync all operation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error synchronizing all calculation sheets: {str(e)}")
 
 @router.post("/{sheet_id}/populate-concentration-entries", response_model=schemas.PopulateConcentrationEntriesResponse)
 async def populate_concentration_entries(

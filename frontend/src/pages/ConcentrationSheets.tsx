@@ -7,6 +7,7 @@ import {
   BOQItemWithLatestContractUpdate,
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
+import { Search, X } from "lucide-react";
 
 interface ConcentrationSheetWithBOQ extends ConcentrationSheet {
   boq_item: BOQItemWithLatestContractUpdate;
@@ -33,6 +34,7 @@ const ConcentrationSheets: React.FC = () => {
   const [exportingExcel, setExportingExcel] = useState(false);
   const [showNavigationMessage, setShowNavigationMessage] = useState(false);
   const [navigatedFromBOQ, setNavigatedFromBOQ] = useState(false);
+  const [sectionNumberFilter, setSectionNumberFilter] = useState("");
 
   // Project info state - will be loaded from selected sheet
   const [projectInfo, setProjectInfo] = useState({
@@ -114,7 +116,7 @@ const ConcentrationSheets: React.FC = () => {
 
   // Select all sheets
   const handleSelectAll = () => {
-    setSelectedSheets(new Set(sheets.map((sheet) => sheet.id)));
+    setSelectedSheets(new Set(filteredSheets.map((sheet) => sheet.id)));
   };
 
   // Deselect all sheets
@@ -416,6 +418,14 @@ const ConcentrationSheets: React.FC = () => {
     setShowAddForm(false);
   };
 
+  // Filter sheets based on section number
+  const filteredSheets = sheets.filter((sheet) => {
+    if (!sectionNumberFilter) return true;
+    return sheet.boq_item.section_number
+      .toLowerCase()
+      .includes(sectionNumberFilter.toLowerCase());
+  });
+
   useEffect(() => {
     fetchSheets();
   }, []);
@@ -541,6 +551,11 @@ const ConcentrationSheets: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900">BOQ Items</h2>
               <p className="text-sm text-gray-600">
                 Select an item to view its concentration sheet
+                {sectionNumberFilter && (
+                  <span className="ml-2 text-blue-600">
+                    ({filteredSheets.length} of {sheets.length} shown)
+                  </span>
+                )}
               </p>
 
               {navigatedFromBOQ && selectedSheet && (
@@ -559,15 +574,50 @@ const ConcentrationSheets: React.FC = () => {
                   </div>
                 </div>
               )}
-              {/* Section number search removed - no longer needed */}
+
+              {/* Section Number Filter */}
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Filter by Section Number:
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={sectionNumberFilter}
+                    onChange={(e) => setSectionNumberFilter(e.target.value)}
+                    placeholder="Enter section number..."
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  {sectionNumberFilter && (
+                    <button
+                      onClick={() => setSectionNumberFilter("")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {sectionNumberFilter && (
+                  <button
+                    onClick={() => setSectionNumberFilter("")}
+                    className="mt-1 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear filter
+                  </button>
+                )}
+              </div>
               {/* Selection Controls */}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   onClick={handleSelectAll}
-                  disabled={sheets.length === 0}
+                  disabled={filteredSheets.length === 0}
                   className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Select All
+                  Select All ({filteredSheets.length})
                 </button>
                 <button
                   onClick={handleDeselectAll}
@@ -592,16 +642,36 @@ const ConcentrationSheets: React.FC = () => {
               className="flex-1 overflow-y-scroll"
               style={{ minHeight: 0, maxHeight: "calc(100vh - 250px)" }}
             >
-              {sheets.length === 0 ? (
+              {filteredSheets.length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
-                  <p>No concentration sheets found</p>
-                  <p className="text-sm mt-1">
-                    Create concentration sheets from the BOQ Items page
-                  </p>
+                  {sectionNumberFilter ? (
+                    <>
+                      <p>
+                        No concentration sheets found matching "
+                        {sectionNumberFilter}"
+                      </p>
+                      <p className="text-sm mt-1">
+                        Try adjusting your filter or{" "}
+                        <button
+                          onClick={() => setSectionNumberFilter("")}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          clear the filter
+                        </button>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>No concentration sheets found</p>
+                      <p className="text-sm mt-1">
+                        Create concentration sheets from the BOQ Items page
+                      </p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
-                  {sheets.map((sheet) => (
+                  {filteredSheets.map((sheet) => (
                     <div
                       key={sheet.id}
                       id={`sheet-${sheet.id}`}
@@ -854,6 +924,7 @@ const ConcentrationSheets: React.FC = () => {
                       </h4>
                       <EntryForm
                         entry={editingEntry}
+                        boqItem={selectedSheet.boq_item}
                         onSave={
                           editingEntry
                             ? (data) => updateEntry(editingEntry.id, data)
@@ -1061,6 +1132,7 @@ const ConcentrationSheets: React.FC = () => {
 // Entry Form Component
 interface EntryFormProps {
   entry?: ConcentrationEntry | null;
+  boqItem?: BOQItemWithLatestContractUpdate;
   onSave: (
     data: Omit<
       ConcentrationEntry,
@@ -1073,12 +1145,13 @@ interface EntryFormProps {
 
 const EntryForm: React.FC<EntryFormProps> = ({
   entry,
+  boqItem,
   onSave,
   onCancel,
   saving,
 }) => {
   const [formData, setFormData] = useState({
-    section_number: entry?.section_number || "N/A", // Hidden field for compatibility
+    section_number: entry?.section_number || boqItem?.section_number || "",
     description: entry?.description || "",
     calculation_sheet_no: entry?.calculation_sheet_no || "",
     drawing_no: entry?.drawing_no || "",

@@ -156,6 +156,11 @@ export const calculationSheetsApi = {
   delete: (id: number) =>
     api.delete(`/calculation-sheets/${id}`).then((res) => res.data),
 
+  updateComment: (id: number, comment: string) =>
+    api
+      .put<CalculationSheet>(`/calculation-sheets/${id}/comment`, { comment })
+      .then((res) => res.data),
+
   // Entries
   getEntries: (sheetId: number) =>
     api
@@ -165,6 +170,14 @@ export const calculationSheetsApi = {
   deleteEntry: (entryId: number) =>
     api
       .delete(`/calculation-sheets/entries/${entryId}`)
+      .then((res) => res.data),
+
+  updateEntry: (entryId: number, entryData: any) =>
+    api
+      .put<CalculationEntry>(
+        `/calculation-sheets/entries/${entryId}`,
+        entryData
+      )
       .then((res) => res.data),
 
   populateConcentrationEntries: (sheetId: number) =>
@@ -177,6 +190,13 @@ export const calculationSheetsApi = {
     api
       .post<PopulateConcentrationEntriesResponse>(
         `/calculation-sheets/populate-all`
+      )
+      .then((res) => res.data),
+
+  syncAll: () =>
+    api
+      .post<{ success: boolean; message: string; details: any }>(
+        `/calculation-sheets/sync-all`
       )
       .then((res) => res.data),
 };
@@ -349,6 +369,14 @@ export const exportApi = {
   exportBOQItemsExcel: (request: any, data?: any[]) =>
     api
       .post<PDFExportResponse>("/export/boq-items/excel", {
+        ...request,
+        data,
+      })
+      .then((res) => res.data),
+
+  exportBOQItemsPDF: (request: any, data?: any[]) =>
+    api
+      .post<PDFExportResponse>("/export/boq-items/pdf", {
         ...request,
         data,
       })

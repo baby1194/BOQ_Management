@@ -17,6 +17,7 @@ import {
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
 import BOQExportModal from "../components/BOQExportModal";
+import FilterDropdown from "../components/FilterDropdown";
 
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
@@ -81,6 +82,105 @@ const BOQItems: React.FC = () => {
     // Contract update filters - will be populated dynamically
     contract_updates: {} as Record<number, { quantity: string; sum: string }>,
   });
+
+  // Dropdown filter states for Structure, System, and Unit columns
+  const [dropdownFilters, setDropdownFilters] = useState({
+    structure: [] as string[],
+    system: [] as string[],
+    unit: [] as string[],
+  });
+
+  // Dropdown open/close states
+  const [dropdownOpen, setDropdownOpen] = useState({
+    structure: false,
+    system: false,
+    unit: false,
+  });
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState({
+    serial_number: true,
+    structure: true,
+    system: true,
+    section_number: true,
+    description: true,
+    unit: true,
+    original_contract_quantity: true,
+    price: true,
+    total_contract_sum: true,
+    estimated_quantity: true,
+    quantity_submitted: true,
+    internal_quantity: true,
+    approved_by_project_manager: true,
+    approved_signed_quantity: true,
+    total_estimate: true,
+    total_submitted: true,
+    internal_total: true,
+    total_approved_by_project_manager: true,
+    approved_signed_total: true,
+    subsection: true,
+    notes: true,
+    actions: true,
+  });
+
+  // Column visibility settings modal state
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+
+  // Load column visibility preferences from localStorage
+  useEffect(() => {
+    const savedVisibility = localStorage.getItem("boq-column-visibility");
+    if (savedVisibility) {
+      try {
+        const parsed = JSON.parse(savedVisibility);
+        setColumnVisibility((prev) => ({ ...prev, ...parsed }));
+      } catch (error) {
+        console.error("Error loading column visibility preferences:", error);
+      }
+    }
+  }, []);
+
+  // Save column visibility preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      "boq-column-visibility",
+      JSON.stringify(columnVisibility)
+    );
+  }, [columnVisibility]);
+
+  // Column visibility functions
+  const toggleColumnVisibility = (columnKey: keyof typeof columnVisibility) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnKey]: !prev[columnKey],
+    }));
+  };
+
+  const resetColumnVisibility = () => {
+    setColumnVisibility({
+      serial_number: true,
+      structure: true,
+      system: true,
+      section_number: true,
+      description: true,
+      unit: true,
+      original_contract_quantity: true,
+      price: true,
+      total_contract_sum: true,
+      estimated_quantity: true,
+      quantity_submitted: true,
+      internal_quantity: true,
+      approved_by_project_manager: true,
+      approved_signed_quantity: true,
+      total_estimate: true,
+      total_submitted: true,
+      internal_total: true,
+      total_approved_by_project_manager: true,
+      approved_signed_total: true,
+      subsection: true,
+      notes: true,
+      actions: true,
+    });
+  };
 
   const [allItems, setAllItems] = useState<BOQItem[]>([]);
 
@@ -304,10 +404,20 @@ const BOQItems: React.FC = () => {
           .includes(filters.serial_number.toLowerCase());
 
       const matchesStructure =
-        !filters.structure ||
-        (item.structure?.toString() || "")
-          .toLowerCase()
-          .includes(filters.structure.toLowerCase());
+        (!filters.structure ||
+          (item.structure?.toString() || "")
+            .toLowerCase()
+            .includes(filters.structure.toLowerCase())) &&
+        (dropdownFilters.structure.length === 0 ||
+          dropdownFilters.structure.includes(item.structure?.toString() || ""));
+
+      const matchesSystem =
+        (!filters.system ||
+          (item.system?.toString() || "")
+            .toLowerCase()
+            .includes(filters.system.toLowerCase())) &&
+        (dropdownFilters.system.length === 0 ||
+          dropdownFilters.system.includes(item.system?.toString() || ""));
 
       const matchesSectionNumber =
         !filters.section_number ||
@@ -322,8 +432,10 @@ const BOQItems: React.FC = () => {
           .includes(filters.description.toLowerCase());
 
       const matchesUnit =
-        !filters.unit ||
-        item.unit.toLowerCase().includes(filters.unit.toLowerCase());
+        (!filters.unit ||
+          item.unit.toLowerCase().includes(filters.unit.toLowerCase())) &&
+        (dropdownFilters.unit.length === 0 ||
+          dropdownFilters.unit.includes(item.unit));
 
       const matchesSubsection =
         !filters.subsection ||
@@ -473,6 +585,7 @@ const BOQItems: React.FC = () => {
       return (
         matchesSerialNumber &&
         matchesStructure &&
+        matchesSystem &&
         matchesSectionNumber &&
         matchesDescription &&
         matchesUnit &&
@@ -511,7 +624,7 @@ const BOQItems: React.FC = () => {
     // });
 
     return filtered;
-  }, [allItems, filters, boqItemUpdates, contractUpdates]);
+  }, [allItems, filters, dropdownFilters, boqItemUpdates, contractUpdates]);
 
   // Count active filters
   const activeFiltersCount = useMemo(() => {
@@ -542,8 +655,70 @@ const BOQItems: React.FC = () => {
       }
     });
 
+    // Count dropdown filters
+    Object.values(dropdownFilters).forEach((selectedValues) => {
+      if (selectedValues.length > 0) count++;
+    });
+
     return count;
-  }, [filters]);
+  }, [filters, dropdownFilters]);
+
+  // Get unique values for dropdown filters
+  const uniqueValues = useMemo(() => {
+    const structureValues = [
+      ...new Set(
+        allItems.map((item) => item.structure?.toString() || "").filter(Boolean)
+      ),
+    ].sort();
+    const systemValues = [
+      ...new Set(
+        allItems.map((item) => item.system?.toString() || "").filter(Boolean)
+      ),
+    ].sort();
+    const unitValues = [
+      ...new Set(allItems.map((item) => item.unit || "").filter(Boolean)),
+    ].sort();
+
+    return {
+      structure: structureValues,
+      system: systemValues,
+      unit: unitValues,
+    };
+  }, [allItems]);
+
+  // Dropdown filter handlers
+  const handleDropdownFilterChange = (
+    column: "structure" | "system" | "unit",
+    selectedValues: string[]
+  ) => {
+    setDropdownFilters((prev) => ({
+      ...prev,
+      [column]: selectedValues,
+    }));
+  };
+
+  const handleClearDropdownFilter = (
+    column: "structure" | "system" | "unit"
+  ) => {
+    setDropdownFilters((prev) => ({
+      ...prev,
+      [column]: [],
+    }));
+  };
+
+  const handleToggleDropdown = (column: "structure" | "system" | "unit") => {
+    setDropdownOpen((prev) => ({
+      ...prev,
+      [column]: !prev[column],
+    }));
+  };
+
+  const handleCloseDropdown = (column: "structure" | "system" | "unit") => {
+    setDropdownOpen((prev) => ({
+      ...prev,
+      [column]: false,
+    }));
+  };
 
   // Helper function to get contract update values for a BOQ item
   const getContractUpdateValue = (
@@ -599,23 +774,11 @@ const BOQItems: React.FC = () => {
   };
 
   // Start editing an item
+  // We start with empty editingValues so that users can clear fields completely
+  // and type new values from scratch without interference from original values
   const startEditing = (item: BOQItem) => {
     setEditingId(item.id);
-    setEditingValues({
-      serial_number: item.serial_number,
-      structure: item.structure,
-      system: item.system,
-      description: item.description,
-      original_contract_quantity: item.original_contract_quantity,
-      price: item.price,
-      estimated_quantity: item.estimated_quantity,
-      quantity_submitted: item.quantity_submitted,
-      internal_quantity: item.internal_quantity,
-      approved_by_project_manager: item.approved_by_project_manager,
-      approved_signed_quantity: item.approved_signed_quantity,
-      subsection: item.subsection,
-      notes: item.notes,
-    });
+    setEditingValues({});
   };
 
   // Cancel editing
@@ -806,7 +969,7 @@ const BOQItems: React.FC = () => {
   };
 
   // Export functions
-  const handleExport = async (request: any) => {
+  const handleExport = async (request: any, format: "excel" | "pdf") => {
     try {
       setExporting(true);
       setError(null);
@@ -859,10 +1022,11 @@ const BOQItems: React.FC = () => {
         return filteredItem;
       });
 
-      const response = await exportApi.exportBOQItemsExcel(
-        request,
-        filteredData
-      );
+      // Choose the appropriate export function based on format
+      const response =
+        format === "excel"
+          ? await exportApi.exportBOQItemsExcel(request, filteredData)
+          : await exportApi.exportBOQItemsPDF(request, filteredData);
 
       if (response.success && response.pdf_path) {
         // Create download link
@@ -871,20 +1035,26 @@ const BOQItems: React.FC = () => {
           ? `/api${response.pdf_path}`
           : `/api/${response.pdf_path}`;
         link.href = downloadUrl;
-        const filename = response.pdf_path.split("/").pop() || "boq_items.xlsx";
+        const fileExtension = format === "excel" ? "xlsx" : "pdf";
+        const filename =
+          response.pdf_path.split("/").pop() || `boq_items.${fileExtension}`;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
         // Show success message
-        setProjectInfoSuccess("Successfully exported BOQ items as Excel");
+        const formatName = format === "excel" ? "Excel" : "PDF";
+        setProjectInfoSuccess(
+          `Successfully exported BOQ items as ${formatName}`
+        );
         setTimeout(() => setProjectInfoSuccess(null), 5000);
         setShowExportModal(false);
       }
     } catch (err) {
-      console.error("Error exporting BOQ items as Excel:", err);
-      setError("Failed to export as Excel");
+      const formatName = format === "excel" ? "Excel" : "PDF";
+      console.error(`Error exporting BOQ items as ${format}:`, err);
+      setError(`Failed to export as ${formatName}`);
     } finally {
       setExporting(false);
     }
@@ -1326,6 +1496,12 @@ const BOQItems: React.FC = () => {
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Create Concentration Sheets
+            </button>
+            <button
+              onClick={() => setShowColumnSettings(true)}
+              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              ⚙️ Column Settings
             </button>
             <button
               onClick={() => setShowExportModal(true)}
@@ -2068,210 +2244,302 @@ const BOQItems: React.FC = () => {
         <div className="overflow-auto max-h-[70vh]">
           <table className="min-w-full border border-gray-300">
             {/* Frozen Header */}
-            <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+            <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm border-t-2">
               {/* Column Headers Row */}
-              <tr className="border-b border-gray-300">
-                <th
-                  colSpan={25 + contractUpdates.length * 2}
-                  className="px-3 py-2 text-center text-xs text-gray-600 bg-gray-100 border-b border-gray-300"
-                >
-                  {activeFiltersCount > 0 ? (
-                    <span className="text-green-600">
-                      🔍 {activeFiltersCount} active filter(s)
-                    </span>
-                  ) : (
-                    "📌 Frozen Header - Column names and filters stay visible while scrolling vertically | 🎨 Color-coded columns: 🔴 EST (red), 🔵 Submitted (blue), 🟡 Internal (yellow), 🟢 Approved (green), 🟢🟢 Approved Signed (dark green)"
-                  )}
-                </th>
-              </tr>
               <tr className="border-b border-gray-300 bg-gray-50">
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
-                  Serial
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
-                  Structure
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
-                  System
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
-                  Code
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[200px]">
-                  Description
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
-                  Unit
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
-                  Contract Qty
-                </th>
+                {columnVisibility.serial_number && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
+                    Serial
+                  </th>
+                )}
+                {columnVisibility.structure && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
+                    <div className="flex items-center justify-between">
+                      <span>Structure</span>
+                      <FilterDropdown
+                        columnName="Structure"
+                        values={uniqueValues.structure}
+                        selectedValues={dropdownFilters.structure}
+                        onSelectionChange={(values) =>
+                          handleDropdownFilterChange("structure", values)
+                        }
+                        onClearFilter={() =>
+                          handleClearDropdownFilter("structure")
+                        }
+                        isOpen={dropdownOpen.structure}
+                        onToggle={() => handleToggleDropdown("structure")}
+                        onClose={() => handleCloseDropdown("structure")}
+                      />
+                    </div>
+                  </th>
+                )}
+                {columnVisibility.system && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
+                    <div className="flex items-center justify-between">
+                      <span>System</span>
+                      <FilterDropdown
+                        columnName="System"
+                        values={uniqueValues.system}
+                        selectedValues={dropdownFilters.system}
+                        onSelectionChange={(values) =>
+                          handleDropdownFilterChange("system", values)
+                        }
+                        onClearFilter={() =>
+                          handleClearDropdownFilter("system")
+                        }
+                        isOpen={dropdownOpen.system}
+                        onToggle={() => handleToggleDropdown("system")}
+                        onClose={() => handleCloseDropdown("system")}
+                      />
+                    </div>
+                  </th>
+                )}
+                {columnVisibility.section_number && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
+                    Code
+                  </th>
+                )}
+                {columnVisibility.description && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[200px]">
+                    Description
+                  </th>
+                )}
+                {columnVisibility.unit && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
+                    <div className="flex items-center justify-between">
+                      <span>Unit</span>
+                      <FilterDropdown
+                        columnName="Unit"
+                        values={uniqueValues.unit}
+                        selectedValues={dropdownFilters.unit}
+                        onSelectionChange={(values) =>
+                          handleDropdownFilterChange("unit", values)
+                        }
+                        onClearFilter={() => handleClearDropdownFilter("unit")}
+                        isOpen={dropdownOpen.unit}
+                        onToggle={() => handleToggleDropdown("unit")}
+                        onClose={() => handleCloseDropdown("unit")}
+                      />
+                    </div>
+                  </th>
+                )}
+                {columnVisibility.original_contract_quantity && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
+                    Contract Qty
+                  </th>
+                )}
                 {/* Dynamic Contract Update Columns */}
                 {contractUpdates.map((update) => (
                   <th
                     key={update.id}
-                    className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
+                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
                   >
                     {update.update_name}
                   </th>
                 ))}
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
-                  Price
-                </th>
+                {columnVisibility.price && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
+                    Price
+                  </th>
+                )}
                 {/* Dynamic Contract Sum Columns */}
                 {contractUpdates.map((update) => (
                   <th
                     key={update.id}
-                    className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
+                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
                   >
                     {update.update_name.replace("Qty", "Sum")}
                   </th>
                 ))}
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
-                  Contract Sum
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-red-100">
-                  Est. Qty
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-blue-100">
-                  Submitted Qty
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-yellow-100">
-                  Internal Qty
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-100">
-                  Approved Qty
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
-                  Approved Signed Qty
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-red-100">
-                  Total Est.
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-blue-100">
-                  Total Submitted
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-yellow-100">
-                  Internal Total
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-100">
-                  Total Approved
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
-                  Approved Signed Total
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
-                  Subchapter
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
-                  Notes
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                  Actions
-                </th>
+                {columnVisibility.total_contract_sum && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
+                    Contract Sum
+                  </th>
+                )}
+                {columnVisibility.estimated_quantity && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-red-100">
+                    Est. Qty
+                  </th>
+                )}
+                {columnVisibility.quantity_submitted && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-blue-100">
+                    Submitted Qty
+                  </th>
+                )}
+                {columnVisibility.internal_quantity && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-yellow-100">
+                    Internal Qty
+                  </th>
+                )}
+                {columnVisibility.approved_by_project_manager && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-100">
+                    Approved Qty
+                  </th>
+                )}
+                {columnVisibility.approved_signed_quantity && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
+                    Approved Signed Qty
+                  </th>
+                )}
+                {columnVisibility.total_estimate && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-red-100">
+                    Total Est.
+                  </th>
+                )}
+                {columnVisibility.total_submitted && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-blue-100">
+                    Total Submitted
+                  </th>
+                )}
+                {columnVisibility.internal_total && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-yellow-100">
+                    Internal Total
+                  </th>
+                )}
+                {columnVisibility.total_approved_by_project_manager && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-100">
+                    Total Approved
+                  </th>
+                )}
+                {columnVisibility.approved_signed_total && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
+                    Approved Signed Total
+                  </th>
+                )}
+                {columnVisibility.subsection && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
+                    Subchapter
+                  </th>
+                )}
+                {columnVisibility.notes && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
+                    Notes
+                  </th>
+                )}
+                {columnVisibility.actions && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
+                    Actions
+                  </th>
+                )}
               </tr>
 
               {/* Filter Inputs Row */}
               <tr className="border-b border-gray-300 bg-gray-100">
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.serial_number}
-                    onChange={(e) =>
-                      handleFilterChange("serial_number", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "serial_number"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.structure}
-                    onChange={(e) =>
-                      handleFilterChange("structure", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "structure"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.system}
-                    onChange={(e) =>
-                      handleFilterChange("system", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "system"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.section_number}
-                    onChange={(e) =>
-                      handleFilterChange("section_number", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "section_number"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.description}
-                    onChange={(e) =>
-                      handleFilterChange("description", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "description"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.unit}
-                    onChange={(e) => handleFilterChange("unit", e.target.value)}
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "unit"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.original_contract_quantity}
-                    onChange={(e) =>
-                      handleFilterChange(
-                        "original_contract_quantity",
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "original_contract_quantity"
-                    )}`}
-                  />
-                </th>
+                {columnVisibility.serial_number && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.serial_number}
+                      onChange={(e) =>
+                        handleFilterChange("serial_number", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "serial_number"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.structure && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.structure}
+                      onChange={(e) =>
+                        handleFilterChange("structure", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "structure"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.system && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.system}
+                      onChange={(e) =>
+                        handleFilterChange("system", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "system"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.section_number && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.section_number}
+                      onChange={(e) =>
+                        handleFilterChange("section_number", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "section_number"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.description && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.description}
+                      onChange={(e) =>
+                        handleFilterChange("description", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "description"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.unit && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.unit}
+                      onChange={(e) =>
+                        handleFilterChange("unit", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "unit"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.original_contract_quantity && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.original_contract_quantity}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "original_contract_quantity",
+                          e.target.value
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "original_contract_quantity"
+                      )}`}
+                    />
+                  </th>
+                )}
                 {/* Dynamic Contract Update Filter Columns */}
                 {contractUpdates.map((update) => (
                   <th
@@ -2302,20 +2570,22 @@ const BOQItems: React.FC = () => {
                     />
                   </th>
                 ))}
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.price}
-                    onChange={(e) =>
-                      handleFilterChange("price", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "price"
-                    )}`}
-                  />
-                </th>
+                {columnVisibility.price && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.price}
+                      onChange={(e) =>
+                        handleFilterChange("price", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "price"
+                      )}`}
+                    />
+                  </th>
+                )}
                 {/* Dynamic Contract Sum Filter Columns */}
                 {contractUpdates.map((update) => (
                   <th
@@ -2346,220 +2616,248 @@ const BOQItems: React.FC = () => {
                     />
                   </th>
                 ))}
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.total_contract_sum}
-                    onChange={(e) =>
-                      handleFilterChange("total_contract_sum", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">1000, <500, =250..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "total_contract_sum"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.estimated_quantity}
-                    onChange={(e) =>
-                      handleFilterChange("estimated_quantity", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "estimated_quantity"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.quantity_submitted}
-                    onChange={(e) =>
-                      handleFilterChange("quantity_submitted", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "quantity_submitted"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.internal_quantity}
-                    onChange={(e) =>
-                      handleFilterChange("internal_quantity", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "internal_quantity"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.approved_by_project_manager}
-                    onChange={(e) =>
-                      handleFilterChange(
-                        "approved_by_project_manager",
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "approved_by_project_manager"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.approved_signed_quantity}
-                    onChange={(e) =>
-                      handleFilterChange(
-                        "approved_signed_quantity",
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">100, <50, =25..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "approved_signed_quantity"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.total_estimate}
-                    onChange={(e) =>
-                      handleFilterChange("total_estimate", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">1000, <500, =250..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "total_estimate"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.total_submitted}
-                    onChange={(e) =>
-                      handleFilterChange("total_submitted", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">1000, <500, =250..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "total_submitted"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.internal_total}
-                    onChange={(e) =>
-                      handleFilterChange("internal_total", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">1000, <500, =250..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "internal_total"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.total_approved_by_project_manager}
-                    onChange={(e) =>
-                      handleFilterChange(
-                        "total_approved_by_project_manager",
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">1000, <500, =250..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "total_approved_by_project_manager"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.approved_signed_total}
-                    onChange={(e) =>
-                      handleFilterChange(
-                        "approved_signed_total",
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder=">1000, <500, =250..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "approved_signed_total"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.subsection}
-                    onChange={(e) =>
-                      handleFilterChange("subsection", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "subsection"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-300">
-                  <input
-                    type="text"
-                    value={filters.notes}
-                    onChange={(e) =>
-                      handleFilterChange("notes", e.target.value)
-                    }
-                    onKeyDown={handleFilterKeyDown}
-                    placeholder="Filter..."
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                      "notes"
-                    )}`}
-                  />
-                </th>
-                <th className="px-2 py-2">
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setFilters((prev) => ({ ...prev }))}
-                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
-                      title="Apply all filters"
-                    >
-                      🔍
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearFilters}
-                      className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-500"
-                      title="Clear all filters"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </th>
+                {columnVisibility.total_contract_sum && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.total_contract_sum}
+                      onChange={(e) =>
+                        handleFilterChange("total_contract_sum", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "total_contract_sum"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.estimated_quantity && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.estimated_quantity}
+                      onChange={(e) =>
+                        handleFilterChange("estimated_quantity", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "estimated_quantity"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.quantity_submitted && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.quantity_submitted}
+                      onChange={(e) =>
+                        handleFilterChange("quantity_submitted", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "quantity_submitted"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.internal_quantity && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.internal_quantity}
+                      onChange={(e) =>
+                        handleFilterChange("internal_quantity", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "internal_quantity"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.approved_by_project_manager && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.approved_by_project_manager}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "approved_by_project_manager",
+                          e.target.value
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "approved_by_project_manager"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.approved_signed_quantity && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.approved_signed_quantity}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "approved_signed_quantity",
+                          e.target.value
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "approved_signed_quantity"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_estimate && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.total_estimate}
+                      onChange={(e) =>
+                        handleFilterChange("total_estimate", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "total_estimate"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_submitted && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.total_submitted}
+                      onChange={(e) =>
+                        handleFilterChange("total_submitted", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "total_submitted"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.internal_total && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.internal_total}
+                      onChange={(e) =>
+                        handleFilterChange("internal_total", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "internal_total"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_approved_by_project_manager && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.total_approved_by_project_manager}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "total_approved_by_project_manager",
+                          e.target.value
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "total_approved_by_project_manager"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.approved_signed_total && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.approved_signed_total}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "approved_signed_total",
+                          e.target.value
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "approved_signed_total"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.subsection && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.subsection}
+                      onChange={(e) =>
+                        handleFilterChange("subsection", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "subsection"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.notes && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.notes}
+                      onChange={(e) =>
+                        handleFilterChange("notes", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "notes"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.actions && (
+                  <th className="px-2 py-2">
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setFilters((prev) => ({ ...prev }))}
+                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        title="Apply all filters"
+                      >
+                        🔍
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-500"
+                        title="Clear all filters"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </th>
+                )}
               </tr>
             </thead>
 
@@ -2588,119 +2886,166 @@ const BOQItems: React.FC = () => {
                       index % 2 === 0 ? "bg-white" : "bg-gray-50"
                     }`}
                   >
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={
-                            currentValues.serial_number ||
-                            item.serial_number ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "serial_number",
-                              parseInt(e.target.value) || null
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        item.serial_number || "-"
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={
-                            currentValues.structure || item.structure || ""
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "structure",
-                              parseInt(e.target.value) || null
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        item.structure || "-"
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={currentValues.system || item.system || ""}
-                          onChange={(e) =>
-                            handleInputChange("system", e.target.value)
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        item.system || "-"
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-300">
-                      {item.section_number}
-                    </td>
-                    <td className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={
-                            currentValues.description || item.description || ""
-                          }
-                          onChange={(e) =>
-                            handleInputChange("description", e.target.value)
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        item.description
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {item.unit}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            currentValues.original_contract_quantity !==
-                            undefined
-                              ? currentValues.original_contract_quantity
-                              : item.original_contract_quantity || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "original_contract_quantity",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatNumber(item.original_contract_quantity || 0)
-                      )}
-                    </td>
+                    {columnVisibility.serial_number && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={
+                              currentValues.serial_number !== undefined &&
+                              currentValues.serial_number !== null
+                                ? currentValues.serial_number
+                                : item.serial_number || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "serial_number",
+                                parseInt(e.target.value) || null
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          item.serial_number || "-"
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.structure && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={
+                              currentValues.structure !== undefined &&
+                              currentValues.structure !== null
+                                ? currentValues.structure
+                                : item.structure || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "structure",
+                                parseInt(e.target.value) || null
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          item.structure || "-"
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.system && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={
+                              currentValues.system !== undefined &&
+                              currentValues.system !== null
+                                ? currentValues.system
+                                : item.system || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange("system", e.target.value)
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          item.system || "-"
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.section_number && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-300">
+                        {item.section_number}
+                      </td>
+                    )}
+                    {columnVisibility.description && (
+                      <td
+                        className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={
+                              currentValues.description !== undefined &&
+                              currentValues.description !== null
+                                ? currentValues.description
+                                : item.description || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange("description", e.target.value)
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          item.description
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.unit && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
+                        {item.unit}
+                      </td>
+                    )}
+                    {columnVisibility.original_contract_quantity && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.original_contract_quantity !==
+                                undefined &&
+                              currentValues.original_contract_quantity !== null
+                                ? currentValues.original_contract_quantity
+                                : item.original_contract_quantity || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "original_contract_quantity",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatNumber(item.original_contract_quantity || 0)
+                        )}
+                      </td>
+                    )}
                     {contractUpdates.map((update) => (
                       <td
                         key={update.id}
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
                       >
                         {isEditing ? (
                           <input
@@ -2734,263 +3079,326 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     ))}
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            currentValues.price !== undefined
-                              ? currentValues.price
-                              : item.price || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "price",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatCurrency(item.price || 0)
-                      )}
-                    </td>
+                    {columnVisibility.price && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.price !== undefined &&
+                              currentValues.price !== null
+                                ? currentValues.price
+                                : item.price || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "price",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatCurrency(item.price || 0)
+                        )}
+                      </td>
+                    )}
                     {contractUpdates.map((update) => (
                       <td
                         key={update.id}
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
                       >
                         {formatCurrency(
                           getContractUpdateValue(item.id, update.id, "sum")
                         )}
                       </td>
                     ))}
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {formatCurrency(
-                        isEditing
-                          ? derivedValues.total_contract_sum
-                          : item.total_contract_sum
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-50">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            currentValues.estimated_quantity !== undefined
-                              ? currentValues.estimated_quantity
-                              : item.estimated_quantity || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "estimated_quantity",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatNumber(item.estimated_quantity || 0)
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-50">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            currentValues.quantity_submitted !== undefined
-                              ? currentValues.quantity_submitted
-                              : item.quantity_submitted || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "quantity_submitted",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatNumber(item.quantity_submitted || 0)
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-yellow-50">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            currentValues.internal_quantity !== undefined
-                              ? currentValues.internal_quantity
-                              : item.internal_quantity || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "internal_quantity",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatNumber(item.internal_quantity || 0)
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-50">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            currentValues.approved_by_project_manager !==
-                            undefined
-                              ? currentValues.approved_by_project_manager
-                              : item.approved_by_project_manager || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "approved_by_project_manager",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatNumber(item.approved_by_project_manager || 0)
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={
-                            isEditing &&
-                            currentValues.approved_signed_quantity !== undefined
-                              ? currentValues.approved_signed_quantity
-                              : item.approved_signed_quantity || 0
-                          }
-                          onChange={(e) =>
-                            handleInputChange(
-                              "approved_signed_quantity",
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        formatNumber(item.approved_signed_quantity || 0)
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-100">
-                      {formatCurrency(
-                        isEditing
-                          ? derivedValues.total_estimate
-                          : item.total_estimate
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-100">
-                      {formatCurrency(
-                        isEditing
-                          ? derivedValues.total_submitted
-                          : item.total_submitted
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-yellow-100">
-                      {formatCurrency(
-                        isEditing
-                          ? derivedValues.internal_total
-                          : item.internal_total
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100">
-                      {formatCurrency(
-                        isEditing
-                          ? derivedValues.total_approved_by_project_manager
-                          : item.total_approved_by_project_manager
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-200">
-                      {formatCurrency(
-                        isEditing
-                          ? derivedValues.approved_signed_total
-                          : item.approved_signed_total || 0
-                      )}
-                    </td>
+                    {columnVisibility.total_contract_sum && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.total_contract_sum
+                            : item.total_contract_sum
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.estimated_quantity && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.estimated_quantity !== undefined &&
+                              currentValues.estimated_quantity !== null
+                                ? currentValues.estimated_quantity
+                                : item.estimated_quantity || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "estimated_quantity",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatNumber(item.estimated_quantity || 0)
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.quantity_submitted && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.quantity_submitted !== undefined &&
+                              currentValues.quantity_submitted !== null
+                                ? currentValues.quantity_submitted
+                                : item.quantity_submitted || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "quantity_submitted",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatNumber(item.quantity_submitted || 0)
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.internal_quantity && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-yellow-50 cursor-pointer hover:bg-yellow-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.internal_quantity !== undefined &&
+                              currentValues.internal_quantity !== null
+                                ? currentValues.internal_quantity
+                                : item.internal_quantity || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "internal_quantity",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatNumber(item.internal_quantity || 0)
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.approved_by_project_manager && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-50 cursor-pointer hover:bg-green-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.approved_by_project_manager !==
+                                undefined &&
+                              currentValues.approved_by_project_manager !== null
+                                ? currentValues.approved_by_project_manager
+                                : item.approved_by_project_manager || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "approved_by_project_manager",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatNumber(item.approved_by_project_manager || 0)
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.approved_signed_quantity && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100 cursor-pointer hover:bg-green-200 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.approved_signed_quantity !==
+                                undefined &&
+                              currentValues.approved_signed_quantity !== null
+                                ? currentValues.approved_signed_quantity
+                                : item.approved_signed_quantity || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "approved_signed_quantity",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatNumber(item.approved_signed_quantity || 0)
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.total_estimate && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-100">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.total_estimate
+                            : item.total_estimate
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.total_submitted && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-100">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.total_submitted
+                            : item.total_submitted
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.internal_total && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-yellow-100">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.internal_total
+                            : item.internal_total
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.total_approved_by_project_manager && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.total_approved_by_project_manager
+                            : item.total_approved_by_project_manager
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.approved_signed_total && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-200">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.approved_signed_total
+                            : item.approved_signed_total || 0
+                        )}
+                      </td>
+                    )}
 
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                      {item.subsection || "-"}
-                    </td>
-                    <td className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate border-r border-gray-300">
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={currentValues.notes || item.notes || ""}
-                          onChange={(e) =>
-                            handleInputChange("notes", e.target.value)
-                          }
-                          onKeyDown={(e) => handleKeyPress(e, item)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        item.notes || "-"
-                      )}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {isEditing ? (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => saveChanges(item)}
+                    {columnVisibility.subsection && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
+                        {item.subsection || "-"}
+                      </td>
+                    )}
+                    {columnVisibility.notes && (
+                      <td
+                        className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={
+                              currentValues.notes !== undefined &&
+                              currentValues.notes !== null
+                                ? currentValues.notes
+                                : item.notes || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange("notes", e.target.value)
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
-                            className="text-green-600 hover:text-green-800 disabled:opacity-50"
-                          >
-                            {isSaving ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            disabled={isSaving}
-                            className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => startEditing(item)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleViewConcentrationSheet(item)}
-                            disabled={navigatingToSheet === item.id}
-                            className="text-purple-600 hover:text-purple-800 px-2 py-1 rounded text-sm hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={`View concentration sheet for ${item.section_number}: ${item.description}`}
-                          >
-                            {navigatingToSheet === item.id
-                              ? "Navigating..."
-                              : "View Sheet"}
-                          </button>
-                        </div>
-                      )}
-                    </td>
+                          />
+                        ) : (
+                          item.notes || "-"
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.actions && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {isEditing ? (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => saveChanges(item)}
+                              disabled={isSaving}
+                              className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                            >
+                              {isSaving ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              disabled={isSaving}
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleViewConcentrationSheet(item)}
+                              disabled={navigatingToSheet === item.id}
+                              className="text-purple-600 hover:text-purple-800 px-2 py-1 rounded text-sm hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={`View concentration sheet for ${item.section_number}: ${item.description}`}
+                            >
+                              {navigatingToSheet === item.id
+                                ? "Navigating..."
+                                : "View Sheet"}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -3000,19 +3408,33 @@ const BOQItems: React.FC = () => {
             <tfoot className="sticky bottom-0 z-10 bg-gray-100 border-t-2 border-gray-300 shadow-sm">
               <tr>
                 {/* Serial Number - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.serial_number && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Structure - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.structure && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* System - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.system && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Code - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.section_number && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Description - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.description && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Unit - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.unit && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Original Contract Quantity - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.original_contract_quantity && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Dynamic Contract Update Quantity Columns - No totals */}
                 {contractUpdates.map((update) => (
                   <td
@@ -3021,7 +3443,9 @@ const BOQItems: React.FC = () => {
                   ></td>
                 ))}
                 {/* Price - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.price && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Dynamic Contract Update Sum Columns - WITH TOTALS */}
                 {contractUpdates.map((update) => (
                   <td
@@ -3040,50 +3464,78 @@ const BOQItems: React.FC = () => {
                   </td>
                 ))}
                 {/* Contract Sum - WITH TOTAL */}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50">
-                  {formatCurrency(totals.total_contract_sum)}
-                </td>
+                {columnVisibility.total_contract_sum && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50">
+                    {formatCurrency(totals.total_contract_sum)}
+                  </td>
+                )}
                 {/* Estimated Quantity - No total */}
-                <td className="px-3 py-4 bg-red-50"></td>
+                {columnVisibility.estimated_quantity && (
+                  <td className="px-3 py-4 bg-red-50"></td>
+                )}
                 {/* Quantity Submitted - No total */}
-                <td className="px-3 py-4 bg-blue-50"></td>
+                {columnVisibility.quantity_submitted && (
+                  <td className="px-3 py-4 bg-blue-50"></td>
+                )}
                 {/* Internal Quantity - No total */}
-                <td className="px-3 py-4 bg-yellow-50"></td>
+                {columnVisibility.internal_quantity && (
+                  <td className="px-3 py-4 bg-yellow-50"></td>
+                )}
                 {/* Approved by Project Manager - No total */}
-                <td className="px-3 py-4 bg-green-50"></td>
+                {columnVisibility.approved_by_project_manager && (
+                  <td className="px-3 py-4 bg-green-50"></td>
+                )}
                 {/* Approved Signed Quantity - No total */}
-                <td className="px-3 py-4 bg-green-100"></td>
+                {columnVisibility.approved_signed_quantity && (
+                  <td className="px-3 py-4 bg-green-100"></td>
+                )}
                 {/* Total Estimate - WITH TOTAL */}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-red-100">
-                  {formatCurrency(totals.total_estimate)}
-                </td>
+                {columnVisibility.total_estimate && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-red-100">
+                    {formatCurrency(totals.total_estimate)}
+                  </td>
+                )}
                 {/* Total Submitted - WITH TOTAL */}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-blue-100">
-                  {formatCurrency(totals.total_submitted)}
-                </td>
+                {columnVisibility.total_submitted && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-blue-100">
+                    {formatCurrency(totals.total_submitted)}
+                  </td>
+                )}
                 {/* Internal Total - WITH TOTAL */}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-yellow-100">
-                  {formatCurrency(totals.internal_total)}
-                </td>
+                {columnVisibility.internal_total && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-yellow-100">
+                    {formatCurrency(totals.internal_total)}
+                  </td>
+                )}
                 {/* Total Approved by Project Manager - WITH TOTAL */}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-100">
-                  {formatCurrency(totals.total_approved_by_project_manager)}
-                </td>
+                {columnVisibility.total_approved_by_project_manager && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-100">
+                    {formatCurrency(totals.total_approved_by_project_manager)}
+                  </td>
+                )}
                 {/* Approved Signed Total - WITH TOTAL */}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-200">
-                  {formatCurrency(
-                    items.reduce(
-                      (sum, item) => sum + (item.approved_signed_total || 0),
-                      0
-                    )
-                  )}
-                </td>
+                {columnVisibility.approved_signed_total && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-200">
+                    {formatCurrency(
+                      items.reduce(
+                        (sum, item) => sum + (item.approved_signed_total || 0),
+                        0
+                      )
+                    )}
+                  </td>
+                )}
                 {/* Subchapter - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.subsection && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Notes - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.notes && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Actions - No total */}
-                <td className="px-3 py-4 bg-gray-50"></td>
+                {columnVisibility.actions && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
               </tr>
             </tfoot>
           </table>
@@ -3100,6 +3552,83 @@ const BOQItems: React.FC = () => {
                 ? "Try adjusting your search criteria"
                 : "Import your BOQ file to see items here"}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Column Settings Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Column Visibility Settings
+              </h3>
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="sr-only">Close</span>
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Toggle the visibility of columns in the BOQ table. Your
+                preferences will be saved automatically.
+              </p>
+              <button
+                onClick={resetColumnVisibility}
+                className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200"
+              >
+                Reset to Default
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(columnVisibility).map(([key, isVisible]) => (
+                <label
+                  key={key}
+                  className="flex items-center space-x-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isVisible}
+                    onChange={() =>
+                      toggleColumnVisibility(
+                        key as keyof typeof columnVisibility
+                      )
+                    }
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 capitalize">
+                    {key.replace(/_/g, " ")}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -126,6 +126,7 @@ class CalculationSheet(Base):
     calculation_sheet_no = Column(String(100), nullable=False)
     drawing_no = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
+    comment = Column(Text, nullable=True)  # User-editable comment field
     import_date = Column(DateTime(timezone=True), server_default=func.now())
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -380,27 +380,26 @@ async def _update_boq_item_totals(boq_item_id: int, db: Session):
             models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id
         ).all()
         
-        if entries:
-            # Calculate totals
-            total_estimated = sum(entry.estimated_quantity for entry in entries)
-            total_submitted = sum(entry.quantity_submitted for entry in entries)
-            total_internal = sum(entry.internal_quantity for entry in entries)
-            total_approved = sum(entry.approved_by_project_manager for entry in entries)
-            
-            # Update BOQ Item
-            boq_item.estimated_quantity = total_estimated
-            boq_item.quantity_submitted = total_submitted
-            boq_item.internal_quantity = total_internal
-            boq_item.approved_by_project_manager = total_approved
-            
-            # Calculate derived totals
-            boq_item.total_estimate = total_estimated * boq_item.price
-            boq_item.total_submitted = total_submitted * boq_item.price
-            boq_item.internal_total = total_internal * boq_item.price
-            boq_item.total_approved_by_project_manager = total_approved * boq_item.price
-            
-            db.commit()
-            logger.info(f"Updated BOQ item {boq_item.section_number} totals: Est={total_estimated}, Submitted={total_submitted}, Internal={total_internal}, Approved={total_approved}")
+        # Calculate totals (even if no entries, totals will be 0)
+        total_estimated = sum(entry.estimated_quantity for entry in entries)
+        total_submitted = sum(entry.quantity_submitted for entry in entries)
+        total_internal = sum(entry.internal_quantity for entry in entries)
+        total_approved = sum(entry.approved_by_project_manager for entry in entries)
+        
+        # Update BOQ Item (always update, even if totals are 0)
+        boq_item.estimated_quantity = total_estimated
+        boq_item.quantity_submitted = total_submitted
+        boq_item.internal_quantity = total_internal
+        boq_item.approved_by_project_manager = total_approved
+        
+        # Calculate derived totals
+        boq_item.total_estimate = total_estimated * boq_item.price
+        boq_item.total_submitted = total_submitted * boq_item.price
+        boq_item.internal_total = total_internal * boq_item.price
+        boq_item.total_approved_by_project_manager = total_approved * boq_item.price
+        
+        db.commit()
+        logger.info(f"Updated BOQ item {boq_item.section_number} totals: Est={total_estimated}, Submitted={total_submitted}, Internal={total_internal}, Approved={total_approved}")
         
     except Exception as e:
         logger.error(f"Error updating BOQ item totals: {str(e)}")

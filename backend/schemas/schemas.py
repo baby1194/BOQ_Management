@@ -106,7 +106,7 @@ class ConcentrationEntryBase(BaseModel):
     notes: Optional[str] = None
 
 class ConcentrationEntryCreate(ConcentrationEntryBase):
-    concentration_sheet_id: int
+    pass
 
 class ConcentrationEntryUpdate(BaseModel):
     section_number: Optional[str] = Field(None, min_length=1)
@@ -216,6 +216,7 @@ class CalculationSheetBase(BaseModel):
     calculation_sheet_no: str = Field(..., min_length=1, max_length=100)
     drawing_no: str = Field(..., min_length=1, max_length=100)
     description: str = Field(..., min_length=1)
+    comment: Optional[str] = None
 
 class CalculationSheetCreate(CalculationSheetBase):
     pass
@@ -229,6 +230,12 @@ class CalculationSheet(CalculationSheetBase):
     class Config:
         from_attributes = True
 
+class CalculationSheetUpdate(BaseModel):
+    comment: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # Calculation Entry Schemas
 class CalculationEntryBase(BaseModel):
     section_number: str = Field(..., min_length=1, max_length=100)
@@ -237,6 +244,14 @@ class CalculationEntryBase(BaseModel):
 
 class CalculationEntryCreate(CalculationEntryBase):
     pass
+
+class CalculationEntryUpdate(BaseModel):
+    section_number: Optional[str] = Field(None, min_length=1, max_length=100)
+    estimated_quantity: Optional[float] = Field(None, ge=0)
+    quantity_submitted: Optional[float] = Field(None, ge=0)
+
+    class Config:
+        from_attributes = True
 
 class CalculationEntry(CalculationEntryBase):
     id: int

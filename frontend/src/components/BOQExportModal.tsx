@@ -27,7 +27,7 @@ interface BOQExportRequest {
 interface BOQExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (request: BOQExportRequest) => void;
+  onExport: (request: BOQExportRequest, format: "excel" | "pdf") => void;
   title: string;
   loading?: boolean;
 }
@@ -122,10 +122,6 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
     });
   };
 
-  const handleExport = () => {
-    onExport(exportRequest);
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -156,7 +152,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
 
         <div className="mb-4">
           <p className="text-sm text-gray-600 mb-3">
-            Select the columns you want to include in your Excel export:
+            Select the columns you want to include in your export:
           </p>
 
           <div className="flex gap-2 mb-3">
@@ -428,11 +424,18 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={handleExport}
+            onClick={() => onExport(exportRequest, "excel")}
             disabled={loading || Object.values(exportRequest).every((v) => !v)}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Exporting..." : "Export to Excel"}
+          </button>
+          <button
+            onClick={() => onExport(exportRequest, "pdf")}
+            disabled={loading || Object.values(exportRequest).every((v) => !v)}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Exporting..." : "Export to PDF"}
           </button>
         </div>
       </div>
@@ -441,4 +444,3 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
 };
 
 export default BOQExportModal;
-
