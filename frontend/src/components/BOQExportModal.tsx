@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ContractQuantityUpdate } from "../types";
 
 interface BOQExportRequest {
   include_serial_number: boolean;
@@ -22,6 +23,8 @@ interface BOQExportRequest {
   include_approved_signed_total: boolean;
   include_subsection: boolean;
   include_notes: boolean;
+  // Dynamic contract update columns
+  [key: string]: boolean;
 }
 
 interface BOQExportModalProps {
@@ -30,6 +33,7 @@ interface BOQExportModalProps {
   onExport: (request: BOQExportRequest, format: "excel" | "pdf") => void;
   title: string;
   loading?: boolean;
+  contractUpdates?: ContractQuantityUpdate[];
 }
 
 const BOQExportModal: React.FC<BOQExportModalProps> = ({
@@ -38,40 +42,10 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
   onExport,
   title,
   loading = false,
+  contractUpdates = [],
 }) => {
-  const [exportRequest, setExportRequest] = useState<BOQExportRequest>({
-    include_serial_number: true,
-    include_structure: true,
-    include_system: true,
-    include_section_number: true,
-    include_description: true,
-    include_unit: true,
-    include_original_contract_quantity: true,
-    include_price: true,
-    include_total_contract_sum: true,
-    include_estimated_quantity: true,
-    include_quantity_submitted: true,
-    include_internal_quantity: true,
-    include_approved_by_project_manager: true,
-    include_approved_signed_quantity: true,
-    include_total_estimate: true,
-    include_total_submitted: true,
-    include_internal_total: true,
-    include_total_approved_by_project_manager: true,
-    include_approved_signed_total: true,
-    include_subsection: true,
-    include_notes: true,
-  });
-
-  const handleCheckboxChange = (field: keyof BOQExportRequest) => {
-    setExportRequest((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
-  };
-
-  const handleSelectAll = () => {
-    setExportRequest({
+  const [exportRequest, setExportRequest] = useState<BOQExportRequest>(() => {
+    const baseRequest = {
       include_serial_number: true,
       include_structure: true,
       include_system: true,
@@ -93,11 +67,60 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_approved_signed_total: true,
       include_subsection: true,
       include_notes: true,
+    };
+
+    // Add contract update columns
+    contractUpdates.forEach((update) => {
+      baseRequest[`include_updated_contract_quantity_${update.id}`] = true;
+      baseRequest[`include_updated_contract_sum_${update.id}`] = true;
     });
+
+    return baseRequest;
+  });
+
+  const handleCheckboxChange = (field: keyof BOQExportRequest) => {
+    setExportRequest((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
+  };
+
+  const handleSelectAll = () => {
+    const baseRequest = {
+      include_serial_number: true,
+      include_structure: true,
+      include_system: true,
+      include_section_number: true,
+      include_description: true,
+      include_unit: true,
+      include_original_contract_quantity: true,
+      include_price: true,
+      include_total_contract_sum: true,
+      include_estimated_quantity: true,
+      include_quantity_submitted: true,
+      include_internal_quantity: true,
+      include_approved_by_project_manager: true,
+      include_approved_signed_quantity: true,
+      include_total_estimate: true,
+      include_total_submitted: true,
+      include_internal_total: true,
+      include_total_approved_by_project_manager: true,
+      include_approved_signed_total: true,
+      include_subsection: true,
+      include_notes: true,
+    };
+
+    // Add contract update columns
+    contractUpdates.forEach((update) => {
+      baseRequest[`include_updated_contract_quantity_${update.id}`] = true;
+      baseRequest[`include_updated_contract_sum_${update.id}`] = true;
+    });
+
+    setExportRequest(baseRequest);
   };
 
   const handleDeselectAll = () => {
-    setExportRequest({
+    const baseRequest = {
       include_serial_number: false,
       include_structure: false,
       include_system: false,
@@ -119,7 +142,15 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_approved_signed_total: false,
       include_subsection: false,
       include_notes: false,
+    };
+
+    // Add contract update columns
+    contractUpdates.forEach((update) => {
+      baseRequest[`include_updated_contract_quantity_${update.id}`] = false;
+      baseRequest[`include_updated_contract_sum_${update.id}`] = false;
     });
+
+    setExportRequest(baseRequest);
   };
 
   if (!isOpen) return null;
@@ -413,6 +444,59 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               <span className="text-sm text-gray-700">Notes</span>
             </label>
           </div>
+
+          {/* Contract Update Columns */}
+          {contractUpdates.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">
+                Contract Updates
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {contractUpdates.map((update) => (
+                  <React.Fragment key={update.id}>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={
+                          exportRequest[
+                            `include_updated_contract_quantity_${update.id}`
+                          ] || false
+                        }
+                        onChange={() =>
+                          handleCheckboxChange(
+                            `include_updated_contract_quantity_${update.id}`
+                          )
+                        }
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        {update.update_name}
+                      </span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={
+                          exportRequest[
+                            `include_updated_contract_sum_${update.id}`
+                          ] || false
+                        }
+                        onChange={() =>
+                          handleCheckboxChange(
+                            `include_updated_contract_sum_${update.id}`
+                          )
+                        }
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        {update.update_name.replace("Qty", "Sum")}
+                      </span>
+                    </label>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end space-x-3">

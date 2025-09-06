@@ -3640,6 +3640,7 @@ const BOQItems: React.FC = () => {
         onExport={handleExport}
         loading={exporting}
         title="Export BOQ Items Table"
+        contractUpdates={contractUpdates}
       />
     </div>
   );

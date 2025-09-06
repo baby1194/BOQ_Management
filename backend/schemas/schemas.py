@@ -383,6 +383,8 @@ class BOQItemWithLatestContractUpdate(BaseModel):
 class SubsectionSummary(BaseModel):
     subsection: str
     description: str
+    total_contract_sum: float
+    contract_update_sums: dict  # Dictionary of {update_id: sum}
     total_estimate: float
     total_submitted: float
     internal_total: float
@@ -393,6 +395,8 @@ class SubsectionSummary(BaseModel):
 class SystemSummary(BaseModel):
     system: str
     description: str
+    total_contract_sum: float
+    contract_update_sums: dict  # Dictionary of {update_id: sum}
     total_estimate: float
     total_submitted: float
     internal_total: float
@@ -403,6 +407,8 @@ class SystemSummary(BaseModel):
 class StructureSummary(BaseModel):
     structure: int
     description: str
+    total_contract_sum: float
+    contract_update_sums: dict  # Dictionary of {update_id: sum}
     total_estimate: float
     total_submitted: float
     internal_total: float
@@ -422,10 +428,13 @@ class StructureDescriptionUpdate(BaseModel):
 class SummaryExportRequest(BaseModel):
     include_structure: bool = True
     include_description: bool = True
+    include_total_contract_sum: bool = True
     include_total_estimate: bool = True
     include_total_submitted: bool = True
     include_internal_total: bool = True
     include_total_approved: bool = True
     include_approved_signed_total: bool = True
     include_item_count: bool = True
+    # Dynamic contract update columns
+    include_contract_updates: bool = True  # Include all contract update columns
     data: list = []  # Optional: pass the actual data from frontend

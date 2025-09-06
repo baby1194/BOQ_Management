@@ -43,7 +43,7 @@ async def export_concentration_sheets(
             )
         
         # Generate PDF
-        pdf_path = pdf_service.export_concentration_sheets(sheets)
+        pdf_path = pdf_service.export_concentration_sheets(sheets, db)
         
         return schemas.PDFExportResponse(
             success=True,
@@ -88,7 +88,7 @@ async def export_single_concentration_sheet(
         ).order_by(models.ConcentrationEntry.id).all()
         
         pdf_service = PDFService()
-        pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries)
+        pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db)
         
         # Return the filename for download
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -178,7 +178,7 @@ async def export_summary(db: Session = Depends(get_db)):
         ).group_by(models.BOQItem.subsection).all()
         
         # Generate PDF
-        pdf_path = pdf_service.export_summary(summary_data)
+        pdf_path = pdf_service.export_summary(summary_data, db)
         
         return schemas.PDFExportResponse(
             success=True,
@@ -210,6 +210,9 @@ async def export_structures_summary(
             from routers.structures import get_structure_summaries
             summaries = await get_structure_summaries(db)
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_summaries = []
         for summary in summaries:
@@ -219,6 +222,8 @@ async def export_structures_summary(
                 filtered_summary["structure"] = summary.get("structure") if isinstance(summary, dict) else summary.structure
             if request.include_description:
                 filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_contract_sum:
+                filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
                 filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
             if request.include_total_submitted:
@@ -232,11 +237,27 @@ async def export_structures_summary(
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
+            # Add contract update columns if requested
+            if request.include_contract_updates:
+                contract_update_sums = summary.get("contract_update_sums") if isinstance(summary, dict) else summary.contract_update_sums
+                logger.info(f"Processing contract updates for summary {summary.get('structure', 'unknown')}: {contract_update_sums}")
+                if contract_update_sums:
+                    for update in contract_updates:
+                        update_id = update.id
+                        # Convert update_id to string to match contract_update_sums keys
+                        if str(update_id) in contract_update_sums:
+                            column_name = f"total_updated_contract_sum_{update_id}"
+                            filtered_summary[column_name] = contract_update_sums[str(update_id)]
+                            logger.info(f"Added column {column_name} = {contract_update_sums[str(update_id)]}")
+            
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
         
+        logger.info(f"Final filtered summaries keys: {[list(s.keys()) for s in filtered_summaries]}")
+        logger.info(f"First filtered summary: {filtered_summaries[0] if filtered_summaries else 'None'}")
+        
         # Generate PDF
-        pdf_path = pdf_service.export_structures_summary(filtered_summaries)
+        pdf_path = pdf_service.export_structures_summary(filtered_summaries, db)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -270,6 +291,9 @@ async def export_systems_summary(
             from routers.systems import get_system_summaries
             summaries = await get_system_summaries(db)
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_summaries = []
         for summary in summaries:
@@ -279,6 +303,8 @@ async def export_systems_summary(
                 filtered_summary["system"] = summary.get("system") if isinstance(summary, dict) else summary.system
             if request.include_description:
                 filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_contract_sum:
+                filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
                 filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
             if request.include_total_submitted:
@@ -292,11 +318,20 @@ async def export_systems_summary(
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
+            # Add contract update columns if requested
+            if request.include_contract_updates:
+                contract_update_sums = summary.get("contract_update_sums") if isinstance(summary, dict) else summary.contract_update_sums
+                if contract_update_sums:
+                    for update in contract_updates:
+                        update_id = update.id
+                        if str(update_id) in contract_update_sums:
+                            filtered_summary[f"total_updated_contract_sum_{update_id}"] = contract_update_sums[str(update_id)]
+            
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
         
         # Generate PDF
-        pdf_path = pdf_service.export_systems_summary(filtered_summaries)
+        pdf_path = pdf_service.export_systems_summary(filtered_summaries, db)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -330,6 +365,9 @@ async def export_subsections_summary(
             from routers.subsections import get_subsection_summaries
             summaries = await get_subsection_summaries(db)
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_summaries = []
         for summary in summaries:
@@ -339,6 +377,8 @@ async def export_subsections_summary(
                 filtered_summary["subsection"] = summary.get("subsection") if isinstance(summary, dict) else summary.subsection
             if request.include_description:
                 filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_contract_sum:
+                filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
                 filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
             if request.include_total_submitted:
@@ -352,11 +392,20 @@ async def export_subsections_summary(
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
+            # Add contract update columns if requested
+            if request.include_contract_updates:
+                contract_update_sums = summary.get("contract_update_sums") if isinstance(summary, dict) else summary.contract_update_sums
+                if contract_update_sums:
+                    for update in contract_updates:
+                        update_id = update.id
+                        if str(update_id) in contract_update_sums:
+                            filtered_summary[f"total_updated_contract_sum_{update_id}"] = contract_update_sums[str(update_id)]
+            
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
         
         # Generate PDF
-        pdf_path = pdf_service.export_subsections_summary(filtered_summaries)
+        pdf_path = pdf_service.export_subsections_summary(filtered_summaries, db)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -390,6 +439,9 @@ async def export_structures_summary_excel(
             from routers.structures import get_structure_summaries
             summaries = await get_structure_summaries(db)
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_summaries = []
         for summary in summaries:
@@ -399,6 +451,8 @@ async def export_structures_summary_excel(
                 filtered_summary["structure"] = summary.get("structure") if isinstance(summary, dict) else summary.structure
             if request.include_description:
                 filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_contract_sum:
+                filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
                 filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
             if request.include_total_submitted:
@@ -411,6 +465,15 @@ async def export_structures_summary_excel(
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            # Add contract update columns if requested
+            if request.include_contract_updates:
+                contract_update_sums = summary.get("contract_update_sums") if isinstance(summary, dict) else summary.contract_update_sums
+                if contract_update_sums:
+                    for update in contract_updates:
+                        update_id = update.id
+                        if str(update_id) in contract_update_sums:
+                            filtered_summary[f"total_updated_contract_sum_{update_id}"] = contract_update_sums[str(update_id)]
             
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
@@ -450,6 +513,9 @@ async def export_systems_summary_excel(
             from routers.systems import get_system_summaries
             summaries = await get_system_summaries(db)
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_summaries = []
         for summary in summaries:
@@ -459,6 +525,8 @@ async def export_systems_summary_excel(
                 filtered_summary["system"] = summary.get("system") if isinstance(summary, dict) else summary.system
             if request.include_description:
                 filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_contract_sum:
+                filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
                 filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
             if request.include_total_submitted:
@@ -471,6 +539,15 @@ async def export_systems_summary_excel(
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            # Add contract update columns if requested
+            if request.include_contract_updates:
+                contract_update_sums = summary.get("contract_update_sums") if isinstance(summary, dict) else summary.contract_update_sums
+                if contract_update_sums:
+                    for update in contract_updates:
+                        update_id = update.id
+                        if str(update_id) in contract_update_sums:
+                            filtered_summary[f"total_updated_contract_sum_{update_id}"] = contract_update_sums[str(update_id)]
             
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
@@ -510,6 +587,9 @@ async def export_subsections_summary_excel(
             from routers.subsections import get_subsection_summaries
             summaries = await get_subsection_summaries(db)
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_summaries = []
         for summary in summaries:
@@ -519,6 +599,8 @@ async def export_subsections_summary_excel(
                 filtered_summary["subsection"] = summary.get("subsection") if isinstance(summary, dict) else summary.subsection
             if request.include_description:
                 filtered_summary["description"] = summary.get("description") if isinstance(summary, dict) else summary.description
+            if request.include_total_contract_sum:
+                filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
                 filtered_summary["total_estimate"] = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
             if request.include_total_submitted:
@@ -531,6 +613,15 @@ async def export_subsections_summary_excel(
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
+            
+            # Add contract update columns if requested
+            if request.include_contract_updates:
+                contract_update_sums = summary.get("contract_update_sums") if isinstance(summary, dict) else summary.contract_update_sums
+                if contract_update_sums:
+                    for update in contract_updates:
+                        update_id = update.id
+                        if str(update_id) in contract_update_sums:
+                            filtered_summary[f"total_updated_contract_sum_{update_id}"] = contract_update_sums[str(update_id)]
             
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
@@ -569,6 +660,9 @@ async def export_boq_items_pdf(
         else:
             items = db.query(models.BOQItem).all()
         
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
+        
         # Filter columns based on request
         filtered_items = []
         for item in items:
@@ -617,11 +711,32 @@ async def export_boq_items_pdf(
             if request.get("include_notes"):
                 filtered_item["notes"] = item.get("notes") if isinstance(item, dict) else item.notes
             
+            # Add dynamic contract update columns
+            for update in contract_updates:
+                # Get the BOQ item ID
+                item_id = item.get("id") if isinstance(item, dict) else item.id
+                
+                # Find the corresponding BOQ item update
+                boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
+                    models.BOQItemQuantityUpdate.boq_item_id == item_id,
+                    models.BOQItemQuantityUpdate.contract_update_id == update.id
+                ).first()
+                
+                # Add quantity column if requested
+                quantity_key = f"updated_contract_quantity_{update.id}"
+                if request.get(f"include_{quantity_key}"):
+                    filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
+                
+                # Add sum column if requested
+                sum_key = f"updated_contract_sum_{update.id}"
+                if request.get(f"include_{sum_key}"):
+                    filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
+            
             if filtered_item:  # Only add if at least one column is selected
                 filtered_items.append(filtered_item)
         
         # Generate PDF
-        pdf_path = pdf_service.export_boq_items(filtered_items)
+        pdf_path = pdf_service.export_boq_items(filtered_items, db)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -653,6 +768,9 @@ async def export_boq_items_excel(
             items = request["data"]
         else:
             items = db.query(models.BOQItem).all()
+        
+        # Get contract updates for dynamic columns
+        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
         
         # Filter columns based on request
         filtered_items = []
@@ -701,6 +819,27 @@ async def export_boq_items_excel(
                 filtered_item["subsection"] = item.get("subsection") if isinstance(item, dict) else item.subsection
             if request.get("include_notes"):
                 filtered_item["notes"] = item.get("notes") if isinstance(item, dict) else item.notes
+            
+            # Add dynamic contract update columns
+            for update in contract_updates:
+                # Get the BOQ item ID
+                item_id = item.get("id") if isinstance(item, dict) else item.id
+                
+                # Find the corresponding BOQ item update
+                boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
+                    models.BOQItemQuantityUpdate.boq_item_id == item_id,
+                    models.BOQItemQuantityUpdate.contract_update_id == update.id
+                ).first()
+                
+                # Add quantity column if requested
+                quantity_key = f"updated_contract_quantity_{update.id}"
+                if request.get(f"include_{quantity_key}"):
+                    filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
+                
+                # Add sum column if requested
+                sum_key = f"updated_contract_sum_{update.id}"
+                if request.get(f"include_{sum_key}"):
+                    filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
             
             if filtered_item:  # Only add if at least one column is selected
                 filtered_items.append(filtered_item)

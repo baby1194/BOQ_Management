@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import uvicorn
 import os
+import logging
 from pathlib import Path
 
 from database.database import engine, get_db
@@ -34,6 +35,17 @@ app.add_middleware(
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("exports", exist_ok=True)
 os.makedirs("database", exist_ok=True)
+os.makedirs("logs", exist_ok=True)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/app.log'),
+        logging.StreamHandler()  # Also log to console
+    ]
+)
 
 # Mount static files
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

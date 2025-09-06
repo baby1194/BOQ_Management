@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { SummaryExportRequest } from "../types";
+import { SummaryExportRequest, ContractQuantityUpdate } from "../types";
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -7,6 +7,7 @@ interface ExportModalProps {
   onExport: (request: SummaryExportRequest, format: "pdf" | "excel") => void;
   title: string;
   loading?: boolean;
+  contractUpdates?: ContractQuantityUpdate[];
 }
 
 const ExportModal: React.FC<ExportModalProps> = ({
@@ -15,17 +16,25 @@ const ExportModal: React.FC<ExportModalProps> = ({
   onExport,
   title,
   loading = false,
+  contractUpdates = [],
 }) => {
-  const [exportRequest, setExportRequest] = useState<SummaryExportRequest>({
-    include_structure: true,
-    include_description: true,
-    include_total_estimate: true,
-    include_total_submitted: true,
-    include_internal_total: true,
-    include_total_approved: true,
-    include_approved_signed_total: true,
-    include_item_count: true,
-  });
+  const [exportRequest, setExportRequest] = useState<SummaryExportRequest>(
+    () => {
+      const baseRequest = {
+        include_structure: true,
+        include_description: true,
+        include_total_contract_sum: true,
+        include_total_estimate: true,
+        include_total_submitted: true,
+        include_internal_total: true,
+        include_total_approved: true,
+        include_approved_signed_total: true,
+        include_item_count: true,
+        include_contract_updates: true,
+      };
+      return baseRequest;
+    }
+  );
 
   const handleCheckboxChange = (field: keyof SummaryExportRequest) => {
     setExportRequest((prev) => ({
@@ -38,12 +47,14 @@ const ExportModal: React.FC<ExportModalProps> = ({
     setExportRequest({
       include_structure: true,
       include_description: true,
+      include_total_contract_sum: true,
       include_total_estimate: true,
       include_total_submitted: true,
       include_internal_total: true,
       include_total_approved: true,
       include_approved_signed_total: true,
       include_item_count: true,
+      include_contract_updates: true,
     });
   };
 
@@ -51,12 +62,14 @@ const ExportModal: React.FC<ExportModalProps> = ({
     setExportRequest({
       include_structure: false,
       include_description: false,
+      include_total_contract_sum: false,
       include_total_estimate: false,
       include_total_submitted: false,
       include_internal_total: false,
       include_total_approved: false,
       include_approved_signed_total: false,
       include_item_count: false,
+      include_contract_updates: false,
     });
   };
 
@@ -140,6 +153,19 @@ const ExportModal: React.FC<ExportModalProps> = ({
             <label className="flex items-center">
               <input
                 type="checkbox"
+                checked={exportRequest.include_total_contract_sum}
+                onChange={() =>
+                  handleCheckboxChange("include_total_contract_sum")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">Total Contract Sum</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
                 checked={exportRequest.include_total_estimate}
                 onChange={() => handleCheckboxChange("include_total_estimate")}
                 className="mr-2"
@@ -204,6 +230,45 @@ const ExportModal: React.FC<ExportModalProps> = ({
               />
               <span className="text-sm">Item Count</span>
             </label>
+
+            {/* Contract Update Columns */}
+            {contractUpdates.length > 0 && (
+              <>
+                <div className="border-t border-gray-200 my-3"></div>
+                <div className="flex items-center mb-2">
+                  <input
+                    type="checkbox"
+                    checked={exportRequest.include_contract_updates}
+                    onChange={() =>
+                      handleCheckboxChange("include_contract_updates")
+                    }
+                    className="mr-2"
+                    disabled={loading}
+                  />
+                  <span className="text-sm font-medium text-gray-900">
+                    Contract Updates
+                  </span>
+                </div>
+                <div className="ml-6 space-y-1">
+                  {contractUpdates.map((update) => (
+                    <label key={update.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={exportRequest.include_contract_updates}
+                        onChange={() =>
+                          handleCheckboxChange("include_contract_updates")
+                        }
+                        className="mr-2"
+                        disabled={loading}
+                      />
+                      <span className="text-sm text-gray-700">
+                        {update.update_name.replace("Qty", "Sum")}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -259,6 +259,8 @@ export interface BOQItemWithLatestContractUpdate extends BOQItem {
 export interface SubsectionSummary {
   subsection: string;
   description: string;
+  total_contract_sum: number;
+  contract_update_sums: Record<number, number>; // Dictionary of {update_id: sum}
   total_estimate: number;
   total_submitted: number;
   internal_total: number;
@@ -270,6 +272,8 @@ export interface SubsectionSummary {
 export interface SystemSummary {
   system: string;
   description: string;
+  total_contract_sum: number;
+  contract_update_sums: Record<number, number>; // Dictionary of {update_id: sum}
   total_estimate: number;
   total_submitted: number;
   internal_total: number;
@@ -281,6 +285,8 @@ export interface SystemSummary {
 export interface StructureSummary {
   structure: number;
   description: string;
+  total_contract_sum: number;
+  contract_update_sums: Record<number, number>; // Dictionary of {update_id: sum}
   total_estimate: number;
   total_submitted: number;
   internal_total: number;
@@ -292,10 +298,12 @@ export interface StructureSummary {
 export interface SummaryExportRequest {
   include_structure: boolean;
   include_description: boolean;
+  include_total_contract_sum: boolean;
   include_total_estimate: boolean;
   include_total_submitted: boolean;
   include_internal_total: boolean;
   include_total_approved: boolean;
   include_approved_signed_total: boolean;
   include_item_count: boolean;
+  include_contract_updates: boolean;
 }

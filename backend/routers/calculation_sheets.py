@@ -352,7 +352,7 @@ async def populate_concentration_entries(
             new_concentration_entry = models.ConcentrationEntry(
                 concentration_sheet_id=concentration_sheet.id,
                 section_number=calc_entry.section_number,  # Use section number from calculation entry
-                description=None,  # No manual description for auto-populated entries
+                description=calculation_sheet.description,  # Use calculation sheet description
                 calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                 drawing_no=calculation_sheet.drawing_no,
                 estimated_quantity=calc_entry.estimated_quantity,
@@ -521,7 +521,7 @@ async def populate_all_calculation_entries(
                     new_concentration_entry = models.ConcentrationEntry(
                         concentration_sheet_id=concentration_sheet.id,
                         section_number=calc_entry.section_number,
-                        description=None,
+                        description=calculation_sheet.description,  # Use calculation sheet description
                         calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                         drawing_no=calculation_sheet.drawing_no,
                         estimated_quantity=calc_entry.estimated_quantity,

@@ -20,6 +20,12 @@ async def get_system_summaries(db: Session = Depends(get_db)):
         # Get all BOQ items
         boq_items = db.query(models.BOQItem).all()
         
+        # Get all contract updates
+        contract_updates = db.query(models.ContractQuantityUpdate).all()
+        
+        # Get all BOQ item quantity updates
+        boq_item_updates = db.query(models.BOQItemQuantityUpdate).all()
+        
         # Group by system and calculate totals
         system_totals = {}
         
@@ -35,9 +41,16 @@ async def get_system_summaries(db: Session = Depends(get_db)):
                 system = "Uncategorized"
             
             if system not in system_totals:
+                # Initialize contract update sums dictionary
+                contract_update_sums = {}
+                for update in contract_updates:
+                    contract_update_sums[update.id] = 0.0
+                
                 system_totals[system] = {
                     "system": system,
                     "description": "",  # Will be loaded from system_info table
+                    "total_contract_sum": 0.0,
+                    "contract_update_sums": contract_update_sums,
                     "total_estimate": 0.0,
                     "total_submitted": 0.0,
                     "internal_total": 0.0,
@@ -47,12 +60,20 @@ async def get_system_summaries(db: Session = Depends(get_db)):
                 }
             
             totals = system_totals[system]
+            totals["total_contract_sum"] += float(item.total_contract_sum or 0)
             totals["total_estimate"] += float(item.total_estimate or 0)
             totals["total_submitted"] += float(item.total_submitted or 0)
             totals["internal_total"] += float(item.internal_total or 0)
             totals["total_approved"] += float(item.total_approved_by_project_manager or 0)
             totals["approved_signed_total"] += float(item.approved_signed_total or 0)
             totals["item_count"] += 1
+            
+            # Add contract update sums for this item
+            for update in boq_item_updates:
+                if update.boq_item_id == item.id:
+                    update_id = update.contract_update_id
+                    if update_id in totals["contract_update_sums"]:
+                        totals["contract_update_sums"][update_id] += float(update.updated_contract_sum or 0)
         
         print(system_totals)
 

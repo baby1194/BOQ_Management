@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { subsectionsApi, exportApi } from "../services/api";
-import { SubsectionSummary, SummaryExportRequest } from "../types";
+import { subsectionsApi, exportApi, contractUpdatesApi } from "../services/api";
+import {
+  SubsectionSummary,
+  SummaryExportRequest,
+  ContractQuantityUpdate,
+} from "../types";
 import { formatCurrency } from "../utils/format";
 import ExportModal from "../components/ExportModal";
 
@@ -18,6 +22,9 @@ const SummaryOfSubsections: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [contractUpdates, setContractUpdates] = useState<
+    ContractQuantityUpdate[]
+  >([]);
 
   // Fetch subsection summaries
   const fetchSubsectionSummaries = async () => {
@@ -114,6 +121,8 @@ const SummaryOfSubsections: React.FC = () => {
           filteredSummary.subsection = summary.subsection;
         if (request.include_description)
           filteredSummary.description = summary.description;
+        if (request.include_total_contract_sum)
+          filteredSummary.total_contract_sum = summary.total_contract_sum;
         if (request.include_total_estimate)
           filteredSummary.total_estimate = summary.total_estimate;
         if (request.include_total_submitted)
@@ -126,8 +135,18 @@ const SummaryOfSubsections: React.FC = () => {
           filteredSummary.approved_signed_total = summary.approved_signed_total;
         if (request.include_item_count)
           filteredSummary.item_count = summary.item_count;
+        if (request.include_contract_updates)
+          filteredSummary.contract_update_sums = summary.contract_update_sums;
         return filteredSummary;
       });
+
+      // Debug logging
+      console.log("Export request:", request);
+      console.log("Filtered data:", filteredData);
+      console.log(
+        "First summary contract_update_sums:",
+        filteredData[0]?.contract_update_sums
+      );
 
       let response;
       if (format === "pdf") {
@@ -176,15 +195,32 @@ const SummaryOfSubsections: React.FC = () => {
 
   // Calculate grand totals
   const grandTotals = subsectionSummaries.reduce(
-    (acc, summary) => ({
-      totalEstimate: acc.totalEstimate + summary.total_estimate,
-      totalSubmitted: acc.totalSubmitted + summary.total_submitted,
-      internalTotal: acc.internalTotal + summary.internal_total,
-      totalApproved: acc.totalApproved + summary.total_approved,
-      approvedSignedTotal:
-        acc.approvedSignedTotal + summary.approved_signed_total,
-    }),
+    (acc, summary) => {
+      const newAcc = {
+        totalContractSum: acc.totalContractSum + summary.total_contract_sum,
+        contractUpdateSums: { ...acc.contractUpdateSums },
+        totalEstimate: acc.totalEstimate + summary.total_estimate,
+        totalSubmitted: acc.totalSubmitted + summary.total_submitted,
+        internalTotal: acc.internalTotal + summary.internal_total,
+        totalApproved: acc.totalApproved + summary.total_approved,
+        approvedSignedTotal:
+          acc.approvedSignedTotal + summary.approved_signed_total,
+      };
+
+      // Add contract update sums
+      Object.entries(summary.contract_update_sums).forEach(
+        ([updateId, sum]) => {
+          const id = parseInt(updateId);
+          newAcc.contractUpdateSums[id] =
+            (newAcc.contractUpdateSums[id] || 0) + sum;
+        }
+      );
+
+      return newAcc;
+    },
     {
+      totalContractSum: 0,
+      contractUpdateSums: {} as Record<number, number>,
       totalEstimate: 0,
       totalSubmitted: 0,
       internalTotal: 0,
@@ -193,9 +229,20 @@ const SummaryOfSubsections: React.FC = () => {
     }
   );
 
+  // Fetch contract updates
+  const fetchContractUpdates = async () => {
+    try {
+      const response = await contractUpdatesApi.getAll();
+      setContractUpdates(response);
+    } catch (err) {
+      console.error("Error fetching contract updates:", err);
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     fetchSubsectionSummaries();
+    fetchContractUpdates();
   }, []);
 
   if (loading) {
@@ -275,6 +322,17 @@ const SummaryOfSubsections: React.FC = () => {
                   Subsection Description
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total Contract Sum
+                </th>
+                {contractUpdates.map((update) => (
+                  <th
+                    key={update.id}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Total Updated Contract Sum {update.update_index}
+                  </th>
+                ))}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Estimate
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -349,6 +407,19 @@ const SummaryOfSubsections: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatCurrency(summary.total_contract_sum)}
+                  </td>
+                  {contractUpdates.map((update) => (
+                    <td
+                      key={update.id}
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                    >
+                      {formatCurrency(
+                        summary.contract_update_sums[update.id] || 0
+                      )}
+                    </td>
+                  ))}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatCurrency(summary.total_estimate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -376,6 +447,19 @@ const SummaryOfSubsections: React.FC = () => {
                   GRAND TOTALS
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">-</td>
+                <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                  {formatCurrency(grandTotals.totalContractSum)}
+                </td>
+                {contractUpdates.map((update) => (
+                  <td
+                    key={update.id}
+                    className="px-6 py-4 text-sm font-bold text-gray-900"
+                  >
+                    {formatCurrency(
+                      grandTotals.contractUpdateSums[update.id] || 0
+                    )}
+                  </td>
+                ))}
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">
                   {formatCurrency(grandTotals.totalEstimate)}
                 </td>
@@ -454,6 +538,7 @@ const SummaryOfSubsections: React.FC = () => {
         onExport={handleExport}
         title="Export Subsections Summary"
         loading={exporting}
+        contractUpdates={contractUpdates}
       />
     </div>
   );

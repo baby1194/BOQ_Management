@@ -5,6 +5,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from pathlib import Path
 import logging
+import re
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -14,12 +15,99 @@ class PDFService:
         self.exports_dir = Path("exports")
         self.exports_dir.mkdir(exist_ok=True)
     
-    def export_concentration_sheets(self, sheets):
+    def _detect_rtl(self, text):
+        """Detect if text contains RTL characters (Hebrew, Arabic, etc.)"""
+        if not text:
+            return False
+        # Check for Hebrew, Arabic, and other RTL characters
+        rtl_pattern = re.compile(r'[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
+        return bool(rtl_pattern.search(text))
+    
+    def _get_project_name(self, db_session=None, sheet_data=None):
+        """Get project name from various sources"""
+        project_name = ""
+        
+        # Try to get from sheet data first (for concentration sheets)
+        if sheet_data and hasattr(sheet_data, 'project_name') and sheet_data.project_name:
+            project_name = sheet_data.project_name
+        elif sheet_data and isinstance(sheet_data, dict) and sheet_data.get('project_name'):
+            project_name = sheet_data['project_name']
+        elif sheet_data and isinstance(sheet_data, list) and len(sheet_data) > 0:
+            # For lists, try to get from first item
+            first_item = sheet_data[0]
+            if hasattr(first_item, 'project_name') and first_item.project_name:
+                project_name = first_item.project_name
+            elif isinstance(first_item, dict) and first_item.get('project_name'):
+                project_name = first_item['project_name']
+        
+        # If not found in data, try database
+        if not project_name and db_session:
+            try:
+                from models import models
+                project_info = db_session.query(models.ProjectInfo).first()
+                if project_info and project_info.project_name:
+                    project_name = project_info.project_name
+            except Exception as e:
+                logger.warning(f"Could not fetch project info from database: {e}")
+        
+        return project_name or "Project Name"
+    
+    def _add_header_footer(self, canvas, doc, project_name):
+        """Add header and footer to PDF pages"""
+        canvas.saveState()
+        
+        # Detect RTL
+        is_rtl = self._detect_rtl(project_name)
+        
+        # Project name in header
+        if project_name:
+            if is_rtl:
+                # RTL: top-right
+                canvas.setFont("Helvetica-Bold", 10)
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name)
+            else:
+                # LTR: top-left
+                canvas.setFont("Helvetica-Bold", 10)
+                canvas.drawString(0.5*inch, doc.pagesize[1] - 0.5*inch, project_name)
+        
+        # Footer with underlined blanks
+        footer_y = 0.5*inch
+        line_y = footer_y - 5
+        
+        if is_rtl:
+            # RTL: right side blank
+            canvas.setFont("Helvetica", 9)
+            canvas.drawRightString(doc.pagesize[0] - 0.5*inch, footer_y, "________________")
+            # Underline
+            canvas.line(doc.pagesize[0] - 2*inch, line_y, doc.pagesize[0] - 0.5*inch, line_y)
+        else:
+            # LTR: left side blank
+            canvas.setFont("Helvetica", 9)
+            canvas.drawString(0.5*inch, footer_y, "________________")
+            # Underline
+            canvas.line(0.5*inch, line_y, 2*inch, line_y)
+        
+        # Always add a blank on the opposite side for consistency
+        if is_rtl:
+            # LTR side blank for RTL documents
+            canvas.drawString(0.5*inch, footer_y, "________________")
+            canvas.line(0.5*inch, line_y, 2*inch, line_y)
+        else:
+            # RTL side blank for LTR documents
+            canvas.drawRightString(doc.pagesize[0] - 0.5*inch, footer_y, "________________")
+            canvas.line(doc.pagesize[0] - 2*inch, line_y, doc.pagesize[0] - 0.5*inch, line_y)
+        
+        canvas.restoreState()
+    
+    def export_concentration_sheets(self, sheets, db_session=None):
         """Export concentration sheets to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"concentration_sheets_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, sheets)
             
             doc = SimpleDocTemplate(str(filepath), pagesize=A4)
             story = []
@@ -71,7 +159,8 @@ class PDFService:
                 story.append(table)
                 story.append(Spacer(1, 20))
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated concentration sheets PDF: {filepath}")
             return str(filepath)
             
@@ -79,12 +168,15 @@ class PDFService:
             logger.error(f"Error generating concentration sheets PDF: {str(e)}")
             raise
     
-    def export_single_concentration_sheet(self, sheet, boq_item, entries):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None):
         """Export a single concentration sheet to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"concentration_sheet_{sheet.id}_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, sheet)
             
             custom_page_size = (11.7*72, 8.3*72)
             doc = SimpleDocTemplate(str(filepath), pagesize=custom_page_size)
@@ -189,7 +281,8 @@ class PDFService:
                 
                 story.append(entries_table)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated concentration sheet PDF with RTL layout: {filepath}")
             return str(filepath)
             
@@ -197,12 +290,15 @@ class PDFService:
             logger.error(f"Error generating single concentration sheet PDF: {str(e)}")
             raise
 
-    def export_summary(self, summary_data):
+    def export_summary(self, summary_data, db_session=None):
         """Export summary report to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"summary_report_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, summary_data)
             
             doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
             story = []
@@ -276,7 +372,8 @@ class PDFService:
             
             story.append(table)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated summary PDF: {filepath}")
             return str(filepath)
             
@@ -284,12 +381,15 @@ class PDFService:
             logger.error(f"Error generating summary PDF: {str(e)}")
             raise
 
-    def export_structures_summary(self, summaries):
+    def export_structures_summary(self, summaries, db_session=None):
         """Export structures summary to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"structures_summary_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, summaries)
             
             doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
             story = []
@@ -367,7 +467,8 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated structures summary PDF: {filepath}")
             return str(filepath)
             
@@ -375,12 +476,15 @@ class PDFService:
             logger.error(f"Error generating structures summary PDF: {str(e)}")
             raise
 
-    def export_systems_summary(self, summaries):
+    def export_systems_summary(self, summaries, db_session=None):
         """Export systems summary to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"systems_summary_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, summaries)
             
             doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
             story = []
@@ -458,7 +562,8 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated systems summary PDF: {filepath}")
             return str(filepath)
             
@@ -466,12 +571,15 @@ class PDFService:
             logger.error(f"Error generating systems summary PDF: {str(e)}")
             raise
 
-    def export_subsections_summary(self, summaries):
+    def export_subsections_summary(self, summaries, db_session=None):
         """Export subsections summary to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"subsections_summary_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, summaries)
             
             doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
             story = []
@@ -549,7 +657,8 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated subsections summary PDF: {filepath}")
             return str(filepath)
             
@@ -557,12 +666,15 @@ class PDFService:
             logger.error(f"Error generating subsections summary PDF: {str(e)}")
             raise
 
-    def export_boq_items(self, items):
+    def export_boq_items(self, items, db_session=None):
         """Export BOQ items to PDF"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"boq_items_{timestamp}.pdf"
             filepath = self.exports_dir / filename
+            
+            # Get project name for header
+            project_name = self._get_project_name(db_session, items)
             
             doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A3))
             story = []
@@ -638,7 +750,8 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
+                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
             logger.info(f"Generated BOQ items PDF: {filepath}")
             return str(filepath)
             
@@ -684,8 +797,8 @@ class PDFService:
             max_width = max_width * 1.3
             
             # Set minimum and maximum column widths based on page size
-            min_width = 60 if page_size == 'A4' else 75  # Minimum width for readability
-            max_width = min(max_width, 270 if page_size == 'A4' else 370)  # Maximum width
+            min_width = 90 if page_size == 'A4' else 105  # Minimum width for readability
+            max_width = min(max_width, 400 if page_size == 'A4' else 540)  # Maximum width
             column_max_widths.append(max(min_width, max_width))
         
         # Calculate total width needed
@@ -697,7 +810,7 @@ class PDFService:
             column_max_widths = [width * scale_factor for width in column_max_widths]
         
         # Ensure minimum width for each column (final check)
-        min_final_width = 50 if page_size == 'A4' else 65
+        min_final_width = 75 if page_size == 'A4' else 100
         column_max_widths = [max(min_final_width, width) for width in column_max_widths]
         
         return column_max_widths 
