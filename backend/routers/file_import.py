@@ -71,7 +71,7 @@ async def upload_file(
                     skipped_count += 1
                     logger.info(f"Skipping existing BOQ item: {item_data['section_number']}")
                 else:
-                    # Create new item
+                    # Create new item - serial_number will be automatically set to id by the event listener
                     new_item = models.BOQItem(**item_data)
                     db.add(new_item)
                     imported_count += 1
@@ -81,6 +81,16 @@ async def upload_file(
         
         # Commit changes
         db.commit()
+        
+        # Set serial_number to id for all newly imported items
+        if imported_count > 0:
+            # Get all items that were just imported (those without serial_number set)
+            new_items = db.query(models.BOQItem).filter(models.BOQItem.serial_number.is_(None)).all()
+            for item in new_items:
+                item.serial_number = item.id
+            
+            # Commit the serial_number updates
+            db.commit()
         
         # Create import log
         log = models.ImportLog(
@@ -169,7 +179,7 @@ async def import_folder(
                             skipped_count += 1
                             logger.info(f"Skipping existing BOQ item: {item_data['section_number']} from file {file_path.name}")
                         else:
-                            # Create new item
+                            # Create new item - serial_number will be automatically set to id by the event listener
                             new_item = models.BOQItem(**item_data)
                             db.add(new_item)
                             imported_count += 1
@@ -201,6 +211,16 @@ async def import_folder(
     
     # Commit all changes
     db.commit()
+    
+    # Set serial_number to id for all newly imported items
+    if total_items_updated > 0:
+        # Get all items that were just imported (those without serial_number set)
+        new_items = db.query(models.BOQItem).filter(models.BOQItem.serial_number.is_(None)).all()
+        for item in new_items:
+            item.serial_number = item.id
+        
+        # Commit the serial_number updates
+        db.commit()
     
     # Count skipped items from errors
     skipped_messages = [error for error in all_errors if "Skipped" in error and "existing items" in error]

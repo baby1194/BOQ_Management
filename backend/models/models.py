@@ -43,6 +43,7 @@ class BOQItem(Base):
     concentration_sheet = relationship("ConcentrationSheet", back_populates="boq_item", uselist=False)
     quantity_updates = relationship("BOQItemQuantityUpdate", back_populates="boq_item", cascade="all, delete-orphan")
 
+
 class ConcentrationSheet(Base):
     __tablename__ = "concentration_sheets"
     

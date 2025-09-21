@@ -63,7 +63,7 @@ async def create_boq_item(item: schemas.BOQItemCreate, db: Session = Depends(get
             )
         
         db_item = models.BOQItem(
-            serial_number=item.serial_number,
+            # serial_number will be set to id after creation
             structure=item.structure,
             system=item.system,
             section_number=item.section_number,
@@ -87,6 +87,11 @@ async def create_boq_item(item: schemas.BOQItemCreate, db: Session = Depends(get
         )
         
         db.add(db_item)
+        db.commit()
+        db.refresh(db_item)
+        
+        # Set serial_number to id value
+        db_item.serial_number = db_item.id
         db.commit()
         db.refresh(db_item)
         
@@ -255,7 +260,7 @@ async def create_bulk_boq_items(
                 continue
             
             db_item = models.BOQItem(
-                serial_number=item.serial_number,
+                # serial_number will be set to id after creation
                 structure=item.structure,
                 system=item.system,
                 section_number=item.section_number,
@@ -283,7 +288,15 @@ async def create_bulk_boq_items(
         
         db.commit()
         
-        # Refresh all created items
+        # Set serial_number to id for all created items
+        for item in created_items:
+            db.refresh(item)
+            item.serial_number = item.id
+        
+        # Commit the serial_number updates
+        db.commit()
+        
+        # Refresh all created items again
         for item in created_items:
             db.refresh(item)
         
