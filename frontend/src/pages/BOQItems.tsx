@@ -36,6 +36,7 @@ const BOQItems: React.FC = () => {
   const [navigatingToSheet, setNavigatingToSheet] = useState<number | null>(
     null
   );
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Panel collapse state
   const [panelsCollapsed, setPanelsCollapsed] = useState(false);
@@ -156,7 +157,7 @@ const BOQItems: React.FC = () => {
   };
 
   const resetColumnVisibility = () => {
-    setColumnVisibility({
+    const baseVisibility = {
       serial_number: true,
       structure: true,
       system: true,
@@ -179,7 +180,15 @@ const BOQItems: React.FC = () => {
       subsection: true,
       notes: true,
       actions: true,
+    };
+
+    // Add contract update columns to reset
+    contractUpdates.forEach((update) => {
+      baseVisibility[`updated_contract_quantity_${update.id}`] = true;
+      baseVisibility[`updated_contract_sum_${update.id}`] = true;
     });
+
+    setColumnVisibility(baseVisibility);
   };
 
   const [allItems, setAllItems] = useState<BOQItem[]>([]);
@@ -192,6 +201,30 @@ const BOQItems: React.FC = () => {
     []
   );
   const [creatingUpdate, setCreatingUpdate] = useState(false);
+
+  // Update columnVisibility when contractUpdates change
+  useEffect(() => {
+    if (contractUpdates.length > 0) {
+      setColumnVisibility((prev) => {
+        const newVisibility = { ...prev };
+
+        contractUpdates.forEach((update) => {
+          const qtyKey = `updated_contract_quantity_${update.id}`;
+          const sumKey = `updated_contract_sum_${update.id}`;
+
+          // Only add if not already present
+          if (!(qtyKey in newVisibility)) {
+            newVisibility[qtyKey] = true;
+          }
+          if (!(sumKey in newVisibility)) {
+            newVisibility[sumKey] = true;
+          }
+        });
+
+        return newVisibility;
+      });
+    }
+  }, [contractUpdates]);
 
   // Manual BOQ Item Creation state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -849,6 +882,41 @@ const BOQItems: React.FC = () => {
     }
   };
 
+  // Delete BOQ item with confirmation
+  const handleDeleteItem = async (item: BOQItem) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete this BOQ item?\n\n` +
+        `Section: ${item.section_number}\n` +
+        `Description: ${item.description}\n\n` +
+        `This will also delete all related concentration sheets and entries. This action cannot be undone.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingId(item.id);
+      await boqApi.delete(item.id);
+
+      // Remove item from local state
+      setItems((prevItems) =>
+        prevItems.filter((prevItem) => prevItem.id !== item.id)
+      );
+
+      // Clear any editing state if this item was being edited
+      if (editingId === item.id) {
+        setEditingId(null);
+        setEditingValues({});
+      }
+
+      console.log(`Successfully deleted BOQ item: ${item.section_number}`);
+    } catch (err) {
+      console.error("Error deleting BOQ item:", err);
+      setError("Failed to delete BOQ item. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Fetch BOQ items
   const fetchItems = async () => {
     try {
@@ -1018,6 +1086,28 @@ const BOQItems: React.FC = () => {
         if (request.include_subsection)
           filteredItem.subsection = item.subsection;
         if (request.include_notes) filteredItem.notes = item.notes;
+
+        // Add contract update columns
+        contractUpdates.forEach((update) => {
+          const qtyKey = `updated_contract_quantity_${update.id}`;
+          const sumKey = `updated_contract_sum_${update.id}`;
+
+          if (request[`include_${qtyKey}`]) {
+            filteredItem[qtyKey] = getContractUpdateValue(
+              item.id,
+              update.id,
+              "quantity"
+            );
+          }
+
+          if (request[`include_${sumKey}`]) {
+            filteredItem[sumKey] = getContractUpdateValue(
+              item.id,
+              update.id,
+              "sum"
+            );
+          }
+        });
 
         return filteredItem;
       });
@@ -1719,6 +1809,111 @@ const BOQItems: React.FC = () => {
                 </div>
               )}
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Invoice No for Submitted QTY
+              </label>
+              {editingProjectInfo ? (
+                <input
+                  type="text"
+                  value={projectInfoDraft.invoice_no_submitted_qty || ""}
+                  onChange={(e) =>
+                    handleProjectInfoDraftChange(
+                      "invoice_no_submitted_qty",
+                      e.target.value
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter invoice number for submitted qty"
+                />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                  {projectInfo?.invoice_no_submitted_qty || "Not specified"}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Invoice Date for Submitted QTY
+              </label>
+              {editingProjectInfo ? (
+                <input
+                  type="date"
+                  value={projectInfoDraft.invoice_date_submitted_qty || ""}
+                  onChange={(e) =>
+                    handleProjectInfoDraftChange(
+                      "invoice_date_submitted_qty",
+                      e.target.value
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                  {projectInfo?.invoice_date_submitted_qty
+                    ? new Date(
+                        projectInfo.invoice_date_submitted_qty
+                      ).toLocaleDateString()
+                    : "Not specified"}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Invoice No for Approved Signed QTY
+              </label>
+              {editingProjectInfo ? (
+                <input
+                  type="text"
+                  value={projectInfoDraft.invoice_no_approved_signed_qty || ""}
+                  onChange={(e) =>
+                    handleProjectInfoDraftChange(
+                      "invoice_no_approved_signed_qty",
+                      e.target.value
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter invoice number for approved signed qty"
+                />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                  {projectInfo?.invoice_no_approved_signed_qty ||
+                    "Not specified"}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Invoice Date for Approved Signed QTY
+              </label>
+              {editingProjectInfo ? (
+                <input
+                  type="date"
+                  value={
+                    projectInfoDraft.invoice_date_approved_signed_qty || ""
+                  }
+                  onChange={(e) =>
+                    handleProjectInfoDraftChange(
+                      "invoice_date_approved_signed_qty",
+                      e.target.value
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                  {projectInfo?.invoice_date_approved_signed_qty
+                    ? new Date(
+                        projectInfo.invoice_date_approved_signed_qty
+                      ).toLocaleDateString()
+                    : "Not specified"}
+                </div>
+              )}
+            </div>
           </div>
 
           {editingProjectInfo && (
@@ -2329,28 +2524,34 @@ const BOQItems: React.FC = () => {
                   </th>
                 )}
                 {/* Dynamic Contract Update Columns */}
-                {contractUpdates.map((update) => (
-                  <th
-                    key={update.id}
-                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
-                  >
-                    {update.update_name}
-                  </th>
-                ))}
+                {contractUpdates.map((update) => {
+                  const qtyKey = `updated_contract_quantity_${update.id}`;
+                  return columnVisibility[qtyKey] ? (
+                    <th
+                      key={update.id}
+                      className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
+                    >
+                      {update.update_name}
+                    </th>
+                  ) : null;
+                })}
                 {columnVisibility.price && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
                     Price
                   </th>
                 )}
                 {/* Dynamic Contract Sum Columns */}
-                {contractUpdates.map((update) => (
-                  <th
-                    key={update.id}
-                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
-                  >
-                    {update.update_name.replace("Qty", "Sum")}
-                  </th>
-                ))}
+                {contractUpdates.map((update) => {
+                  const sumKey = `updated_contract_sum_${update.id}`;
+                  return columnVisibility[sumKey] ? (
+                    <th
+                      key={update.id}
+                      className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
+                    >
+                      {update.update_name.replace("Qty", "Sum")}
+                    </th>
+                  ) : null;
+                })}
                 {columnVisibility.total_contract_sum && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
                     Contract Sum
@@ -2541,35 +2742,38 @@ const BOQItems: React.FC = () => {
                   </th>
                 )}
                 {/* Dynamic Contract Update Filter Columns */}
-                {contractUpdates.map((update) => (
-                  <th
-                    key={update.id}
-                    className="px-2 py-2 border-r border-gray-300"
-                  >
-                    <input
-                      type="text"
-                      value={(
-                        filters.contract_updates[update.id]?.quantity || ""
-                      ).toString()}
-                      onChange={(e) =>
-                        handleContractUpdateFilterChange(
-                          update.id,
-                          "quantity",
-                          e.target.value
-                        )
-                      }
-                      onKeyDown={handleFilterKeyDown}
-                      placeholder=">100, <50, =25..."
-                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                        (
+                {contractUpdates.map((update) => {
+                  const qtyKey = `updated_contract_quantity_${update.id}`;
+                  return columnVisibility[qtyKey] ? (
+                    <th
+                      key={update.id}
+                      className="px-2 py-2 border-r border-gray-300"
+                    >
+                      <input
+                        type="text"
+                        value={(
                           filters.contract_updates[update.id]?.quantity || ""
-                        ).trim() !== ""
-                          ? "border-green-300 bg-green-50"
-                          : "border-gray-300"
-                      }`}
-                    />
-                  </th>
-                ))}
+                        ).toString()}
+                        onChange={(e) =>
+                          handleContractUpdateFilterChange(
+                            update.id,
+                            "quantity",
+                            e.target.value
+                          )
+                        }
+                        onKeyDown={handleFilterKeyDown}
+                        placeholder=">100, <50, =25..."
+                        className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          (
+                            filters.contract_updates[update.id]?.quantity || ""
+                          ).trim() !== ""
+                            ? "border-green-300 bg-green-50"
+                            : "border-gray-300"
+                        }`}
+                      />
+                    </th>
+                  ) : null;
+                })}
                 {columnVisibility.price && (
                   <th className="px-2 py-2 border-r border-gray-300">
                     <input
@@ -2587,35 +2791,38 @@ const BOQItems: React.FC = () => {
                   </th>
                 )}
                 {/* Dynamic Contract Sum Filter Columns */}
-                {contractUpdates.map((update) => (
-                  <th
-                    key={update.id}
-                    className="px-2 py-2 border-r border-gray-300"
-                  >
-                    <input
-                      type="text"
-                      value={(
-                        filters.contract_updates[update.id]?.sum || ""
-                      ).toString()}
-                      onChange={(e) =>
-                        handleContractUpdateFilterChange(
-                          update.id,
-                          "sum",
-                          e.target.value
-                        )
-                      }
-                      onKeyDown={handleFilterKeyDown}
-                      placeholder=">1000, <500, =250..."
-                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                        (
+                {contractUpdates.map((update) => {
+                  const sumKey = `updated_contract_sum_${update.id}`;
+                  return columnVisibility[sumKey] ? (
+                    <th
+                      key={update.id}
+                      className="px-2 py-2 border-r border-gray-300"
+                    >
+                      <input
+                        type="text"
+                        value={(
                           filters.contract_updates[update.id]?.sum || ""
-                        ).trim() !== ""
-                          ? "border-green-300 bg-green-50"
-                          : "border-gray-300"
-                      }`}
-                    />
-                  </th>
-                ))}
+                        ).toString()}
+                        onChange={(e) =>
+                          handleContractUpdateFilterChange(
+                            update.id,
+                            "sum",
+                            e.target.value
+                          )
+                        }
+                        onKeyDown={handleFilterKeyDown}
+                        placeholder=">1000, <500, =250..."
+                        className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          (
+                            filters.contract_updates[update.id]?.sum || ""
+                          ).trim() !== ""
+                            ? "border-green-300 bg-green-50"
+                            : "border-gray-300"
+                        }`}
+                      />
+                    </th>
+                  ) : null;
+                })}
                 {columnVisibility.total_contract_sum && (
                   <th className="px-2 py-2 border-r border-gray-300">
                     <input
@@ -3041,44 +3248,47 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
-                    {contractUpdates.map((update) => (
-                      <td
-                        key={update.id}
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                      >
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={getContractUpdateValue(
-                              item.id,
-                              update.id,
-                              "quantity"
-                            )}
-                            onChange={(e) => {
-                              const newQuantity =
-                                parseFloat(e.target.value) || 0;
-                              handleUpdateContractQuantity(
-                                update.id,
+                    {contractUpdates.map((update) => {
+                      const qtyKey = `updated_contract_quantity_${update.id}`;
+                      return columnVisibility[qtyKey] ? (
+                        <td
+                          key={update.id}
+                          className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                          onDoubleClick={() => !isEditing && startEditing(item)}
+                        >
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getContractUpdateValue(
                                 item.id,
-                                newQuantity
-                              );
-                            }}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          formatNumber(
-                            getContractUpdateValue(
-                              item.id,
-                              update.id,
-                              "quantity"
+                                update.id,
+                                "quantity"
+                              )}
+                              onChange={(e) => {
+                                const newQuantity =
+                                  parseFloat(e.target.value) || 0;
+                                handleUpdateContractQuantity(
+                                  update.id,
+                                  item.id,
+                                  newQuantity
+                                );
+                              }}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                              disabled={isSaving}
+                            />
+                          ) : (
+                            formatNumber(
+                              getContractUpdateValue(
+                                item.id,
+                                update.id,
+                                "quantity"
+                              )
                             )
-                          )
-                        )}
-                      </td>
-                    ))}
+                          )}
+                        </td>
+                      ) : null;
+                    })}
                     {columnVisibility.price && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
@@ -3110,17 +3320,20 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
-                    {contractUpdates.map((update) => (
-                      <td
-                        key={update.id}
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                      >
-                        {formatCurrency(
-                          getContractUpdateValue(item.id, update.id, "sum")
-                        )}
-                      </td>
-                    ))}
+                    {contractUpdates.map((update) => {
+                      const sumKey = `updated_contract_sum_${update.id}`;
+                      return columnVisibility[sumKey] ? (
+                        <td
+                          key={update.id}
+                          className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                          onDoubleClick={() => !isEditing && startEditing(item)}
+                        >
+                          {formatCurrency(
+                            getContractUpdateValue(item.id, update.id, "sum")
+                          )}
+                        </td>
+                      ) : null;
+                    })}
                     {columnVisibility.total_contract_sum && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
                         {formatCurrency(
@@ -3132,127 +3345,34 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.estimated_quantity && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                        title="Double-click to edit"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-50"
+                        title="Read-only field"
                       >
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={
-                              currentValues.estimated_quantity !== undefined &&
-                              currentValues.estimated_quantity !== null
-                                ? currentValues.estimated_quantity
-                                : item.estimated_quantity || 0
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                "estimated_quantity",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          formatNumber(item.estimated_quantity || 0)
-                        )}
+                        {formatNumber(item.estimated_quantity || 0)}
                       </td>
                     )}
                     {columnVisibility.quantity_submitted && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                        title="Double-click to edit"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-50"
+                        title="Read-only field"
                       >
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={
-                              currentValues.quantity_submitted !== undefined &&
-                              currentValues.quantity_submitted !== null
-                                ? currentValues.quantity_submitted
-                                : item.quantity_submitted || 0
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                "quantity_submitted",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          formatNumber(item.quantity_submitted || 0)
-                        )}
+                        {formatNumber(item.quantity_submitted || 0)}
                       </td>
                     )}
                     {columnVisibility.internal_quantity && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-yellow-50 cursor-pointer hover:bg-yellow-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                        title="Double-click to edit"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-yellow-50"
+                        title="Read-only field"
                       >
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={
-                              currentValues.internal_quantity !== undefined &&
-                              currentValues.internal_quantity !== null
-                                ? currentValues.internal_quantity
-                                : item.internal_quantity || 0
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                "internal_quantity",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          formatNumber(item.internal_quantity || 0)
-                        )}
+                        {formatNumber(item.internal_quantity || 0)}
                       </td>
                     )}
                     {columnVisibility.approved_by_project_manager && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-50 cursor-pointer hover:bg-green-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                        title="Double-click to edit"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-50"
+                        title="Read-only field"
                       >
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={
-                              currentValues.approved_by_project_manager !==
-                                undefined &&
-                              currentValues.approved_by_project_manager !== null
-                                ? currentValues.approved_by_project_manager
-                                : item.approved_by_project_manager || 0
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                "approved_by_project_manager",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          formatNumber(item.approved_by_project_manager || 0)
-                        )}
+                        {formatNumber(item.approved_by_project_manager || 0)}
                       </td>
                     )}
                     {columnVisibility.approved_signed_quantity && (
@@ -3395,6 +3515,16 @@ const BOQItems: React.FC = () => {
                                 ? "Navigating..."
                                 : "View Sheet"}
                             </button>
+                            <button
+                              onClick={() => handleDeleteItem(item)}
+                              disabled={deletingId === item.id}
+                              className="text-red-600 hover:text-red-800 px-2 py-1 rounded text-sm hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={`Delete BOQ item: ${item.section_number}`}
+                            >
+                              {deletingId === item.id
+                                ? "Deleting..."
+                                : "Delete"}
+                            </button>
                           </div>
                         )}
                       </td>
@@ -3436,33 +3566,43 @@ const BOQItems: React.FC = () => {
                   <td className="px-3 py-4 bg-gray-50"></td>
                 )}
                 {/* Dynamic Contract Update Quantity Columns - No totals */}
-                {contractUpdates.map((update) => (
-                  <td
-                    key={`qty-${update.id}`}
-                    className="px-3 py-4 bg-gray-50"
-                  ></td>
-                ))}
+                {contractUpdates.map((update) => {
+                  const qtyKey = `updated_contract_quantity_${update.id}`;
+                  return columnVisibility[qtyKey] ? (
+                    <td
+                      key={`qty-${update.id}`}
+                      className="px-3 py-4 bg-gray-50"
+                    ></td>
+                  ) : null;
+                })}
                 {/* Price - No total */}
                 {columnVisibility.price && (
                   <td className="px-3 py-4 bg-gray-50"></td>
                 )}
                 {/* Dynamic Contract Update Sum Columns - WITH TOTALS */}
-                {contractUpdates.map((update) => (
-                  <td
-                    key={`sum-${update.id}`}
-                    className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50"
-                  >
-                    {/* Calculate total for this contract update */}
-                    {formatCurrency(
-                      boqItemUpdates
-                        .filter((u) => u.contract_update_id === update.id)
-                        .reduce(
-                          (sum, u) => sum + (u.updated_contract_sum || 0),
-                          0
-                        )
-                    )}
-                  </td>
-                ))}
+                {contractUpdates.map((update) => {
+                  const sumKey = `updated_contract_sum_${update.id}`;
+                  return columnVisibility[sumKey] ? (
+                    <td
+                      key={`sum-${update.id}`}
+                      className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50"
+                    >
+                      {/* Calculate total for this contract update based on filtered items */}
+                      {formatCurrency(
+                        items.reduce((sum, item) => {
+                          const contractUpdate = boqItemUpdates.find(
+                            (u) =>
+                              u.boq_item_id === item.id &&
+                              u.contract_update_id === update.id
+                          );
+                          return (
+                            sum + (contractUpdate?.updated_contract_sum || 0)
+                          );
+                        }, 0)
+                      )}
+                    </td>
+                  ) : null;
+                })}
                 {/* Contract Sum - WITH TOTAL */}
                 {columnVisibility.total_contract_sum && (
                   <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50">
@@ -3590,6 +3730,13 @@ const BOQItems: React.FC = () => {
                 Toggle the visibility of columns in the BOQ table. Your
                 preferences will be saved automatically.
               </p>
+              {contractUpdates.length > 0 && (
+                <p className="text-xs text-gray-500 mb-3">
+                  <span className="font-medium">Note:</span> Contract update
+                  columns are always visible when contract updates exist and
+                  cannot be hidden.
+                </p>
+              )}
               <button
                 onClick={resetColumnVisibility}
                 className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200"
@@ -3598,27 +3745,293 @@ const BOQItems: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(columnVisibility).map(([key, isVisible]) => (
-                <label
-                  key={key}
-                  className="flex items-center space-x-2 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={isVisible}
-                    onChange={() =>
-                      toggleColumnVisibility(
-                        key as keyof typeof columnVisibility
-                      )
-                    }
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700 capitalize">
-                    {key.replace(/_/g, " ")}
-                  </span>
-                </label>
-              ))}
+            <div className="grid grid-cols-1 gap-2">
+              {/* Static columns in BOQ table order */}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.serial_number}
+                  onChange={() => toggleColumnVisibility("serial_number")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Serial Number</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.structure}
+                  onChange={() => toggleColumnVisibility("structure")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Structure</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.system}
+                  onChange={() => toggleColumnVisibility("system")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">System</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.section_number}
+                  onChange={() => toggleColumnVisibility("section_number")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  Section Number (Code)
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.description}
+                  onChange={() => toggleColumnVisibility("description")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Description</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.unit}
+                  onChange={() => toggleColumnVisibility("unit")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Unit</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.original_contract_quantity}
+                  onChange={() =>
+                    toggleColumnVisibility("original_contract_quantity")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Contract Qty</span>
+              </label>
+
+              {/* Contract Update Quantity Columns */}
+              {contractUpdates.map((update) => {
+                const qtyKey = `updated_contract_quantity_${update.id}`;
+                return (
+                  <label
+                    key={`qty-${update.id}`}
+                    className="flex items-center space-x-2 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={columnVisibility[qtyKey] || false}
+                      onChange={() =>
+                        toggleColumnVisibility(
+                          qtyKey as keyof typeof columnVisibility
+                        )
+                      }
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {update.update_name}
+                    </span>
+                  </label>
+                );
+              })}
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.price}
+                  onChange={() => toggleColumnVisibility("price")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Price</span>
+              </label>
+
+              {/* Contract Update Sum Columns */}
+              {contractUpdates.map((update) => {
+                const sumKey = `updated_contract_sum_${update.id}`;
+                return (
+                  <label
+                    key={`sum-${update.id}`}
+                    className="flex items-center space-x-2 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={columnVisibility[sumKey] || false}
+                      onChange={() =>
+                        toggleColumnVisibility(
+                          sumKey as keyof typeof columnVisibility
+                        )
+                      }
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {update.update_name.replace("Qty", "Sum")}
+                    </span>
+                  </label>
+                );
+              })}
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.total_contract_sum}
+                  onChange={() => toggleColumnVisibility("total_contract_sum")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Contract Sum</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.estimated_quantity}
+                  onChange={() => toggleColumnVisibility("estimated_quantity")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Est. Qty</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.quantity_submitted}
+                  onChange={() => toggleColumnVisibility("quantity_submitted")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Submitted Qty</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.internal_quantity}
+                  onChange={() => toggleColumnVisibility("internal_quantity")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Internal Qty</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.approved_by_project_manager}
+                  onChange={() =>
+                    toggleColumnVisibility("approved_by_project_manager")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Approved Qty</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.approved_signed_quantity}
+                  onChange={() =>
+                    toggleColumnVisibility("approved_signed_quantity")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  Approved Signed Qty
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.total_estimate}
+                  onChange={() => toggleColumnVisibility("total_estimate")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Total Est.</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.total_submitted}
+                  onChange={() => toggleColumnVisibility("total_submitted")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Total Submitted</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.internal_total}
+                  onChange={() => toggleColumnVisibility("internal_total")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Internal Total</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.total_approved_by_project_manager}
+                  onChange={() =>
+                    toggleColumnVisibility("total_approved_by_project_manager")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Total Approved</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.approved_signed_total}
+                  onChange={() =>
+                    toggleColumnVisibility("approved_signed_total")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  Approved Signed Total
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.subsection}
+                  onChange={() => toggleColumnVisibility("subsection")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Subchapter</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.notes}
+                  onChange={() => toggleColumnVisibility("notes")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Notes</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.actions}
+                  onChange={() => toggleColumnVisibility("actions")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Actions</span>
+              </label>
             </div>
 
             <div className="mt-6 flex justify-end space-x-3">

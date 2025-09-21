@@ -169,6 +169,14 @@ class ProjectInfo(Base):
     developer_name = Column(String(200), nullable=True)
     contract_no = Column(String(100), nullable=True)
     
+    # Invoice fields for Submitted QTY
+    invoice_no_submitted_qty = Column(String(100), nullable=True)
+    invoice_date_submitted_qty = Column(DateTime(timezone=True), nullable=True)
+    
+    # Invoice fields for Approved Signed QTY
+    invoice_no_approved_signed_qty = Column(String(100), nullable=True)
+    invoice_date_approved_signed_qty = Column(DateTime(timezone=True), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

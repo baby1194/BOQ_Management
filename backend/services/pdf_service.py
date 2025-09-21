@@ -693,7 +693,33 @@ class PDFService:
             
             # Create table for BOQ items data
             if items:
-                headers = list(items[0].keys())
+                # Define column order to match BOQ table order
+                all_possible_headers = [
+                    'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
+                    'original_contract_quantity'
+                ]
+                
+                # Add contract update quantity columns in order
+                for key in items[0].keys():
+                    if key.startswith('updated_contract_quantity_'):
+                        all_possible_headers.append(key)
+                
+                all_possible_headers.append('price')
+                
+                # Add contract update sum columns in order
+                for key in items[0].keys():
+                    if key.startswith('updated_contract_sum_'):
+                        all_possible_headers.append(key)
+                
+                all_possible_headers.extend([
+                    'total_contract_sum', 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
+                    'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
+                    'total_submitted', 'internal_total', 'total_approved_by_project_manager',
+                    'approved_signed_total', 'subsection', 'notes'
+                ])
+                
+                # Only include headers that exist in the data
+                headers = [h for h in all_possible_headers if h in items[0].keys()]
                 data = [headers]
                 
                 grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in headers}
@@ -704,10 +730,11 @@ class PDFService:
                     for key in headers:
                         value = item[key]
                         if isinstance(value, (int, float)):
-                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower() or 'price' in key.lower() or 'sum' in key.lower():
+                            # Only apply $ formatting to price and sum/total columns, not quantity columns
+                            if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
                                 row_data.append(f"${value:,.2f}")
                             else:
-                                row_data.append(str(value))
+                                row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
                             row_data.append(str(value))
                     data.append(row_data)
@@ -721,10 +748,11 @@ class PDFService:
                 totals_row = []
                 for key in headers:
                     if isinstance(grand_totals[key], (int, float)):
-                        if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower() or 'price' in key.lower() or 'sum' in key.lower():
+                        # Only apply $ formatting to price and sum/total columns, not quantity columns
+                        if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
                             totals_row.append(f"${grand_totals[key]:,.2f}")
                         else:
-                            totals_row.append(str(grand_totals[key]))
+                            totals_row.append(f"{grand_totals[key]:,.2f}" if grand_totals[key] != int(grand_totals[key]) else str(int(grand_totals[key])))
                     else:
                         totals_row.append("")
                 totals_row[0] = "GRAND TOTAL"

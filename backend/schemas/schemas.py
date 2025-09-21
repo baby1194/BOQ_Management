@@ -290,6 +290,12 @@ class ProjectInfoBase(BaseModel):
     subcontractor_name: Optional[str] = Field(None, max_length=200)
     developer_name: Optional[str] = Field(None, max_length=200)
     contract_no: Optional[str] = Field(None, max_length=100)
+    # Invoice fields for Submitted QTY
+    invoice_no_submitted_qty: Optional[str] = Field(None, max_length=100)
+    invoice_date_submitted_qty: Optional[datetime] = None
+    # Invoice fields for Approved Signed QTY
+    invoice_no_approved_signed_qty: Optional[str] = Field(None, max_length=100)
+    invoice_date_approved_signed_qty: Optional[datetime] = None
 
 class ProjectInfoCreate(ProjectInfoBase):
     pass

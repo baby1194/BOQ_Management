@@ -56,7 +56,7 @@ async def upload_file(
         
         # Import items to database
         imported_count = 0
-        updated_count = 0
+        skipped_count = 0
         
         for item_data in items:
             # print("_________________", item_data)
@@ -67,11 +67,9 @@ async def upload_file(
                 ).first()
                 
                 if existing_item:
-                    # Update existing item
-                    for key, value in item_data.items():
-                        if hasattr(existing_item, key):
-                            setattr(existing_item, key, value)
-                    updated_count += 1
+                    # Skip existing item
+                    skipped_count += 1
+                    logger.info(f"Skipping existing BOQ item: {item_data['section_number']}")
                 else:
                     # Create new item
                     new_item = models.BOQItem(**item_data)
@@ -88,19 +86,28 @@ async def upload_file(
         log = models.ImportLog(
             file_name=file.filename,
             file_path=str(file_path),
-            status="success" if not errors else "partial" if imported_count > 0 or updated_count > 0 else "error",
+            status="success" if not errors else "partial" if imported_count > 0 else "error",
             error_message="; ".join(errors) if errors else None,
             items_processed=len(items),
-            items_updated=imported_count + updated_count
+            items_updated=imported_count
         )
         db.add(log)
         db.commit()
         
+        # Prepare success message
+        message_parts = []
+        if imported_count > 0:
+            message_parts.append(f"{imported_count} items imported")
+        if skipped_count > 0:
+            message_parts.append(f"{skipped_count} items skipped (already exist)")
+        
+        success_message = f"File processed successfully. {', '.join(message_parts)}." if message_parts else "No new items to import."
+        
         return schemas.ImportResponse(
             success=True,
-            message=f"File processed successfully. {imported_count} items imported, {updated_count} items updated.",
+            message=success_message,
             files_processed=1,
-            items_updated=imported_count + updated_count,
+            items_updated=imported_count,
             errors=errors
         )
         
@@ -148,7 +155,7 @@ async def import_folder(
             if items:
                 # Import items to database
                 imported_count = 0
-                updated_count = 0
+                skipped_count = 0
                 
                 for item_data in items:
                     try:
@@ -158,11 +165,9 @@ async def import_folder(
                         ).first()
                         
                         if existing_item:
-                            # Update existing item
-                            for key, value in item_data.items():
-                                if hasattr(existing_item, key):
-                                    setattr(existing_item, key, value)
-                            updated_count += 1
+                            # Skip existing item
+                            skipped_count += 1
+                            logger.info(f"Skipping existing BOQ item: {item_data['section_number']} from file {file_path.name}")
                         else:
                             # Create new item
                             new_item = models.BOQItem(**item_data)
@@ -172,16 +177,20 @@ async def import_folder(
                     except Exception as e:
                         all_errors.append(f"{file_path.name} - Error processing item {item_data.get('section_number', 'Unknown')}: {str(e)}")
                 
-                total_items_updated += imported_count + updated_count
+                total_items_updated += imported_count
+                
+                # Add skipped items info to errors for display
+                if skipped_count > 0:
+                    all_errors.append(f"{file_path.name} - Skipped {skipped_count} existing items")
                 
                 # Create import log for this file
                 log = models.ImportLog(
                     file_name=file_path.name,
                     file_path=str(file_path),
-                    status="success" if not errors else "partial" if imported_count > 0 or updated_count > 0 else "error",
+                    status="success" if not errors else "partial" if imported_count > 0 else "error",
                     error_message="; ".join(errors) if errors else None,
                     items_processed=len(items),
-                    items_updated=imported_count + updated_count
+                    items_updated=imported_count
                 )
                 db.add(log)
                 
@@ -193,12 +202,16 @@ async def import_folder(
     # Commit all changes
     db.commit()
     
+    # Count skipped items from errors
+    skipped_messages = [error for error in all_errors if "Skipped" in error and "existing items" in error]
+    actual_errors = [error for error in all_errors if not ("Skipped" in error and "existing items" in error)]
+    
     return schemas.ImportResponse(
-        success=len(all_errors) == 0,
-        message=f"Processed {len(excel_files)} files. {total_items_updated} items updated.",
+        success=len(actual_errors) == 0,
+        message=f"Processed {len(excel_files)} files. {total_items_updated} items imported.",
         files_processed=len(excel_files),
         items_updated=total_items_updated,
-        errors=all_errors
+        errors=all_errors  # Include both errors and skipped info
     )
 
 @router.get("/logs/", response_model=List[schemas.ImportLog])

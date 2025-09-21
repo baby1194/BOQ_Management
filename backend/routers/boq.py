@@ -166,7 +166,7 @@ async def update_boq_item(
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_boq_item(item_id: int, db: Session = Depends(get_db)):
-    """Delete a BOQ item"""
+    """Delete a BOQ item and all related concentration sheets and entries"""
     try:
         db_item = db.query(models.BOQItem).filter(models.BOQItem.id == item_id).first()
         if not db_item:
@@ -175,10 +175,35 @@ async def delete_boq_item(item_id: int, db: Session = Depends(get_db)):
                 detail="BOQ item not found"
             )
         
+        # Get the section number for logging before deletion
+        section_number = db_item.section_number
+        
+        # Delete related concentration sheets and their entries (cascade will handle ConcentrationEntries)
+        concentration_sheets = db.query(models.ConcentrationSheet).filter(
+            models.ConcentrationSheet.boq_item_id == item_id
+        ).all()
+        
+        concentration_sheets_count = len(concentration_sheets)
+        total_entries_count = 0
+        
+        for sheet in concentration_sheets:
+            # Count entries before deletion for logging
+            entries_count = db.query(models.ConcentrationEntry).filter(
+                models.ConcentrationEntry.concentration_sheet_id == sheet.id
+            ).count()
+            total_entries_count += entries_count
+            
+            # Delete the sheet (cascade will delete entries)
+            db.delete(sheet)
+        
+        # Delete the BOQ item (cascade will handle quantity_updates)
         db.delete(db_item)
         db.commit()
         
-        logger.info(f"Deleted BOQ item: {db_item.section_number}")
+        logger.info(
+            f"Deleted BOQ item: {section_number} with {concentration_sheets_count} "
+            f"concentration sheets and {total_entries_count} concentration entries"
+        )
         
     except HTTPException:
         raise

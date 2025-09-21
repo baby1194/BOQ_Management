@@ -201,7 +201,8 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2">
+            {/* Columns ordered according to BOQ table display order */}
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -239,7 +240,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_section_number")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Section Number</span>
+              <span className="text-sm text-gray-700">
+                Section Number (Code)
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -271,10 +274,34 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">
-                Original Contract Quantity
-              </span>
+              <span className="text-sm text-gray-700">Contract Qty</span>
             </label>
+
+            {/* Contract Update Quantity Columns */}
+            {contractUpdates.map((update) => (
+              <label
+                key={`qty-${update.id}`}
+                className="flex items-center space-x-2"
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    exportRequest[
+                      `include_updated_contract_quantity_${update.id}`
+                    ] || false
+                  }
+                  onChange={() =>
+                    handleCheckboxChange(
+                      `include_updated_contract_quantity_${update.id}`
+                    )
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  {update.update_name}
+                </span>
+              </label>
+            ))}
 
             <label className="flex items-center space-x-2">
               <input
@@ -286,6 +313,32 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               <span className="text-sm text-gray-700">Price</span>
             </label>
 
+            {/* Contract Update Sum Columns */}
+            {contractUpdates.map((update) => (
+              <label
+                key={`sum-${update.id}`}
+                className="flex items-center space-x-2"
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    exportRequest[
+                      `include_updated_contract_sum_${update.id}`
+                    ] || false
+                  }
+                  onChange={() =>
+                    handleCheckboxChange(
+                      `include_updated_contract_sum_${update.id}`
+                    )
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  {update.update_name.replace("Qty", "Sum")}
+                </span>
+              </label>
+            ))}
+
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -295,7 +348,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Total Contract Sum</span>
+              <span className="text-sm text-gray-700">Contract Sum</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -307,7 +360,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Estimated Quantity</span>
+              <span className="text-sm text-gray-700">Est. Qty</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -319,7 +372,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Quantity Submitted</span>
+              <span className="text-sm text-gray-700">Submitted Qty</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -331,7 +384,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Internal Quantity</span>
+              <span className="text-sm text-gray-700">Internal Qty</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -343,9 +396,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">
-                Approved by Project Manager
-              </span>
+              <span className="text-sm text-gray-700">Approved Qty</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -357,9 +408,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">
-                Approved Signed Quantity
-              </span>
+              <span className="text-sm text-gray-700">Approved Signed Qty</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -369,7 +418,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_total_estimate")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Total Estimate</span>
+              <span className="text-sm text-gray-700">Total Est.</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -405,9 +454,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">
-                Total Approved by Project Manager
-              </span>
+              <span className="text-sm text-gray-700">Total Approved</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -431,7 +478,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_subsection")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Subsection</span>
+              <span className="text-sm text-gray-700">Subchapter</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -444,59 +491,6 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               <span className="text-sm text-gray-700">Notes</span>
             </label>
           </div>
-
-          {/* Contract Update Columns */}
-          {contractUpdates.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">
-                Contract Updates
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                {contractUpdates.map((update) => (
-                  <React.Fragment key={update.id}>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={
-                          exportRequest[
-                            `include_updated_contract_quantity_${update.id}`
-                          ] || false
-                        }
-                        onChange={() =>
-                          handleCheckboxChange(
-                            `include_updated_contract_quantity_${update.id}`
-                          )
-                        }
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">
-                        {update.update_name}
-                      </span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={
-                          exportRequest[
-                            `include_updated_contract_sum_${update.id}`
-                          ] || false
-                        }
-                        onChange={() =>
-                          handleCheckboxChange(
-                            `include_updated_contract_sum_${update.id}`
-                          )
-                        }
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">
-                        {update.update_name.replace("Qty", "Sum")}
-                      </span>
-                    </label>
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="flex justify-end space-x-3">

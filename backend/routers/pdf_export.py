@@ -656,84 +656,85 @@ async def export_boq_items_pdf(
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if "data" in request and request["data"]:
-            items = request["data"]
+            # Frontend sends filtered data with contract updates included
+            filtered_items = request["data"]
         else:
+            # Fallback: fetch from database and apply filtering
             items = db.query(models.BOQItem).all()
-        
-        # Get contract updates for dynamic columns
-        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
-        
-        # Filter columns based on request
-        filtered_items = []
-        for item in items:
-            filtered_item = {}
-            # Handle both dictionary and object access
-            if request.get("include_serial_number"):
-                filtered_item["serial_number"] = item.get("serial_number") if isinstance(item, dict) else item.serial_number
-            if request.get("include_structure"):
-                filtered_item["structure"] = item.get("structure") if isinstance(item, dict) else item.structure
-            if request.get("include_system"):
-                filtered_item["system"] = item.get("system") if isinstance(item, dict) else item.system
-            if request.get("include_section_number"):
-                filtered_item["section_number"] = item.get("section_number") if isinstance(item, dict) else item.section_number
-            if request.get("include_description"):
-                filtered_item["description"] = item.get("description") if isinstance(item, dict) else item.description
-            if request.get("include_unit"):
-                filtered_item["unit"] = item.get("unit") if isinstance(item, dict) else item.unit
-            if request.get("include_original_contract_quantity"):
-                filtered_item["original_contract_quantity"] = item.get("original_contract_quantity") if isinstance(item, dict) else item.original_contract_quantity
-            if request.get("include_price"):
-                filtered_item["price"] = item.get("price") if isinstance(item, dict) else item.price
-            if request.get("include_total_contract_sum"):
-                filtered_item["total_contract_sum"] = item.get("total_contract_sum") if isinstance(item, dict) else item.total_contract_sum
-            if request.get("include_estimated_quantity"):
-                filtered_item["estimated_quantity"] = item.get("estimated_quantity") if isinstance(item, dict) else item.estimated_quantity
-            if request.get("include_quantity_submitted"):
-                filtered_item["quantity_submitted"] = item.get("quantity_submitted") if isinstance(item, dict) else item.quantity_submitted
-            if request.get("include_internal_quantity"):
-                filtered_item["internal_quantity"] = item.get("internal_quantity") if isinstance(item, dict) else item.internal_quantity
-            if request.get("include_approved_by_project_manager"):
-                filtered_item["approved_by_project_manager"] = item.get("approved_by_project_manager") if isinstance(item, dict) else item.approved_by_project_manager
-            if request.get("include_approved_signed_quantity"):
-                filtered_item["approved_signed_quantity"] = item.get("approved_signed_quantity") if isinstance(item, dict) else item.approved_signed_quantity
-            if request.get("include_total_estimate"):
-                filtered_item["total_estimate"] = item.get("total_estimate") if isinstance(item, dict) else item.total_estimate
-            if request.get("include_total_submitted"):
-                filtered_item["total_submitted"] = item.get("total_submitted") if isinstance(item, dict) else item.total_submitted
-            if request.get("include_internal_total"):
-                filtered_item["internal_total"] = item.get("internal_total") if isinstance(item, dict) else item.internal_total
-            if request.get("include_total_approved_by_project_manager"):
-                filtered_item["total_approved_by_project_manager"] = item.get("total_approved_by_project_manager") if isinstance(item, dict) else item.total_approved_by_project_manager
-            if request.get("include_approved_signed_total"):
-                filtered_item["approved_signed_total"] = item.get("approved_signed_total") if isinstance(item, dict) else item.approved_signed_total
-            if request.get("include_subsection"):
-                filtered_item["subsection"] = item.get("subsection") if isinstance(item, dict) else item.subsection
-            if request.get("include_notes"):
-                filtered_item["notes"] = item.get("notes") if isinstance(item, dict) else item.notes
+            contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
             
-            # Add dynamic contract update columns
-            for update in contract_updates:
-                # Get the BOQ item ID
-                item_id = item.get("id") if isinstance(item, dict) else item.id
+            filtered_items = []
+            for item in items:
+                filtered_item = {}
                 
-                # Find the corresponding BOQ item update
-                boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
-                    models.BOQItemQuantityUpdate.boq_item_id == item_id,
-                    models.BOQItemQuantityUpdate.contract_update_id == update.id
-                ).first()
+                # Process columns in BOQ table order
+                if request.get("include_serial_number"):
+                    filtered_item["serial_number"] = item.serial_number
+                if request.get("include_structure"):
+                    filtered_item["structure"] = item.structure
+                if request.get("include_system"):
+                    filtered_item["system"] = item.system
+                if request.get("include_section_number"):
+                    filtered_item["section_number"] = item.section_number
+                if request.get("include_description"):
+                    filtered_item["description"] = item.description
+                if request.get("include_unit"):
+                    filtered_item["unit"] = item.unit
+                if request.get("include_original_contract_quantity"):
+                    filtered_item["original_contract_quantity"] = item.original_contract_quantity
                 
-                # Add quantity column if requested
-                quantity_key = f"updated_contract_quantity_{update.id}"
-                if request.get(f"include_{quantity_key}"):
-                    filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
+                # Add contract update quantity columns in order
+                for update in contract_updates:
+                    quantity_key = f"updated_contract_quantity_{update.id}"
+                    if request.get(f"include_{quantity_key}"):
+                        boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
+                            models.BOQItemQuantityUpdate.boq_item_id == item.id,
+                            models.BOQItemQuantityUpdate.contract_update_id == update.id
+                        ).first()
+                        filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
                 
-                # Add sum column if requested
-                sum_key = f"updated_contract_sum_{update.id}"
-                if request.get(f"include_{sum_key}"):
-                    filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
-            
-            if filtered_item:  # Only add if at least one column is selected
-                filtered_items.append(filtered_item)
+                if request.get("include_price"):
+                    filtered_item["price"] = item.price
+                
+                # Add contract update sum columns in order
+                for update in contract_updates:
+                    sum_key = f"updated_contract_sum_{update.id}"
+                    if request.get(f"include_{sum_key}"):
+                        boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
+                            models.BOQItemQuantityUpdate.boq_item_id == item.id,
+                            models.BOQItemQuantityUpdate.contract_update_id == update.id
+                        ).first()
+                        filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
+                
+                if request.get("include_total_contract_sum"):
+                    filtered_item["total_contract_sum"] = item.total_contract_sum
+                if request.get("include_estimated_quantity"):
+                    filtered_item["estimated_quantity"] = item.estimated_quantity
+                if request.get("include_quantity_submitted"):
+                    filtered_item["quantity_submitted"] = item.quantity_submitted
+                if request.get("include_internal_quantity"):
+                    filtered_item["internal_quantity"] = item.internal_quantity
+                if request.get("include_approved_by_project_manager"):
+                    filtered_item["approved_by_project_manager"] = item.approved_by_project_manager
+                if request.get("include_approved_signed_quantity"):
+                    filtered_item["approved_signed_quantity"] = item.approved_signed_quantity
+                if request.get("include_total_estimate"):
+                    filtered_item["total_estimate"] = item.total_estimate
+                if request.get("include_total_submitted"):
+                    filtered_item["total_submitted"] = item.total_submitted
+                if request.get("include_internal_total"):
+                    filtered_item["internal_total"] = item.internal_total
+                if request.get("include_total_approved_by_project_manager"):
+                    filtered_item["total_approved_by_project_manager"] = item.total_approved_by_project_manager
+                if request.get("include_approved_signed_total"):
+                    filtered_item["approved_signed_total"] = item.approved_signed_total
+                if request.get("include_subsection"):
+                    filtered_item["subsection"] = item.subsection
+                if request.get("include_notes"):
+                    filtered_item["notes"] = item.notes
+                
+                if filtered_item:
+                    filtered_items.append(filtered_item)
         
         # Generate PDF
         pdf_path = pdf_service.export_boq_items(filtered_items, db)
@@ -765,84 +766,85 @@ async def export_boq_items_excel(
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if "data" in request and request["data"]:
-            items = request["data"]
+            # Frontend sends filtered data with contract updates included
+            filtered_items = request["data"]
         else:
+            # Fallback: fetch from database and apply filtering
             items = db.query(models.BOQItem).all()
-        
-        # Get contract updates for dynamic columns
-        contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
-        
-        # Filter columns based on request
-        filtered_items = []
-        for item in items:
-            filtered_item = {}
-            # Handle both dictionary and object access
-            if request.get("include_serial_number"):
-                filtered_item["serial_number"] = item.get("serial_number") if isinstance(item, dict) else item.serial_number
-            if request.get("include_structure"):
-                filtered_item["structure"] = item.get("structure") if isinstance(item, dict) else item.structure
-            if request.get("include_system"):
-                filtered_item["system"] = item.get("system") if isinstance(item, dict) else item.system
-            if request.get("include_section_number"):
-                filtered_item["section_number"] = item.get("section_number") if isinstance(item, dict) else item.section_number
-            if request.get("include_description"):
-                filtered_item["description"] = item.get("description") if isinstance(item, dict) else item.description
-            if request.get("include_unit"):
-                filtered_item["unit"] = item.get("unit") if isinstance(item, dict) else item.unit
-            if request.get("include_original_contract_quantity"):
-                filtered_item["original_contract_quantity"] = item.get("original_contract_quantity") if isinstance(item, dict) else item.original_contract_quantity
-            if request.get("include_price"):
-                filtered_item["price"] = item.get("price") if isinstance(item, dict) else item.price
-            if request.get("include_total_contract_sum"):
-                filtered_item["total_contract_sum"] = item.get("total_contract_sum") if isinstance(item, dict) else item.total_contract_sum
-            if request.get("include_estimated_quantity"):
-                filtered_item["estimated_quantity"] = item.get("estimated_quantity") if isinstance(item, dict) else item.estimated_quantity
-            if request.get("include_quantity_submitted"):
-                filtered_item["quantity_submitted"] = item.get("quantity_submitted") if isinstance(item, dict) else item.quantity_submitted
-            if request.get("include_internal_quantity"):
-                filtered_item["internal_quantity"] = item.get("internal_quantity") if isinstance(item, dict) else item.internal_quantity
-            if request.get("include_approved_by_project_manager"):
-                filtered_item["approved_by_project_manager"] = item.get("approved_by_project_manager") if isinstance(item, dict) else item.approved_by_project_manager
-            if request.get("include_approved_signed_quantity"):
-                filtered_item["approved_signed_quantity"] = item.get("approved_signed_quantity") if isinstance(item, dict) else item.approved_signed_quantity
-            if request.get("include_total_estimate"):
-                filtered_item["total_estimate"] = item.get("total_estimate") if isinstance(item, dict) else item.total_estimate
-            if request.get("include_total_submitted"):
-                filtered_item["total_submitted"] = item.get("total_submitted") if isinstance(item, dict) else item.total_submitted
-            if request.get("include_internal_total"):
-                filtered_item["internal_total"] = item.get("internal_total") if isinstance(item, dict) else item.internal_total
-            if request.get("include_total_approved_by_project_manager"):
-                filtered_item["total_approved_by_project_manager"] = item.get("total_approved_by_project_manager") if isinstance(item, dict) else item.total_approved_by_project_manager
-            if request.get("include_approved_signed_total"):
-                filtered_item["approved_signed_total"] = item.get("approved_signed_total") if isinstance(item, dict) else item.approved_signed_total
-            if request.get("include_subsection"):
-                filtered_item["subsection"] = item.get("subsection") if isinstance(item, dict) else item.subsection
-            if request.get("include_notes"):
-                filtered_item["notes"] = item.get("notes") if isinstance(item, dict) else item.notes
+            contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
             
-            # Add dynamic contract update columns
-            for update in contract_updates:
-                # Get the BOQ item ID
-                item_id = item.get("id") if isinstance(item, dict) else item.id
+            filtered_items = []
+            for item in items:
+                filtered_item = {}
                 
-                # Find the corresponding BOQ item update
-                boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
-                    models.BOQItemQuantityUpdate.boq_item_id == item_id,
-                    models.BOQItemQuantityUpdate.contract_update_id == update.id
-                ).first()
+                # Process columns in BOQ table order
+                if request.get("include_serial_number"):
+                    filtered_item["serial_number"] = item.serial_number
+                if request.get("include_structure"):
+                    filtered_item["structure"] = item.structure
+                if request.get("include_system"):
+                    filtered_item["system"] = item.system
+                if request.get("include_section_number"):
+                    filtered_item["section_number"] = item.section_number
+                if request.get("include_description"):
+                    filtered_item["description"] = item.description
+                if request.get("include_unit"):
+                    filtered_item["unit"] = item.unit
+                if request.get("include_original_contract_quantity"):
+                    filtered_item["original_contract_quantity"] = item.original_contract_quantity
                 
-                # Add quantity column if requested
-                quantity_key = f"updated_contract_quantity_{update.id}"
-                if request.get(f"include_{quantity_key}"):
-                    filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
+                # Add contract update quantity columns in order
+                for update in contract_updates:
+                    quantity_key = f"updated_contract_quantity_{update.id}"
+                    if request.get(f"include_{quantity_key}"):
+                        boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
+                            models.BOQItemQuantityUpdate.boq_item_id == item.id,
+                            models.BOQItemQuantityUpdate.contract_update_id == update.id
+                        ).first()
+                        filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
                 
-                # Add sum column if requested
-                sum_key = f"updated_contract_sum_{update.id}"
-                if request.get(f"include_{sum_key}"):
-                    filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
-            
-            if filtered_item:  # Only add if at least one column is selected
-                filtered_items.append(filtered_item)
+                if request.get("include_price"):
+                    filtered_item["price"] = item.price
+                
+                # Add contract update sum columns in order
+                for update in contract_updates:
+                    sum_key = f"updated_contract_sum_{update.id}"
+                    if request.get(f"include_{sum_key}"):
+                        boq_item_update = db.query(models.BOQItemQuantityUpdate).filter(
+                            models.BOQItemQuantityUpdate.boq_item_id == item.id,
+                            models.BOQItemQuantityUpdate.contract_update_id == update.id
+                        ).first()
+                        filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
+                
+                if request.get("include_total_contract_sum"):
+                    filtered_item["total_contract_sum"] = item.total_contract_sum
+                if request.get("include_estimated_quantity"):
+                    filtered_item["estimated_quantity"] = item.estimated_quantity
+                if request.get("include_quantity_submitted"):
+                    filtered_item["quantity_submitted"] = item.quantity_submitted
+                if request.get("include_internal_quantity"):
+                    filtered_item["internal_quantity"] = item.internal_quantity
+                if request.get("include_approved_by_project_manager"):
+                    filtered_item["approved_by_project_manager"] = item.approved_by_project_manager
+                if request.get("include_approved_signed_quantity"):
+                    filtered_item["approved_signed_quantity"] = item.approved_signed_quantity
+                if request.get("include_total_estimate"):
+                    filtered_item["total_estimate"] = item.total_estimate
+                if request.get("include_total_submitted"):
+                    filtered_item["total_submitted"] = item.total_submitted
+                if request.get("include_internal_total"):
+                    filtered_item["internal_total"] = item.internal_total
+                if request.get("include_total_approved_by_project_manager"):
+                    filtered_item["total_approved_by_project_manager"] = item.total_approved_by_project_manager
+                if request.get("include_approved_signed_total"):
+                    filtered_item["approved_signed_total"] = item.approved_signed_total
+                if request.get("include_subsection"):
+                    filtered_item["subsection"] = item.subsection
+                if request.get("include_notes"):
+                    filtered_item["notes"] = item.notes
+                
+                if filtered_item:
+                    filtered_items.append(filtered_item)
         
         # Generate Excel
         excel_path = excel_service.export_boq_items(filtered_items)

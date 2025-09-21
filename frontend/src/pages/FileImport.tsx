@@ -193,7 +193,7 @@ const FileImport: React.FC = () => {
               </h2>
               <p className="text-sm text-gray-600">
                 Upload your BOQ.xlsx file. Items with existing section numbers
-                will be ignored.
+                will be skipped (not overwritten).
               </p>
             </div>
 
@@ -328,13 +328,36 @@ const FileImport: React.FC = () => {
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-medium text-gray-600">
-                    Items Updated
+                    Items Imported
                   </p>
                   <p className="text-xl font-bold text-gray-900">
                     {importResult.items_updated}
                   </p>
                 </div>
               </div>
+
+              {/* Show errors/warnings */}
+              {importResult.errors && importResult.errors.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    Import Details:
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {importResult.errors.map((error, index) => (
+                      <div
+                        key={index}
+                        className={`text-xs p-2 rounded ${
+                          error.includes("skipped") || error.includes("Skipped")
+                            ? "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                            : "bg-red-50 text-red-800 border border-red-200"
+                        }`}
+                      >
+                        {error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -573,7 +596,7 @@ const FileImport: React.FC = () => {
               </li>
               <li className="flex items-start">
                 <span className="text-blue-500 mr-2">•</span>
-                Items with existing section numbers will be ignored (not
+                Items with existing section numbers will be skipped (not
                 overwritten)
               </li>
               <li className="flex items-start">

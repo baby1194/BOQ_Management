@@ -891,22 +891,59 @@ class ExcelService:
             if not items:
                 raise ValueError("No data to export")
             
-            # Convert to DataFrame
-            df = pd.DataFrame(items)
+            # Define column order to match BOQ table order
+            all_possible_headers = [
+                'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
+                'original_contract_quantity'
+            ]
             
-            # Format numeric columns
-            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved_by_project_manager', 'approved_signed_total', 'price', 'total_contract_sum', 'original_contract_quantity', 'estimated_quantity', 'quantity_submitted', 'internal_quantity', 'approved_by_project_manager', 'approved_signed_quantity']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+            # Add contract update quantity columns in order
+            for key in items[0].keys():
+                if key.startswith('updated_contract_quantity_'):
+                    all_possible_headers.append(key)
+            
+            all_possible_headers.append('price')
+            
+            # Add contract update sum columns in order
+            for key in items[0].keys():
+                if key.startswith('updated_contract_sum_'):
+                    all_possible_headers.append(key)
+            
+            all_possible_headers.extend([
+                'total_contract_sum', 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
+                'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
+                'total_submitted', 'internal_total', 'total_approved_by_project_manager',
+                'approved_signed_total', 'subsection', 'notes'
+            ])
+            
+            # Only include headers that exist in the data
+            ordered_headers = [h for h in all_possible_headers if h in items[0].keys()]
+            
+            # Create DataFrame with ordered columns
+            df = pd.DataFrame(items)[ordered_headers]
+            
+            # Format only price and sum/total columns (not quantity columns)
+            for col in df.columns:
+                if col in df.columns and df[col].dtype in ['float64', 'int64']:
+                    # Only apply $ formatting to price and sum/total columns, not quantity columns
+                    if ('total' in col.lower() or 'sum' in col.lower() or 'price' in col.lower()) and 'quantity' not in col.lower():
+                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+                    else:
+                        # Format quantity columns without $ symbol
+                        df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) and x != int(x) else str(int(x)) if pd.notna(x) and isinstance(x, (int, float)) else "0")
             
             # Add grand totals row
             totals_row = {}
             for col in df.columns:
-                if col in numeric_columns and col in df.columns:
-                    # Extract numeric values for calculation
-                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
-                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
+                if df[col].dtype in ['float64', 'int64']:
+                    # Calculate totals from original numeric data
+                    total_value = sum([float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val) not in ['', 'nan']])
+                    
+                    # Apply same formatting logic as data rows
+                    if ('total' in col.lower() or 'sum' in col.lower() or 'price' in col.lower()) and 'quantity' not in col.lower():
+                        totals_row[col] = f"${total_value:,.2f}"
+                    else:
+                        totals_row[col] = f"{total_value:,.2f}" if total_value != int(total_value) else str(int(total_value))
                 elif col == 'section_number':
                     totals_row[col] = "GRAND TOTAL"
                 else:

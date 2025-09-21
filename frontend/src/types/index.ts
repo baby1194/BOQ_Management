@@ -211,6 +211,12 @@ export interface ProjectInfo {
   subcontractor_name?: string;
   developer_name?: string;
   contract_no?: string;
+  // Invoice fields for Submitted QTY
+  invoice_no_submitted_qty?: string;
+  invoice_date_submitted_qty?: string;
+  // Invoice fields for Approved Signed QTY
+  invoice_no_approved_signed_qty?: string;
+  invoice_date_approved_signed_qty?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -221,6 +227,12 @@ export interface ProjectInfoUpdate {
   subcontractor_name?: string;
   developer_name?: string;
   contract_no?: string;
+  // Invoice fields for Submitted QTY
+  invoice_no_submitted_qty?: string;
+  invoice_date_submitted_qty?: string;
+  // Invoice fields for Approved Signed QTY
+  invoice_no_approved_signed_qty?: string;
+  invoice_date_approved_signed_qty?: string;
 }
 
 export interface ContractQuantityUpdate {
