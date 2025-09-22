@@ -20,7 +20,7 @@ async def export_concentration_sheets(
     request: schemas.PDFExportRequest,
     db: Session = Depends(get_db)
 ):
-    """Export concentration sheets to PDF"""
+    """Export concentration sheets to individual PDF files"""
     try:
         pdf_service = PDFService()
         
@@ -42,13 +42,53 @@ async def export_concentration_sheets(
                 sheets_exported=0
             )
         
-        # Generate PDF
-        pdf_path = pdf_service.export_concentration_sheets(sheets, db)
+        # Generate individual PDF files for each concentration sheet
+        pdf_paths = []
+        for sheet in sheets:
+            # Get the associated BOQ item
+            boq_item = db.query(models.BOQItem).filter(
+                models.BOQItem.id == sheet.boq_item_id
+            ).first()
+            
+            if not boq_item:
+                continue
+            
+            # Get all entries for this concentration sheet
+            entries = db.query(models.ConcentrationEntry).filter(
+                models.ConcentrationEntry.concentration_sheet_id == sheet.id
+            ).order_by(models.ConcentrationEntry.id).all()
+            
+            # Generate individual PDF for this sheet
+            pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db)
+            pdf_paths.append(pdf_path)
+        
+        # Create a zip file containing all individual PDF files
+        import zipfile
+        import tempfile
+        from pathlib import Path
+        
+        # Create a temporary zip file
+        zip_filename = f"all_concentration_sheets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = Path("exports") / zip_filename
+        zip_path.parent.mkdir(exist_ok=True)
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for i, pdf_path in enumerate(pdf_paths):
+                sheet = sheets[i]
+                boq_item = db.query(models.BOQItem).filter(
+                    models.BOQItem.id == sheet.boq_item_id
+                ).first()
+                
+                if boq_item:
+                    # Create filename with section number
+                    pdf_filename = f"concentration_sheet_{boq_item.section_number}.pdf"
+                    # Add PDF to zip with section number in filename
+                    zipf.write(pdf_path, pdf_filename)
         
         return schemas.PDFExportResponse(
             success=True,
-            message=f"Successfully exported {len(sheets)} concentration sheets",
-            pdf_path=pdf_path,
+            message=f"Successfully exported {len(sheets)} concentration sheets as individual PDF files in zip",
+            pdf_path=str(zip_path),
             sheets_exported=len(sheets)
         )
         
@@ -103,6 +143,52 @@ async def export_single_concentration_sheet(
         raise
     except Exception as e:
         logger.error(f"Error exporting concentration sheet {sheet_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.post("/concentration-sheets/excel", response_model=schemas.PDFExportResponse)
+async def export_all_concentration_sheets_excel(
+    request: schemas.PDFExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export all concentration sheets to Excel with separate sheets"""
+    try:
+        excel_service = ExcelService()
+        
+        # Get concentration sheets to export
+        if request.export_all:
+            sheets = db.query(models.ConcentrationSheet).all()
+        else:
+            # This would need to be implemented based on item_codes
+            sheets = db.query(models.ConcentrationSheet).all()
+        
+        # Filter out empty sheets if requested
+        if request.export_non_empty_only:
+            sheets = [sheet for sheet in sheets if sheet.total_estimate > 0 or sheet.total_submitted > 0]
+        
+        if not sheets:
+            return schemas.PDFExportResponse(
+                success=False,
+                message="No concentration sheets found to export",
+                sheets_exported=0
+            )
+        
+        # Generate Excel file with all sheets
+        excel_path = excel_service.export_all_concentration_sheets(sheets, db)
+        
+        # Return the filename for download
+        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        return schemas.PDFExportResponse(
+            success=True,
+            message=f"Successfully exported {len(sheets)} concentration sheets to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(sheets)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting concentration sheets to Excel: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"

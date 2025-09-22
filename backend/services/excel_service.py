@@ -264,7 +264,7 @@ class ExcelService:
             return items, errors 
 
     def export_single_concentration_sheet(self, sheet, boq_item, entries):
-        """Export a single concentration sheet to Excel matching PDF format on single sheet"""
+        """Export a single concentration sheet to Excel with specific format: 3 tables"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"concentration_sheet_{sheet.id}_{timestamp}.xlsx"
@@ -275,57 +275,75 @@ class ExcelService:
                 
                 # Single sheet with all content
                 sheet_name = 'Concentration Sheet'
+                current_row = 0
                 
-                # Project Information Table (like first image)
-                project_data = [
-                    ['Contractor in Charge', 'Project Name', 'Developer Name'],
-                    [sheet.contractor_in_charge or 'N/A', sheet.project_name or 'N/A', sheet.developer_name or 'N/A'],
-                    ['Contract No.', '', ''],
-                    [sheet.contract_no or 'N/A', '', '']
+                # First Table: Project Information (2 rows, 4 columns)
+                project_headers = ['Contract No', 'Developer Name', 'Project Name', 'Contractor in Charge']
+                project_values = [
+                    sheet.contract_no or 'N/A',
+                    sheet.developer_name or 'N/A', 
+                    sheet.project_name or 'N/A',
+                    sheet.contractor_in_charge or 'N/A'
                 ]
                 
+                project_data = [project_headers, project_values]
                 df_project = pd.DataFrame(project_data)
-                df_project.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=0)
+                df_project.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                current_row += 3  # 2 rows + 1 spacing row
                 
-                # Add spacing after project info
-                spacing_rows = 2
+                # Second Table: BOQ Item Details (2 rows, 5 columns)
+                boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
+                boq_values = [
+                    boq_item.section_number,
+                    f"{boq_item.original_contract_quantity:,.2f}",
+                    boq_item.unit,
+                    f"{boq_item.price:,.2f}",
+                    boq_item.description or ''
+                ]
                 
-                # Concentration Entries Table
+                boq_data = [boq_headers, boq_values]
+                df_boq = pd.DataFrame(boq_data)
+                df_boq.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                current_row += 3  # 2 rows + 1 spacing row
+                
+                # Third Table: Concentration Entries (following the order shown on concentration sheets page)
                 if entries:
-                    entries_data = []
+                    # Column order as shown on concentration sheets page
+                    entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+                                     'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+                    
+                    entries_data = [entries_headers]
                     for entry in entries:
                         entries_data.append([
-                            entry.notes or '',
-                            f"{entry.approved_by_project_manager:,.2f}",
-                            f"{entry.internal_quantity:,.2f}",
-                            f"{entry.quantity_submitted:,.2f}",
-                            f"{entry.estimated_quantity:,.2f}",
-                            entry.drawing_no or '',
+                            entry.description or '',
                             entry.calculation_sheet_no or '',
-                            entry.description[:30] + '...' if entry.description and len(entry.description) > 30 else (entry.description or '')
+                            entry.drawing_no or '',
+                            f"{entry.estimated_quantity:,.2f}",
+                            f"{entry.quantity_submitted:,.2f}",
+                            f"{entry.internal_quantity:,.2f}",
+                            f"{entry.approved_by_project_manager:,.2f}",
+                            entry.notes or ''
                         ])
                     
                     # Add totals row
                     total_estimate = sum(entry.estimated_quantity for entry in entries)
                     total_submitted = sum(entry.quantity_submitted for entry in entries)
-                    total_pnimi = sum(entry.internal_quantity for entry in entries)
+                    total_internal = sum(entry.internal_quantity for entry in entries)
                     total_approved = sum(entry.approved_by_project_manager for entry in entries)
                     
                     entries_data.append([
+                        'TOTALS',
                         '',
-                        f"{total_approved:,.2f}",
-                        f"{total_pnimi:,.2f}",
-                        f"{total_submitted:,.2f}",
+                        '',
                         f"{total_estimate:,.2f}",
-                        '',
-                        '',
-                        'TOTALS'
+                        f"{total_submitted:,.2f}",
+                        f"{total_internal:,.2f}",
+                        f"{total_approved:,.2f}",
+                        ''
                     ])
                     
-                    # Create DataFrame with reversed column order
-                    columns = ['Notes', 'Approved', 'Int Qty', 'Sub Qty', 'Est Qty', 'Drawing', 'Calc Sheet', 'Description']
-                    df_entries = pd.DataFrame(entries_data, columns=columns)
-                    df_entries.to_excel(writer, sheet_name=sheet_name, index=False, startrow=len(project_data) + spacing_rows)
+                    df_entries = pd.DataFrame(entries_data)
+                    df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                 
                 # Apply formatting to the single sheet
                 workbook = writer.book
@@ -344,7 +362,7 @@ class ExcelService:
                     adjusted_width = min(max_length + 2, 50)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
-                # Style header row and apply right alignment for RTL
+                # Style header rows and apply right alignment for RTL
                 from openpyxl.styles import Font, PatternFill, Alignment
                 header_font = Font(bold=True, color="FFFFFF")
                 header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
@@ -356,29 +374,32 @@ class ExcelService:
                     for cell in row:
                         cell.alignment = data_alignment
                 
-                # Style Project Info header row (first row)
+                # Style first table header row (Project Information - row 1)
                 for cell in worksheet[1]:
                     cell.font = header_font
                     cell.fill = header_fill
                     cell.alignment = header_alignment
                 
-                # Style Concentration Entries header row
+                # Style second table header row (BOQ Item Details - row 4)
+                for cell in worksheet[4]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+                
+                # Style third table header row (Concentration Entries - row 7)
                 if entries:
-                    entries_header_row = len(project_data) + spacing_rows + 1
+                    entries_header_row = 7  # After project info (3 rows) + spacing (1 row) + boq details (3 rows)
                     for cell in worksheet[entries_header_row]:
                         cell.font = header_font
                         cell.fill = header_fill
                         cell.alignment = header_alignment
                     
-                    # Style totals row
-                    totals_row = len(project_data) + spacing_rows + len(entries_data)
+                    # Style totals row (last row of entries table)
+                    totals_row = entries_header_row + len(entries_data)
                     for cell in worksheet[totals_row]:
                         cell.font = Font(bold=True)
                         cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
                 
-                # Merge cells for Project Info sheet (Contract No. spanning)
-                worksheet.merge_cells('A3:B3')  # Contract No. header
-                worksheet.merge_cells('A4:B4')  # Contract No. value
             
             logger.info(f"Generated concentration sheet Excel with single sheet RTL layout: {filepath}")
             return str(filepath)
@@ -387,8 +408,8 @@ class ExcelService:
             logger.error(f"Error generating concentration sheet Excel: {str(e)}")
             raise
 
-    def export_all_concentration_sheets(self, sheets_data):
-        """Export all concentration sheets to a single Excel file"""
+    def export_all_concentration_sheets(self, sheets, db_session):
+        """Export all concentration sheets to Excel with separate sheets (sheet name = section number)"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"all_concentration_sheets_{timestamp}.xlsx"
@@ -397,168 +418,96 @@ class ExcelService:
             # Create Excel writer
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
                 
-                # Sheet 1: Overview
-                overview_data = []
-                for sheet_info in sheets_data:
-                    sheet = sheet_info['sheet']
-                    boq_item = sheet_info['boq_item']
-                    entries = sheet_info['entries']
+                # Create individual sheets for each concentration sheet
+                for sheet in sheets:
+                    # Get the associated BOQ item
+                    boq_item = db_session.query(models.BOQItem).filter(
+                        models.BOQItem.id == sheet.boq_item_id
+                    ).first()
                     
-                    total_estimated = sum(entry.estimated_quantity for entry in entries) if entries else 0
-                    total_submitted = sum(entry.quantity_submitted for entry in entries) if entries else 0
-                    total_internal = sum(entry.internal_quantity for entry in entries) if entries else 0
-                    total_approved = sum(entry.approved_by_project_manager for entry in entries) if entries else 0
+                    if not boq_item:
+                        continue
                     
-                    overview_data.append({
-                        'Sheet ID': sheet.id,
-                        'Sheet Name': sheet.sheet_name,
-                        'BOQ Section': boq_item.section_number,
-                        'BOQ Description': boq_item.description,
-                        'Project Name': sheet.project_name or 'N/A',
-                        'Contractor': sheet.contractor_in_charge or 'N/A',
-                        'Total Entries': len(entries) if entries else 0,
-                        'Total Est Qty': total_estimated,
-                        'Total Sub Qty': total_submitted,
-                        'Total Int Qty': total_internal,
-                        'Total Approved Qty': total_approved,
-                        'Contract Qty': boq_item.original_contract_quantity,
-                        'Contract Value': boq_item.total_contract_sum,
-                        'Est Value': total_estimated * boq_item.price,
-                        'Sub Value': total_submitted * boq_item.price,
-                        'Int Value': total_internal * boq_item.price,
-                        'Approved Value': total_approved * boq_item.price,
-                        'Variance (Sub-Contract)': (total_submitted * boq_item.price) - boq_item.total_contract_sum,
-                        'Variance (Approved-Contract)': (total_approved * boq_item.price) - boq_item.total_contract_sum
-                    })
-                
-                if overview_data:
-                    df_overview = pd.DataFrame(overview_data)
-                    df_overview.to_excel(writer, sheet_name='Overview', index=False)
+                    # Get all entries for this concentration sheet
+                    entries = db_session.query(models.ConcentrationEntry).filter(
+                        models.ConcentrationEntry.concentration_sheet_id == sheet.id
+                    ).order_by(models.ConcentrationEntry.id).all()
                     
-                    # Add grand totals row
-                    grand_totals = {
-                        'Sheet ID': 'GRAND TOTALS',
-                        'Sheet Name': '',
-                        'BOQ Section': '',
-                        'BOQ Description': '',
-                        'Project Name': '',
-                        'Contractor': '',
-                        'Total Entries': sum(row['Total Entries'] for row in overview_data),
-                        'Total Est Qty': sum(row['Total Est Qty'] for row in overview_data),
-                        'Total Sub Qty': sum(row['Total Sub Qty'] for row in overview_data),
-                        'Total Int Qty': sum(row['Total Int Qty'] for row in overview_data),
-                        'Total Approved Qty': sum(row['Total Approved Qty'] for row in overview_data),
-                        'Contract Qty': sum(row['Contract Qty'] for row in overview_data),
-                        'Contract Value': sum(row['Contract Value'] for row in overview_data),
-                        'Est Value': sum(row['Est Value'] for row in overview_data),
-                        'Sub Value': sum(row['Sub Value'] for row in overview_data),
-                        'Int Value': sum(row['Int Value'] for row in overview_data),
-                        'Approved Value': sum(row['Approved Value'] for row in overview_data),
-                        'Variance (Sub-Contract)': sum(row['Variance (Sub-Contract)'] for row in overview_data),
-                        'Variance (Approved-Contract)': sum(row['Variance (Approved-Contract)'] for row in overview_data)
-                    }
+                    # Use section number as sheet name (Excel sheet name limit is 31 characters)
+                    sheet_name = str(boq_item.section_number)[:31]
                     
-                    df_totals = pd.DataFrame([grand_totals])
-                    df_totals.to_excel(writer, sheet_name='Overview', 
-                                     startrow=len(overview_data) + 2, index=False, header=False)
-                
-                # Individual sheets for each concentration sheet
-                for i, sheet_info in enumerate(sheets_data):
-                    sheet = sheet_info['sheet']
-                    boq_item = sheet_info['boq_item']
-                    entries = sheet_info['entries']
+                    current_row = 0
                     
-                    sheet_name = f"Sheet_{sheet.id}_{boq_item.section_number[:20]}"
-                    if len(sheet_name) > 31:  # Excel sheet name limit
-                        sheet_name = f"Sheet_{sheet.id}_{i+1}"
-                    
-                    # Project info for this sheet
-                    project_data = {
-                        'Field': [
-                            'Project Name',
-                            'Contractor in Charge', 
-                            'Contract No',
-                            'Developer Name',
-                            'Section Number',
-                            'Description',
-                            'Unit',
-                            'Contract Quantity',
-                            'Price',
-                            'Total Contract Sum',
-                            'Sheet Name',
-                            'Created Date',
-                            'Last Updated'
-                        ],
-                        'Value': [
-                            sheet.project_name or 'N/A',
-                            sheet.contractor_in_charge or 'N/A',
+                    # First Table: Project Information (2 rows, 4 columns)
+                    project_headers = ['Contract No', 'Developer Name', 'Project Name', 'Contractor in Charge']
+                    project_values = [
                             sheet.contract_no or 'N/A',
                             sheet.developer_name or 'N/A',
-                            boq_item.section_number,
-                            boq_item.description,
-                            boq_item.unit,
-                            f"{boq_item.original_contract_quantity:,.2f}",
-                            f"${boq_item.price:,.2f}",
-                            f"${boq_item.total_contract_sum:,.2f}",
-                            sheet.sheet_name,
-                            sheet.created_at.strftime("%Y-%m-%d %H:%M:%S") if sheet.created_at else 'N/A',
-                            sheet.updated_at.strftime("%Y-%m-%d %H:%M:%S") if sheet.updated_at else 'N/A'
-                        ]
-                    }
+                        sheet.project_name or 'N/A',
+                        sheet.contractor_in_charge or 'N/A'
+                    ]
                     
+                    project_data = [project_headers, project_values]
                     df_project = pd.DataFrame(project_data)
-                    df_project.to_excel(writer, sheet_name=sheet_name, index=False, startrow=0)
+                    df_project.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                    current_row += 3  # 2 rows + 1 spacing row
                     
-                    # Entries for this sheet
+                    # Second Table: BOQ Item Details (2 rows, 5 columns)
+                    boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
+                    boq_values = [
+                            boq_item.section_number,
+                            f"{boq_item.original_contract_quantity:,.2f}",
+                        boq_item.unit,
+                        f"{boq_item.price:,.2f}",
+                        boq_item.description or ''
+                    ]
+                    
+                    boq_data = [boq_headers, boq_values]
+                    df_boq = pd.DataFrame(boq_data)
+                    df_boq.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                    current_row += 3  # 2 rows + 1 spacing row
+                    
+                    # Third Table: Concentration Entries (following the order shown on concentration sheets page)
                     if entries:
-                        entries_data = []
-                        for entry in entries:
-                            entries_data.append({
-                                'ID': entry.id,
-                                'Section Number': entry.section_number,
-                                'Description': entry.description or '',
-                                'Calculation Sheet No': entry.calculation_sheet_no or '',
-                                'Drawing No': entry.drawing_no or '',
-                                'Estimated Quantity': entry.estimated_quantity,
-                                'Quantity Submitted': entry.quantity_submitted,
-                                'Internal Quantity': entry.internal_quantity,
-                                'Approved by Project': entry.approved_by_project_manager,
-                                'Notes': entry.notes or '',
-                                'Created Date': entry.created_at.strftime("%Y-%m-%d %H:%M:%S") if entry.created_at else '',
-                                'Last Updated': entry.updated_at.strftime("%Y-%m-%d %H:%M:%S") if entry.updated_at else ''
-                            })
+                        # Column order as shown on concentration sheets page
+                        entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+                                         'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
                         
-                        df_entries = pd.DataFrame(entries_data)
-                        df_entries.to_excel(writer, sheet_name=sheet_name, index=False, startrow=len(project_data) + 3)
+                        entries_data = [entries_headers]
+                        for entry in entries:
+                            entries_data.append([
+                                entry.description or '',
+                                entry.calculation_sheet_no or '',
+                                entry.drawing_no or '',
+                                f"{entry.estimated_quantity:,.2f}",
+                                f"{entry.quantity_submitted:,.2f}",
+                                f"{entry.internal_quantity:,.2f}",
+                                f"{entry.approved_by_project_manager:,.2f}",
+                                entry.notes or ''
+                            ])
                         
                         # Add totals row
-                        total_estimated = sum(entry.estimated_quantity for entry in entries)
+                        total_estimate = sum(entry.estimated_quantity for entry in entries)
                         total_submitted = sum(entry.quantity_submitted for entry in entries)
                         total_internal = sum(entry.internal_quantity for entry in entries)
                         total_approved = sum(entry.approved_by_project_manager for entry in entries)
                         
-                        totals_data = {
-                            'ID': 'TOTALS',
-                            'Section Number': '',
-                            'Description': '',
-                            'Calculation Sheet No': '',
-                            'Drawing No': '',
-                            'Estimated Quantity': total_estimated,
-                            'Quantity Submitted': total_submitted,
-                            'Internal Quantity': total_internal,
-                            'Approved by Project': total_approved,
-                            'Notes': '',
-                            'Created Date': '',
-                            'Last Updated': ''
-                        }
+                        entries_data.append([
+                            'TOTALS',
+                            '',
+                            '',
+                            f"{total_estimate:,.2f}",
+                            f"{total_submitted:,.2f}",
+                            f"{total_internal:,.2f}",
+                            f"{total_approved:,.2f}",
+                            ''
+                        ])
                         
-                        df_totals = pd.DataFrame([totals_data])
-                        df_totals.to_excel(writer, sheet_name=sheet_name, 
-                                         startrow=len(project_data) + len(entries_data) + 5, index=False, header=False)
-                
-                # Apply formatting
-                workbook = writer.book
-                for sheet_name in workbook.sheetnames:
+                        df_entries = pd.DataFrame(entries_data)
+                        df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                    
+                    # Apply formatting to the sheet
+                    workbook = writer.book
                     worksheet = workbook[sheet_name]
                     
                     # Auto-adjust column widths
@@ -574,46 +523,45 @@ class ExcelService:
                         adjusted_width = min(max_length + 2, 50)
                         worksheet.column_dimensions[column_letter].width = adjusted_width
                     
-                    # Style header row
+                    # Style header rows and apply right alignment for RTL
                     from openpyxl.styles import Font, PatternFill, Alignment
                     header_font = Font(bold=True, color="FFFFFF")
                     header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-                    header_alignment = Alignment(horizontal="center", vertical="center")
+                    header_alignment = Alignment(horizontal="right", vertical="center")
+                    data_alignment = Alignment(horizontal="right", vertical="center")
                     
+                    # Apply right alignment to all cells for RTL layout
+                    for row in worksheet.iter_rows():
+                        for cell in row:
+                            cell.alignment = data_alignment
+                    
+                    # Style first table header row (Project Information - row 1)
                     for cell in worksheet[1]:
                         cell.font = header_font
                         cell.fill = header_fill
                         cell.alignment = header_alignment
                     
-                    # Style totals row if it exists
-                    if sheet_name != 'Overview':
-                        # Find totals row (look for row with 'TOTALS' in first column)
-                        for row_num in range(1, worksheet.max_row + 1):
-                            if worksheet.cell(row=row_num, column=1).value == 'TOTALS':
-                                totals_font = Font(bold=True, color="FFFFFF")
-                                totals_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")
-                                totals_alignment = Alignment(horizontal="center", vertical="center")
-                                
-                                for col in range(1, worksheet.max_column + 1):
-                                    cell = worksheet.cell(row=row_num, column=col)
-                                    cell.font = totals_font
-                                    cell.fill = totals_fill
-                                    cell.alignment = totals_alignment
-                                break
-                    else:
-                        # Style grand totals row for Overview sheet
-                        totals_row = len(overview_data) + 3
-                        totals_font = Font(bold=True, color="FFFFFF")
-                        totals_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")
-                        totals_alignment = Alignment(horizontal="center", vertical="center")
+                    # Style second table header row (BOQ Item Details - row 4)
+                    for cell in worksheet[4]:
+                        cell.font = header_font
+                        cell.fill = header_fill
+                        cell.alignment = header_alignment
+                    
+                    # Style third table header row (Concentration Entries - row 7)
+                    if entries:
+                        entries_header_row = 7  # After project info (3 rows) + spacing (1 row) + boq details (3 rows)
+                        for cell in worksheet[entries_header_row]:
+                            cell.font = header_font
+                            cell.fill = header_fill
+                            cell.alignment = header_alignment
                         
-                        for col in range(1, worksheet.max_column + 1):
-                            cell = worksheet.cell(row=totals_row, column=col)
-                            cell.font = totals_font
-                            cell.fill = totals_fill
-                            cell.alignment = totals_alignment
-            
-            logger.info(f"Generated comprehensive all concentration sheets Excel: {filepath}")
+                        # Style totals row (last row of entries table)
+                        totals_row = entries_header_row + len(entries_data)
+                        for cell in worksheet[totals_row]:
+                            cell.font = Font(bold=True)
+                            cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
+                
+                logger.info(f"Generated all concentration sheets Excel with {len(sheets)} sheets: {filepath}")
             return str(filepath)
             
         except Exception as e:

@@ -303,6 +303,11 @@ export const exportApi = {
       .post<PDFExportResponse>("/export/concentration-sheets", request)
       .then((res) => res.data),
 
+  exportAllConcentrationSheetsExcel: (request: PDFExportRequest) =>
+    api
+      .post<PDFExportResponse>("/export/concentration-sheets/excel", request)
+      .then((res) => res.data),
+
   exportSingleConcentrationSheetPDF: (sheetId: number) =>
     api
       .post<PDFExportResponse>(`/export/concentration-sheet/${sheetId}`)

@@ -27,11 +27,10 @@ const ConcentrationSheets: React.FC = () => {
   );
   const [showAddForm, setShowAddForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [selectedSheets, setSelectedSheets] = useState<Set<number>>(new Set());
-  const [deletingSheet, setDeletingSheet] = useState(false);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingAllPDF, setExportingAllPDF] = useState(false);
+  const [exportingAllExcel, setExportingAllExcel] = useState(false);
   const [showNavigationMessage, setShowNavigationMessage] = useState(false);
   const [navigatedFromBOQ, setNavigatedFromBOQ] = useState(false);
   const [sectionNumberFilter, setSectionNumberFilter] = useState("");
@@ -63,106 +62,6 @@ const ConcentrationSheets: React.FC = () => {
     setProjectInfo(info);
 
     console.log("Project info loaded:", info);
-  };
-
-  // Delete single concentration sheet
-  const handleDeleteSheet = async (sheetId: number) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this concentration sheet? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      setDeletingSheet(true);
-      await concentrationApi.delete(sheetId);
-
-      setSheets((prev) => prev.filter((sheet) => sheet.id !== sheetId));
-      setSelectedSheets((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(sheetId);
-        return newSet;
-      });
-
-      // If the deleted sheet was selected, clear selection
-      if (selectedSheet?.id === sheetId) {
-        setSelectedSheet(null);
-        setEntries([]);
-      }
-
-      setError(null);
-    } catch (err) {
-      console.error("Error deleting concentration sheet:", err);
-      setError("Failed to delete concentration sheet");
-    } finally {
-      setDeletingSheet(false);
-    }
-  };
-
-  // Handle individual sheet selection
-  const handleSheetSelection = (sheetId: number, checked: boolean) => {
-    setSelectedSheets((prev) => {
-      const newSet = new Set(prev);
-      if (checked) {
-        newSet.add(sheetId);
-      } else {
-        newSet.delete(sheetId);
-      }
-      return newSet;
-    });
-  };
-
-  // Select all sheets
-  const handleSelectAll = () => {
-    setSelectedSheets(new Set(filteredSheets.map((sheet) => sheet.id)));
-  };
-
-  // Deselect all sheets
-  const handleDeselectAll = () => {
-    setSelectedSheets(new Set());
-  };
-
-  // Bulk delete selected sheets
-  const handleBulkDelete = async () => {
-    if (selectedSheets.size === 0) {
-      setError("No sheets selected for deletion");
-      return;
-    }
-
-    if (
-      !confirm(
-        `Are you sure you want to delete ${selectedSheets.size} concentration sheet(s)? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      setBulkDeleting(true);
-      await Promise.all(
-        Array.from(selectedSheets).map((id) => concentrationApi.delete(id))
-      );
-
-      setSheets((prev) =>
-        prev.filter((sheet) => !selectedSheets.has(sheet.id))
-      );
-
-      // Clear selection if current selected sheet was deleted
-      if (selectedSheet && selectedSheets.has(selectedSheet.id)) {
-        setSelectedSheet(null);
-        setEntries([]);
-      }
-
-      setSelectedSheets(new Set());
-      setError(null);
-    } catch (err) {
-      console.error("Error bulk deleting concentration sheets:", err);
-      setError("Failed to delete some concentration sheets");
-    } finally {
-      setBulkDeleting(false);
-    }
   };
 
   // Export functions
@@ -233,6 +132,65 @@ const ConcentrationSheets: React.FC = () => {
       setError("Failed to export Excel");
     } finally {
       setExportingExcel(false);
+    }
+  };
+
+  // Export all concentration sheets functions
+  const handleExportAllPDF = async () => {
+    try {
+      setExportingAllPDF(true);
+      setError(null);
+
+      const response = await exportApi.exportConcentrationSheets({
+        export_all: true,
+        export_non_empty_only: false,
+      });
+
+      if (response.success && response.pdf_path) {
+        // Create download link for the zip file
+        const link = document.createElement("a");
+        link.href = `/api${response.pdf_path}`;
+        link.download = `all_concentration_sheets_individual.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        setError("Export failed: " + response.message);
+      }
+    } catch (err) {
+      console.error("Error exporting all PDFs:", err);
+      setError("Failed to export all PDFs");
+    } finally {
+      setExportingAllPDF(false);
+    }
+  };
+
+  const handleExportAllExcel = async () => {
+    try {
+      setExportingAllExcel(true);
+      setError(null);
+
+      const response = await exportApi.exportAllConcentrationSheetsExcel({
+        export_all: true,
+        export_non_empty_only: false,
+      });
+
+      if (response.success && response.pdf_path) {
+        // Create download link
+        const link = document.createElement("a");
+        link.href = `/api${response.pdf_path}`;
+        link.download = `all_concentration_sheets.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        setError("Export failed: " + response.message);
+      }
+    } catch (err) {
+      console.error("Error exporting all Excel:", err);
+      setError("Failed to export all Excel");
+    } finally {
+      setExportingAllExcel(false);
     }
   };
 
@@ -388,24 +346,6 @@ const ConcentrationSheets: React.FC = () => {
     }
   };
 
-  // Delete entry
-  const deleteEntry = async (entryId: number) => {
-    if (!confirm("Are you sure you want to delete this entry?")) return;
-
-    try {
-      setSaving(true);
-      await concentrationApi.deleteEntry(entryId);
-
-      setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
-      setError(null);
-    } catch (err) {
-      console.error("Error deleting entry:", err);
-      setError("Failed to delete entry");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Start editing entry
   const startEditing = (entry: ConcentrationEntry) => {
     setEditingEntry(entry);
@@ -505,7 +445,7 @@ const ConcentrationSheets: React.FC = () => {
             Manage concentration sheets for BOQ items ({sheets.length} sheets)
           </p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex space-x-3 flex-wrap">
           <button
             onClick={fetchSheets}
             disabled={loading}
@@ -514,6 +454,29 @@ const ConcentrationSheets: React.FC = () => {
           >
             {loading ? "Refreshing..." : "🔄 Refresh"}
           </button>
+
+          {/* Export All Buttons */}
+          <div className="flex space-x-2">
+            <button
+              onClick={handleExportAllPDF}
+              disabled={exportingAllPDF || sheets.length === 0}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Export all concentration sheets as individual PDF files (zip)"
+            >
+              {exportingAllPDF
+                ? "Exporting..."
+                : "📄 Export All PDF (Individual)"}
+            </button>
+            <button
+              onClick={handleExportAllExcel}
+              disabled={exportingAllExcel || sheets.length === 0}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Export all concentration sheets as Excel (separate sheets)"
+            >
+              {exportingAllExcel ? "Exporting..." : "📊 Export All Excel"}
+            </button>
+          </div>
+
           {navigatedFromBOQ && (
             <button
               onClick={() => window.history.back()}
@@ -610,32 +573,6 @@ const ConcentrationSheets: React.FC = () => {
                   </button>
                 )}
               </div>
-              {/* Selection Controls */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  onClick={handleSelectAll}
-                  disabled={filteredSheets.length === 0}
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Select All ({filteredSheets.length})
-                </button>
-                <button
-                  onClick={handleDeselectAll}
-                  disabled={selectedSheets.size === 0}
-                  className="px-3 py-1 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Deselect All
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={selectedSheets.size === 0 || bulkDeleting}
-                  className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  {bulkDeleting
-                    ? "Deleting..."
-                    : `Delete Selected (${selectedSheets.size})`}
-                </button>
-              </div>
             </div>
 
             <div
@@ -687,14 +624,6 @@ const ConcentrationSheets: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedSheets.has(sheet.id)}
-                          onChange={(e) =>
-                            handleSheetSelection(sheet.id, e.target.checked)
-                          }
-                          className="mt-1"
-                        />
                         <div
                           className="flex-1 cursor-pointer"
                           onClick={() => handleSheetSelect(sheet)}
@@ -772,13 +701,6 @@ const ConcentrationSheets: React.FC = () => {
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                       >
                         {exportingExcel ? "Exporting..." : "Export Excel"}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSheet(selectedSheet.id)}
-                        disabled={deletingSheet}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
-                      >
-                        {deletingSheet ? "Deleting..." : "Delete Sheet"}
                       </button>
                     </div>
                   </div>
@@ -920,7 +842,7 @@ const ConcentrationSheets: React.FC = () => {
                   {(showAddForm || editingEntry) && (
                     <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
                       <h4 className="text-md font-medium text-gray-900 mb-4">
-                        {editingEntry ? "Edit Entry" : "Add New Entry"}
+                        {editingEntry ? "Edit Entry Notes" : "Add New Entry"}
                       </h4>
                       <EntryForm
                         entry={editingEntry}
@@ -1028,22 +950,13 @@ const ConcentrationSheets: React.FC = () => {
                                     </div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <div className="flex space-x-2">
-                                      <button
-                                        onClick={() => startEditing(entry)}
-                                        disabled={saving}
-                                        className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={() => deleteEntry(entry.id)}
-                                        disabled={saving}
-                                        className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
+                                    <button
+                                      onClick={() => startEditing(entry)}
+                                      disabled={saving}
+                                      className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                    >
+                                      Edit Notes
+                                    </button>
                                   </td>
                                 </tr>
                               ))
@@ -1186,7 +1099,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             value={formData.description}
             onChange={(e) => handleChange("description", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1201,7 +1114,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               handleChange("calculation_sheet_no", e.target.value)
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1214,7 +1127,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             value={formData.drawing_no}
             onChange={(e) => handleChange("drawing_no", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1233,7 +1146,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1252,7 +1165,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1268,7 +1181,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               handleChange("internal_quantity", parseFloat(e.target.value) || 0)
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1287,7 +1200,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving}
+            disabled={saving || !!entry}
           />
         </div>
 
@@ -1319,7 +1232,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
           disabled={saving}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {saving ? "Saving..." : entry ? "Update" : "Create"}
+          {saving ? "Saving..." : entry ? "Update Notes" : "Create"}
         </button>
       </div>
     </form>

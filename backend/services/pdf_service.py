@@ -127,36 +127,32 @@ class PDFService:
         project_name = ""
         project_name_hebrew = ""
         
-        # Try to get from sheet data first (for concentration sheets)
-        if sheet_data and hasattr(sheet_data, 'project_name') and sheet_data.project_name:
-            project_name = sheet_data.project_name
-            if hasattr(sheet_data, 'project_name_hebrew') and sheet_data.project_name_hebrew:
-                project_name_hebrew = sheet_data.project_name_hebrew
-        elif sheet_data and isinstance(sheet_data, dict) and sheet_data.get('project_name'):
-            project_name = sheet_data['project_name']
-            project_name_hebrew = sheet_data.get('project_name_hebrew', '')
-        elif sheet_data and isinstance(sheet_data, list) and len(sheet_data) > 0:
-            # For lists, try to get from first item
-            first_item = sheet_data[0]
-            if hasattr(first_item, 'project_name') and first_item.project_name:
-                project_name = first_item.project_name
-                if hasattr(first_item, 'project_name_hebrew') and first_item.project_name_hebrew:
-                    project_name_hebrew = first_item.project_name_hebrew
-            elif isinstance(first_item, dict) and first_item.get('project_name'):
-                project_name = first_item['project_name']
-                project_name_hebrew = first_item.get('project_name_hebrew', '')
-        
-        # If not found in data, try database
-        if not project_name and db_session:
+        # Always try to get project info from database first for Hebrew project name
+        if db_session:
             try:
                 from models import models
                 project_info = db_session.query(models.ProjectInfo).first()
-                if project_info and project_info.project_name:
-                    project_name = project_info.project_name
+                if project_info:
+                    if project_info.project_name:
+                        project_name = project_info.project_name
                     if project_info.project_name_hebrew:
                         project_name_hebrew = project_info.project_name_hebrew
             except Exception as e:
                 logger.warning(f"Could not fetch project info from database: {e}")
+        
+        # If project name not found in database, try to get from sheet data
+        if not project_name and sheet_data:
+            if sheet_data and hasattr(sheet_data, 'project_name') and sheet_data.project_name:
+                project_name = sheet_data.project_name
+            elif sheet_data and isinstance(sheet_data, dict) and sheet_data.get('project_name'):
+                project_name = sheet_data['project_name']
+            elif sheet_data and isinstance(sheet_data, list) and len(sheet_data) > 0:
+                # For lists, try to get from first item
+                first_item = sheet_data[0]
+                if hasattr(first_item, 'project_name') and first_item.project_name:
+                    project_name = first_item.project_name
+                elif isinstance(first_item, dict) and first_item.get('project_name'):
+                    project_name = first_item['project_name']
         
         return project_name or "Project Name", project_name_hebrew or ""
     
@@ -196,6 +192,40 @@ class PDFService:
             else:
                 # LTR: draw from left to right
                 canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
+        
+        # Footer with underlined blanks
+        footer_y = 0.5*inch
+        line_y = footer_y - 5
+        
+        # Left side blank
+        canvas.setFont("Helvetica", 9)
+        canvas.drawString(0.5*inch, footer_y, "________________")
+        canvas.line(0.5*inch, line_y, 2*inch, line_y)
+        
+        # Right side blank
+        canvas.drawRightString(doc.pagesize[0] - 0.5*inch, footer_y, "________________")
+        canvas.line(doc.pagesize[0] - 2*inch, line_y, doc.pagesize[0] - 0.5*inch, line_y)
+        
+        canvas.restoreState()
+    
+    def _add_concentration_header_footer(self, canvas, doc, project_name, project_name_hebrew):
+        """Add header and footer to concentration sheet PDF pages with English and Hebrew project names"""
+        canvas.saveState()
+        
+        # English project name at top left
+        if project_name:
+            canvas.setFont("Helvetica-Bold", 24)
+            canvas.drawString(0.5*inch, doc.pagesize[1] - 0.5*inch, project_name)
+        
+        # Hebrew project name at top right
+        if project_name_hebrew:
+            # Use Hebrew-compatible font for Hebrew text
+            is_rtl = self._detect_rtl(project_name_hebrew)
+            if is_rtl:
+                canvas.setFont(self.hebrew_font_bold, 24)
+            else:
+                canvas.setFont("Helvetica-Bold", 24)
+            canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
         
         # Footer with underlined blanks
         footer_y = 0.5*inch
@@ -328,101 +358,219 @@ class PDFService:
             logger.error(f"Error generating concentration sheets PDF: {str(e)}")
             raise
     
+    def _calculate_concentration_sheet_page_size(self, entries):
+        """Calculate optimal page size for concentration sheet based on content"""
+        try:
+            from reportlab.pdfbase.pdfmetrics import stringWidth
+            
+            # Base dimensions for the three tables
+            # Table 1: Project Information (2 rows, 4 columns)
+            project_table_height = 2 * 35  # 2 rows * 35 points per row (including padding)
+            
+            # Table 2: BOQ Item Details (2 rows, 5 columns)
+            boq_table_height = 2 * 35  # 2 rows * 35 points per row (including padding)
+            
+            # Table 3: Concentration Entries (header + data rows + totals)
+            entries_header_height = 35  # Header row
+            entries_data_height = max(1, len(entries)) * 30  # Data rows (minimum 1 row)
+            entries_totals_height = 35  # Totals row
+            entries_table_height = entries_header_height + entries_data_height + entries_totals_height
+            
+            # Spacing between tables (2 spacers of 20 points each)
+            spacing_height = 2 * 20
+            
+            # Header and footer space
+            header_footer_height = 120
+            
+            # Total content height
+            total_content_height = (
+                project_table_height + 
+                boq_table_height + 
+                entries_table_height + 
+                spacing_height + 
+                header_footer_height
+            )
+            
+            # Add margins: top and bottom margins (1 inch each = 72 points each)
+            top_bottom_margin = 72 * 2  # 2 inches total
+            total_height = total_content_height + top_bottom_margin
+            
+            # Calculate width based on content requirements
+            # Project table: 4 columns
+            # BOQ table: 5 columns  
+            # Entries table: 8 columns (widest)
+            # Use the widest table as base and ensure good readability
+            
+            # Calculate column widths for entries table (widest table)
+            entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+                             'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+            
+            # Calculate width for each column based on content
+            column_widths = []
+            font_size = 8
+            header_font = 'Helvetica-Bold'
+            data_font = 'Helvetica'
+            
+            for header in entries_headers:
+                # Calculate header width
+                header_width = stringWidth(header, header_font, font_size)
+                
+                # Add some padding for data content (estimate 50% more than header)
+                estimated_width = header_width * 1.5
+                
+                # Set minimum width for readability
+                min_width = 80
+                max_width = 200  # Maximum width per column
+                
+                column_width = max(min_width, min(estimated_width, max_width))
+                column_widths.append(column_width)
+            
+            # Total table width
+            total_table_width = sum(column_widths)
+            
+            # Add margins: left and right margins (0.75 inch each = 54 points each)
+            left_right_margin = 54 * 2  # 1.5 inches total margin
+            total_width = total_table_width + left_right_margin
+            
+            # Ensure minimum dimensions for standard printing
+            min_width = 8.5 * 72   # 8.5 inches
+            min_height = 11 * 72   # 11 inches
+            
+            # Use larger of calculated or minimum dimensions
+            final_width = max(total_width, min_width)
+            final_height = max(total_height, min_height)
+            
+            # Limit maximum size to reasonable bounds (A0 size max)
+            max_width = 33.1 * 72   # A0 width
+            max_height = 46.8 * 72  # A0 height
+            
+            final_width = min(final_width, max_width)
+            final_height = min(final_height, max_height)
+            
+            logger.info(f"Calculated concentration sheet page size: {final_width/72:.2f}\" x {final_height/72:.2f}\" for {len(entries)} entries")
+            
+            return (final_width, final_height)
+            
+        except Exception as e:
+            logger.error(f"Error calculating page size: {str(e)}")
+            # Fallback to A4 size
+            return (8.5*72, 11*72)
+
     def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None):
-        """Export a single concentration sheet to PDF"""
+        """Export a single concentration sheet to PDF with custom page sizing"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"concentration_sheet_{sheet.id}_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            # Get project name for header
-            project_name = self._get_project_name(db_session, sheet)
+            # Get project names (English and Hebrew) for header
+            project_name, project_name_hebrew = self._get_project_names(db_session, sheet)
             
-            custom_page_size = (11.7*72, 8.3*72)
-            doc = SimpleDocTemplate(str(filepath), pagesize=custom_page_size)
+            # Calculate optimal page size based on content
+            custom_page_size = self._calculate_concentration_sheet_page_size(entries)
+            page_width = custom_page_size[0]  # Define page_width from custom_page_size
+            
+            # Add smaller margins (0.75 inches each)
+            doc = SimpleDocTemplate(str(filepath), pagesize=custom_page_size, 
+                                  leftMargin=54, rightMargin=54, topMargin=36, bottomMargin=36)
             story = []
             styles = getSampleStyleSheet()
             
-            # Project Information Table (like first image)
-            project_data = [
-                ['Contractor in Charge', 'Project Name', 'Developer Name'],
-                [sheet.contractor_in_charge or 'N/A', sheet.project_name or 'N/A', sheet.developer_name or 'N/A'],
-                ['Contract No.', '', ''],
-                [sheet.contract_no or 'N/A', '', '']
+            # First Table: Project Information (2 rows, 4 columns)
+            project_headers = ['Contract No', 'Developer Name', 'Project Name', 'Contractor in Charge']
+            project_values = [
+                sheet.contract_no or 'N/A',
+                sheet.developer_name or 'N/A', 
+                sheet.project_name or 'N/A',
+                sheet.contractor_in_charge or 'N/A'
             ]
             
-            project_table = Table(project_data, colWidths=[2.5*72, 2.5*72, 2.5*72])
+            project_data = [project_headers, project_values]
+            # Calculate column widths based on actual content
+            project_col_widths = self._calculate_column_widths(project_data, project_headers, page_width, 12, 12)
+            project_table = Table(project_data, colWidths=project_col_widths)
             project_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 12),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('SPAN', (0, 2), (1, 2)),  # Merge Contract No. across first two columns
-                ('SPAN', (0, 3), (1, 3)),  # Merge Contract No. value across first two columns
             ]))
             
             story.append(project_table)
             story.append(Spacer(1, 20))
             
-            # BOQ Item Details Table (like second image)
-            boq_details = [
-                [boq_item.description, 'Price', 'Unit', 'Contract Quantity', 'Section No.'],
-                ['', f"{boq_item.price:,.2f}", boq_item.unit, f"{boq_item.original_contract_quantity:,.2f}", boq_item.section_number]
+            # Second Table: BOQ Item Details (2 rows, 5 columns)
+            boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
+            boq_values = [
+                boq_item.section_number,
+                f"{boq_item.original_contract_quantity:,.2f}",
+                boq_item.unit,
+                f"{boq_item.price:,.2f}",
+                boq_item.description or ''
             ]
             
-            boq_table = Table(boq_details, colWidths=[3*72, 1.5*72, 1*72, 2*72, 2*72])
+            boq_data = [boq_headers, boq_values]
+            # Calculate column widths based on actual content
+            boq_col_widths = self._calculate_column_widths(boq_data, boq_headers, page_width, 11, 11)
+            boq_table = Table(boq_data, colWidths=boq_col_widths)
             boq_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),  # Description column right-aligned
-                ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),  # Other columns right-aligned
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, 0), (-1, -1), 11),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('SPAN', (0, 1), (0, 1)),  # Merge description across all columns in second row
             ]))
             
             story.append(boq_table)
             story.append(Spacer(1, 20))
             
-            # Concentration Entries Table
+            # Third Table: Concentration Entries (following the order shown on concentration sheets page)
             if entries:
-                entries_data = [['Notes', 'Approved', 'Int Qty', 'Sub Qty', 'Est Qty', 'Drawing', 'Calc Sheet', 'Description']]
+                # Column order as shown on concentration sheets page
+                entries_data = [['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+                               'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']]
                 
                 for entry in entries:
                     entries_data.append([
-                        entry.notes or '',
-                        f"{entry.approved_by_project_manager:,.2f}",
-                        f"{entry.internal_quantity:,.2f}",
-                        f"{entry.quantity_submitted:,.2f}",
-                        f"{entry.estimated_quantity:,.2f}",
-                        entry.drawing_no or '',
+                        entry.description or '',
                         entry.calculation_sheet_no or '',
-                        entry.description[:30] + '...' if entry.description and len(entry.description) > 30 else (entry.description or '')
+                        entry.drawing_no or '',
+                        f"{entry.estimated_quantity:,.2f}",
+                        f"{entry.quantity_submitted:,.2f}",
+                        f"{entry.internal_quantity:,.2f}",
+                        f"{entry.approved_by_project_manager:,.2f}",
+                        entry.notes or ''
                     ])
                 
                 # Add totals row
                 total_estimate = sum(entry.estimated_quantity for entry in entries)
                 total_submitted = sum(entry.quantity_submitted for entry in entries)
-                total_pnimi = sum(entry.internal_quantity for entry in entries)
+                total_internal = sum(entry.internal_quantity for entry in entries)
                 total_approved = sum(entry.approved_by_project_manager for entry in entries)
                 
                 entries_data.append([
+                    'TOTALS',
                     '',
-                    f"{total_approved:,.2f}",
-                    f"{total_pnimi:,.2f}",
-                    f"{total_submitted:,.2f}",
+                    '',
                     f"{total_estimate:,.2f}",
-                    '',
-                    '',
-                    'TOTALS'
+                    f"{total_submitted:,.2f}",
+                    f"{total_internal:,.2f}",
+                    f"{total_approved:,.2f}",
+                    ''
                 ])
                 
                 # Calculate optimal column widths for concentration sheet entries
-                concentration_headers = ['Description', 'Unit', 'Contract Qty', 'Price', 'Contract Sum', 'Submitted Qty', 'Est. Qty', 'Submitted Sum', 'Est. Sum', 'Totals']
-                column_widths = self._calculate_column_widths(entries_data, concentration_headers, 'A4', 8, 8)
+                concentration_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+                                       'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+                # Use page width for column width calculation
+                column_widths = self._calculate_column_widths(entries_data, concentration_headers, page_width, 10, 10)
                 
                 entries_table = Table(entries_data, colWidths=column_widths)
                 entries_table.setStyle(TableStyle([
@@ -430,7 +578,7 @@ class PDFService:
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
                     ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
@@ -441,8 +589,8 @@ class PDFService:
                 
                 story.append(entries_table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
-                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, project_name_hebrew), 
+                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, project_name_hebrew))
             logger.info(f"Generated concentration sheet PDF with RTL layout: {filepath}")
             return str(filepath)
             
@@ -985,25 +1133,31 @@ class PDFService:
             logger.error(f"Error generating BOQ items PDF: {str(e)}")
             raise
 
-    def _calculate_column_widths(self, data, headers, page_size='A3', header_font_size=8, data_font_size=8):
-        """Calculate optimal column widths based on actual rendered content width"""
+    def _calculate_column_widths(self, data, headers, page_size_or_width='A3', header_font_size=8, data_font_size=8):
+        """Calculate optimal column widths based on actual content length"""
         from reportlab.pdfbase.pdfmetrics import stringWidth
         
-        # Get page width based on page size (landscape orientation)
-        if page_size == 'A3':
-            page_width = 842  # A3 landscape width in points
-        else:  # A4
-            page_width = 595  # A4 landscape width in points
-            
-        margin = 36  # 0.5 inch margin on each side
-        available_width = page_width - (2 * margin)
+        # Handle both page size strings and direct width values
+        if isinstance(page_size_or_width, (int, float)):
+            # Direct width value provided
+            page_width = page_size_or_width
+        else:
+            # Get page width based on page size (landscape orientation)
+            if page_size_or_width == 'A3':
+                page_width = 842  # A3 landscape width in points
+            else:  # A4
+                page_width = 595  # A4 landscape width in points
+        
+        # Use 0.75 inch margin on each side (54 points each) for better readability
+        margin = 54 * 2  # 1.5 inches total margin
+        available_width = page_width - margin
         
         # Font settings for width calculation
         header_font = 'Helvetica-Bold'
         data_font = 'Helvetica'
         hebrew_font = self.hebrew_font
         
-        # Calculate maximum width needed for each column
+        # Calculate maximum width needed for each column based on actual content
         column_max_widths = []
         
         for col_idx, header in enumerate(headers):
@@ -1017,20 +1171,21 @@ class PDFService:
             for row in data:
                 if col_idx < len(row):
                     cell_value = str(row[col_idx]) if row[col_idx] is not None else ""
-                    # Use Hebrew font for width calculation if text contains Hebrew
+                    # Use appropriate font for width calculation
                     if self._detect_rtl(cell_value):
                         cell_width = stringWidth(cell_value, hebrew_font, data_font_size)
                     else:
                         cell_width = stringWidth(cell_value, data_font, data_font_size)
                     max_width = max(max_width, cell_width)
             
-            # Add padding (30% extra for better readability and cell spacing)
-            max_width = max_width * 1.3
+            # Add padding (20% extra for better readability and cell spacing)
+            max_width = max_width * 1.2
             
-            # Set minimum and maximum column widths based on page size
-            min_width = 90 if page_size == 'A4' else 105  # Minimum width for readability
-            max_width = min(max_width, 400 if page_size == 'A4' else 540)  # Maximum width
-            column_max_widths.append(max(min_width, max_width))
+            # Set minimum width for readability
+            min_width = 60
+            max_width = max(min_width, max_width)
+            
+            column_max_widths.append(max_width)
         
         # Calculate total width needed
         total_width = sum(column_max_widths)
@@ -1039,10 +1194,14 @@ class PDFService:
         if total_width > available_width:
             scale_factor = available_width / total_width
             column_max_widths = [width * scale_factor for width in column_max_widths]
+            
+            # Ensure minimum width after scaling
+            min_final_width = 40
+            column_max_widths = [max(min_final_width, width) for width in column_max_widths]
         
-        # Ensure minimum width for each column (final check)
-        min_final_width = 75 if page_size == 'A4' else 100
-        column_max_widths = [max(min_final_width, width) for width in column_max_widths]
+        # Log the calculated widths for debugging
+        logger.info(f"Column widths calculated: {[f'{w:.1f}' for w in column_max_widths]}")
+        logger.info(f"Total width: {sum(column_max_widths):.1f}, Available width: {available_width:.1f}")
         
         return column_max_widths 
     
