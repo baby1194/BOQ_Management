@@ -26,8 +26,17 @@ class BOQItemBase(BaseModel):
     notes: Optional[str] = None
     subsection: Optional[str] = Field(None, max_length=50)
 
-class BOQItemCreate(BOQItemBase):
-    pass
+class BOQItemCreate(BaseModel):
+    # Only include the essential fields for creation
+    structure: Optional[float] = None
+    system: Optional[str] = Field(None, max_length=100)
+    section_number: str = Field(..., min_length=1, max_length=50)
+    description: str = Field("", min_length=0)
+    unit: str = Field(..., min_length=1, max_length=20)
+    original_contract_quantity: float = Field(..., ge=0)
+    price: float = Field(..., ge=0)
+    total_contract_sum: float = Field(..., ge=0)
+    subsection: Optional[str] = Field(None, max_length=50)
 
 class BOQItemUpdate(BaseModel):
     serial_number: Optional[float] = None
@@ -286,6 +295,7 @@ class PopulateConcentrationEntriesResponse(BaseModel):
 # Project Info Schemas
 class ProjectInfoBase(BaseModel):
     project_name: Optional[str] = Field(None, max_length=200)
+    project_name_hebrew: Optional[str] = Field(None, max_length=200)
     main_contractor_name: Optional[str] = Field(None, max_length=200)
     subcontractor_name: Optional[str] = Field(None, max_length=200)
     developer_name: Optional[str] = Field(None, max_length=200)

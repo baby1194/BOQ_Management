@@ -7,6 +7,7 @@ import {
 } from "../types";
 import { formatCurrency } from "../utils/format";
 import ExportModal from "../components/ExportModal";
+import ColumnSettingsModal from "../components/ColumnSettingsModal";
 
 const SummaryOfSubsections: React.FC = () => {
   const [subsectionSummaries, setSubsectionSummaries] = useState<
@@ -25,6 +26,72 @@ const SummaryOfSubsections: React.FC = () => {
   const [contractUpdates, setContractUpdates] = useState<
     ContractQuantityUpdate[]
   >([]);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState({
+    subsection: true,
+    subsection_description: true,
+    total_contract_sum: true,
+    total_estimate: true,
+    total_submitted: true,
+    internal_total: true,
+    total_approved_by_project_manager: true,
+    approved_signed_total: true,
+  });
+
+  // Column settings modal state
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+
+  // Load column visibility preferences from localStorage
+  useEffect(() => {
+    const savedVisibility = localStorage.getItem(
+      "subsections-column-visibility"
+    );
+    if (savedVisibility) {
+      try {
+        const parsed = JSON.parse(savedVisibility);
+        setColumnVisibility((prev) => ({ ...prev, ...parsed }));
+      } catch (error) {
+        console.error("Error loading column visibility preferences:", error);
+      }
+    }
+  }, []);
+
+  // Save column visibility preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      "subsections-column-visibility",
+      JSON.stringify(columnVisibility)
+    );
+  }, [columnVisibility]);
+
+  // Column visibility functions
+  const toggleColumnVisibility = (columnKey: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnKey]: !prev[columnKey],
+    }));
+  };
+
+  const resetColumnVisibility = () => {
+    const baseVisibility = {
+      subsection: true,
+      subsection_description: true,
+      total_contract_sum: true,
+      total_estimate: true,
+      total_submitted: true,
+      internal_total: true,
+      total_approved_by_project_manager: true,
+      approved_signed_total: true,
+    };
+
+    // Add contract update columns to reset
+    contractUpdates.forEach((update) => {
+      baseVisibility[`updated_contract_sum_${update.id}`] = true;
+    });
+
+    setColumnVisibility(baseVisibility);
+  };
 
   // Fetch subsection summaries
   const fetchSubsectionSummaries = async () => {
@@ -234,6 +301,14 @@ const SummaryOfSubsections: React.FC = () => {
     try {
       const response = await contractUpdatesApi.getAll();
       setContractUpdates(response);
+
+      // Add contract update columns to visibility state
+      const newVisibility = { ...columnVisibility };
+      response.forEach((update) => {
+        newVisibility[`updated_contract_sum_${update.id}`] =
+          columnVisibility[`updated_contract_sum_${update.id}`] ?? true;
+      });
+      setColumnVisibility(newVisibility);
     } catch (err) {
       console.error("Error fetching contract updates:", err);
     }
@@ -281,7 +356,13 @@ const SummaryOfSubsections: React.FC = () => {
             modified. You can edit subsection descriptions by clicking on them.
           </p>
         </div>
-        <div>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => setShowColumnSettings(true)}
+            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            Column Settings
+          </button>
           <button
             onClick={() => setShowExportModal(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -315,38 +396,56 @@ const SummaryOfSubsections: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Subsection
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Subsection Description
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Contract Sum
-                </th>
-                {contractUpdates.map((update) => (
-                  <th
-                    key={update.id}
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Total Updated Contract Sum {update.update_index}
+                {columnVisibility.subsection && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Subsection
                   </th>
-                ))}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Estimate
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Submitted
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Internal Total
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Approved by Project Manager
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Approved Signed Total
-                </th>
+                )}
+                {columnVisibility.subsection_description && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Subsection Description
+                  </th>
+                )}
+                {columnVisibility.total_contract_sum && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Contract Sum
+                  </th>
+                )}
+                {contractUpdates.map((update) =>
+                  columnVisibility[`updated_contract_sum_${update.id}`] ? (
+                    <th
+                      key={update.id}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Total Updated Contract Sum {update.update_index}
+                    </th>
+                  ) : null
+                )}
+                {columnVisibility.total_estimate && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Estimate
+                  </th>
+                )}
+                {columnVisibility.total_submitted && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Submitted
+                  </th>
+                )}
+                {columnVisibility.internal_total && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Internal Total
+                  </th>
+                )}
+                {columnVisibility.total_approved_by_project_manager && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Approved by Project Manager
+                  </th>
+                )}
+                {columnVisibility.approved_signed_total && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Approved Signed Total
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Item Count
                 </th>
@@ -355,85 +454,103 @@ const SummaryOfSubsections: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {subsectionSummaries.map((summary) => (
                 <tr key={summary.subsection} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {summary.subsection}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {editingDescription === summary.subsection ? (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={editingValue}
-                          onChange={(e) => handleInputChange(e.target.value)}
-                          onKeyDown={(e) =>
-                            handleKeyPress(e, summary.subsection)
+                  {columnVisibility.subsection && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {summary.subsection}
+                    </td>
+                  )}
+                  {columnVisibility.subsection_description && (
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {editingDescription === summary.subsection ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={editingValue}
+                            onChange={(e) => handleInputChange(e.target.value)}
+                            onKeyDown={(e) =>
+                              handleKeyPress(e, summary.subsection)
+                            }
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={saving}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => saveDescription(summary.subsection)}
+                            disabled={saving}
+                            className="text-green-600 hover:text-green-800 disabled:opacity-50 text-sm px-2 py-1"
+                          >
+                            {saving ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            disabled={saving}
+                            className="text-red-600 hover:text-red-800 disabled:opacity-50 text-sm px-2 py-1"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          className="cursor-pointer hover:bg-blue-50 px-2 py-1 rounded -ml-2"
+                          onClick={() =>
+                            startEditingDescription(
+                              summary.subsection,
+                              summary.description
+                            )
                           }
-                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          disabled={saving}
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => saveDescription(summary.subsection)}
-                          disabled={saving}
-                          className="text-green-600 hover:text-green-800 disabled:opacity-50 text-sm px-2 py-1"
+                          title="Click to edit description"
                         >
-                          {saving ? "Saving..." : "Save"}
-                        </button>
-                        <button
-                          onClick={cancelEditing}
-                          disabled={saving}
-                          className="text-red-600 hover:text-red-800 disabled:opacity-50 text-sm px-2 py-1"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        className="cursor-pointer hover:bg-blue-50 px-2 py-1 rounded -ml-2"
-                        onClick={() =>
-                          startEditingDescription(
-                            summary.subsection,
-                            summary.description
-                          )
-                        }
-                        title="Click to edit description"
-                      >
-                        {summary.description || (
-                          <span className="text-gray-400 italic">
-                            Click to add description
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(summary.total_contract_sum)}
-                  </td>
-                  {contractUpdates.map((update) => (
-                    <td
-                      key={update.id}
-                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
-                    >
-                      {formatCurrency(
-                        summary.contract_update_sums[update.id] || 0
+                          {summary.description || (
+                            <span className="text-gray-400 italic">
+                              Click to add description
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
-                  ))}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(summary.total_estimate)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(summary.total_submitted)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(summary.internal_total)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(summary.total_approved)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(summary.approved_signed_total)}
-                  </td>
+                  )}
+                  {columnVisibility.total_contract_sum && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.total_contract_sum)}
+                    </td>
+                  )}
+                  {contractUpdates.map((update) =>
+                    columnVisibility[`updated_contract_sum_${update.id}`] ? (
+                      <td
+                        key={update.id}
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                      >
+                        {formatCurrency(
+                          summary.contract_update_sums[update.id] || 0
+                        )}
+                      </td>
+                    ) : null
+                  )}
+                  {columnVisibility.total_estimate && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.total_estimate)}
+                    </td>
+                  )}
+                  {columnVisibility.total_submitted && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.total_submitted)}
+                    </td>
+                  )}
+                  {columnVisibility.internal_total && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.internal_total)}
+                    </td>
+                  )}
+                  {columnVisibility.total_approved_by_project_manager && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.total_approved)}
+                    </td>
+                  )}
+                  {columnVisibility.approved_signed_total && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.approved_signed_total)}
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {summary.item_count}
                   </td>
@@ -443,38 +560,56 @@ const SummaryOfSubsections: React.FC = () => {
             {/* Grand Totals Row */}
             <tfoot className="bg-gray-50 border-t-2 border-gray-300">
               <tr>
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  GRAND TOTALS
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">-</td>
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {formatCurrency(grandTotals.totalContractSum)}
-                </td>
-                {contractUpdates.map((update) => (
-                  <td
-                    key={update.id}
-                    className="px-6 py-4 text-sm font-bold text-gray-900"
-                  >
-                    {formatCurrency(
-                      grandTotals.contractUpdateSums[update.id] || 0
-                    )}
+                {columnVisibility.subsection && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    GRAND TOTALS
                   </td>
-                ))}
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {formatCurrency(grandTotals.totalEstimate)}
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {formatCurrency(grandTotals.totalSubmitted)}
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {formatCurrency(grandTotals.internalTotal)}
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {formatCurrency(grandTotals.totalApproved)}
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {formatCurrency(grandTotals.approvedSignedTotal)}
-                </td>
+                )}
+                {columnVisibility.subsection_description && (
+                  <td className="px-6 py-4 text-sm text-gray-500">-</td>
+                )}
+                {columnVisibility.total_contract_sum && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.totalContractSum)}
+                  </td>
+                )}
+                {contractUpdates.map((update) =>
+                  columnVisibility[`updated_contract_sum_${update.id}`] ? (
+                    <td
+                      key={update.id}
+                      className="px-6 py-4 text-sm font-bold text-gray-900"
+                    >
+                      {formatCurrency(
+                        grandTotals.contractUpdateSums[update.id] || 0
+                      )}
+                    </td>
+                  ) : null
+                )}
+                {columnVisibility.total_estimate && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.totalEstimate)}
+                  </td>
+                )}
+                {columnVisibility.total_submitted && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.totalSubmitted)}
+                  </td>
+                )}
+                {columnVisibility.internal_total && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.internalTotal)}
+                  </td>
+                )}
+                {columnVisibility.total_approved_by_project_manager && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.totalApproved)}
+                  </td>
+                )}
+                {columnVisibility.approved_signed_total && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.approvedSignedTotal)}
+                  </td>
+                )}
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">
                   {subsectionSummaries.reduce(
                     (sum, summary) => sum + summary.item_count,
@@ -539,6 +674,16 @@ const SummaryOfSubsections: React.FC = () => {
         title="Export Subsections Summary"
         loading={exporting}
         contractUpdates={contractUpdates}
+      />
+
+      {/* Column Settings Modal */}
+      <ColumnSettingsModal
+        isOpen={showColumnSettings}
+        onClose={() => setShowColumnSettings(false)}
+        columnVisibility={columnVisibility}
+        onToggleColumn={toggleColumnVisibility}
+        onResetColumns={resetColumnVisibility}
+        title="Summary of Subsections"
       />
     </div>
   );

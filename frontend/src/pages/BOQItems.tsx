@@ -248,10 +248,6 @@ const BOQItems: React.FC = () => {
     unit: "",
     original_contract_quantity: 0,
     price: 0,
-    estimated_quantity: 0,
-    quantity_submitted: 0,
-    approved_signed_quantity: 0,
-    notes: "",
     system: "",
     structure: 0,
   });
@@ -1396,10 +1392,6 @@ const BOQItems: React.FC = () => {
       unit: "",
       original_contract_quantity: 0,
       price: 0,
-      estimated_quantity: 0,
-      quantity_submitted: 0,
-      approved_signed_quantity: 0,
-      notes: "",
       system: "",
       structure: 0,
     });
@@ -1421,11 +1413,6 @@ const BOQItems: React.FC = () => {
       // Calculate derived values
       const total_contract_sum =
         newItemForm.original_contract_quantity * newItemForm.price;
-      const total_estimate = newItemForm.estimated_quantity * newItemForm.price;
-      const total_submitted =
-        newItemForm.quantity_submitted * newItemForm.price;
-      const approved_signed_total =
-        newItemForm.approved_signed_quantity * newItemForm.price;
 
       // Create new BOQ item
       const newItem = await boqApi.create({
@@ -1435,18 +1422,7 @@ const BOQItems: React.FC = () => {
         original_contract_quantity: newItemForm.original_contract_quantity,
         price: newItemForm.price,
         total_contract_sum: total_contract_sum,
-        estimated_quantity: newItemForm.estimated_quantity,
-        quantity_submitted: newItemForm.quantity_submitted,
-        internal_quantity: 0,
-        approved_by_project_manager: 0,
-        total_estimate: total_estimate,
-        total_submitted: total_submitted,
-        internal_total: 0,
-        total_approved_by_project_manager: 0,
-        approved_signed_quantity: newItemForm.approved_signed_quantity,
-        approved_signed_total: approved_signed_total,
         subsection: subsection,
-        notes: newItemForm.notes,
         system: newItemForm.system,
         structure: newItemForm.structure,
       });
@@ -1713,6 +1689,30 @@ const BOQItems: React.FC = () => {
               ) : (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
                   {projectInfo?.project_name || "Not specified"}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Project Name (Hebrew)
+              </label>
+              {editingProjectInfo ? (
+                <input
+                  type="text"
+                  value={projectInfoDraft.project_name_hebrew || ""}
+                  onChange={(e) =>
+                    handleProjectInfoDraftChange(
+                      "project_name_hebrew",
+                      e.target.value
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="שם הפרויקט"
+                />
+              ) : (
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                  {projectInfo?.project_name_hebrew || "Not specified"}
                 </div>
               )}
             </div>
@@ -2084,78 +2084,6 @@ const BOQItems: React.FC = () => {
                 placeholder="0.00"
               />
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Estimated Quantity
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={newItemForm.estimated_quantity}
-                onChange={(e) =>
-                  handleNewItemFormChange(
-                    "estimated_quantity",
-                    parseFloat(e.target.value) || 0
-                  )
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0.00"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Quantity Submitted
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={newItemForm.quantity_submitted}
-                onChange={(e) =>
-                  handleNewItemFormChange(
-                    "quantity_submitted",
-                    parseFloat(e.target.value) || 0
-                  )
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0.00"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Approved Signed Quantity
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={newItemForm.approved_signed_quantity || 0}
-                onChange={(e) =>
-                  handleNewItemFormChange(
-                    "approved_signed_quantity",
-                    parseFloat(e.target.value) || 0
-                  )
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="lg:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes
-              </label>
-              <textarea
-                value={newItemForm.notes}
-                onChange={(e) =>
-                  handleNewItemFormChange("notes", e.target.value)
-                }
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Additional notes (optional)"
-              />
-            </div>
           </div>
 
           {/* Calculated Values Preview */}
@@ -2169,30 +2097,6 @@ const BOQItems: React.FC = () => {
                 <span className="ml-2 font-medium text-gray-900">
                   {formatCurrency(
                     newItemForm.original_contract_quantity * newItemForm.price
-                  )}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600">Total Estimate:</span>
-                <span className="ml-2 font-medium text-gray-900">
-                  {formatCurrency(
-                    newItemForm.estimated_quantity * newItemForm.price
-                  )}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600">Total Submitted:</span>
-                <span className="ml-2 font-medium text-gray-900">
-                  {formatCurrency(
-                    newItemForm.quantity_submitted * newItemForm.price
-                  )}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600">Approved Signed Total:</span>
-                <span className="ml-2 font-medium text-gray-900">
-                  {formatCurrency(
-                    newItemForm.approved_signed_quantity * newItemForm.price
                   )}
                 </span>
               </div>

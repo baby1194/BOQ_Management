@@ -334,37 +334,40 @@ async def populate_concentration_entries(
             ).all()
             
             # Check if entry already exists with the same Calculation Sheet No AND Drawing No
-            # We need to check if there's already a concentration entry for this section number
-            # that has the same calculation_sheet_no and drawing_no
-            duplicate_exists = any(
-                entry.section_number == calc_entry.section_number and
-                entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no and
-                entry.drawing_no == calculation_sheet.drawing_no
-                for entry in existing_entries
-            )
+            existing_concentration_entry = None
+            for entry in existing_entries:
+                if (entry.section_number == calc_entry.section_number and
+                    entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no and
+                    entry.drawing_no == calculation_sheet.drawing_no):
+                    existing_concentration_entry = entry
+                    break
             
-            if duplicate_exists:
-                logger.info(f"Skipping existing entry for section {calc_entry.section_number} with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} in sheet {concentration_sheet.sheet_name}")
-                entries_skipped += 1
-                continue
-            
-            # Create new concentration entry
-            new_concentration_entry = models.ConcentrationEntry(
-                concentration_sheet_id=concentration_sheet.id,
-                section_number=calc_entry.section_number,  # Use section number from calculation entry
-                description=calculation_sheet.description,  # Use calculation sheet description
-                calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                drawing_no=calculation_sheet.drawing_no,
-                estimated_quantity=calc_entry.estimated_quantity,
-                quantity_submitted=calc_entry.quantity_submitted,
-                internal_quantity=0.0,
-                approved_by_project_manager=0.0,
-                notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}"
-            )
-            
-            db.add(new_concentration_entry)
-            entries_created += 1
-            logger.info(f"Created entry for section {calc_entry.section_number} in concentration sheet {concentration_sheet.sheet_name}")
+            if existing_concentration_entry:
+                # Update existing concentration entry with new data
+                existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
+                existing_concentration_entry.quantity_submitted = calc_entry.quantity_submitted
+                existing_concentration_entry.description = calculation_sheet.description
+                existing_concentration_entry.notes = f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                entries_created += 1  # Count as updated
+                logger.info(f"Updated existing entry for section {calc_entry.section_number} with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} in sheet {concentration_sheet.sheet_name}")
+            else:
+                # Create new concentration entry
+                new_concentration_entry = models.ConcentrationEntry(
+                    concentration_sheet_id=concentration_sheet.id,
+                    section_number=calc_entry.section_number,  # Use section number from calculation entry
+                    description=calculation_sheet.description,  # Use calculation sheet description
+                    calculation_sheet_no=calculation_sheet.calculation_sheet_no,
+                    drawing_no=calculation_sheet.drawing_no,
+                    estimated_quantity=calc_entry.estimated_quantity,
+                    quantity_submitted=calc_entry.quantity_submitted,
+                    internal_quantity=0.0,
+                    approved_by_project_manager=0.0,
+                    notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                )
+                
+                db.add(new_concentration_entry)
+                entries_created += 1
+                logger.info(f"Created entry for section {calc_entry.section_number} in concentration sheet {concentration_sheet.sheet_name}")
         
         db.commit()
         
@@ -409,9 +412,9 @@ async def populate_concentration_entries(
         
         return {
             "success": True,
-            "message": f"Successfully populated {entries_created} concentration entries. {entries_skipped} entries skipped (duplicate Calculation Sheet No + Drawing No combination). Updated {boq_items_updated} BOQ Items with totals.",
+            "message": f"Successfully processed {entries_created} concentration entries (updated existing entries and created new ones as needed). Updated {boq_items_updated} BOQ Items with totals.",
             "entries_created": entries_created,
-            "entries_skipped": entries_skipped,
+            "entries_skipped": 0,  # No longer skipping entries
             "boq_items_updated": boq_items_updated,
             "concentration_sheet_id": concentration_sheet.id
         }
@@ -439,8 +442,7 @@ async def populate_all_calculation_entries(
         
         logger.info(f"Starting bulk population from {len(calculation_sheets)} calculation sheets")
         
-        total_entries_created = 0
-        total_entries_skipped = 0
+        total_entries_processed = 0
         total_boq_items_updated = 0
         processed_sheets = 0
         
@@ -490,8 +492,7 @@ async def populate_all_calculation_entries(
                     continue
                 
                 # Populate concentration entries for this sheet
-                entries_created = 0
-                entries_skipped = 0
+                entries_processed = 0
                 
                 for calc_entry in calculation_entries:
                     # Find the corresponding concentration sheet for this entry
@@ -506,33 +507,40 @@ async def populate_all_calculation_entries(
                     ).all()
                     
                     # Check if entry already exists with the same Calculation Sheet No AND Drawing No
-                    duplicate_exists = any(
-                        entry.section_number == calc_entry.section_number and
-                        entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no and
-                        entry.drawing_no == calculation_sheet.drawing_no
-                        for entry in existing_entries
-                    )
+                    existing_concentration_entry = None
+                    for entry in existing_entries:
+                        if (entry.section_number == calc_entry.section_number and
+                            entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no and
+                            entry.drawing_no == calculation_sheet.drawing_no):
+                            existing_concentration_entry = entry
+                            break
                     
-                    if duplicate_exists:
-                        entries_skipped += 1
-                        continue
-                    
-                    # Create new concentration entry
-                    new_concentration_entry = models.ConcentrationEntry(
-                        concentration_sheet_id=concentration_sheet.id,
-                        section_number=calc_entry.section_number,
-                        description=calculation_sheet.description,  # Use calculation sheet description
-                        calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                        drawing_no=calculation_sheet.drawing_no,
-                        estimated_quantity=calc_entry.estimated_quantity,
-                        quantity_submitted=calc_entry.quantity_submitted,
-                        internal_quantity=0.0,
-                        approved_by_project_manager=0.0,
-                        notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}"
-                    )
-                    
-                    db.add(new_concentration_entry)
-                    entries_created += 1
+                    if existing_concentration_entry:
+                        # Update existing concentration entry with new data
+                        existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
+                        existing_concentration_entry.quantity_submitted = calc_entry.quantity_submitted
+                        existing_concentration_entry.description = calculation_sheet.description
+                        existing_concentration_entry.notes = f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                        entries_processed += 1  # Count as updated
+                        logger.info(f"Updated existing concentration entry for section {calc_entry.section_number} in sheet {concentration_sheet.sheet_name}")
+                    else:
+                        # Create new concentration entry
+                        new_concentration_entry = models.ConcentrationEntry(
+                            concentration_sheet_id=concentration_sheet.id,
+                            section_number=calc_entry.section_number,
+                            description=calculation_sheet.description,  # Use calculation sheet description
+                            calculation_sheet_no=calculation_sheet.calculation_sheet_no,
+                            drawing_no=calculation_sheet.drawing_no,
+                            estimated_quantity=calc_entry.estimated_quantity,
+                            quantity_submitted=calc_entry.quantity_submitted,
+                            internal_quantity=0.0,
+                            approved_by_project_manager=0.0,
+                            notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                        )
+                        
+                        db.add(new_concentration_entry)
+                        entries_processed += 1
+                        logger.info(f"Created new concentration entry for section {calc_entry.section_number} in sheet {concentration_sheet.sheet_name}")
                 
                 # Update BOQ Items with totals from concentration sheets
                 boq_items_updated = 0
@@ -568,25 +576,24 @@ async def populate_all_calculation_entries(
                 # Commit changes for this sheet
                 db.commit()
                 
-                total_entries_created += entries_created
-                total_entries_skipped += entries_skipped
+                total_entries_processed += entries_processed
                 total_boq_items_updated += boq_items_updated
                 processed_sheets += 1
                 
-                logger.info(f"Processed sheet {calculation_sheet.calculation_sheet_no}: {entries_created} created, {entries_skipped} skipped, {boq_items_updated} BOQ items updated")
+                logger.info(f"Processed sheet {calculation_sheet.calculation_sheet_no}: {entries_processed} entries processed (updated/created), {boq_items_updated} BOQ items updated")
                 
             except Exception as e:
                 logger.error(f"Error processing calculation sheet {calculation_sheet.calculation_sheet_no}: {str(e)}")
                 db.rollback()
                 continue
         
-        logger.info(f"Bulk population completed. Processed {processed_sheets} sheets. Total: {total_entries_created} created, {total_entries_skipped} skipped, {total_boq_items_updated} BOQ items updated")
+        logger.info(f"Bulk population completed. Processed {processed_sheets} sheets. Total: {total_entries_processed} entries processed (updated/created), {total_boq_items_updated} BOQ items updated")
         
         return {
             "success": True,
-            "message": f"Successfully populated {total_entries_created} concentration entries from {processed_sheets} calculation sheets. {total_entries_skipped} entries skipped (duplicate Calculation Sheet No + Drawing No combination). Updated {total_boq_items_updated} BOQ Items with totals.",
-            "entries_created": total_entries_created,
-            "entries_skipped": total_entries_skipped,
+            "message": f"Successfully processed {total_entries_processed} concentration entries from {processed_sheets} calculation sheets (updated existing entries and created new ones as needed). Updated {total_boq_items_updated} BOQ Items with totals.",
+            "entries_created": total_entries_processed,
+            "entries_skipped": 0,  # No longer skipping entries
             "boq_items_updated": total_boq_items_updated,
             "concentration_sheet_id": 0  # Not applicable for bulk operation
         }

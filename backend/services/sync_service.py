@@ -318,10 +318,40 @@ class SyncService:
                         ).first()
                         
                         if concentration_entry:
-                            # Update the concentration entry
+                            # Update the existing concentration entry
                             concentration_entry.estimated_quantity = calc_entry.estimated_quantity
                             concentration_entry.quantity_submitted = calc_entry.quantity_submitted
                             total_entries_updated += 1
+                            logger.info(f"Updated existing concentration entry for section {calc_entry.section_number}")
+                        else:
+                            # Create new concentration entry if it doesn't exist
+                            # First, find the concentration sheet for this section
+                            boq_item = self.db.query(models.BOQItem).filter(
+                                models.BOQItem.section_number == calc_entry.section_number
+                            ).first()
+                            
+                            if boq_item:
+                                concentration_sheet = self.db.query(models.ConcentrationSheet).filter(
+                                    models.ConcentrationSheet.boq_item_id == boq_item.id
+                                ).first()
+                                
+                                if concentration_sheet:
+                                    new_concentration_entry = models.ConcentrationEntry(
+                                        concentration_sheet_id=concentration_sheet.id,
+                                        section_number=calc_entry.section_number,
+                                        description=calculation_sheet.description,
+                                        calculation_sheet_no=calculation_sheet.calculation_sheet_no,
+                                        drawing_no=calculation_sheet.drawing_no,
+                                        estimated_quantity=calc_entry.estimated_quantity,
+                                        quantity_submitted=calc_entry.quantity_submitted,
+                                        internal_quantity=0.0,
+                                        approved_by_project_manager=0.0,
+                                        notes=f"Auto-synced from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                                    )
+                                    
+                                    self.db.add(new_concentration_entry)
+                                    total_entries_updated += 1
+                                    logger.info(f"Created new concentration entry for section {calc_entry.section_number}")
                     
                     # Update BOQ items for this sheet
                     section_numbers = [entry.section_number for entry in calculation_entries]

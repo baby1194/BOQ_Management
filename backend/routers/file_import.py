@@ -345,26 +345,39 @@ async def import_calculation_sheets(
                     ).first()
                     
                     if existing_sheet:
-                        logger.info(f"Skipping duplicate calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']} already exists")
-                        all_errors.append(f"{file.filename} - Skipped: Calculation Sheet No '{sheet_data['calculation_sheet_no']}' with Drawing No '{sheet_data['drawing_no']}' already exists")
-                        continue
+                        # Update existing calculation sheet with new data
+                        logger.info(f"Updating existing calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
+                        
+                        # Update the existing sheet with new data
+                        existing_sheet.file_name = file.filename
+                        existing_sheet.description = sheet_data['description']
+                        
+                        # Delete existing calculation entries for this sheet
+                        db.query(models.CalculationEntry).filter(
+                            models.CalculationEntry.calculation_sheet_id == existing_sheet.id
+                        ).delete()
+                        
+                        current_sheet = existing_sheet
+                    else:
+                        # Create new calculation sheet record
+                        logger.info(f"Creating new calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
+                        
+                        new_sheet = models.CalculationSheet(
+                            file_name=file.filename,
+                            calculation_sheet_no=sheet_data['calculation_sheet_no'],
+                            drawing_no=sheet_data['drawing_no'],
+                            description=sheet_data['description']
+                        )
+                        
+                        db.add(new_sheet)
+                        db.flush()  # Get the ID without committing
+                        current_sheet = new_sheet
                     
-                    # Create calculation sheet record
-                    new_sheet = models.CalculationSheet(
-                        file_name=file.filename,
-                        calculation_sheet_no=sheet_data['calculation_sheet_no'],
-                        drawing_no=sheet_data['drawing_no'],
-                        description=sheet_data['description']
-                    )
-                    
-                    db.add(new_sheet)
-                    db.flush()  # Get the ID without committing
-                    
-                    # Create calculation entries
+                    # Create calculation entries (for both new and updated sheets)
                     entries_created = 0
                     for entry_data in sheet_data['entries']:
                         new_entry = models.CalculationEntry(
-                            calculation_sheet_id=new_sheet.id,
+                            calculation_sheet_id=current_sheet.id,
                             section_number=entry_data['section_number'],
                             estimated_quantity=entry_data['estimated_quantity'],
                             quantity_submitted=entry_data['quantity_submitted']
@@ -372,10 +385,12 @@ async def import_calculation_sheets(
                         db.add(new_entry)
                         entries_created += 1
                     
+                    # Count as imported (whether new or updated)
                     total_sheets_imported += 1
                     total_entries_imported += entries_created
                     
-                    logger.info(f"Successfully imported calculation sheet {file.filename} with {entries_created} entries")
+                    action = "updated" if existing_sheet else "imported"
+                    logger.info(f"Successfully {action} calculation sheet {file.filename} with {entries_created} entries")
                     
                 except Exception as e:
                     error_msg = f"{file.filename} - Error processing file: {str(e)}"
@@ -398,15 +413,10 @@ async def import_calculation_sheets(
         db.add(log)
         db.commit()
         
-        # Count skipped files (duplicates)
-        skipped_count = len([error for error in all_errors if "Skipped:" in error])
-        
-        success_message = f"Successfully imported {total_sheets_imported} calculation sheets with {total_entries_imported} entries"
-        if skipped_count > 0:
-            success_message += f". Skipped {skipped_count} duplicate sheets."
+        success_message = f"Successfully processed {total_sheets_imported} calculation sheets with {total_entries_imported} entries (updated existing sheets and added new ones as needed)"
         
         return schemas.CalculationImportResponse(
-            success=len([error for error in all_errors if "Skipped:" not in error]) == 0,
+            success=len(all_errors) == 0,
             message=success_message,
             files_processed=len(files),
             sheets_imported=total_sheets_imported,

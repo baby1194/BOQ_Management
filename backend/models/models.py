@@ -165,6 +165,7 @@ class ProjectInfo(Base):
     
     # Project information fields
     project_name = Column(String(200), nullable=True)
+    project_name_hebrew = Column(String(200), nullable=True)
     main_contractor_name = Column(String(200), nullable=True)
     subcontractor_name = Column(String(200), nullable=True)
     developer_name = Column(String(200), nullable=True)

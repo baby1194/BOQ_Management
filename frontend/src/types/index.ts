@@ -26,7 +26,6 @@ export interface BOQItem {
 }
 
 export interface BOQItemCreate {
-  serial_number?: number;
   structure?: number;
   system?: string;
   section_number: string;
@@ -35,17 +34,6 @@ export interface BOQItemCreate {
   original_contract_quantity: number;
   price: number;
   total_contract_sum: number;
-  estimated_quantity: number;
-  quantity_submitted: number;
-  internal_quantity: number;
-  approved_by_project_manager: number;
-  total_estimate: number;
-  total_submitted: number;
-  internal_total: number;
-  total_approved_by_project_manager: number;
-  approved_signed_quantity: number;
-  approved_signed_total: number;
-  notes?: string;
   subsection?: string;
 }
 
@@ -207,6 +195,7 @@ export interface PopulateConcentrationEntriesResponse {
 export interface ProjectInfo {
   id: number;
   project_name?: string;
+  project_name_hebrew?: string;
   main_contractor_name?: string;
   subcontractor_name?: string;
   developer_name?: string;
@@ -223,6 +212,7 @@ export interface ProjectInfo {
 
 export interface ProjectInfoUpdate {
   project_name?: string;
+  project_name_hebrew?: string;
   main_contractor_name?: string;
   subcontractor_name?: string;
   developer_name?: string;
