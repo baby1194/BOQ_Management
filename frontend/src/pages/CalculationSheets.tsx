@@ -242,7 +242,7 @@ const CalculationSheets: React.FC = () => {
   const handlePopulateAllCalculationEntries = async () => {
     if (
       !confirm(
-        `Are you sure you want to populate concentration entries from ALL calculation sheets in the database? This will process ${sheets.length} sheets and may take some time.`
+        `Are you sure you want to populate concentration entries from ALL calculation sheets? This will FIRST DELETE ALL existing concentration entries, then recreate them from ${sheets.length} calculation sheets. This action cannot be undone and may take some time.`
       )
     ) {
       return;
@@ -418,8 +418,8 @@ const CalculationSheets: React.FC = () => {
               )}
             </button>
             <p className="text-xs text-gray-500 text-center mt-2 max-w-xs mx-auto">
-              Processes all calculation sheets at once. May take time for large
-              datasets.
+              Clears all existing concentration entries first, then recreates
+              them from all calculation sheets. This action cannot be undone.
             </p>
           </div>
 
