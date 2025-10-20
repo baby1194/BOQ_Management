@@ -163,6 +163,46 @@ const ExportModal: React.FC<ExportModalProps> = ({
               <span className="text-sm">Total Contract Sum</span>
             </label>
 
+            {/* Contract Update Columns */}
+            {contractUpdates.length > 0 && (
+              <>
+                <div className="border-t border-gray-200 my-2"></div>
+                <div className="flex items-center mb-2">
+                  <input
+                    type="checkbox"
+                    checked={exportRequest.include_contract_updates}
+                    onChange={() =>
+                      handleCheckboxChange("include_contract_updates")
+                    }
+                    className="mr-2"
+                    disabled={loading}
+                  />
+                  <span className="text-sm font-medium text-gray-900">
+                    Contract Updates
+                  </span>
+                </div>
+                <div className="ml-6 space-y-1">
+                  {contractUpdates.map((update) => (
+                    <label key={update.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={exportRequest.include_contract_updates}
+                        onChange={() =>
+                          handleCheckboxChange("include_contract_updates")
+                        }
+                        className="mr-2"
+                        disabled={loading}
+                      />
+                      <span className="text-sm text-gray-700">
+                        {update.update_name.replace("Qty", "Sum")}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="border-t border-gray-200 my-2"></div>
+              </>
+            )}
+
             <label className="flex items-center">
               <input
                 type="checkbox"
@@ -230,45 +270,6 @@ const ExportModal: React.FC<ExportModalProps> = ({
               />
               <span className="text-sm">Item Count</span>
             </label>
-
-            {/* Contract Update Columns */}
-            {contractUpdates.length > 0 && (
-              <>
-                <div className="border-t border-gray-200 my-3"></div>
-                <div className="flex items-center mb-2">
-                  <input
-                    type="checkbox"
-                    checked={exportRequest.include_contract_updates}
-                    onChange={() =>
-                      handleCheckboxChange("include_contract_updates")
-                    }
-                    className="mr-2"
-                    disabled={loading}
-                  />
-                  <span className="text-sm font-medium text-gray-900">
-                    Contract Updates
-                  </span>
-                </div>
-                <div className="ml-6 space-y-1">
-                  {contractUpdates.map((update) => (
-                    <label key={update.id} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={exportRequest.include_contract_updates}
-                        onChange={() =>
-                          handleCheckboxChange("include_contract_updates")
-                        }
-                        className="mr-2"
-                        disabled={loading}
-                      />
-                      <span className="text-sm text-gray-700">
-                        {update.update_name.replace("Qty", "Sum")}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         </div>
 

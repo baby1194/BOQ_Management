@@ -17,22 +17,25 @@ router = APIRouter()
 
 @router.post("/concentration-sheets", response_model=schemas.PDFExportResponse)
 async def export_concentration_sheets(
-    request: schemas.PDFExportRequest,
+    request: dict,
     db: Session = Depends(get_db)
 ):
     """Export concentration sheets to individual PDF files"""
     try:
         pdf_service = PDFService()
         
+        # Get entry columns configuration if provided
+        entry_columns = request.get("entry_columns", None)
+        
         # Get concentration sheets to export
-        if request.export_all:
+        if request.get("export_all", False):
             sheets = db.query(models.ConcentrationSheet).all()
         else:
             # This would need to be implemented based on item_codes
             sheets = db.query(models.ConcentrationSheet).all()
         
         # Filter out empty sheets if requested
-        if request.export_non_empty_only:
+        if request.get("export_non_empty_only", True):
             sheets = [sheet for sheet in sheets if sheet.total_estimate > 0 or sheet.total_submitted > 0]
         
         if not sheets:
@@ -58,8 +61,8 @@ async def export_concentration_sheets(
                 models.ConcentrationEntry.concentration_sheet_id == sheet.id
             ).order_by(models.ConcentrationEntry.id).all()
             
-            # Generate individual PDF for this sheet
-            pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db)
+            # Generate individual PDF for this sheet with entry columns configuration
+            pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns)
             pdf_paths.append(pdf_path)
         
         # Create a zip file containing all individual PDF files
@@ -85,10 +88,12 @@ async def export_concentration_sheets(
                     # Add PDF to zip with section number in filename
                     zipf.write(pdf_path, pdf_filename)
         
+        # Return the filename for download using the download endpoint
+        filename = zip_path.name
         return schemas.PDFExportResponse(
             success=True,
             message=f"Successfully exported {len(sheets)} concentration sheets as individual PDF files in zip",
-            pdf_path=str(zip_path),
+            pdf_path=f"/export/download/{filename}",
             sheets_exported=len(sheets)
         )
         
@@ -766,6 +771,8 @@ async def export_boq_items_pdf(
                     filtered_item["description"] = item.description
                 if request.get("include_unit"):
                     filtered_item["unit"] = item.unit
+                if request.get("include_price"):
+                    filtered_item["price"] = item.price
                 if request.get("include_original_contract_quantity"):
                     filtered_item["original_contract_quantity"] = item.original_contract_quantity
                 
@@ -779,9 +786,6 @@ async def export_boq_items_pdf(
                         ).first()
                         filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
                 
-                if request.get("include_price"):
-                    filtered_item["price"] = item.price
-                
                 # Add contract update sum columns in order
                 for update in contract_updates:
                     sum_key = f"updated_contract_sum_{update.id}"
@@ -792,8 +796,6 @@ async def export_boq_items_pdf(
                         ).first()
                         filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
                 
-                if request.get("include_total_contract_sum"):
-                    filtered_item["total_contract_sum"] = item.total_contract_sum
                 if request.get("include_estimated_quantity"):
                     filtered_item["estimated_quantity"] = item.estimated_quantity
                 if request.get("include_quantity_submitted"):
@@ -850,6 +852,9 @@ async def export_boq_items_excel(
     try:
         excel_service = ExcelService()
         
+        # Get grand totals if provided
+        grand_totals = request.get("grand_totals", None)
+        
         # Use the data passed from frontend if available, otherwise fetch from database
         if "data" in request and request["data"]:
             # Frontend sends filtered data with contract updates included
@@ -876,6 +881,8 @@ async def export_boq_items_excel(
                     filtered_item["description"] = item.description
                 if request.get("include_unit"):
                     filtered_item["unit"] = item.unit
+                if request.get("include_price"):
+                    filtered_item["price"] = item.price
                 if request.get("include_original_contract_quantity"):
                     filtered_item["original_contract_quantity"] = item.original_contract_quantity
                 
@@ -889,9 +896,6 @@ async def export_boq_items_excel(
                         ).first()
                         filtered_item[quantity_key] = boq_item_update.updated_contract_quantity if boq_item_update else 0
                 
-                if request.get("include_price"):
-                    filtered_item["price"] = item.price
-                
                 # Add contract update sum columns in order
                 for update in contract_updates:
                     sum_key = f"updated_contract_sum_{update.id}"
@@ -902,8 +906,6 @@ async def export_boq_items_excel(
                         ).first()
                         filtered_item[sum_key] = boq_item_update.updated_contract_sum if boq_item_update else 0
                 
-                if request.get("include_total_contract_sum"):
-                    filtered_item["total_contract_sum"] = item.total_contract_sum
                 if request.get("include_estimated_quantity"):
                     filtered_item["estimated_quantity"] = item.estimated_quantity
                 if request.get("include_quantity_submitted"):
@@ -933,7 +935,7 @@ async def export_boq_items_excel(
                     filtered_items.append(filtered_item)
         
         # Generate Excel
-        excel_path = excel_service.export_boq_items(filtered_items)
+        excel_path = excel_service.export_boq_items(filtered_items, grand_totals)
         
         # Return the filename for download using the download endpoint
         filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]

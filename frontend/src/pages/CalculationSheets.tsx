@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import { calculationSheetsApi } from "../services/api";
 import { CalculationSheet, CalculationEntry } from "../types";
 import { formatNumber } from "../utils/format";
 import { FileText, Trash2, Eye, Search, Filter } from "lucide-react";
 
 const CalculationSheets: React.FC = () => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [sheets, setSheets] = useState<CalculationSheet[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<CalculationSheet | null>(
     null
@@ -36,7 +40,7 @@ const CalculationSheets: React.FC = () => {
       setSheets(response);
     } catch (err) {
       console.error("Error fetching calculation sheets:", err);
-      setError("Failed to fetch calculation sheets");
+      setError(t("auth.failedToFetchCalculationSheets"));
     } finally {
       setLoading(false);
     }
@@ -93,7 +97,7 @@ const CalculationSheets: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Error updating comment:", err);
-      setError("Failed to update comment");
+      setError(t("auth.failedToUpdateComment"));
     } finally {
       setUpdatingComment(false);
     }
@@ -141,7 +145,7 @@ const CalculationSheets: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Error deleting calculation sheet:", err);
-      setError("Failed to delete calculation sheet");
+      setError(t("auth.failedToDeleteCalculationSheet"));
     } finally {
       setDeletingSheet(false);
     }
@@ -172,7 +176,7 @@ const CalculationSheets: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Error deleting entry:", err);
-      setError("Failed to delete entry");
+      setError(t("auth.failedToDeleteEntry"));
     } finally {
       setDeletingEntry(null);
     }
@@ -213,7 +217,7 @@ const CalculationSheets: React.FC = () => {
       console.error("Error populating concentration entries:", err);
 
       // Extract detailed error message
-      let errorMessage = "Failed to populate concentration entries";
+      let errorMessage = t("auth.failedToPopulateEntries");
 
       if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail;
@@ -266,7 +270,7 @@ const CalculationSheets: React.FC = () => {
       console.error("Error populating all calculation entries:", err);
 
       // Extract detailed error message
-      let errorMessage = "Failed to populate all calculation entries";
+      let errorMessage = t("auth.failedToPopulateAllEntries");
 
       if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail;
@@ -313,13 +317,11 @@ const CalculationSheets: React.FC = () => {
           await fetchEntries(selectedSheet.id);
         }
       } else {
-        setError(
-          response.message || "Failed to synchronize calculation sheets"
-        );
+        setError(response.message || t("auth.failedToSyncSheets"));
       }
     } catch (err) {
       console.error("Error syncing all calculation sheets:", err);
-      setError("Failed to synchronize calculation sheets");
+      setError(t("auth.failedToSyncSheets"));
     } finally {
       setSyncingAll(false);
     }
@@ -355,12 +357,12 @@ const CalculationSheets: React.FC = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
+        <div className={isRTL ? "text-right" : "text-left"}>
           <h1 className="text-3xl font-bold text-gray-900">
-            Calculation Sheets
+            {t("calculationSheets.title")}
           </h1>
           <p className="mt-2 text-gray-600">
-            View imported calculation sheet data
+            {t("calculationSheets.subtitle")}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
@@ -374,10 +376,13 @@ const CalculationSheets: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Calculation Sheets</h1>
+      <div className={isRTL ? "text-right" : "text-left"}>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("calculationSheets.title")}
+        </h1>
         <p className="mt-2 text-gray-600">
-          View imported calculation sheet data ({sheets.length} sheets)
+          {t("calculationSheets.subtitle")} ({sheets.length}{" "}
+          {t("calculationSheets.sheets")})
         </p>
       </div>
 
@@ -445,11 +450,19 @@ const CalculationSheets: React.FC = () => {
           </div>
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Calculation Sheets
+              <h2
+                className={`text-lg font-semibold text-gray-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("calculationSheets.title")}
               </h2>
-              <p className="text-sm text-gray-600">
-                Select a sheet to view its entries
+              <p
+                className={`text-sm text-gray-600 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("calculationSheets.selectSheetToViewEntries")}
               </p>
 
               {/* Search */}
@@ -458,7 +471,7 @@ const CalculationSheets: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search sheets..."
+                  placeholder={t("calculationSheets.searchSheets")}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -469,14 +482,14 @@ const CalculationSheets: React.FC = () => {
                   type="text"
                   value={filterSheetNo}
                   onChange={(e) => setFilterSheetNo(e.target.value)}
-                  placeholder="Sheet No filter"
+                  placeholder={t("calculationSheets.filterBySheetNo")}
                   className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <input
                   type="text"
                   value={filterDrawingNo}
                   onChange={(e) => setFilterDrawingNo(e.target.value)}
-                  placeholder="Drawing No filter"
+                  placeholder={t("calculationSheets.filterByDrawingNo")}
                   className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -484,10 +497,20 @@ const CalculationSheets: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto">
               {filteredSheets.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
-                  <p>No calculation sheets found</p>
-                  <p className="text-sm mt-1">
-                    Import calculation sheets from the File Import page
+                <div
+                  className={`p-4 text-center text-gray-500 ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                >
+                  <p className={isRTL ? "text-right" : "text-left"}>
+                    {t("calculationSheets.noSheetsFound")}
+                  </p>
+                  <p
+                    className={`text-sm mt-1 ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("calculationSheets.importFromFileImportPage")}
                   </p>
                 </div>
               ) : (
@@ -524,7 +547,7 @@ const CalculationSheets: React.FC = () => {
                           }}
                           disabled={deletingSheet}
                           className="text-red-600 hover:text-red-800 disabled:opacity-50 ml-2"
-                          title="Delete sheet"
+                          title={t("calculationSheets.delete")}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -546,10 +569,19 @@ const CalculationSheets: React.FC = () => {
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Calculation Sheet - {selectedSheet.calculation_sheet_no}
+                      <h2
+                        className={`text-xl font-semibold text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("calculationSheets.title")} -{" "}
+                        {selectedSheet.calculation_sheet_no}
                       </h2>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p
+                        className={`text-sm text-gray-600 mt-1 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {selectedSheet.description}
                       </p>
                     </div>
@@ -558,24 +590,28 @@ const CalculationSheets: React.FC = () => {
                         onClick={handlePopulateConcentrationEntries}
                         disabled={populatingEntries || entries.length === 0}
                         className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                        title="Populate concentration entries from this calculation sheet"
+                        title={t("calculationSheets.populateEntries")}
                       >
                         {populatingEntries ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>Populating...</span>
+                            <span>{t("calculationSheets.populating")}</span>
                           </>
                         ) : (
                           <>
                             <span>📋</span>
-                            <span>Populate to Concentration</span>
+                            <span>
+                              {t("calculationSheets.populateEntries")}
+                            </span>
                           </>
                         )}
                       </button>
-                      <p className="text-xs text-gray-500 text-right max-w-xs">
-                        Creates concentration entries from calculation entries,
-                        matching by section number. Skips if same Calculation
-                        Sheet No + Drawing No already exists.
+                      <p
+                        className={`text-xs text-gray-500 max-w-xs ${
+                          isRTL ? "text-left" : "text-right"
+                        }`}
+                      >
+                        {t("calculationSheets.populateEntriesDescription")}
                       </p>
                     </div>
                   </div>
@@ -583,26 +619,50 @@ const CalculationSheets: React.FC = () => {
                   {/* Sheet Information Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Calculation Sheet No:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("calculationSheets.sheetNumber")}:
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {selectedSheet.calculation_sheet_no}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Drawing No:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("calculationSheets.drawingNumber")}:
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {selectedSheet.drawing_no}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Import Date:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("common.importDate")}:
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {new Date(
                           selectedSheet.import_date
                         ).toLocaleDateString()}
@@ -612,15 +672,19 @@ const CalculationSheets: React.FC = () => {
 
                   {/* Comment Field */}
                   <div className="mt-4">
-                    <label className="block text-gray-600 font-medium mb-2">
-                      Comment:
+                    <label
+                      className={`block text-gray-600 font-medium mb-2 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("calculationSheets.comment")}:
                     </label>
                     {editingComment ? (
                       <div className="space-y-2">
                         <textarea
                           value={commentValue}
                           onChange={(e) => setCommentValue(e.target.value)}
-                          placeholder="Enter your comment here..."
+                          placeholder={t("calculationSheets.enterCommentHere")}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                           rows={3}
                         />
@@ -630,14 +694,16 @@ const CalculationSheets: React.FC = () => {
                             disabled={updatingComment}
                             className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                           >
-                            {updatingComment ? "Saving..." : "Save"}
+                            {updatingComment
+                              ? t("calculationSheets.saving")
+                              : t("calculationSheets.saveComment")}
                           </button>
                           <button
                             onClick={handleCommentEditCancel}
                             disabled={updatingComment}
                             className="bg-gray-300 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                           >
-                            Cancel
+                            {t("calculationSheets.cancel")}
                           </button>
                         </div>
                       </div>
@@ -650,7 +716,7 @@ const CalculationSheets: React.FC = () => {
                             </p>
                           ) : (
                             <p className="text-gray-500 italic bg-gray-50 p-3 rounded-md border">
-                              No comment added yet. Click edit to add a comment.
+                              {t("calculationSheets.noCommentAddedYet")}
                             </p>
                           )}
                         </div>
@@ -658,7 +724,7 @@ const CalculationSheets: React.FC = () => {
                           onClick={handleCommentEditStart}
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                         >
-                          Edit
+                          {t("calculationSheets.editComment")}
                         </button>
                       </div>
                     )}
@@ -668,8 +734,12 @@ const CalculationSheets: React.FC = () => {
                 {/* Entries Table */}
                 <div className="flex-1 p-6 overflow-hidden flex flex-col">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Calculation Entries ({entries.length})
+                    <h3
+                      className={`text-lg font-medium text-gray-900 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("calculationSheets.entries")} ({entries.length})
                     </h3>
                   </div>
 
@@ -683,17 +753,33 @@ const CalculationSheets: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Section Number
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("common.sectionNumber")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Estimated Quantity
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("common.estimatedQuantity")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Quantity Submitted
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("common.quantitySubmitted")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("calculationSheets.actions")}
                               </th>
                             </tr>
                           </thead>

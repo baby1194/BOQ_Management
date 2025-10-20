@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import {
   boqApi,
   searchApi,
@@ -7,7 +9,9 @@ import {
   projectInfoApi,
   contractUpdatesApi,
   exportApi,
+  authApi,
 } from "../services/api";
+import toast from "react-hot-toast";
 import {
   BOQItem,
   ProjectInfo,
@@ -19,8 +23,21 @@ import { formatCurrency, formatNumber } from "../utils/format";
 import BOQExportModal from "../components/BOQExportModal";
 import FilterDropdown from "../components/FilterDropdown";
 
+/**
+ * Format date as mm/yyyy
+ */
+const formatDateMMYYYY = (dateString: string): string => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}/${year}`;
+};
+
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [items, setItems] = useState<BOQItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -253,14 +270,8 @@ const BOQItems: React.FC = () => {
   });
   const [creatingItem, setCreatingItem] = useState(false);
 
-  // Password for BOQ item creation
-  // To use environment variables, create a .env file in the frontend directory with:
-  // VITE_BOQ_CREATION_PASSWORD=your_secure_password_here
-  // Then replace this line with: const BOQ_CREATION_PASSWORD = import.meta.env.VITE_BOQ_CREATION_PASSWORD;
-  const BOQ_CREATION_PASSWORD = "password";
-
   // Password confirmation functions
-  const handlePasswordConfirm = () => {
+  const handlePasswordConfirm = async () => {
     console.log(
       "Password confirmed, action:",
       passwordAction,
@@ -269,15 +280,12 @@ const BOQItems: React.FC = () => {
       "contractUpdateId:",
       passwordContractUpdateId
     );
-    console.log(
-      "Entered password:",
-      passwordInput,
-      "Expected password:",
-      BOQ_CREATION_PASSWORD
-    );
 
-    if (passwordInput === BOQ_CREATION_PASSWORD) {
-      console.log("Password matches, proceeding with action");
+    try {
+      // Verify system password with backend
+      await authApi.verifySystemPassword(passwordInput);
+      console.log("System password verified successfully");
+
       setShowPasswordDialog(false);
       setPasswordInput("");
       setPasswordError("");
@@ -311,9 +319,12 @@ const BOQItems: React.FC = () => {
           }
           break;
       }
-    } else {
-      console.log("Password does not match");
-      setPasswordError("Incorrect password. Please try again.");
+    } catch (error: any) {
+      console.log("System password verification failed:", error);
+      setPasswordError(
+        error.response?.data?.detail ||
+          "Incorrect system password. Please try again."
+      );
     }
   };
 
@@ -1108,10 +1119,56 @@ const BOQItems: React.FC = () => {
         return filteredItem;
       });
 
+      // Calculate grand totals for Excel export
+      let grandTotals: any = null;
+      if (format === "excel" && filteredData.length > 0) {
+        grandTotals = {
+          total_contract_sum: filteredData.reduce(
+            (sum, item) => sum + (item.total_contract_sum || 0),
+            0
+          ),
+          total_estimate: filteredData.reduce(
+            (sum, item) => sum + (item.total_estimate || 0),
+            0
+          ),
+          total_submitted: filteredData.reduce(
+            (sum, item) => sum + (item.total_submitted || 0),
+            0
+          ),
+          internal_total: filteredData.reduce(
+            (sum, item) => sum + (item.internal_total || 0),
+            0
+          ),
+          total_approved_by_project_manager: filteredData.reduce(
+            (sum, item) => sum + (item.total_approved_by_project_manager || 0),
+            0
+          ),
+          approved_signed_total: filteredData.reduce(
+            (sum, item) => sum + (item.approved_signed_total || 0),
+            0
+          ),
+        };
+
+        // Add contract update sum totals
+        contractUpdates.forEach((update) => {
+          const sumKey = `updated_contract_sum_${update.id}`;
+          if (request[`include_${sumKey}`]) {
+            grandTotals[sumKey] = filteredData.reduce(
+              (sum, item) => sum + (item[sumKey] || 0),
+              0
+            );
+          }
+        });
+      }
+
       // Choose the appropriate export function based on format
       const response =
         format === "excel"
-          ? await exportApi.exportBOQItemsExcel(request, filteredData)
+          ? await exportApi.exportBOQItemsExcel(
+              request,
+              filteredData,
+              grandTotals
+            )
           : await exportApi.exportBOQItemsPDF(request, filteredData);
 
       if (response.success && response.pdf_path) {
@@ -1434,6 +1491,14 @@ const BOQItems: React.FC = () => {
       handleCancelAddForm();
       setProjectInfoSuccess("New BOQ item created successfully!");
       setTimeout(() => setProjectInfoSuccess(null), 5000);
+
+      // Show notification about concentration sheets
+      toast.success(
+        "New BOQ item created successfully! Don't forget to create concentration sheets.",
+        {
+          duration: 8000,
+        }
+      );
     } catch (err) {
       console.error("Error creating new BOQ item:", err);
       setError("Failed to create new BOQ item");
@@ -1498,9 +1563,19 @@ const BOQItems: React.FC = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">BOQ Items</h1>
-          <p className="mt-2 text-gray-600">
-            Manage your Bill of Quantities items
+          <h1
+            className={`text-3xl font-bold text-gray-900 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("boq.title")}
+          </h1>
+          <p
+            className={`mt-2 text-gray-600 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("boq.subtitle")}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
@@ -1516,9 +1591,19 @@ const BOQItems: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">BOQ Items</h1>
-          <p className="mt-2 text-gray-600">
-            Manage your Bill of Quantities items ({items.length} items)
+          <h1
+            className={`text-3xl font-bold text-gray-900 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("boq.title")}
+          </h1>
+          <p
+            className={`mt-2 text-gray-600 text-right ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("boq.subtitle")} ({items.length} {t("common.items", "items")})
           </p>
         </div>
         <div>
@@ -1532,17 +1617,19 @@ const BOQItems: React.FC = () => {
               }`}
               title={
                 panelsCollapsed
-                  ? "Expand all panels"
-                  : "Collapse all panels except BOQ table"
+                  ? t("boq.expandPanels")
+                  : t("boq.collapsePanels")
               }
             >
-              {panelsCollapsed ? "🔓 Expand Panels" : "📦 Collapse Panels"}
+              {panelsCollapsed
+                ? t("boq.expandPanelsBtn")
+                : t("boq.collapsePanelsBtn")}
             </button>
             <button
               onClick={handleShowAddForm}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              + Add BOQ Item
+              {t("boq.addBOQItem")}
             </button>
             <button
               onClick={() => {
@@ -1554,27 +1641,29 @@ const BOQItems: React.FC = () => {
               disabled={creatingUpdate}
               className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {creatingUpdate ? "Creating..." : "Update Contract Quantity"}
+              {creatingUpdate
+                ? t("boq.creating")
+                : t("boq.updateContractQuantity")}
             </button>
             <button
               onClick={createConcentrationSheets}
               disabled={items.length === 0 || loading}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Concentration Sheets
+              {t("boq.createConcentrationSheets")}
             </button>
             <button
               onClick={() => setShowColumnSettings(true)}
               className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
-              ⚙️ Column Settings
+              {t("boq.columnSettings")}
             </button>
             <button
               onClick={() => setShowExportModal(true)}
               disabled={items.length === 0 || loading}
               className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              📊 Export Table
+              {t("boq.exportTable")}
             </button>
           </div>
         </div>
@@ -1585,13 +1674,20 @@ const BOQItems: React.FC = () => {
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-medium text-blue-900">
-                Contract Quantity Updates ({contractUpdates.length} active)
+              <h3
+                className={`text-sm font-medium text-blue-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.contractQuantityUpdates")} ({contractUpdates.length}{" "}
+                {t("boq.activeUpdates")})
               </h3>
-              <p className="text-sm text-blue-700 mt-1">
-                Use the "Update Contract Quantity" button to create new contract
-                quantity versions. Each update creates editable columns for
-                quantities and automatically calculated sums.
+              <p
+                className={`text-sm text-blue-700 mt-1 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.contractUpdatesDescription")}
               </p>
             </div>
             <button
@@ -1599,7 +1695,7 @@ const BOQItems: React.FC = () => {
               disabled={creatingUpdate}
               className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
-              {creatingUpdate ? "Creating..." : "+ New Update"}
+              {creatingUpdate ? t("boq.creating") : t("boq.newUpdate")}
             </button>
           </div>
 
@@ -1615,8 +1711,12 @@ const BOQItems: React.FC = () => {
                     <h4 className="text-sm font-medium text-blue-900">
                       {update.update_name}
                     </h4>
-                    <p className="text-xs text-blue-600">
-                      Created:{" "}
+                    <p
+                      className={`text-xs text-blue-600 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("boq.created")}{" "}
                       {new Date(update.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -1625,7 +1725,7 @@ const BOQItems: React.FC = () => {
                       handleDeleteContractUpdateClick(0, update.id)
                     }
                     className="text-red-600 hover:text-red-800 text-sm px-2 py-1 rounded hover:bg-red-50"
-                    title="Delete this contract update"
+                    title={t("boq.deleteThisUpdate")}
                   >
                     🗑️
                   </button>
@@ -1641,12 +1741,19 @@ const BOQItems: React.FC = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                Project Information
+              <h2
+                className={`text-xl font-semibold text-gray-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("projectInfo.title")}
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                This information will be automatically synced to all
-                concentration sheets
+              <p
+                className={`text-sm text-gray-600 mt-1 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.projectInformationSync")}
               </p>
             </div>
             {!editingProjectInfo && (
@@ -1654,7 +1761,7 @@ const BOQItems: React.FC = () => {
                 onClick={handleEditProjectInfo}
                 className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               >
-                Edit
+                {t("projectInfo.edit")}
               </button>
             )}
           </div>
@@ -1673,8 +1780,12 @@ const BOQItems: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Project Name
+              <label
+                className={`block text-sm font-medium text-gray-700 mb-1 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("projectInfo.projectName")}
               </label>
               {editingProjectInfo ? (
                 <input
@@ -1683,12 +1794,18 @@ const BOQItems: React.FC = () => {
                   onChange={(e) =>
                     handleProjectInfoDraftChange("project_name", e.target.value)
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter project name"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                  placeholder={t("boq.projectNamePlaceholder")}
                 />
               ) : (
-                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.project_name || "Not specified"}
+                <div
+                  className={`px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                >
+                  {projectInfo?.project_name || t("boq.notSpecified")}
                 </div>
               )}
             </div>
@@ -1810,109 +1927,120 @@ const BOQItems: React.FC = () => {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice No for Submitted QTY
-              </label>
-              {editingProjectInfo ? (
-                <input
-                  type="text"
-                  value={projectInfoDraft.invoice_no_submitted_qty || ""}
-                  onChange={(e) =>
-                    handleProjectInfoDraftChange(
-                      "invoice_no_submitted_qty",
-                      e.target.value
-                    )
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter invoice number for submitted qty"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.invoice_no_submitted_qty || "Not specified"}
+            {/* Invoice fields grouped in pairs */}
+            <div className="md:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Invoice No for Submitted QTY
+                  </label>
+                  {editingProjectInfo ? (
+                    <input
+                      type="text"
+                      value={projectInfoDraft.invoice_no_submitted_qty || ""}
+                      onChange={(e) =>
+                        handleProjectInfoDraftChange(
+                          "invoice_no_submitted_qty",
+                          e.target.value
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter invoice number for submitted qty"
+                    />
+                  ) : (
+                    <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                      {projectInfo?.invoice_no_submitted_qty || "Not specified"}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Invoice Date for Submitted QTY
+                  </label>
+                  {editingProjectInfo ? (
+                    <input
+                      type="date"
+                      value={projectInfoDraft.invoice_date_submitted_qty || ""}
+                      onChange={(e) =>
+                        handleProjectInfoDraftChange(
+                          "invoice_date_submitted_qty",
+                          e.target.value
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                      {projectInfo?.invoice_date_submitted_qty
+                        ? formatDateMMYYYY(
+                            projectInfo.invoice_date_submitted_qty
+                          )
+                        : "Not specified"}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice Date for Submitted QTY
-              </label>
-              {editingProjectInfo ? (
-                <input
-                  type="date"
-                  value={projectInfoDraft.invoice_date_submitted_qty || ""}
-                  onChange={(e) =>
-                    handleProjectInfoDraftChange(
-                      "invoice_date_submitted_qty",
-                      e.target.value
-                    )
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.invoice_date_submitted_qty
-                    ? new Date(
-                        projectInfo.invoice_date_submitted_qty
-                      ).toLocaleDateString()
-                    : "Not specified"}
+            <div className="md:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Invoice No for Approved Signed QTY
+                  </label>
+                  {editingProjectInfo ? (
+                    <input
+                      type="text"
+                      value={
+                        projectInfoDraft.invoice_no_approved_signed_qty || ""
+                      }
+                      onChange={(e) =>
+                        handleProjectInfoDraftChange(
+                          "invoice_no_approved_signed_qty",
+                          e.target.value
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter invoice number for approved signed qty"
+                    />
+                  ) : (
+                    <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                      {projectInfo?.invoice_no_approved_signed_qty ||
+                        "Not specified"}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice No for Approved Signed QTY
-              </label>
-              {editingProjectInfo ? (
-                <input
-                  type="text"
-                  value={projectInfoDraft.invoice_no_approved_signed_qty || ""}
-                  onChange={(e) =>
-                    handleProjectInfoDraftChange(
-                      "invoice_no_approved_signed_qty",
-                      e.target.value
-                    )
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter invoice number for approved signed qty"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.invoice_no_approved_signed_qty ||
-                    "Not specified"}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Invoice Date for Approved Signed QTY
+                  </label>
+                  {editingProjectInfo ? (
+                    <input
+                      type="date"
+                      value={
+                        projectInfoDraft.invoice_date_approved_signed_qty || ""
+                      }
+                      onChange={(e) =>
+                        handleProjectInfoDraftChange(
+                          "invoice_date_approved_signed_qty",
+                          e.target.value
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
+                      {projectInfo?.invoice_date_approved_signed_qty
+                        ? formatDateMMYYYY(
+                            projectInfo.invoice_date_approved_signed_qty
+                          )
+                        : "Not specified"}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice Date for Approved Signed QTY
-              </label>
-              {editingProjectInfo ? (
-                <input
-                  type="date"
-                  value={
-                    projectInfoDraft.invoice_date_approved_signed_qty || ""
-                  }
-                  onChange={(e) =>
-                    handleProjectInfoDraftChange(
-                      "invoice_date_approved_signed_qty",
-                      e.target.value
-                    )
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.invoice_date_approved_signed_qty
-                    ? new Date(
-                        projectInfo.invoice_date_approved_signed_qty
-                      ).toLocaleDateString()
-                    : "Not specified"}
-                </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -1941,12 +2069,19 @@ const BOQItems: React.FC = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                Add New BOQ Item
+              <h2
+                className={`text-xl font-semibold text-gray-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.addNewItem")}
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Manually create a new BOQ item. Subsection will be automatically
-                extracted from section number.
+              <p
+                className={`text-sm text-gray-600 mt-1 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.manuallyCreateDescription")}
               </p>
             </div>
             <button
@@ -1959,8 +2094,12 @@ const BOQItems: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Section Number *
+              <label
+                className={`block text-sm font-medium text-gray-700 mb-1 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.sectionNumber")} *
               </label>
               <input
                 type="text"
@@ -1969,14 +2108,20 @@ const BOQItems: React.FC = () => {
                 onChange={(e) =>
                   handleNewItemFormChange("section_number", e.target.value)
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., 01.01.01.0010"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+                placeholder={t("boq.sectionNumberPlaceholder")}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Subsection will be:{" "}
+              <p
+                className={`text-xs text-gray-500 mt-1 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.subsectionWillBe")}{" "}
                 {newItemForm.section_number.split(".").length >= 2
                   ? newItemForm.section_number.split(".").slice(0, 2).join(".")
-                  : "Enter section number"}
+                  : t("boq.enterSectionNumber")}
               </p>
             </div>
 
@@ -2088,13 +2233,23 @@ const BOQItems: React.FC = () => {
 
           {/* Calculated Values Preview */}
           <div className="mt-4 p-4 bg-gray-50 rounded-md">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">
-              Calculated Values:
+            <h3
+              className={`text-sm font-medium text-gray-700 mb-2 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
+              {t("boq.calculatedValues")}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Total Contract Sum:</span>
-                <span className="ml-2 font-medium text-gray-900">
+              <div className={isRTL ? "text-right" : "text-left"}>
+                <span className="text-gray-600">
+                  {t("boq.totalContractSum")}:
+                </span>
+                <span
+                  className={`${
+                    isRTL ? "mr-2" : "ml-2"
+                  } font-medium text-gray-900`}
+                >
                   {formatCurrency(
                     newItemForm.original_contract_quantity * newItemForm.price
                   )}
@@ -2130,13 +2285,21 @@ const BOQItems: React.FC = () => {
       {showPasswordDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {passwordAction === "create" && "Confirm BOQ Item Creation"}
+            <div
+              className={`flex items-center justify-between mb-4 ${
+                isRTL ? "flex-row-reverse" : ""
+              }`}
+            >
+              <h3
+                className={`text-lg font-semibold text-gray-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {passwordAction === "create" && t("boq.confirmBOQItemCreation")}
                 {passwordAction === "update" &&
-                  "Confirm Contract Quantity Update"}
+                  t("boq.confirmContractQuantityUpdate")}
                 {passwordAction === "delete" &&
-                  "Confirm Contract Update Deletion"}
+                  t("boq.confirmContractUpdateDeletion")}
               </h3>
               <button
                 onClick={handlePasswordCancel}
@@ -2161,14 +2324,14 @@ const BOQItems: React.FC = () => {
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-3">
                 {passwordAction === "create" &&
-                  "Please enter the password to confirm creation of this BOQ item."}
+                  t("auth.confirmPasswordForCreate")}
                 {passwordAction === "update" &&
-                  "Please enter the password to confirm updating the contract quantity for this BOQ item."}
+                  t("auth.confirmPasswordForUpdate")}
                 {passwordAction === "delete" &&
-                  "Please enter the password to confirm deletion of this contract update. This action cannot be undone."}
+                  t("auth.confirmPasswordForDelete")}
               </p>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                {t("auth.systemPassword")}
               </label>
               <input
                 type="password"
@@ -2182,7 +2345,7 @@ const BOQItems: React.FC = () => {
                   }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter password"
+                placeholder={t("auth.enterSystemPassword")}
                 autoFocus
               />
               {passwordError && (
@@ -2195,7 +2358,7 @@ const BOQItems: React.FC = () => {
                 onClick={handlePasswordCancel}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handlePasswordConfirm}
@@ -2205,9 +2368,9 @@ const BOQItems: React.FC = () => {
                     : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
                 }`}
               >
-                {passwordAction === "create" && "Confirm"}
-                {passwordAction === "update" && "Confirm"}
-                {passwordAction === "delete" && "Delete"}
+                {passwordAction === "create" && t("auth.confirmButton")}
+                {passwordAction === "update" && t("auth.confirmButton")}
+                {passwordAction === "delete" && t("common.delete")}
               </button>
             </div>
           </div>
@@ -2221,40 +2384,44 @@ const BOQItems: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Search
+                  {t("common.search")}
                 </label>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by code or description..."
+                  placeholder={t("auth.searchByCodeOrDescription")}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Search Type
+                  {t("auth.searchType")}
                 </label>
                 <select
                   value={searchType}
                   onChange={(e) => setSearchType(e.target.value as any)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="both">Both</option>
-                  <option value="code">Code Only</option>
-                  <option value="description">Description Only</option>
+                  <option value="both">{t("auth.both")}</option>
+                  <option value="code">{t("auth.codeOnly")}</option>
+                  <option value="description">
+                    {t("auth.descriptionOnly")}
+                  </option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Subchapter
+                  {t("auth.subchapter")}
                 </label>
                 <select
                   value={selectedSubchapter}
                   onChange={(e) => setSelectedSubchapter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">All Subchapters</option>
+                  <option value="">
+                    {t("common.all")} {t("auth.subchapter")}
+                  </option>
                   {subchapters.map((subchapter) => (
                     <option key={subchapter} value={subchapter}>
                       {subchapter}
@@ -2347,7 +2514,11 @@ const BOQItems: React.FC = () => {
               {/* Column Headers Row */}
               <tr className="border-b border-gray-300 bg-gray-50">
                 {columnVisibility.serial_number && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
+                  <th
+                    className={`px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px] ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
                     Serial
                   </th>
                 )}
@@ -2422,9 +2593,19 @@ const BOQItems: React.FC = () => {
                     </div>
                   </th>
                 )}
+                {columnVisibility.price && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
+                    Price
+                  </th>
+                )}
                 {columnVisibility.original_contract_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
                     Contract Qty
+                  </th>
+                )}
+                {columnVisibility.total_contract_sum && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
+                    Contract Sum
                   </th>
                 )}
                 {/* Dynamic Contract Update Columns */}
@@ -2439,11 +2620,6 @@ const BOQItems: React.FC = () => {
                     </th>
                   ) : null;
                 })}
-                {columnVisibility.price && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
-                    Price
-                  </th>
-                )}
                 {/* Dynamic Contract Sum Columns */}
                 {contractUpdates.map((update) => {
                   const sumKey = `updated_contract_sum_${update.id}`;
@@ -2456,11 +2632,6 @@ const BOQItems: React.FC = () => {
                     </th>
                   ) : null;
                 })}
-                {columnVisibility.total_contract_sum && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
-                    Contract Sum
-                  </th>
-                )}
                 {columnVisibility.estimated_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-red-100">
                     Est. Qty
@@ -2626,6 +2797,22 @@ const BOQItems: React.FC = () => {
                     />
                   </th>
                 )}
+                {columnVisibility.price && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.price}
+                      onChange={(e) =>
+                        handleFilterChange("price", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "price"
+                      )}`}
+                    />
+                  </th>
+                )}
                 {columnVisibility.original_contract_quantity && (
                   <th className="px-2 py-2 border-r border-gray-300">
                     <input
@@ -2641,6 +2828,22 @@ const BOQItems: React.FC = () => {
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
                         "original_contract_quantity"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_contract_sum && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.total_contract_sum}
+                      onChange={(e) =>
+                        handleFilterChange("total_contract_sum", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "total_contract_sum"
                       )}`}
                     />
                   </th>
@@ -2678,22 +2881,6 @@ const BOQItems: React.FC = () => {
                     </th>
                   ) : null;
                 })}
-                {columnVisibility.price && (
-                  <th className="px-2 py-2 border-r border-gray-300">
-                    <input
-                      type="text"
-                      value={filters.price}
-                      onChange={(e) =>
-                        handleFilterChange("price", e.target.value)
-                      }
-                      onKeyDown={handleFilterKeyDown}
-                      placeholder=">100, <50, =25..."
-                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "price"
-                      )}`}
-                    />
-                  </th>
-                )}
                 {/* Dynamic Contract Sum Filter Columns */}
                 {contractUpdates.map((update) => {
                   const sumKey = `updated_contract_sum_${update.id}`;
@@ -2727,22 +2914,6 @@ const BOQItems: React.FC = () => {
                     </th>
                   ) : null;
                 })}
-                {columnVisibility.total_contract_sum && (
-                  <th className="px-2 py-2 border-r border-gray-300">
-                    <input
-                      type="text"
-                      value={filters.total_contract_sum}
-                      onChange={(e) =>
-                        handleFilterChange("total_contract_sum", e.target.value)
-                      }
-                      onKeyDown={handleFilterKeyDown}
-                      placeholder=">1000, <500, =250..."
-                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "total_contract_sum"
-                      )}`}
-                    />
-                  </th>
-                )}
                 {columnVisibility.estimated_quantity && (
                   <th className="px-2 py-2 border-r border-gray-300">
                     <input
@@ -3120,6 +3291,37 @@ const BOQItems: React.FC = () => {
                         {item.unit}
                       </td>
                     )}
+                    {columnVisibility.price && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={
+                              currentValues.price !== undefined &&
+                              currentValues.price !== null
+                                ? currentValues.price
+                                : item.price || 0
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "price",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          formatCurrency(item.price || 0)
+                        )}
+                      </td>
+                    )}
                     {columnVisibility.original_contract_quantity && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
@@ -3152,6 +3354,16 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
+                    {columnVisibility.total_contract_sum && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
+                        {formatCurrency(
+                          isEditing
+                            ? derivedValues.total_contract_sum
+                            : item.total_contract_sum
+                        )}
+                      </td>
+                    )}
+                    {/* Dynamic Contract Update Quantity Columns */}
                     {contractUpdates.map((update) => {
                       const qtyKey = `updated_contract_quantity_${update.id}`;
                       return columnVisibility[qtyKey] ? (
@@ -3193,37 +3405,7 @@ const BOQItems: React.FC = () => {
                         </td>
                       ) : null;
                     })}
-                    {columnVisibility.price && (
-                      <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
-                        title="Double-click to edit"
-                      >
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={
-                              currentValues.price !== undefined &&
-                              currentValues.price !== null
-                                ? currentValues.price
-                                : item.price || 0
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                "price",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          formatCurrency(item.price || 0)
-                        )}
-                      </td>
-                    )}
+                    {/* Dynamic Contract Update Sum Columns */}
                     {contractUpdates.map((update) => {
                       const sumKey = `updated_contract_sum_${update.id}`;
                       return columnVisibility[sumKey] ? (
@@ -3238,15 +3420,6 @@ const BOQItems: React.FC = () => {
                         </td>
                       ) : null;
                     })}
-                    {columnVisibility.total_contract_sum && (
-                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300">
-                        {formatCurrency(
-                          isEditing
-                            ? derivedValues.total_contract_sum
-                            : item.total_contract_sum
-                        )}
-                      </td>
-                    )}
                     {columnVisibility.estimated_quantity && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-50"
@@ -3465,9 +3638,19 @@ const BOQItems: React.FC = () => {
                 {columnVisibility.unit && (
                   <td className="px-3 py-4 bg-gray-50"></td>
                 )}
+                {/* Price - No total */}
+                {columnVisibility.price && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
                 {/* Original Contract Quantity - No total */}
                 {columnVisibility.original_contract_quantity && (
                   <td className="px-3 py-4 bg-gray-50"></td>
+                )}
+                {/* Contract Sum - WITH TOTAL */}
+                {columnVisibility.total_contract_sum && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50">
+                    {formatCurrency(totals.total_contract_sum)}
+                  </td>
                 )}
                 {/* Dynamic Contract Update Quantity Columns - No totals */}
                 {contractUpdates.map((update) => {
@@ -3479,10 +3662,6 @@ const BOQItems: React.FC = () => {
                     ></td>
                   ) : null;
                 })}
-                {/* Price - No total */}
-                {columnVisibility.price && (
-                  <td className="px-3 py-4 bg-gray-50"></td>
-                )}
                 {/* Dynamic Contract Update Sum Columns - WITH TOTALS */}
                 {contractUpdates.map((update) => {
                   const sumKey = `updated_contract_sum_${update.id}`;
@@ -3507,12 +3686,6 @@ const BOQItems: React.FC = () => {
                     </td>
                   ) : null;
                 })}
-                {/* Contract Sum - WITH TOTAL */}
-                {columnVisibility.total_contract_sum && (
-                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-50">
-                    {formatCurrency(totals.total_contract_sum)}
-                  </td>
-                )}
                 {/* Estimated Quantity - No total */}
                 {columnVisibility.estimated_quantity && (
                   <td className="px-3 py-4 bg-red-50"></td>
@@ -3589,12 +3762,14 @@ const BOQItems: React.FC = () => {
       {/* Empty State */}
       {!loading && items.length === 0 && (
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-center text-gray-500">
-            <p className="text-lg font-medium">No BOQ items found</p>
+          <div
+            className={`text-gray-500 ${isRTL ? "text-right" : "text-center"}`}
+          >
+            <p className="text-lg font-medium">{t("boq.noItemsFound")}</p>
             <p className="text-sm mt-1">
               {searchQuery || selectedSubchapter
-                ? "Try adjusting your search criteria"
-                : "Import your BOQ file to see items here"}
+                ? t("boq.tryAdjustingSearchCriteria")
+                : t("boq.importBOQFileToSeeItems")}
             </p>
           </div>
         </div>
@@ -3604,9 +3779,17 @@ const BOQItems: React.FC = () => {
       {showColumnSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Column Visibility Settings
+            <div
+              className={`flex justify-between items-center mb-4 ${
+                isRTL ? "flex-row-reverse" : ""
+              }`}
+            >
+              <h3
+                className={`text-lg font-semibold text-gray-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.columnSettings")}
               </h3>
               <button
                 onClick={() => setShowColumnSettings(false)}
@@ -3630,15 +3813,21 @@ const BOQItems: React.FC = () => {
             </div>
 
             <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-3">
-                Toggle the visibility of columns in the BOQ table. Your
-                preferences will be saved automatically.
+              <p
+                className={`text-sm text-gray-600 mb-3 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("boq.toggleColumnVisibilityDescription")}
               </p>
               {contractUpdates.length > 0 && (
-                <p className="text-xs text-gray-500 mb-3">
-                  <span className="font-medium">Note:</span> Contract update
-                  columns are always visible when contract updates exist and
-                  cannot be hidden.
+                <p
+                  className={`text-xs text-gray-500 mb-3 ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                >
+                  <span className="font-medium">{t("common.note")}:</span>{" "}
+                  {t("boq.contractUpdateColumnsNote")}
                 </p>
               )}
               <button

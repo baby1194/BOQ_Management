@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import { importApi } from "../services/api";
 import { CalculationImportResponse } from "../types";
 import {
@@ -14,6 +16,8 @@ import {
 import toast from "react-hot-toast";
 
 const FileImport: React.FC = () => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<FileList | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -26,13 +30,16 @@ const FileImport: React.FC = () => {
   const importMutation = useMutation(importApi.importBOQ, {
     onSuccess: (data) => {
       setImportResult(data);
-      toast.success("BOQ file imported successfully!");
+      toast.success(t("import.boqImportTitle") + " " + t("common.success"));
       // Refresh the dashboard data
       queryClient.invalidateQueries("boq-items");
       queryClient.invalidateQueries("summary");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || "Failed to import BOQ file");
+      toast.error(
+        error.response?.data?.detail ||
+          t("import.title") + " " + t("common.error")
+      );
     },
   });
 
@@ -41,9 +48,16 @@ const FileImport: React.FC = () => {
     {
       onSuccess: (data) => {
         setCalculationImportResult(data);
-        toast.success("Calculation sheets imported successfully!");
+        toast.success(t("import.calculationSheetsImported"));
         // Refresh the calculation sheets data
         queryClient.invalidateQueries("calculation-sheets");
+
+        // Show notification about populating calculation sheets
+        setTimeout(() => {
+          toast.success(t("import.populationReminder"), {
+            duration: 8000,
+          });
+        }, 1000);
       },
       onError: (error: any) => {
         toast.error(
@@ -304,8 +318,8 @@ const FileImport: React.FC = () => {
                     }`}
                   >
                     {importResult.success
-                      ? "Import Successful"
-                      : "Import Failed"}
+                      ? t("auth.importSuccessful")
+                      : t("auth.importFailed")}
                   </p>
                   <p
                     className={`text-sm ${
@@ -320,7 +334,7 @@ const FileImport: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-medium text-gray-600">
-                    Files Processed
+                    {t("auth.filesProcessed")}
                   </p>
                   <p className="text-xl font-bold text-gray-900">
                     {importResult.files_processed}
@@ -328,7 +342,7 @@ const FileImport: React.FC = () => {
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-medium text-gray-600">
-                    Items Imported
+                    {t("auth.itemsImported")}
                   </p>
                   <p className="text-xl font-bold text-gray-900">
                     {importResult.items_updated}

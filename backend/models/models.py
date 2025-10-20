@@ -214,4 +214,15 @@ class BOQItemQuantityUpdate(Base):
     # Unique constraint to ensure one update per BOQ item per contract update
     __table_args__ = (
         UniqueConstraint('boq_item_id', 'contract_update_id', name='uq_boq_item_contract_update'),
-    ) 
+    )
+
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    system_password = Column(String(255), nullable=False)  # Configurable password for BOQ operations
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now()) 

@@ -268,6 +268,16 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
+                checked={exportRequest.include_price}
+                onChange={() => handleCheckboxChange("include_price")}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Price</span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
                 checked={exportRequest.include_original_contract_quantity}
                 onChange={() =>
                   handleCheckboxChange("include_original_contract_quantity")
@@ -275,6 +285,18 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm text-gray-700">Contract Qty</span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_total_contract_sum}
+                onChange={() =>
+                  handleCheckboxChange("include_total_contract_sum")
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Contract Sum</span>
             </label>
 
             {/* Contract Update Quantity Columns */}
@@ -303,16 +325,6 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               </label>
             ))}
 
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={exportRequest.include_price}
-                onChange={() => handleCheckboxChange("include_price")}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Price</span>
-            </label>
-
             {/* Contract Update Sum Columns */}
             {contractUpdates.map((update) => (
               <label
@@ -338,18 +350,6 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 </span>
               </label>
             ))}
-
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={exportRequest.include_total_contract_sum}
-                onChange={() =>
-                  handleCheckboxChange("include_total_contract_sum")
-                }
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Contract Sum</span>
-            </label>
 
             <label className="flex items-center space-x-2">
               <input

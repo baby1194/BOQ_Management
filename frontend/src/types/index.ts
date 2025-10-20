@@ -76,6 +76,10 @@ export interface ConcentrationSheet {
   updated_at?: string;
 }
 
+export interface ConcentrationSheetWithBOQData extends ConcentrationSheet {
+  boq_item: BOQItemWithLatestContractUpdate;
+}
+
 export interface ConcentrationEntry {
   id: number;
   concentration_sheet_id: number;
@@ -129,6 +133,17 @@ export interface PDFExportRequest {
   hide_columns: string[];
   export_all: boolean;
   export_non_empty_only: boolean;
+}
+
+export interface ConcentrationEntryExportRequest {
+  include_description: boolean;
+  include_calculation_sheet_no: boolean;
+  include_drawing_no: boolean;
+  include_estimated_quantity: boolean;
+  include_quantity_submitted: boolean;
+  include_internal_quantity: boolean;
+  include_approved_by_project_manager: boolean;
+  include_notes: boolean;
 }
 
 export interface PDFExportResponse {
@@ -308,4 +323,47 @@ export interface SummaryExportRequest {
   include_approved_signed_total: boolean;
   include_item_count: boolean;
   include_contract_updates: boolean;
+}
+
+// Authentication Types
+export interface User {
+  id: number;
+  username: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface UserCreate {
+  username: string;
+  password: string;
+  system_password: string;
+}
+
+export interface UserLogin {
+  username: string;
+  password: string;
+}
+
+export interface UserUpdate {
+  password?: string;
+  system_password?: string;
+}
+
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
+export interface AuthStatus {
+  authenticated: boolean;
+  user?: {
+    id: number;
+    username: string;
+    is_active: boolean;
+  };
+}
+
+export interface SignupAllowed {
+  signup_allowed: boolean;
 }

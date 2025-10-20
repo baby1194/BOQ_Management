@@ -2,6 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
+/* RTL Support */
+html[dir="rtl"] {
+  direction: rtl;
+}
+
+html[dir="ltr"] {
+  direction: ltr;
+}
+
+/* RTL-specific styles */
+.rtl {
+  direction: rtl;
+}
+
+.ltr {
+  direction: ltr;
+}
+
+/* RTL text alignment */
+.rtl .text-left {
+  text-align: right;
+}
+
+.rtl .text-right {
+  text-align: left;
+}
+
+/* RTL margins and paddings */
+.rtl .ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.rtl .mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.rtl .ml-3 {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+.rtl .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+.rtl .pl-4 {
+  padding-left: 0;
+  padding-right: 1rem;
+}
+
+.rtl .pr-4 {
+  padding-right: 0;
+  padding-left: 1rem;
+}
+
+/* RTL flexbox adjustments */
+.rtl .flex-row {
+  flex-direction: row-reverse;
+}
+
+/* RTL border adjustments */
+.rtl .border-r {
+  border-right: none;
+  border-left: 1px solid;
+}
+
+.rtl .border-l {
+  border-left: none;
+  border-right: 1px solid;
+}
+
+/* RTL position adjustments */
+.rtl .left-0 {
+  left: auto !important;
+  right: 0 !important;
+}
+
+.rtl .right-0 {
+  right: auto !important;
+  left: 0 !important;
+}
+
+html[dir="rtl"] .fixed.left-0 {
+  left: auto !important;
+  right: 0 !important;
+}
+
+html[dir="rtl"] .fixed.right-0 {
+  right: 0 !important;
+  left: auto !important;
+}
+
+html[dir="rtl"] .fixed.left-0 {
+  left: auto !important;
+  right: 0 !important;
+}
+
+/* Ensure proper sidebar positioning for RTL */
+html[dir="rtl"] .sidebar-rtl {
+  right: 0 !important;
+  left: auto !important;
+}
+
+html[dir="ltr"] .sidebar-ltr {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* Hebrew font support */
+.hebrew-font {
+  font-family: "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
+    sans-serif;
+}
+
+html[lang="he"] body {
+  font-family: "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
+    sans-serif;
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;

@@ -581,23 +581,69 @@ class ExcelService:
             # Convert to DataFrame
             df = pd.DataFrame(summaries)
             
-            # Format numeric columns
-            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+            # Create a copy of original numeric data for totals calculation
+            original_numeric_data = {}
+            for col in df.columns:
+                if df[col].dtype in ['float64', 'int64']:
+                    original_numeric_data[col] = df[col].copy()
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                    # Force conversion to numeric for known total columns
+                    try:
+                        numeric_series = pd.to_numeric(df[col], errors='coerce')
+                        original_numeric_data[col] = numeric_series.fillna(0)
+                    except:
+                        pass
             
-            # Add grand totals row
+            # Format only price and sum/total columns (not quantity columns)
+            for col in df.columns:
+                if col in df.columns and df[col].dtype in ['float64', 'int64']:
+                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
+                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+            
+            # Define columns that should have grand totals (same as BOQ items export)
+            total_columns = {
+                'total_contract_sum',
+                'total_estimate',
+                'total_submitted',
+                'internal_total',
+                'total_approved',
+                'approved_signed_total'
+            }
+            # Add updated contract sum columns
+            for col in df.columns:
+                if col.startswith('total_updated_contract_sum_'):
+                    total_columns.add(col)
+            
+            # Calculate grand totals row using original numeric data - only for specified columns
             totals_row = {}
             for col in df.columns:
-                if col in numeric_columns and col in df.columns:
-                    # Extract numeric values for calculation
-                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
-                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
-                elif col == 'structure':
+                if col == 'structure':
                     totals_row[col] = "GRAND TOTAL"
-                elif col == 'description':
-                    totals_row[col] = ""
+                elif col in total_columns:
+                    if col in original_numeric_data:
+                        # Calculate totals from original numeric data
+                        total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
+                        # Apply currency formatting for all total columns
+                        totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                    else:
+                        # If column not in original_numeric_data, try to extract numeric values from formatted data
+                        try:
+                            # Extract numeric values from the formatted currency strings in the DataFrame
+                            numeric_values = []
+                            for val in df[col]:
+                                if pd.notna(val) and isinstance(val, str) and val.startswith('$'):
+                                    # Remove $ and commas, convert to float
+                                    clean_val = val.replace('$', '').replace(',', '')
+                                    try:
+                                        numeric_values.append(float(clean_val))
+                                    except:
+                                        pass
+                                elif pd.notna(val) and isinstance(val, (int, float)):
+                                    numeric_values.append(val)
+                            total_value = sum(numeric_values) if numeric_values else 0
+                            totals_row[col] = f"${total_value:,.2f}"
+                        except:
+                            totals_row[col] = "$0.00"
                 else:
                     totals_row[col] = ""
             
@@ -668,23 +714,69 @@ class ExcelService:
             # Convert to DataFrame
             df = pd.DataFrame(summaries)
             
-            # Format numeric columns
-            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+            # Create a copy of original numeric data for totals calculation
+            original_numeric_data = {}
+            for col in df.columns:
+                if df[col].dtype in ['float64', 'int64']:
+                    original_numeric_data[col] = df[col].copy()
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                    # Force conversion to numeric for known total columns
+                    try:
+                        numeric_series = pd.to_numeric(df[col], errors='coerce')
+                        original_numeric_data[col] = numeric_series.fillna(0)
+                    except:
+                        pass
             
-            # Add grand totals row
+            # Format only price and sum/total columns (not quantity columns)
+            for col in df.columns:
+                if col in df.columns and df[col].dtype in ['float64', 'int64']:
+                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
+                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+            
+            # Define columns that should have grand totals (same as BOQ items export)
+            total_columns = {
+                'total_contract_sum',
+                'total_estimate',
+                'total_submitted',
+                'internal_total',
+                'total_approved',
+                'approved_signed_total'
+            }
+            # Add updated contract sum columns
+            for col in df.columns:
+                if col.startswith('total_updated_contract_sum_'):
+                    total_columns.add(col)
+            
+            # Calculate grand totals row using original numeric data - only for specified columns
             totals_row = {}
             for col in df.columns:
-                if col in numeric_columns and col in df.columns:
-                    # Extract numeric values for calculation
-                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
-                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
-                elif col == 'system':
+                if col == 'system':
                     totals_row[col] = "GRAND TOTAL"
-                elif col == 'description':
-                    totals_row[col] = ""
+                elif col in total_columns:
+                    if col in original_numeric_data:
+                        # Calculate totals from original numeric data
+                        total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
+                        # Apply currency formatting for all total columns
+                        totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                    else:
+                        # If column not in original_numeric_data, try to extract numeric values from formatted data
+                        try:
+                            # Extract numeric values from the formatted currency strings in the DataFrame
+                            numeric_values = []
+                            for val in df[col]:
+                                if pd.notna(val) and isinstance(val, str) and val.startswith('$'):
+                                    # Remove $ and commas, convert to float
+                                    clean_val = val.replace('$', '').replace(',', '')
+                                    try:
+                                        numeric_values.append(float(clean_val))
+                                    except:
+                                        pass
+                                elif pd.notna(val) and isinstance(val, (int, float)):
+                                    numeric_values.append(val)
+                            total_value = sum(numeric_values) if numeric_values else 0
+                            totals_row[col] = f"${total_value:,.2f}"
+                        except:
+                            totals_row[col] = "$0.00"
                 else:
                     totals_row[col] = ""
             
@@ -755,23 +847,69 @@ class ExcelService:
             # Convert to DataFrame
             df = pd.DataFrame(summaries)
             
-            # Format numeric columns
-            numeric_columns = ['total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+            # Create a copy of original numeric data for totals calculation
+            original_numeric_data = {}
+            for col in df.columns:
+                if df[col].dtype in ['float64', 'int64']:
+                    original_numeric_data[col] = df[col].copy()
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                    # Force conversion to numeric for known total columns
+                    try:
+                        numeric_series = pd.to_numeric(df[col], errors='coerce')
+                        original_numeric_data[col] = numeric_series.fillna(0)
+                    except:
+                        pass
             
-            # Add grand totals row
+            # Format only price and sum/total columns (not quantity columns)
+            for col in df.columns:
+                if col in df.columns and df[col].dtype in ['float64', 'int64']:
+                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
+                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+            
+            # Define columns that should have grand totals (same as BOQ items export)
+            total_columns = {
+                'total_contract_sum',
+                'total_estimate',
+                'total_submitted',
+                'internal_total',
+                'total_approved',
+                'approved_signed_total'
+            }
+            # Add updated contract sum columns
+            for col in df.columns:
+                if col.startswith('total_updated_contract_sum_'):
+                    total_columns.add(col)
+            
+            # Calculate grand totals row using original numeric data - only for specified columns
             totals_row = {}
             for col in df.columns:
-                if col in numeric_columns and col in df.columns:
-                    # Extract numeric values for calculation
-                    numeric_values = [float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val).startswith('$')]
-                    totals_row[col] = f"${sum(numeric_values):,.2f}" if numeric_values else "$0.00"
-                elif col == 'subsection':
+                if col == 'subsection':
                     totals_row[col] = "GRAND TOTAL"
-                elif col == 'description':
-                    totals_row[col] = ""
+                elif col in total_columns:
+                    if col in original_numeric_data:
+                        # Calculate totals from original numeric data
+                        total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
+                        # Apply currency formatting for all total columns
+                        totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                    else:
+                        # If column not in original_numeric_data, try to extract numeric values from formatted data
+                        try:
+                            # Extract numeric values from the formatted currency strings in the DataFrame
+                            numeric_values = []
+                            for val in df[col]:
+                                if pd.notna(val) and isinstance(val, str) and val.startswith('$'):
+                                    # Remove $ and commas, convert to float
+                                    clean_val = val.replace('$', '').replace(',', '')
+                                    try:
+                                        numeric_values.append(float(clean_val))
+                                    except:
+                                        pass
+                                elif pd.notna(val) and isinstance(val, (int, float)):
+                                    numeric_values.append(val)
+                            total_value = sum(numeric_values) if numeric_values else 0
+                            totals_row[col] = f"${total_value:,.2f}"
+                        except:
+                            totals_row[col] = "$0.00"
                 else:
                     totals_row[col] = ""
             
@@ -829,8 +967,8 @@ class ExcelService:
             logger.error(f"Error generating subsections summary Excel: {str(e)}")
             raise
 
-    def export_boq_items(self, items):
-        """Export BOQ items to Excel"""
+    def export_boq_items(self, items, grand_totals=None):
+        """Export BOQ items to Excel with optional grand totals"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"boq_items_{timestamp}.xlsx"
@@ -842,7 +980,7 @@ class ExcelService:
             # Define column order to match BOQ table order
             all_possible_headers = [
                 'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
-                'original_contract_quantity'
+                'price', 'original_contract_quantity', 'total_contract_sum'
             ]
             
             # Add contract update quantity columns in order
@@ -850,15 +988,13 @@ class ExcelService:
                 if key.startswith('updated_contract_quantity_'):
                     all_possible_headers.append(key)
             
-            all_possible_headers.append('price')
-            
             # Add contract update sum columns in order
             for key in items[0].keys():
                 if key.startswith('updated_contract_sum_'):
                     all_possible_headers.append(key)
             
             all_possible_headers.extend([
-                'total_contract_sum', 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
+                'estimated_quantity', 'quantity_submitted', 'internal_quantity',
                 'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
                 'total_submitted', 'internal_total', 'total_approved_by_project_manager',
                 'approved_signed_total', 'subsection', 'notes'
@@ -870,6 +1006,19 @@ class ExcelService:
             # Create DataFrame with ordered columns
             df = pd.DataFrame(items)[ordered_headers]
             
+            # Create a copy of original numeric data for totals calculation
+            original_numeric_data = {}
+            for col in df.columns:
+                if df[col].dtype in ['float64', 'int64']:
+                    original_numeric_data[col] = df[col].copy()
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                    # Force conversion to numeric for known total columns
+                    try:
+                        numeric_series = pd.to_numeric(df[col], errors='coerce')
+                        original_numeric_data[col] = numeric_series.fillna(0)
+                    except:
+                        pass
+            
             # Format only price and sum/total columns (not quantity columns)
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
@@ -880,20 +1029,35 @@ class ExcelService:
                         # Format quantity columns without $ symbol
                         df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) and x != int(x) else str(int(x)) if pd.notna(x) and isinstance(x, (int, float)) else "0")
             
-            # Add grand totals row
+            # Define columns that should have grand totals
+            total_columns = {
+                'total_contract_sum',
+                'total_estimate',
+                'total_submitted',
+                'internal_total',
+                'total_approved',
+                'approved_signed_total'
+            }
+            # Add updated contract sum columns
+            for col in df.columns:
+                if col.startswith('updated_contract_sum_'):
+                    total_columns.add(col)
+            
+            # Calculate grand totals row using original numeric data - only for specified columns
             totals_row = {}
             for col in df.columns:
-                if df[col].dtype in ['float64', 'int64']:
-                    # Calculate totals from original numeric data
-                    total_value = sum([float(str(val).replace('$', '').replace(',', '')) for val in df[col] if pd.notna(val) and str(val) not in ['', 'nan']])
-                    
-                    # Apply same formatting logic as data rows
-                    if ('total' in col.lower() or 'sum' in col.lower() or 'price' in col.lower()) and 'quantity' not in col.lower():
-                        totals_row[col] = f"${total_value:,.2f}"
-                    else:
-                        totals_row[col] = f"{total_value:,.2f}" if total_value != int(total_value) else str(int(total_value))
-                elif col == 'section_number':
+                if col == 'section_number':
                     totals_row[col] = "GRAND TOTAL"
+                elif col in total_columns and col in original_numeric_data:
+                    # Use provided grand totals if available, otherwise calculate from original numeric data
+                    if grand_totals and col in grand_totals:
+                        total_value = grand_totals[col]
+                    else:
+                        # Calculate totals from original numeric data
+                        total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
+                    
+                    # Apply currency formatting for all total columns
+                    totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
                 else:
                     totals_row[col] = ""
             

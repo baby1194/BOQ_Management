@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import { structuresApi, exportApi, contractUpdatesApi } from "../services/api";
 import {
   StructureSummary,
@@ -10,6 +12,8 @@ import ExportModal from "../components/ExportModal";
 import ColumnSettingsModal from "../components/ColumnSettingsModal";
 
 const SummaryOfStructures: React.FC = () => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [structureSummaries, setStructureSummaries] = useState<
     StructureSummary[]
   >([]);
@@ -103,7 +107,7 @@ const SummaryOfStructures: React.FC = () => {
       setStructureSummaries(response);
     } catch (err) {
       console.error("Error fetching structure summaries:", err);
-      setError("Failed to fetch structure summaries");
+      setError(t("summary.failedToFetchData"));
     } finally {
       setLoading(false);
     }
@@ -148,11 +152,11 @@ const SummaryOfStructures: React.FC = () => {
       setEditingValue("");
 
       // Show success message
-      setSuccessMessage(`Description saved for structure: ${structure}`);
+      setSuccessMessage(t("summary.dataUpdatedSuccessfully"));
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error("Error saving description:", err);
-      setError("Failed to save description");
+      setError(t("summary.failedToUpdateData"));
     } finally {
       setSaving(false);
     }
@@ -323,13 +327,11 @@ const SummaryOfStructures: React.FC = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
+        <div className={isRTL ? "text-right" : "text-left"}>
           <h1 className="text-3xl font-bold text-gray-900">
-            Summary of Structures
+            {t("summary.title")} - {t("summary.structure")}
           </h1>
-          <p className="mt-2 text-gray-600">
-            Summary of BOQ items grouped by structure
-          </p>
+          <p className="mt-2 text-gray-600">{t("summary.subtitle")}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-center">
@@ -343,17 +345,16 @@ const SummaryOfStructures: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
-        <div>
+        <div className={isRTL ? "text-right" : "text-left"}>
           <h1 className="text-3xl font-bold text-gray-900">
-            Summary of Structures
+            {t("summary.title")} - {t("summary.structure")}
           </h1>
           <p className="mt-2 text-gray-600">
-            Summary of BOQ items grouped by structure (
-            {structureSummaries.length} structures)
+            {t("summary.subtitle")} ({structureSummaries.length}{" "}
+            {t("summary.structure").toLowerCase()})
           </p>
           <p className="mt-1 text-sm text-gray-500">
-            This table is automatically updated when BOQ items are imported or
-            modified. You can edit structure descriptions by clicking on them.
+            {t("summary.tableAutoUpdatedDescription")}
           </p>
         </div>
         <div className="flex space-x-3">
@@ -361,13 +362,13 @@ const SummaryOfStructures: React.FC = () => {
             onClick={() => setShowColumnSettings(true)}
             className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
-            Column Settings
+            {t("summary.columnSettings")}
           </button>
           <button
             onClick={() => setShowExportModal(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Export Summary
+            {t("summary.export")} {t("summary.title")}
           </button>
         </div>
       </div>
@@ -397,57 +398,96 @@ const SummaryOfStructures: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 {columnVisibility.structure && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Structure
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.structure")}
                   </th>
                 )}
                 {columnVisibility.structure_description && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Structure Description
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.structure")} {t("summary.description")}
                   </th>
                 )}
                 {columnVisibility.total_contract_sum && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Contract Sum
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalContractSum")}
                   </th>
                 )}
                 {contractUpdates.map((update) =>
                   columnVisibility[`updated_contract_sum_${update.id}`] ? (
                     <th
                       key={update.id}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
                     >
-                      Total Updated Contract Sum {update.update_index}
+                      {t("summary.totalUpdatedContractSum")}{" "}
+                      {update.update_index}
                     </th>
                   ) : null
                 )}
                 {columnVisibility.total_estimate && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Estimate
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalEstimate")}
                   </th>
                 )}
                 {columnVisibility.total_submitted && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Submitted
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalSubmitted")}
                   </th>
                 )}
                 {columnVisibility.internal_total && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Internal Total
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.internalTotal")}
                   </th>
                 )}
                 {columnVisibility.total_approved_by_project_manager && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Approved by Project Manager
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalApproved")}
                   </th>
                 )}
                 {columnVisibility.approved_signed_total && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Approved Signed Total
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.approvedSignedTotal")}
                   </th>
                 )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item Count
+                <th
+                  className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                >
+                  {t("common.itemCount")}
                 </th>
               </tr>
             </thead>
@@ -455,7 +495,11 @@ const SummaryOfStructures: React.FC = () => {
               {structureSummaries.map((summary) => (
                 <tr key={summary.structure} className="hover:bg-gray-50">
                   {columnVisibility.structure && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td
+                      className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
                       {summary.structure}
                     </td>
                   )}
@@ -479,14 +523,14 @@ const SummaryOfStructures: React.FC = () => {
                             disabled={saving}
                             className="text-green-600 hover:text-green-800 disabled:opacity-50 text-sm px-2 py-1"
                           >
-                            {saving ? "Saving..." : "Save"}
+                            {saving ? t("summary.saving") : t("summary.save")}
                           </button>
                           <button
                             onClick={cancelEditing}
                             disabled={saving}
                             className="text-red-600 hover:text-red-800 disabled:opacity-50 text-sm px-2 py-1"
                           >
-                            Cancel
+                            {t("summary.cancel")}
                           </button>
                         </div>
                       ) : (
@@ -498,11 +542,11 @@ const SummaryOfStructures: React.FC = () => {
                               summary.description
                             )
                           }
-                          title="Click to edit description"
+                          title={t("auth.clickToEditDescription")}
                         >
                           {summary.description || (
                             <span className="text-gray-400 italic">
-                              Click to add description
+                              {t("auth.clickToAddDescription")}
                             </span>
                           )}
                         </div>

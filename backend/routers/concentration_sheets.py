@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import desc
 from typing import List
 import logging
 
@@ -22,6 +23,67 @@ async def get_concentration_sheets(
         return sheets
     except Exception as e:
         logger.error(f"Error fetching concentration sheets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@router.get("/with-boq-data", response_model=List[schemas.ConcentrationSheetWithBOQData])
+async def get_concentration_sheets_with_boq_data(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
+    """Get all concentration sheets with their associated BOQ item data including latest contract updates"""
+    try:
+        # Get all concentration sheets with their BOQ items in a single query using joinedload
+        sheets = db.query(models.ConcentrationSheet).options(
+            joinedload(models.ConcentrationSheet.boq_item)
+        ).offset(skip).limit(limit).all()
+        
+        if not sheets:
+            return []
+        
+        # Get the latest contract update once (for all items)
+        latest_contract_update = db.query(models.ContractQuantityUpdate).order_by(
+            desc(models.ContractQuantityUpdate.update_index)
+        ).first()
+        
+        # Get all BOQ item IDs from the sheets
+        boq_item_ids = [sheet.boq_item_id for sheet in sheets if sheet.boq_item]
+        
+        # Get all quantity updates for all BOQ items and latest contract update in a single query
+        latest_quantity_updates = {}
+        if latest_contract_update and boq_item_ids:
+            quantity_updates = db.query(models.BOQItemQuantityUpdate).filter(
+                models.BOQItemQuantityUpdate.boq_item_id.in_(boq_item_ids),
+                models.BOQItemQuantityUpdate.contract_update_id == latest_contract_update.id
+            ).all()
+            latest_quantity_updates = {update.boq_item_id: update for update in quantity_updates}
+        
+        result = []
+        for sheet in sheets:
+            if sheet.boq_item:
+                # Get the quantity update for this specific BOQ item
+                latest_quantity_update = latest_quantity_updates.get(sheet.boq_item_id)
+                
+                # Create BOQ item with latest contract update data
+                boq_item_dict = {c.key: getattr(sheet.boq_item, c.key) for c in sheet.boq_item.__table__.columns}
+                boq_item_dict.update({
+                    "latest_contract_quantity": latest_quantity_update.updated_contract_quantity if latest_quantity_update else sheet.boq_item.original_contract_quantity,
+                    "latest_contract_sum": latest_quantity_update.updated_contract_sum if latest_quantity_update else (sheet.boq_item.original_contract_quantity * sheet.boq_item.price),
+                    "has_contract_updates": latest_contract_update is not None,
+                    "latest_update_index": latest_contract_update.update_index if latest_contract_update else None
+                })
+                
+                # Create the combined response - convert sheet to dict and add boq_item
+                sheet_dict = {c.key: getattr(sheet, c.key) for c in sheet.__table__.columns}
+                sheet_dict["boq_item"] = boq_item_dict
+                result.append(sheet_dict)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching concentration sheets with BOQ data: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"

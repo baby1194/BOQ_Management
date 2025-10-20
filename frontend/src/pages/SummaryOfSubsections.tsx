@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import { subsectionsApi, exportApi, contractUpdatesApi } from "../services/api";
 import {
   SubsectionSummary,
@@ -10,6 +12,8 @@ import ExportModal from "../components/ExportModal";
 import ColumnSettingsModal from "../components/ColumnSettingsModal";
 
 const SummaryOfSubsections: React.FC = () => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [subsectionSummaries, setSubsectionSummaries] = useState<
     SubsectionSummary[]
   >([]);
@@ -479,14 +483,14 @@ const SummaryOfSubsections: React.FC = () => {
                             disabled={saving}
                             className="text-green-600 hover:text-green-800 disabled:opacity-50 text-sm px-2 py-1"
                           >
-                            {saving ? "Saving..." : "Save"}
+                            {saving ? t("boq.saving") : t("common.save")}
                           </button>
                           <button
                             onClick={cancelEditing}
                             disabled={saving}
                             className="text-red-600 hover:text-red-800 disabled:opacity-50 text-sm px-2 py-1"
                           >
-                            Cancel
+                            {t("common.cancel")}
                           </button>
                         </div>
                       ) : (
@@ -498,11 +502,11 @@ const SummaryOfSubsections: React.FC = () => {
                               summary.description
                             )
                           }
-                          title="Click to edit description"
+                          title={t("auth.clickToEditDescription")}
                         >
                           {summary.description || (
                             <span className="text-gray-400 italic">
-                              Click to add description
+                              {t("auth.clickToAddDescription")}
                             </span>
                           )}
                         </div>

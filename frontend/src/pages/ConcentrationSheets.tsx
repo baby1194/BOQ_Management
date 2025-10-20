@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { concentrationApi, boqApi, exportApi } from "../services/api";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
+import { concentrationApi, exportApi } from "../services/api";
 import {
   ConcentrationSheet,
+  ConcentrationSheetWithBOQData,
   ConcentrationEntry,
+  ConcentrationEntryExportRequest,
   BOQItemWithLatestContractUpdate,
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
 import { Search, X } from "lucide-react";
-
-interface ConcentrationSheetWithBOQ extends ConcentrationSheet {
-  boq_item: BOQItemWithLatestContractUpdate;
-}
+import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 
 const ConcentrationSheets: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const [sheets, setSheets] = useState<ConcentrationSheetWithBOQ[]>([]);
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
+  const [sheets, setSheets] = useState<ConcentrationSheetWithBOQData[]>([]);
   const [selectedSheet, setSelectedSheet] =
-    useState<ConcentrationSheetWithBOQ | null>(null);
+    useState<ConcentrationSheetWithBOQData | null>(null);
   const [entries, setEntries] = useState<ConcentrationEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +37,12 @@ const ConcentrationSheets: React.FC = () => {
   const [showNavigationMessage, setShowNavigationMessage] = useState(false);
   const [navigatedFromBOQ, setNavigatedFromBOQ] = useState(false);
   const [sectionNumberFilter, setSectionNumberFilter] = useState("");
+  const [showEntryColumnModal, setShowEntryColumnModal] = useState(false);
+  const [pendingExportAction, setPendingExportAction] = useState<{
+    type: "single" | "all";
+    format: "pdf" | "excel";
+    title: string;
+  } | null>(null);
 
   // Project info state - will be loaded from selected sheet
   const [projectInfo, setProjectInfo] = useState({
@@ -44,7 +53,7 @@ const ConcentrationSheets: React.FC = () => {
   });
 
   // Load project info from selected sheet
-  const loadProjectInfoFromSheet = (sheet: ConcentrationSheetWithBOQ) => {
+  const loadProjectInfoFromSheet = (sheet: ConcentrationSheetWithBOQData) => {
     console.log("Loading project info from sheet:", {
       id: sheet.id,
       project_name: sheet.project_name,
@@ -64,20 +73,61 @@ const ConcentrationSheets: React.FC = () => {
     console.log("Project info loaded:", info);
   };
 
-  // Export functions
-  const handleExportPDF = async () => {
+  // Export functions with column selection modal
+  const showExportModal = (
+    type: "single" | "all",
+    format: "pdf" | "excel",
+    title: string
+  ) => {
+    setPendingExportAction({ type, format, title });
+    setShowEntryColumnModal(true);
+  };
+
+  const handleExportModalSubmit = async (
+    entryColumnRequest: ConcentrationEntryExportRequest
+  ) => {
+    if (!pendingExportAction) return;
+
+    setShowEntryColumnModal(false);
+
+    const actualFormat = pendingExportAction.format;
+
+    if (pendingExportAction.type === "single") {
+      await executeSingleSheetExport(actualFormat, entryColumnRequest);
+    } else {
+      await executeAllSheetsExport(actualFormat, entryColumnRequest);
+    }
+
+    setPendingExportAction(null);
+  };
+
+  const executeSingleSheetExport = async (
+    format: "pdf" | "excel",
+    entryColumnRequest: ConcentrationEntryExportRequest
+  ) => {
     if (!selectedSheet) {
-      setError("No concentration sheet selected for export");
+      setError(t("auth.noSheetSelectedForExport"));
       return;
     }
 
     try {
-      setExportingPDF(true);
+      if (format === "pdf") {
+        setExportingPDF(true);
+      } else {
+        setExportingExcel(true);
+      }
       setError(null);
 
-      const response = await exportApi.exportSingleConcentrationSheetPDF(
-        selectedSheet.id
-      );
+      const response =
+        format === "pdf"
+          ? await exportApi.exportSingleConcentrationSheetPDF(
+              selectedSheet.id,
+              entryColumnRequest
+            )
+          : await exportApi.exportSingleConcentrationSheetExcel(
+              selectedSheet.id,
+              entryColumnRequest
+            );
 
       if (response.success && response.pdf_path) {
         // Create download link
@@ -86,112 +136,116 @@ const ConcentrationSheets: React.FC = () => {
         // Extract filename from the path
         const filename =
           response.pdf_path.split("/").pop() ||
-          `concentration_sheet_${selectedSheet.id}.pdf`;
+          `concentration_sheet_${selectedSheet.id}.${
+            format === "pdf" ? "pdf" : "xlsx"
+          }`;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
     } catch (err) {
-      console.error("Error exporting PDF:", err);
-      setError("Failed to export PDF");
+      console.error(`Error exporting ${format}:`, err);
+      setError(t("concentration.exportFailed") + " " + format.toUpperCase());
     } finally {
-      setExportingPDF(false);
+      if (format === "pdf") {
+        setExportingPDF(false);
+      } else {
+        setExportingExcel(false);
+      }
     }
   };
 
-  const handleExportExcel = async () => {
-    if (!selectedSheet) {
-      setError("No concentration sheet selected for export");
-      return;
-    }
-
+  const executeAllSheetsExport = async (
+    format: "pdf" | "excel",
+    entryColumnRequest: ConcentrationEntryExportRequest
+  ) => {
     try {
-      setExportingExcel(true);
+      if (format === "pdf") {
+        setExportingAllPDF(true);
+      } else {
+        setExportingAllExcel(true);
+      }
       setError(null);
 
-      const response = await exportApi.exportSingleConcentrationSheetExcel(
-        selectedSheet.id
-      );
+      const response =
+        format === "pdf"
+          ? await exportApi.exportConcentrationSheets(
+              {
+                item_codes: [],
+                hide_columns: [],
+                export_all: true,
+                export_non_empty_only: false,
+              },
+              entryColumnRequest
+            )
+          : await exportApi.exportAllConcentrationSheetsExcel(
+              {
+                item_codes: [],
+                hide_columns: [],
+                export_all: true,
+                export_non_empty_only: false,
+              },
+              entryColumnRequest
+            );
 
       if (response.success && response.pdf_path) {
         // Create download link
         const link = document.createElement("a");
         link.href = `/api${response.pdf_path}`;
-        // Extract filename from the path
-        const filename =
-          response.pdf_path.split("/").pop() ||
-          `concentration_sheet_${selectedSheet.id}.xlsx`;
-        link.download = filename;
+        link.download =
+          format === "pdf"
+            ? `all_concentration_sheets_individual.zip`
+            : `all_concentration_sheets.xlsx`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      } else {
+        setError(t("concentration.exportFailed") + " " + response.message);
       }
     } catch (err) {
-      console.error("Error exporting Excel:", err);
-      setError("Failed to export Excel");
+      console.error(`Error exporting all ${format}s:`, err);
+      setError(
+        t("concentration.exportFailed") +
+          " " +
+          t("concentration.exportAllSheetsPDF")
+      );
     } finally {
-      setExportingExcel(false);
+      if (format === "pdf") {
+        setExportingAllPDF(false);
+      } else {
+        setExportingAllExcel(false);
+      }
     }
+  };
+
+  const handleExportPDF = () => {
+    if (!selectedSheet) {
+      setError(t("concentration.noSheetSelected"));
+      return;
+    }
+    showExportModal("single", "pdf", t("concentration.exportSingleSheetPDF"));
+  };
+
+  const handleExportExcel = () => {
+    if (!selectedSheet) {
+      setError(t("concentration.noSheetSelected"));
+      return;
+    }
+    showExportModal(
+      "single",
+      "excel",
+      t("concentration.exportSingleSheetExcel")
+    );
   };
 
   // Export all concentration sheets functions
-  const handleExportAllPDF = async () => {
-    try {
-      setExportingAllPDF(true);
-      setError(null);
-
-      const response = await exportApi.exportConcentrationSheets({
-        export_all: true,
-        export_non_empty_only: false,
-      });
-
-      if (response.success && response.pdf_path) {
-        // Create download link for the zip file
-        const link = document.createElement("a");
-        link.href = `/api${response.pdf_path}`;
-        link.download = `all_concentration_sheets_individual.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        setError("Export failed: " + response.message);
-      }
-    } catch (err) {
-      console.error("Error exporting all PDFs:", err);
-      setError("Failed to export all PDFs");
-    } finally {
-      setExportingAllPDF(false);
-    }
+  const handleExportAllPDF = () => {
+    showExportModal("all", "pdf", t("concentration.exportAllSheetsPDF"));
   };
 
-  const handleExportAllExcel = async () => {
-    try {
-      setExportingAllExcel(true);
-      setError(null);
-
-      const response = await exportApi.exportAllConcentrationSheetsExcel({
-        export_all: true,
-        export_non_empty_only: false,
-      });
-
-      if (response.success && response.pdf_path) {
-        // Create download link
-        const link = document.createElement("a");
-        link.href = `/api${response.pdf_path}`;
-        link.download = `all_concentration_sheets.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        setError("Export failed: " + response.message);
-      }
-    } catch (err) {
-      console.error("Error exporting all Excel:", err);
-      setError("Failed to export all Excel");
-    } finally {
-      setExportingAllExcel(false);
-    }
+  const handleExportAllExcel = () => {
+    showExportModal("all", "excel", t("concentration.exportAllSheetsExcel"));
   };
 
   // Fetch all concentration sheets with BOQ item data
@@ -200,44 +254,13 @@ const ConcentrationSheets: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      console.log("Fetching concentration sheets...");
-      const concentrationSheets = await concentrationApi.getAll(0, 10000);
-      console.log("Concentration sheets fetched:", concentrationSheets.length);
-      console.log("Sample sheet data:", concentrationSheets[0]);
+      console.log("Fetching concentration sheets with BOQ data...");
+      const sheetsWithBOQ = await concentrationApi.getAllWithBOQData(0, 10000);
+      console.log(
+        "Concentration sheets with BOQ data fetched:",
+        sheetsWithBOQ.length
+      );
 
-      // Fetch BOQ item data for each sheet
-      const sheetsWithBOQ: ConcentrationSheetWithBOQ[] = [];
-
-      for (const sheet of concentrationSheets) {
-        try {
-          console.log(
-            `Fetching BOQ item with latest contract update for sheet ${sheet.id}, BOQ item ID: ${sheet.boq_item_id}`
-          );
-          const boqItem = await boqApi.getWithLatestContractUpdate(
-            sheet.boq_item_id
-          );
-          console.log(`BOQ item with latest contract update fetched:`, boqItem);
-
-          const sheetWithBOQ = {
-            ...sheet,
-            boq_item: boqItem,
-          };
-
-          console.log(`Sheet with BOQ data:`, {
-            id: sheetWithBOQ.id,
-            project_name: sheetWithBOQ.project_name,
-            contractor_in_charge: sheetWithBOQ.contractor_in_charge,
-            contract_no: sheetWithBOQ.contract_no,
-            developer_name: sheetWithBOQ.developer_name,
-          });
-
-          sheetsWithBOQ.push(sheetWithBOQ);
-        } catch (err) {
-          console.error(`Error fetching BOQ item ${sheet.boq_item_id}:`, err);
-        }
-      }
-
-      console.log("Sheets with BOQ data:", sheetsWithBOQ.length);
       setSheets(sheetsWithBOQ);
 
       // Check if there's a selected item from URL params
@@ -266,7 +289,7 @@ const ConcentrationSheets: React.FC = () => {
       }
     } catch (err) {
       console.error("Error fetching concentration sheets:", err);
-      setError("Failed to fetch concentration sheets");
+      setError(t("concentration.failedToFetchSheets"));
     } finally {
       setLoading(false);
     }
@@ -287,7 +310,7 @@ const ConcentrationSheets: React.FC = () => {
   };
 
   // Handle sheet selection
-  const handleSheetSelect = (sheet: ConcentrationSheetWithBOQ) => {
+  const handleSheetSelect = (sheet: ConcentrationSheetWithBOQData) => {
     setSelectedSheet(sheet);
     setEditingEntry(null);
     setShowAddForm(false);
@@ -315,7 +338,7 @@ const ConcentrationSheets: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Error creating entry:", err);
-      setError("Failed to create entry");
+      setError(t("auth.failedToCreateEntry"));
     } finally {
       setSaving(false);
     }
@@ -340,7 +363,7 @@ const ConcentrationSheets: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Error updating entry:", err);
-      setError("Failed to update entry");
+      setError(t("auth.failedToUpdateEntry"));
     } finally {
       setSaving(false);
     }
@@ -418,11 +441,19 @@ const ConcentrationSheets: React.FC = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Concentration Sheets
+          <h1
+            className={`text-3xl font-bold text-gray-900 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("concentration.title")}
           </h1>
-          <p className="mt-2 text-gray-600">
-            Manage concentration sheets for BOQ items
+          <p
+            className={`mt-2 text-gray-600 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("concentration.subtitle")}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
@@ -438,11 +469,20 @@ const ConcentrationSheets: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Concentration Sheets
+          <h1
+            className={`text-3xl font-bold text-gray-900 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("concentration.title")}
           </h1>
-          <p className="mt-2 text-gray-600">
-            Manage concentration sheets for BOQ items ({sheets.length} sheets)
+          <p
+            className={`mt-2 text-gray-600 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("concentration.subtitle")} ({sheets.length}{" "}
+            {t("concentration.sheetsCount")})
           </p>
         </div>
         <div className="flex space-x-3 flex-wrap">
@@ -450,9 +490,9 @@ const ConcentrationSheets: React.FC = () => {
             onClick={fetchSheets}
             disabled={loading}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Refresh concentration sheets data"
+            title={t("auth.refreshConcentrationSheetsData")}
           >
-            {loading ? "Refreshing..." : "🔄 Refresh"}
+            {loading ? t("auth.refreshing") : `🔄 ${t("auth.refresh")}`}
           </button>
 
           {/* Export All Buttons */}
@@ -461,19 +501,21 @@ const ConcentrationSheets: React.FC = () => {
               onClick={handleExportAllPDF}
               disabled={exportingAllPDF || sheets.length === 0}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Export all concentration sheets as individual PDF files (zip)"
+              title={t("concentration.exportAllPDFTitle")}
             >
               {exportingAllPDF
-                ? "Exporting..."
-                : "📄 Export All PDF (Individual)"}
+                ? t("concentration.exporting")
+                : t("concentration.exportAllPDFIndividual")}
             </button>
             <button
               onClick={handleExportAllExcel}
               disabled={exportingAllExcel || sheets.length === 0}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Export all concentration sheets as Excel (separate sheets)"
+              title={t("concentration.exportAllExcelTitle")}
             >
-              {exportingAllExcel ? "Exporting..." : "📊 Export All Excel"}
+              {exportingAllExcel
+                ? t("concentration.exporting")
+                : t("concentration.exportAllExcel")}
             </button>
           </div>
 
@@ -482,7 +524,7 @@ const ConcentrationSheets: React.FC = () => {
               onClick={() => window.history.back()}
               className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
             >
-              ← Back to BOQ Items
+              {t("concentration.backToBOQItems")}
             </button>
           )}
         </div>
@@ -499,8 +541,10 @@ const ConcentrationSheets: React.FC = () => {
       {showNavigationMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md p-4">
           <div className="flex">
-            <div className="text-green-600">
-              ✓ Navigated from BOQ Items - Item automatically selected
+            <div
+              className={`text-green-600 ${isRTL ? "text-right" : "text-left"}`}
+            >
+              {t("concentration.navigatedFromBOQ")}
             </div>
           </div>
         </div>
@@ -511,26 +555,47 @@ const ConcentrationSheets: React.FC = () => {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">BOQ Items</h2>
-              <p className="text-sm text-gray-600">
-                Select an item to view its concentration sheet
+              <h2
+                className={`text-lg font-semibold text-gray-900 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("concentration.boqItems")}
+              </h2>
+              <p
+                className={`text-sm text-gray-600 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
+                {t("concentration.selectItemToViewSheet")}
                 {sectionNumberFilter && (
-                  <span className="ml-2 text-blue-600">
-                    ({filteredSheets.length} of {sheets.length} shown)
+                  <span className={`${isRTL ? "mr-2" : "ml-2"} text-blue-600`}>
+                    ({filteredSheets.length} {t("common.of", "of")}{" "}
+                    {sheets.length} {t("concentration.filteredCount")})
                   </span>
                 )}
               </p>
 
               {navigatedFromBOQ && selectedSheet && (
                 <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <div className="text-sm text-blue-800">
-                    <div className="font-medium">Currently viewing:</div>
+                  <div
+                    className={`text-sm text-blue-800 ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    <div className="font-medium">
+                      {t("concentration.currentlyViewing")}
+                    </div>
                     <div className="mt-1">
                       <span className="font-semibold">
                         {selectedSheet.boq_item.section_number}
                       </span>
-                      <span className="text-blue-600 ml-2">•</span>
-                      <span className="ml-2">
+                      <span
+                        className={`text-blue-600 ${isRTL ? "mr-2" : "ml-2"}`}
+                      >
+                        •
+                      </span>
+                      <span className={isRTL ? "mr-2" : "ml-2"}>
                         {selectedSheet.boq_item.description}
                       </span>
                     </div>
@@ -540,24 +605,36 @@ const ConcentrationSheets: React.FC = () => {
 
               {/* Section Number Filter */}
               <div className="mt-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Filter by Section Number:
+                <label
+                  className={`block text-sm font-medium text-gray-700 mb-1 ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                >
+                  {t("concentration.filterBySectionNumber")}
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <div
+                    className={`absolute inset-y-0 ${
+                      isRTL ? "right-0 pr-3" : "left-0 pl-3"
+                    } flex items-center pointer-events-none`}
+                  >
                     <Search className="h-4 w-4 text-gray-400" />
                   </div>
                   <input
                     type="text"
                     value={sectionNumberFilter}
                     onChange={(e) => setSectionNumberFilter(e.target.value)}
-                    placeholder="Enter section number..."
-                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder={t("concentration.enterSectionNumber")}
+                    className={`w-full py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                      isRTL ? "pr-10 pl-3" : "pl-10 pr-10"
+                    }`}
                   />
                   {sectionNumberFilter && (
                     <button
                       onClick={() => setSectionNumberFilter("")}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      className={`absolute inset-y-0 ${
+                        isRTL ? "left-0 pl-3" : "right-0 pr-3"
+                      } flex items-center text-gray-400 hover:text-gray-600`}
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -566,10 +643,12 @@ const ConcentrationSheets: React.FC = () => {
                 {sectionNumberFilter && (
                   <button
                     onClick={() => setSectionNumberFilter("")}
-                    className="mt-1 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    className={`mt-1 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 ${
+                      isRTL ? "flex-row-reverse" : ""
+                    }`}
                   >
                     <X className="h-3 w-3" />
-                    Clear filter
+                    {t("concentration.clearFilter")}
                   </button>
                 )}
               </div>
@@ -580,28 +659,32 @@ const ConcentrationSheets: React.FC = () => {
               style={{ minHeight: 0, maxHeight: "calc(100vh - 250px)" }}
             >
               {filteredSheets.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
+                <div
+                  className={`p-4 text-gray-500 ${
+                    isRTL ? "text-right" : "text-center"
+                  }`}
+                >
                   {sectionNumberFilter ? (
                     <>
                       <p>
-                        No concentration sheets found matching "
+                        {t("concentration.noSheetsFoundMatching")} "
                         {sectionNumberFilter}"
                       </p>
                       <p className="text-sm mt-1">
-                        Try adjusting your filter or{" "}
+                        {t("concentration.tryAdjustingFilter")}{" "}
                         <button
                           onClick={() => setSectionNumberFilter("")}
                           className="text-blue-600 hover:text-blue-800 underline"
                         >
-                          clear the filter
+                          {t("concentration.clearTheFilter")}
                         </button>
                       </p>
                     </>
                   ) : (
                     <>
-                      <p>No concentration sheets found</p>
+                      <p>{t("concentration.noConcentrationSheetsFound")}</p>
                       <p className="text-sm mt-1">
-                        Create concentration sheets from the BOQ Items page
+                        {t("concentration.createSheetsFromBOQ")}
                       </p>
                     </>
                   )}
@@ -636,29 +719,45 @@ const ConcentrationSheets: React.FC = () => {
                                 </h3>
                                 {sheet.boq_item.has_contract_updates && (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    Updated Qty
+                                    {t("concentration.updatedQty")}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                              <p
+                                className={`text-sm text-gray-600 mt-1 line-clamp-2 ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
                                 {sheet.boq_item.description}
                               </p>
-                              <div className="mt-2 text-xs text-gray-500">
-                                <div>Unit: {sheet.boq_item.unit}</div>
+                              <div
+                                className={`mt-2 text-xs text-gray-500 ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
                                 <div>
-                                  Qty:{" "}
+                                  {t("concentration.unit")}{" "}
+                                  {sheet.boq_item.unit}
+                                </div>
+                                <div>
+                                  {t("concentration.qtyLabel")}{" "}
                                   {formatNumber(
                                     sheet.boq_item.latest_contract_quantity
                                   )}
                                   {sheet.boq_item.has_contract_updates && (
-                                    <span className="text-blue-600 ml-1">
-                                      (Updated{" "}
+                                    <span
+                                      className={`text-blue-600 ${
+                                        isRTL ? "mr-1" : "ml-1"
+                                      }`}
+                                    >
+                                      ({t("concentration.updated")}{" "}
                                       {sheet.boq_item.latest_update_index})
                                     </span>
                                   )}
                                 </div>
                                 <div>
-                                  Price: {formatCurrency(sheet.boq_item.price)}
+                                  {t("concentration.priceLabel")}{" "}
+                                  {formatCurrency(sheet.boq_item.price)}
                                 </div>
                               </div>
                             </div>
@@ -680,10 +779,18 @@ const ConcentrationSheets: React.FC = () => {
               <>
                 {/* Header Information */}
                 <div className="p-6 border-b border-gray-200">
-                  <div className="flex justify-between items-start mb-4">
+                  <div
+                    className={`flex justify-between items-start mb-4 ${
+                      isRTL ? "flex-row-reverse" : ""
+                    }`}
+                  >
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Concentration Sheet -{" "}
+                      <h2
+                        className={`text-xl font-semibold text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.concentrationSheet")}{" "}
                         {selectedSheet.boq_item.section_number}
                       </h2>
                     </div>
@@ -693,14 +800,18 @@ const ConcentrationSheets: React.FC = () => {
                         disabled={exportingPDF}
                         className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
                       >
-                        {exportingPDF ? "Exporting..." : "Export PDF"}
+                        {exportingPDF
+                          ? t("auth.exportingPdf")
+                          : t("auth.exportPdf")}
                       </button>
                       <button
                         onClick={handleExportExcel}
                         disabled={exportingExcel}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                       >
-                        {exportingExcel ? "Exporting..." : "Export Excel"}
+                        {exportingExcel
+                          ? t("auth.exportingExcel")
+                          : t("auth.exportExcel")}
                       </button>
                     </div>
                   </div>
@@ -708,81 +819,161 @@ const ConcentrationSheets: React.FC = () => {
                   {/* Project Information Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Project Name:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.projectName")}
                       </label>
-                      <p className="text-gray-900">{projectInfo.projectName}</p>
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {projectInfo.projectName}
+                      </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Contractor in Charge:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.contractorInCharge")}
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {projectInfo.contractorInCharge}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-300 font-medium">
-                        Contract No:
+                      <label
+                        className={`block text-gray-300 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.contractNo")}
                       </label>
-                      <p className="text-gray-900">{projectInfo.contractNo}</p>
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {projectInfo.contractNo}
+                      </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Developer Name:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.developerName")}
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {projectInfo.developerName}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Section Number:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.sectionNumberLabel")}
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {selectedSheet.boq_item.section_number}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Contract Quantity:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.contractQuantity")}
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {formatNumber(
                           selectedSheet.boq_item.latest_contract_quantity
                         )}{" "}
                         {selectedSheet.boq_item.unit}
                         {selectedSheet.boq_item.has_contract_updates && (
-                          <span className="text-blue-600 ml-1">
-                            (Updated{" "}
+                          <span
+                            className={`text-blue-600 ${
+                              isRTL ? "mr-1" : "ml-1"
+                            }`}
+                          >
+                            ({t("concentration.updated")}{" "}
                             {selectedSheet.boq_item.latest_update_index})
                           </span>
                         )}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Unit:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.unitLabel")}
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {selectedSheet.boq_item.unit}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-gray-600 font-medium">
-                        Price:
+                      <label
+                        className={`block text-gray-600 font-medium ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {t("concentration.priceLabel")}
                       </label>
-                      <p className="text-gray-900">
+                      <p
+                        className={`text-gray-900 ${
+                          isRTL ? "text-right" : "text-left"
+                        }`}
+                      >
                         {formatCurrency(selectedSheet.boq_item.price)}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4">
-                    <label className="block text-gray-600 font-medium">
-                      Description:
+                    <label
+                      className={`block text-gray-600 font-medium ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("concentration.descriptionLabel")}
                     </label>
-                    <p className="text-gray-900">
+                    <p
+                      className={`text-gray-900 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
                       {selectedSheet.boq_item.description}
                     </p>
                   </div>
@@ -790,28 +981,38 @@ const ConcentrationSheets: React.FC = () => {
                   {/* Contract Update Information */}
                   {selectedSheet.boq_item.has_contract_updates && (
                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <div className="flex items-center justify-between">
+                      <div
+                        className={`flex items-center justify-between ${
+                          isRTL ? "flex-row-reverse" : ""
+                        }`}
+                      >
                         <div>
-                          <label className="block text-blue-800 font-medium text-sm">
-                            Contract Quantity Updated
+                          <label
+                            className={`block text-blue-800 font-medium text-sm ${
+                              isRTL ? "text-right" : "text-left"
+                            }`}
+                          >
+                            {t("concentration.contractQuantityUpdated")}
                           </label>
-                          <p className="text-blue-700 text-sm mt-1">
-                            This item has been updated from the original
-                            contract quantity. Current quantity reflects the
-                            latest update (Update #
+                          <p
+                            className={`text-blue-700 text-sm mt-1 ${
+                              isRTL ? "text-right" : "text-left"
+                            }`}
+                          >
+                            {t("concentration.hasBeenUpdated")}
                             {selectedSheet.boq_item.latest_update_index}).
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className={isRTL ? "text-left" : "text-right"}>
                           <div className="text-xs text-blue-600">
-                            Original:{" "}
+                            {t("concentration.original")}{" "}
                             {formatNumber(
                               selectedSheet.boq_item.original_contract_quantity
                             )}{" "}
                             {selectedSheet.boq_item.unit}
                           </div>
                           <div className="text-sm font-medium text-blue-800">
-                            Current:{" "}
+                            {t("concentration.current")}{" "}
                             {formatNumber(
                               selectedSheet.boq_item.latest_contract_quantity
                             )}{" "}
@@ -825,16 +1026,24 @@ const ConcentrationSheets: React.FC = () => {
 
                 {/* Entries Table */}
                 <div className="flex-1 p-6 overflow-hidden flex flex-col">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Concentration Entries
+                  <div
+                    className={`flex justify-between items-center mb-4 ${
+                      isRTL ? "flex-row-reverse" : ""
+                    }`}
+                  >
+                    <h3
+                      className={`text-lg font-medium text-gray-900 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("concentration.concentrationEntries")}
                     </h3>
                     <button
                       onClick={() => setShowAddForm(true)}
                       disabled={saving}
                       className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     >
-                      Add Entry
+                      {t("auth.addEntry")}
                     </button>
                   </div>
 
@@ -842,7 +1051,9 @@ const ConcentrationSheets: React.FC = () => {
                   {(showAddForm || editingEntry) && (
                     <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
                       <h4 className="text-md font-medium text-gray-900 mb-4">
-                        {editingEntry ? "Edit Entry Notes" : "Add New Entry"}
+                        {editingEntry
+                          ? t("auth.editEntryNotes")
+                          : t("auth.addNewEntry")}
                       </h4>
                       <EntryForm
                         entry={editingEntry}
@@ -868,32 +1079,68 @@ const ConcentrationSheets: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Description
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.descriptionLabel")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Calc. Sheet No
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.calcSheetNo")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Drawing No
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.drawingNoLabel")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Est. Quantity
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.estQuantity")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Qty Submitted
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.qtySubmitted")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Internal Qty
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.internalQty")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Approved Qty
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.approvedQty")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Notes
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("boq.notes")}
                               </th>
-                              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {t("concentration.actions")}
                               </th>
                             </tr>
                           </thead>
@@ -902,11 +1149,13 @@ const ConcentrationSheets: React.FC = () => {
                               <tr>
                                 <td
                                   colSpan={9}
-                                  className="px-3 py-8 text-center text-gray-500"
+                                  className={`px-3 py-8 text-gray-500 ${
+                                    isRTL ? "text-right" : "text-center"
+                                  }`}
                                 >
-                                  <p>No entries found</p>
+                                  <p>{t("concentration.noEntriesFound")}</p>
                                   <p className="text-sm mt-1">
-                                    Add entries to this concentration sheet
+                                    {t("concentration.addEntriesToSheet")}
                                   </p>
                                 </td>
                               </tr>
@@ -955,7 +1204,7 @@ const ConcentrationSheets: React.FC = () => {
                                       disabled={saving}
                                       className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                     >
-                                      Edit Notes
+                                      {t("concentration.editNotes")}
                                     </button>
                                   </td>
                                 </tr>
@@ -965,8 +1214,12 @@ const ConcentrationSheets: React.FC = () => {
                             {/* Totals Row */}
                             {entries.length > 0 && (
                               <tr className="bg-gray-50 border-t-2 border-gray-300">
-                                <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                                  TOTALS
+                                <td
+                                  className={`px-3 py-3 text-sm font-bold text-gray-900 ${
+                                    isRTL ? "text-right" : "text-left"
+                                  }`}
+                                >
+                                  {t("concentration.totals")}
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
@@ -1027,10 +1280,14 @@ const ConcentrationSheets: React.FC = () => {
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <p className="text-lg">Select a BOQ item</p>
+                <div
+                  className={`text-gray-500 ${
+                    isRTL ? "text-right" : "text-center"
+                  }`}
+                >
+                  <p className="text-lg">{t("concentration.selectBOQItem")}</p>
                   <p className="text-sm mt-1">
-                    Choose an item from the list to view its concentration sheet
+                    {t("concentration.chooseItemFromList")}
                   </p>
                 </div>
               </div>
@@ -1038,6 +1295,21 @@ const ConcentrationSheets: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Concentration Entry Column Selection Modal */}
+      <ConcentrationEntryExportModal
+        isOpen={showEntryColumnModal}
+        onClose={() => {
+          setShowEntryColumnModal(false);
+          setPendingExportAction(null);
+        }}
+        onExport={handleExportModalSubmit}
+        title={pendingExportAction?.title || t("concentration.selectColumns")}
+        loading={
+          exportingPDF || exportingExcel || exportingAllPDF || exportingAllExcel
+        }
+        exportFormat={pendingExportAction?.format || "pdf"}
+      />
     </div>
   );
 };
@@ -1063,6 +1335,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
   onCancel,
   saving,
 }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     section_number: entry?.section_number || boqItem?.section_number || "",
     description: entry?.description || "",
@@ -1092,7 +1365,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
+            {t("boq.description")}
           </label>
           <input
             type="text"
@@ -1105,7 +1378,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Calculation Sheet No
+            {t("auth.calculationSheetNo")}
           </label>
           <input
             type="text"
@@ -1120,7 +1393,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Drawing No
+            {t("auth.drawingNo")}
           </label>
           <input
             type="text"
@@ -1133,7 +1406,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Estimated Quantity
+            {t("auth.estimatedQuantity")}
           </label>
           <input
             type="number"
@@ -1152,7 +1425,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Quantity Submitted
+            {t("auth.quantitySubmitted")}
           </label>
           <input
             type="number"
@@ -1171,7 +1444,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Internal Quantity
+            {t("auth.internalQuantity")}
           </label>
           <input
             type="number"
@@ -1187,7 +1460,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Approved Quantity
+            {t("auth.approvedQuantity")}
           </label>
           <input
             type="number"
@@ -1206,7 +1479,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Notes
+            {t("boq.notes")}
           </label>
           <textarea
             value={formData.notes}
@@ -1225,14 +1498,18 @@ const EntryForm: React.FC<EntryFormProps> = ({
           disabled={saving}
           className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={saving}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {saving ? "Saving..." : entry ? "Update Notes" : "Create"}
+          {saving
+            ? t("boq.saving")
+            : entry
+            ? t("auth.updateNotes")
+            : t("common.create")}
         </button>
       </div>
     </form>

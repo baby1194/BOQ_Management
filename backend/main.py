@@ -9,7 +9,7 @@ from pathlib import Path
 
 from database.database import engine, get_db
 from models import models
-from routers import boq, concentration_sheets, file_import, pdf_export, search, calculation_sheets, project_info, contract_updates, subsections, systems, structures
+from routers import boq, concentration_sheets, file_import, pdf_export, search, calculation_sheets, project_info, contract_updates, subsections, systems, structures, auth
 from services.excel_service import ExcelService
 from services.pdf_service import PDFService
 
@@ -63,6 +63,7 @@ app.include_router(contract_updates.router, prefix="/api/contract-updates", tags
 app.include_router(subsections.router, prefix="/api/subsections", tags=["Subsections"])
 app.include_router(systems.router, prefix="/api/systems", tags=["Systems"])
 app.include_router(structures.router, prefix="/api/structures", tags=["Structures"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 
 @app.get("/")
 async def root():

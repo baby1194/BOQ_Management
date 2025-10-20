@@ -4,6 +4,7 @@ import {
   BOQItemCreate,
   BOQItemUpdate,
   ConcentrationSheet,
+  ConcentrationSheetWithBOQData,
   ConcentrationEntry,
   SearchResponse,
   SummaryResponse,
@@ -11,6 +12,7 @@ import {
   PDFExportRequest,
   PDFExportResponse,
   SummaryExportRequest,
+  ConcentrationEntryExportRequest,
   ImportLog,
   CalculationSheet,
   CalculationSheetWithEntries,
@@ -26,6 +28,13 @@ import {
   SubsectionSummary,
   SystemSummary,
   StructureSummary,
+  User,
+  UserCreate,
+  UserLogin,
+  UserUpdate,
+  Token,
+  AuthStatus,
+  SignupAllowed,
 } from "../types";
 
 const api = axios.create({
@@ -33,6 +42,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // This ensures cookies are sent with all requests
 });
 
 // BOQ API
@@ -72,6 +82,13 @@ export const concentrationApi = {
   getAll: (skip = 0, limit = 100) =>
     api
       .get<ConcentrationSheet[]>(`/concentration?skip=${skip}&limit=${limit}`)
+      .then((res) => res.data),
+
+  getAllWithBOQData: (skip = 0, limit = 100) =>
+    api
+      .get<ConcentrationSheetWithBOQData[]>(
+        `/concentration/with-boq-data?skip=${skip}&limit=${limit}`
+      )
       .then((res) => res.data),
 
   getById: (id: number) =>
@@ -298,24 +315,46 @@ export const importApi = {
 
 // Export API
 export const exportApi = {
-  exportConcentrationSheets: (request: PDFExportRequest) =>
+  exportConcentrationSheets: (
+    request: PDFExportRequest,
+    entryColumnRequest?: ConcentrationEntryExportRequest
+  ) =>
     api
-      .post<PDFExportResponse>("/export/concentration-sheets", request)
+      .post<PDFExportResponse>("/export/concentration-sheets", {
+        ...request,
+        entry_columns: entryColumnRequest,
+      })
       .then((res) => res.data),
 
-  exportAllConcentrationSheetsExcel: (request: PDFExportRequest) =>
+  exportAllConcentrationSheetsExcel: (
+    request: PDFExportRequest,
+    entryColumnRequest?: ConcentrationEntryExportRequest
+  ) =>
     api
-      .post<PDFExportResponse>("/export/concentration-sheets/excel", request)
+      .post<PDFExportResponse>("/export/concentration-sheets/excel", {
+        ...request,
+        entry_columns: entryColumnRequest,
+      })
       .then((res) => res.data),
 
-  exportSingleConcentrationSheetPDF: (sheetId: number) =>
+  exportSingleConcentrationSheetPDF: (
+    sheetId: number,
+    entryColumnRequest?: ConcentrationEntryExportRequest
+  ) =>
     api
-      .post<PDFExportResponse>(`/export/concentration-sheet/${sheetId}`)
+      .post<PDFExportResponse>(`/export/concentration-sheet/${sheetId}`, {
+        entry_columns: entryColumnRequest,
+      })
       .then((res) => res.data),
 
-  exportSingleConcentrationSheetExcel: (sheetId: number) =>
+  exportSingleConcentrationSheetExcel: (
+    sheetId: number,
+    entryColumnRequest?: ConcentrationEntryExportRequest
+  ) =>
     api
-      .post<PDFExportResponse>(`/export/concentration-sheet/${sheetId}/excel`)
+      .post<PDFExportResponse>(`/export/concentration-sheet/${sheetId}/excel`, {
+        entry_columns: entryColumnRequest,
+      })
       .then((res) => res.data),
 
   exportSummary: () =>
@@ -371,11 +410,12 @@ export const exportApi = {
       .then((res) => res.data),
 
   // BOQ Items export endpoints
-  exportBOQItemsExcel: (request: any, data?: any[]) =>
+  exportBOQItemsExcel: (request: any, data?: any[], grandTotals?: any) =>
     api
       .post<PDFExportResponse>("/export/boq-items/excel", {
         ...request,
         data,
+        grand_totals: grandTotals,
       })
       .then((res) => res.data),
 
@@ -486,6 +526,69 @@ export const structuresApi = {
       .put(`/structures/${structure}/description`, {
         description,
       })
+      .then((res) => res.data),
+};
+
+// Authentication API
+export const authApi = {
+  signup: (userData: UserCreate) =>
+    api.post<User>("/auth/signup", userData).then((res) => res.data),
+
+  signin: (userData: UserLogin) =>
+    api
+      .post<Token>("/auth/signin", userData, {
+        withCredentials: true,
+      })
+      .then((res) => res.data),
+
+  signout: () =>
+    api
+      .post(
+        "/auth/signout",
+        {},
+        {
+          withCredentials: true,
+        }
+      )
+      .then((res) => res.data),
+
+  getCurrentUser: () =>
+    api
+      .get<User>("/auth/me", {
+        withCredentials: true,
+      })
+      .then((res) => res.data),
+
+  checkAuthStatus: () =>
+    api
+      .get<AuthStatus>("/auth/check-auth", {
+        withCredentials: true,
+      })
+      .then((res) => res.data),
+
+  checkSignupAllowed: () =>
+    api
+      .get<SignupAllowed>("/auth/check-signup-allowed")
+      .then((res) => res.data),
+
+  updateProfile: (userData: UserUpdate) =>
+    api
+      .put<User>("/auth/profile", userData, {
+        withCredentials: true,
+      })
+      .then((res) => res.data),
+
+  verifySystemPassword: (systemPassword: string) =>
+    api
+      .post<{ verified: boolean }>(
+        "/auth/verify-system-password",
+        {
+          system_password: systemPassword,
+        },
+        {
+          withCredentials: true,
+        }
+      )
       .then((res) => res.data),
 };
 

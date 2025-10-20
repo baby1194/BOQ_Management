@@ -137,6 +137,17 @@ class ConcentrationEntry(ConcentrationEntryBase):
     class Config:
         from_attributes = True
 
+# Concentration Entry Export Request Schema
+class ConcentrationEntryExportRequest(BaseModel):
+    include_description: bool = True
+    include_calculation_sheet_no: bool = True
+    include_drawing_no: bool = True
+    include_estimated_quantity: bool = True
+    include_quantity_submitted: bool = True
+    include_internal_quantity: bool = True
+    include_approved_by_project_manager: bool = True
+    include_notes: bool = True
+
 # Search Schemas
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
@@ -198,6 +209,7 @@ class PDFExportRequest(BaseModel):
     hide_columns: List[str] = []
     export_all: bool = False
     export_non_empty_only: bool = True
+    entry_columns: Optional[ConcentrationEntryExportRequest] = None
 
 class PDFExportResponse(BaseModel):
     success: bool
@@ -395,6 +407,12 @@ class BOQItemWithLatestContractUpdate(BaseModel):
     class Config:
         from_attributes = True
 
+class ConcentrationSheetWithBOQData(ConcentrationSheet):
+    boq_item: BOQItemWithLatestContractUpdate
+
+    class Config:
+        from_attributes = True
+
 # Subsection Summary Schemas
 class SubsectionSummary(BaseModel):
     subsection: str
@@ -454,3 +472,45 @@ class SummaryExportRequest(BaseModel):
     # Dynamic contract update columns
     include_contract_updates: bool = True  # Include all contract update columns
     data: list = []  # Optional: pass the actual data from frontend
+
+# User Authentication Schemas
+class UserBase(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=6)
+    system_password: str = Field(..., min_length=6)
+
+class UserLogin(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6)
+
+class UserUpdate(BaseModel):
+    password: Optional[str] = Field(None, min_length=6)
+    system_password: Optional[str] = Field(None, min_length=6)
+
+class User(UserBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None

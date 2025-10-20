@@ -456,7 +456,7 @@ class PDFService:
             # Fallback to A4 size
             return (8.5*72, 11*72)
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -466,12 +466,75 @@ class PDFService:
             # Get project names (English and Hebrew) for header
             project_name, project_name_hebrew = self._get_project_names(db_session, sheet)
             
-            # Calculate optimal page size based on content
-            custom_page_size = self._calculate_concentration_sheet_page_size(entries)
-            page_width = custom_page_size[0]  # Define page_width from custom_page_size
+            # Apply column filtering based on entry_columns if provided (define early for use throughout method)
+            all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+            
+            # Filter headers and their indices based on entry_columns configuration
+            filtered_headers = []
+            if entry_columns:
+                if entry_columns.get('include_description', True):
+                    filtered_headers.append('Description')
+                if entry_columns.get('include_calculation_sheet_no', True):
+                    filtered_headers.append('Calculation Sheet No')
+                if entry_columns.get('include_drawing_no', True):
+                    filtered_headers.append('Drawing No')
+                if entry_columns.get('include_estimated_quantity', True):
+                    filtered_headers.append('Estimated Quantity')
+                if entry_columns.get('include_quantity_submitted', True):
+                    filtered_headers.append('Quantity Submitted')
+                if entry_columns.get('include_internal_quantity', True):
+                    filtered_headers.append('Internal Quantity')
+                if entry_columns.get('include_approved_by_project_manager', True):
+                    filtered_headers.append('Approved by Project Manager')
+                if entry_columns.get('include_notes', True):
+                    filtered_headers.append('Notes')
+            else:
+                # If no filtering specified, include all columns
+                filtered_headers = all_headers
+            
+            # Create list of column indices to include
+            header_indices = [all_headers.index(header) for header in filtered_headers]
+            
+            # Calculate optimal page size based on content using the same method as BOQ items
+            page_size = None
+            page_width = None
+            concentration_column_widths = None
+            
+            if entries:
+                # Prepare data for optimal page size calculation using filtered headers
+                calc_data = [filtered_headers]
+                for entry in entries[:10]:  # Use first 10 entries for calculation
+                    all_entry_data = [
+                        entry.description or '',
+                        entry.calculation_sheet_no or '',
+                        entry.drawing_no or '',
+                        f"{entry.estimated_quantity:,.2f}",
+                        f"{entry.quantity_submitted:,.2f}",
+                        f"{entry.internal_quantity:,.2f}",
+                        f"{entry.approved_by_project_manager:,.2f}",
+                        entry.notes or ''
+                    ]
+                    # Filter data based on selected columns
+                    filtered_entry_data = [all_entry_data[i] for i in header_indices]
+                    calc_data.append(filtered_entry_data)
+                
+                # Add a sample totals row for calculation
+                calc_data.append(["TOTALS"] + [""] * (len(filtered_headers) - 1))
+                
+                # Calculate optimal page size using the same method as BOQ items
+                page_size, page_name, concentration_column_widths = self._calculate_optimal_page_size(
+                    filtered_headers, calc_data, font_size=9
+                )
+                page_width = page_size[0]
+                logger.info(f"Calculated optimal page size: {page_name} for concentration sheet")
+            else:
+                # Default to A3 landscape if no entries
+                page_size = landscape(A3)
+                page_width = page_size[0]
             
             # Add smaller margins (0.75 inches each)
-            doc = SimpleDocTemplate(str(filepath), pagesize=custom_page_size, 
+            doc = SimpleDocTemplate(str(filepath), pagesize=page_size, 
                                   leftMargin=54, rightMargin=54, topMargin=36, bottomMargin=36)
             story = []
             styles = getSampleStyleSheet()
@@ -514,31 +577,34 @@ class PDFService:
             ]
             
             boq_data = [boq_headers, boq_values]
-            # Calculate column widths based on actual content
+            # Calculate column widths based on actual content with special handling for description
             boq_col_widths = self._calculate_column_widths(boq_data, boq_headers, page_width, 11, 11)
             boq_table = Table(boq_data, colWidths=boq_col_widths)
-            boq_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            
+            # Use Hebrew-aware styling for the BOQ item details table
+            boq_table_style = self._create_hebrew_aware_table_style(boq_data, boq_headers, boq_col_widths)
+            
+            # Customize the style for BOQ item details
+            boq_table_style.extend([
+                ('ALIGN', (0, 0), (3, -1), 'CENTER'),  # First 4 columns center-aligned
+                ('ALIGN', (4, 0), (4, -1), 'LEFT'),    # Description column left-aligned for better readability
                 ('FONTSIZE', (0, 0), (-1, -1), 11),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ]))
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
+            ])
+            
+            boq_table.setStyle(TableStyle(boq_table_style))
             
             story.append(boq_table)
             story.append(Spacer(1, 20))
             
             # Third Table: Concentration Entries (following the order shown on concentration sheets page)
             if entries:
-                # Column order as shown on concentration sheets page
-                entries_data = [['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
-                               'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']]
+                # Use the already defined filtered_headers and header_indices from page size calculation
+                entries_data = [filtered_headers]
                 
                 for entry in entries:
-                    entries_data.append([
+                    all_entry_data = [
                         entry.description or '',
                         entry.calculation_sheet_no or '',
                         entry.drawing_no or '',
@@ -547,15 +613,19 @@ class PDFService:
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
                         entry.notes or ''
-                    ])
+                    ]
+                    # Filter data based on selected columns
+                    filtered_entry_data = [all_entry_data[i] for i in header_indices]
+                    entries_data.append(filtered_entry_data)
                 
-                # Add totals row
+                # Add totals row with filtered columns
                 total_estimate = sum(entry.estimated_quantity for entry in entries)
                 total_submitted = sum(entry.quantity_submitted for entry in entries)
                 total_internal = sum(entry.internal_quantity for entry in entries)
                 total_approved = sum(entry.approved_by_project_manager for entry in entries)
                 
-                entries_data.append([
+                # Create full totals row and filter based on selected columns
+                all_totals_row = [
                     'TOTALS',
                     '',
                     '',
@@ -564,28 +634,38 @@ class PDFService:
                     f"{total_internal:,.2f}",
                     f"{total_approved:,.2f}",
                     ''
-                ])
+                ]
+                filtered_totals_row = [all_totals_row[i] for i in header_indices]
+                entries_data.append(filtered_totals_row)
                 
-                # Calculate optimal column widths for concentration sheet entries
-                concentration_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
-                                       'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
-                # Use page width for column width calculation
-                column_widths = self._calculate_column_widths(entries_data, concentration_headers, page_width, 10, 10)
+                # Use pre-calculated column widths from page size calculation (same as BOQ items)
+                # Use filtered headers for table creation
+                current_headers = filtered_headers
+                
+                if concentration_column_widths is None:
+                    # Fallback: calculate column widths if not pre-calculated
+                    column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 9, 9)
+                else:
+                    # Note: concentration_column_widths was calculated for all columns, we need to filter it too
+                    # For now, calculate new widths based on filtered data
+                    column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 9, 9)
                 
                 entries_table = Table(entries_data, colWidths=column_widths)
-                entries_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
-                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ]))
+                # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text (same as BOQ items)
+                entries_table_style = self._create_hebrew_aware_table_style(entries_data, current_headers, column_widths)
+                
+                # Customize the style for concentration entries (different from BOQ items)
+                entries_table_style.extend([
+                    ('ALIGN', (0, 0), (0, -1), 'LEFT'),  # Description column left-aligned for better readability
+                    ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),  # Numeric columns right-aligned
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),  # Data rows background
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),  # Totals row background
+                ])
+                
+                entries_table.setStyle(TableStyle(entries_table_style))
                 
                 story.append(entries_table)
             
@@ -699,7 +779,37 @@ class PDFService:
             # Get project name for header
             project_name = self._get_project_name(db_session, summaries)
             
-            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            # Calculate optimal page size and column widths based on content
+            if summaries:
+                headers = list(summaries[0].keys())
+                
+                # Prepare data for size calculation (headers + sample data + totals row)
+                calc_data = [headers]
+                for summary in summaries[:10]:  # Use first 10 items for calculation to avoid too large pages
+                    row_data = []
+                    for key in headers:
+                        value = summary[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    calc_data.append(row_data)
+                
+                # Add a sample totals row for calculation
+                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
+                
+                # Calculate optimal page size
+                page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
+                logger.info(f"Calculated optimal page size: {page_name} for {len(summaries)} structures")
+            else:
+                # Default to A4 landscape if no summaries
+                page_size = landscape(A4)
+                column_widths = None
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=page_size)
             story = []
             styles = getSampleStyleSheet()
             
@@ -756,9 +866,6 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                # Calculate optimal column widths based on content
-                column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
-                
                 table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
@@ -794,7 +901,37 @@ class PDFService:
             # Get project name for header
             project_name = self._get_project_name(db_session, summaries)
             
-            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            # Calculate optimal page size and column widths based on content
+            if summaries:
+                headers = list(summaries[0].keys())
+                
+                # Prepare data for size calculation (headers + sample data + totals row)
+                calc_data = [headers]
+                for summary in summaries[:10]:  # Use first 10 items for calculation to avoid too large pages
+                    row_data = []
+                    for key in headers:
+                        value = summary[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    calc_data.append(row_data)
+                
+                # Add a sample totals row for calculation
+                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
+                
+                # Calculate optimal page size
+                page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
+                logger.info(f"Calculated optimal page size: {page_name} for {len(summaries)} systems")
+            else:
+                # Default to A4 landscape if no summaries
+                page_size = landscape(A4)
+                column_widths = None
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=page_size)
             story = []
             styles = getSampleStyleSheet()
             
@@ -851,9 +988,6 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                # Calculate optimal column widths based on content
-                column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
-                
                 table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
@@ -889,7 +1023,37 @@ class PDFService:
             # Get project name for header
             project_name = self._get_project_name(db_session, summaries)
             
-            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            # Calculate optimal page size and column widths based on content
+            if summaries:
+                headers = list(summaries[0].keys())
+                
+                # Prepare data for size calculation (headers + sample data + totals row)
+                calc_data = [headers]
+                for summary in summaries[:10]:  # Use first 10 items for calculation to avoid too large pages
+                    row_data = []
+                    for key in headers:
+                        value = summary[key]
+                        if isinstance(value, (int, float)):
+                            if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
+                                row_data.append(f"${value:,.2f}")
+                            else:
+                                row_data.append(str(value))
+                        else:
+                            row_data.append(str(value))
+                    calc_data.append(row_data)
+                
+                # Add a sample totals row for calculation
+                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
+                
+                # Calculate optimal page size
+                page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
+                logger.info(f"Calculated optimal page size: {page_name} for {len(summaries)} subsections")
+            else:
+                # Default to A4 landscape if no summaries
+                page_size = landscape(A4)
+                column_widths = None
+            
+            doc = SimpleDocTemplate(str(filepath), pagesize=page_size)
             story = []
             styles = getSampleStyleSheet()
             
@@ -945,9 +1109,6 @@ class PDFService:
                         else:
                             totals_row.append("")
                 data.append(totals_row)
-                
-                # Calculate optimal column widths based on content
-                column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
                 
                 table = Table(data, colWidths=column_widths)
                 table.setStyle(TableStyle([
@@ -1049,7 +1210,7 @@ class PDFService:
                 # Define column order to match BOQ table order
                 all_possible_headers = [
                     'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
-                    'original_contract_quantity'
+                    'price', 'original_contract_quantity', 'total_contract_sum'
                 ]
                 
                 # Add contract update quantity columns in order
@@ -1057,15 +1218,13 @@ class PDFService:
                     if key.startswith('updated_contract_quantity_'):
                         all_possible_headers.append(key)
                 
-                all_possible_headers.append('price')
-                
                 # Add contract update sum columns in order
                 for key in items[0].keys():
                     if key.startswith('updated_contract_sum_'):
                         all_possible_headers.append(key)
                 
                 all_possible_headers.extend([
-                    'total_contract_sum', 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
+                    'estimated_quantity', 'quantity_submitted', 'internal_quantity',
                     'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
                     'total_submitted', 'internal_total', 'total_approved_by_project_manager',
                     'approved_signed_total', 'subsection', 'notes'
@@ -1074,6 +1233,20 @@ class PDFService:
                 # Only include headers that exist in the data
                 headers = [h for h in all_possible_headers if h in items[0].keys()]
                 data = [headers]
+                
+                # Define columns that should have grand totals (same as Excel export)
+                total_columns = {
+                    'total_contract_sum',
+                    'total_estimate',
+                    'total_submitted',
+                    'internal_total',
+                    'total_approved_by_project_manager',
+                    'approved_signed_total'
+                }
+                # Add updated contract sum columns
+                for key in headers:
+                    if key.startswith('updated_contract_sum_'):
+                        total_columns.add(key)
                 
                 grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in headers}
                 
@@ -1092,23 +1265,23 @@ class PDFService:
                             row_data.append(str(value))
                     data.append(row_data)
                     
-                    # Calculate grand totals
+                    # Calculate grand totals only for specified columns
                     for key in headers:
-                        if isinstance(item[key], (int, float)):
+                        if key in total_columns and isinstance(item[key], (int, float)):
                             grand_totals[key] += item[key]
                 
                 # Add grand totals row
                 totals_row = []
-                for key in headers:
-                    if isinstance(grand_totals[key], (int, float)):
-                        # Only apply $ formatting to price and sum/total columns, not quantity columns
-                        if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
-                            totals_row.append(f"${grand_totals[key]:,.2f}")
-                        else:
-                            totals_row.append(f"{grand_totals[key]:,.2f}" if grand_totals[key] != int(grand_totals[key]) else str(int(grand_totals[key])))
+                for i, key in enumerate(headers):
+                    if i == 0:
+                        # First column shows "GRAND TOTAL"
+                        totals_row.append("GRAND TOTAL")
+                    elif key in total_columns and isinstance(grand_totals[key], (int, float)):
+                        # Only show totals for specified columns
+                        totals_row.append(f"${grand_totals[key]:,.2f}")
                     else:
+                        # Empty values for all other columns
                         totals_row.append("")
-                totals_row[0] = "GRAND TOTAL"
                 data.append(totals_row)
                 
                 # Use pre-calculated column widths from page size calculation
@@ -1178,13 +1351,19 @@ class PDFService:
                         cell_width = stringWidth(cell_value, data_font, data_font_size)
                     max_width = max(max_width, cell_width)
             
-            # Add padding (20% extra for better readability and cell spacing)
-            max_width = max_width * 1.2
+            # Special handling for description columns
+            is_description_column = header.lower() == 'description'
             
-            # Set minimum width for readability
-            min_width = 60
+            if is_description_column:
+                # For description columns, give more generous width and padding
+                max_width = max_width * 1.5  # More padding for descriptions
+                min_width = 150  # Higher minimum width for descriptions
+            else:
+                # Add padding (20% extra for better readability and cell spacing)
+                max_width = max_width * 1.2
+                min_width = 60
+            
             max_width = max(min_width, max_width)
-            
             column_max_widths.append(max_width)
         
         # Calculate total width needed
@@ -1230,11 +1409,18 @@ class PDFService:
                     cell_width = stringWidth(cell_value, data_font, font_size)
                     max_width = max(max_width, cell_width)
             
-            # Add padding (30% extra for better readability and cell spacing)
-            max_width = max_width * 1.3
+            # Special handling for description columns
+            is_description_column = header.lower() == 'description'
             
-            # Set minimum column width for readability
-            min_width = 100
+            if is_description_column:
+                # For description columns, give more generous width and padding
+                max_width = max_width * 1.5  # More padding for descriptions
+                min_width = 200  # Higher minimum width for descriptions in optimal page size
+            else:
+                # Add padding (30% extra for better readability and cell spacing)
+                max_width = max_width * 1.3
+                min_width = 100
+            
             max_width = max(min_width, max_width)
             column_max_widths.append(max_width)
         
