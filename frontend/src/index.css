@@ -212,17 +212,14 @@ html[dir="rtl"] {
   }
 
   .table-row-hover:hover {
-    @apply bg-blue-200 border-blue-400 shadow-sm;
+    background-color: rgb(191 219 254) !important; /* bg-blue-200 */
+    border-color: rgb(96 165 250) !important; /* border-blue-400 */
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important; /* shadow-sm */
   }
 
-  /* High contrast for specific table backgrounds */
-  .table-row-hover:hover td {
-    @apply bg-blue-200 !important text-blue-900 font-medium;
-  }
-
-  /* Ensure hover overrides alternating row colors */
-  .table-row-hover:hover,
   .table-row-hover:hover td {
     background-color: rgb(191 219 254) !important; /* bg-blue-200 */
+    color: rgb(30 58 138) !important; /* text-blue-900 */
+    font-weight: 500 !important; /* font-medium */
   }
 }
