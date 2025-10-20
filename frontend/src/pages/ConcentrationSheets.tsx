@@ -1161,7 +1161,7 @@ const ConcentrationSheets: React.FC = () => {
                               </tr>
                             ) : (
                               entries.map((entry) => (
-                                <tr key={entry.id} className="hover:bg-gray-50">
+                                <tr key={entry.id} className="table-row-hover">
                                   <td className="px-3 py-4 text-sm text-gray-900 max-w-xs">
                                     <div
                                       className="truncate"

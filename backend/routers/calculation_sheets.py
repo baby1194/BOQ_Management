@@ -348,7 +348,7 @@ async def populate_concentration_entries(
                     existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
                     existing_concentration_entry.quantity_submitted = calc_entry.quantity_submitted
                     existing_concentration_entry.description = calculation_sheet.description
-                    existing_concentration_entry.notes = f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                    existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
                     entries_created += 1  # Count as updated
                     logger.info(f"Updated existing auto-generated entry for section {calc_entry.section_number} with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} in sheet {concentration_sheet.sheet_name}")
                 else:
@@ -365,7 +365,7 @@ async def populate_concentration_entries(
                     quantity_submitted=calc_entry.quantity_submitted,
                     internal_quantity=0.0,
                     approved_by_project_manager=0.0,
-                    notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
+                    notes=calc_entry.notes or f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
                     is_manual=False  # Mark as auto-generated
                 )
                 
@@ -532,7 +532,7 @@ async def populate_all_calculation_entries(
                         quantity_submitted=calc_entry.quantity_submitted,
                         internal_quantity=0.0,
                         approved_by_project_manager=0.0,
-                        notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
+                        notes=calc_entry.notes or f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
                         is_manual=False  # Mark as auto-generated
                     )
                     

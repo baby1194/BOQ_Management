@@ -127,7 +127,8 @@ class ExcelService:
                 {
                     'section_number': str,
                     'estimated_quantity': float,
-                    'quantity_submitted': float
+                    'quantity_submitted': float,
+                    'notes': str
                 }
             ]
         }
@@ -173,10 +174,15 @@ class ExcelService:
                     quantity_submitted = df.iloc[23, col_index]
                     quantity_submitted = float(quantity_submitted) if pd.notna(quantity_submitted) else 0.0
                     
+                    # Get notes from row 18 (J19, K19, L19, etc.)
+                    notes = df.iloc[17, col_index]
+                    notes = str(notes).strip() if pd.notna(notes) else ""
+                    
                     entry = {
                         'section_number': section_number,
                         'estimated_quantity': estimated_quantity,
-                        'quantity_submitted': quantity_submitted
+                        'quantity_submitted': quantity_submitted,
+                        'notes': notes
                     }
                     entries.append(entry)
                 

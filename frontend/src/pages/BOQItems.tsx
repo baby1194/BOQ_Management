@@ -1860,7 +1860,7 @@ const BOQItems: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Subcontractor Name
+                Supervison Company Name
               </label>
               {editingProjectInfo ? (
                 <input
@@ -3164,13 +3164,13 @@ const BOQItems: React.FC = () => {
                 return (
                   <tr
                     key={item.id}
-                    className={`hover:bg-gray-100 border-b border-gray-300 ${
+                    className={`table-row-hover border-b border-gray-300 ${
                       index % 2 === 0 ? "bg-white" : "bg-gray-50"
                     }`}
                   >
                     {columnVisibility.serial_number && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                         title="Double-click to edit"
                       >
@@ -3200,7 +3200,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.structure && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                         title="Double-click to edit"
                       >
@@ -3230,7 +3230,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.system && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                         title="Double-click to edit"
                       >
@@ -3262,7 +3262,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.description && (
                       <td
-                        className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                       >
                         {isEditing ? (
@@ -3293,7 +3293,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.price && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                         title="Double-click to edit"
                       >
@@ -3324,7 +3324,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.original_contract_quantity && (
                       <td
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                         title="Double-click to edit"
                       >
@@ -3369,7 +3369,7 @@ const BOQItems: React.FC = () => {
                       return columnVisibility[qtyKey] ? (
                         <td
                           key={update.id}
-                          className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                          className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                           onDoubleClick={() => !isEditing && startEditing(item)}
                         >
                           {isEditing ? (
@@ -3411,7 +3411,7 @@ const BOQItems: React.FC = () => {
                       return columnVisibility[sumKey] ? (
                         <td
                           key={update.id}
-                          className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                          className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                           onDoubleClick={() => !isEditing && startEditing(item)}
                         >
                           {formatCurrency(
@@ -3537,7 +3537,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.notes && (
                       <td
-                        className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate border-r border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                       >
                         {isEditing ? (

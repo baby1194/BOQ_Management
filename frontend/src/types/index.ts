@@ -182,6 +182,7 @@ export interface CalculationEntry {
   section_number: string;
   estimated_quantity: number;
   quantity_submitted: number;
+  notes?: string;
   created_at: string;
   updated_at?: string;
 }

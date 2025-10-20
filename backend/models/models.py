@@ -154,6 +154,7 @@ class CalculationEntry(Base):
     section_number = Column(String(100), nullable=False)
     estimated_quantity = Column(Float, default=0.0)
     quantity_submitted = Column(Float, default=0.0)
+    notes = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

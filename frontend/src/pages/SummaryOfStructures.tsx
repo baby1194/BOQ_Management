@@ -493,7 +493,7 @@ const SummaryOfStructures: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {structureSummaries.map((summary) => (
-                <tr key={summary.structure} className="hover:bg-gray-50">
+                <tr key={summary.structure} className="table-row-hover">
                   {columnVisibility.structure && (
                     <td
                       className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 ${

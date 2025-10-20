@@ -263,6 +263,7 @@ class CalculationEntryBase(BaseModel):
     section_number: str = Field(..., min_length=1, max_length=100)
     estimated_quantity: float = Field(0.0, ge=0)
     quantity_submitted: float = Field(0.0, ge=0)
+    notes: Optional[str] = None
 
 class CalculationEntryCreate(CalculationEntryBase):
     pass
@@ -271,6 +272,7 @@ class CalculationEntryUpdate(BaseModel):
     section_number: Optional[str] = Field(None, min_length=1, max_length=100)
     estimated_quantity: Optional[float] = Field(None, ge=0)
     quantity_submitted: Optional[float] = Field(None, ge=0)
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True

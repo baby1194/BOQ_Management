@@ -115,12 +115,25 @@ html[dir="ltr"] .sidebar-ltr {
 
 /* Hebrew font support */
 .hebrew-font {
-  font-family: "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
+  font-family: "David", "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
     sans-serif;
 }
 
 html[lang="he"] body {
-  font-family: "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
+  font-family: "David", "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
+    sans-serif;
+}
+
+/* Apply David font to all elements when Hebrew is selected */
+html[lang="he"] * {
+  font-family: "David", "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
+    sans-serif;
+}
+
+/* Also apply David font to RTL elements */
+.rtl,
+html[dir="rtl"] {
+  font-family: "David", "Arial", "Segoe UI", "Tahoma", "Franklin Gothic Medium",
     sans-serif;
 }
 
@@ -191,5 +204,25 @@ html[lang="he"] body {
 
   .card-footer {
     @apply flex items-center p-6 pt-0;
+  }
+
+  /* High contrast table row hover */
+  .table-row-hover {
+    @apply transition-colors duration-200 ease-in-out;
+  }
+
+  .table-row-hover:hover {
+    @apply bg-blue-200 border-blue-400 shadow-sm;
+  }
+
+  /* High contrast for specific table backgrounds */
+  .table-row-hover:hover td {
+    @apply bg-blue-200 !important text-blue-900 font-medium;
+  }
+
+  /* Ensure hover overrides alternating row colors */
+  .table-row-hover:hover,
+  .table-row-hover:hover td {
+    background-color: rgb(191 219 254) !important; /* bg-blue-200 */
   }
 }

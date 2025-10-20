@@ -779,6 +779,13 @@ const CalculationSheets: React.FC = () => {
                                   isRTL ? "text-right" : "text-left"
                                 }`}
                               >
+                                {t("common.notes")}
+                              </th>
+                              <th
+                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                                  isRTL ? "text-right" : "text-left"
+                                }`}
+                              >
                                 {t("calculationSheets.actions")}
                               </th>
                             </tr>
@@ -787,7 +794,7 @@ const CalculationSheets: React.FC = () => {
                             {entries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={4}
+                                  colSpan={5}
                                   className="px-3 py-8 text-center text-gray-500"
                                 >
                                   <p>No entries found</p>
@@ -798,7 +805,7 @@ const CalculationSheets: React.FC = () => {
                               </tr>
                             ) : (
                               entries.map((entry) => (
-                                <tr key={entry.id} className="hover:bg-gray-50">
+                                <tr key={entry.id} className="table-row-hover">
                                   <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {entry.section_number}
                                   </td>
@@ -807,6 +814,14 @@ const CalculationSheets: React.FC = () => {
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {formatNumber(entry.quantity_submitted)}
+                                  </td>
+                                  <td className="px-3 py-4 text-sm text-gray-900 max-w-xs">
+                                    <div
+                                      className="truncate"
+                                      title={entry.notes || ""}
+                                    >
+                                      {entry.notes || "-"}
+                                    </div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <button

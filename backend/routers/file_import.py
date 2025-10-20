@@ -380,7 +380,8 @@ async def import_calculation_sheets(
                             calculation_sheet_id=current_sheet.id,
                             section_number=entry_data['section_number'],
                             estimated_quantity=entry_data['estimated_quantity'],
-                            quantity_submitted=entry_data['quantity_submitted']
+                            quantity_submitted=entry_data['quantity_submitted'],
+                            notes=entry_data.get('notes', '')
                         )
                         db.add(new_entry)
                         entries_created += 1

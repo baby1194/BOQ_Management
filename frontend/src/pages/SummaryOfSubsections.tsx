@@ -493,7 +493,7 @@ const SummaryOfSubsections: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {subsectionSummaries.map((summary) => (
-                <tr key={summary.subsection} className="hover:bg-gray-50">
+                <tr key={summary.subsection} className="table-row-hover">
                   {columnVisibility.subsection && (
                     <td
                       className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 ${
