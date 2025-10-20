@@ -598,7 +598,7 @@ class ExcelService:
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
                     if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
-                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+                        df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
             
             # Define columns that should have grand totals (same as BOQ items export)
             total_columns = {
@@ -624,16 +624,16 @@ class ExcelService:
                         # Calculate totals from original numeric data
                         total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
                         # Apply currency formatting for all total columns
-                        totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                        totals_row[col] = f"₪{total_value:,.2f}" if isinstance(total_value, (int, float)) else "₪0.00"
                     else:
                         # If column not in original_numeric_data, try to extract numeric values from formatted data
                         try:
                             # Extract numeric values from the formatted currency strings in the DataFrame
                             numeric_values = []
                             for val in df[col]:
-                                if pd.notna(val) and isinstance(val, str) and val.startswith('$'):
-                                    # Remove $ and commas, convert to float
-                                    clean_val = val.replace('$', '').replace(',', '')
+                                if pd.notna(val) and isinstance(val, str) and (val.startswith('$') or val.startswith('₪')):
+                                    # Remove currency symbol and commas, convert to float
+                                    clean_val = val.replace('$', '').replace('₪', '').replace(',', '')
                                     try:
                                         numeric_values.append(float(clean_val))
                                     except:
@@ -641,9 +641,9 @@ class ExcelService:
                                 elif pd.notna(val) and isinstance(val, (int, float)):
                                     numeric_values.append(val)
                             total_value = sum(numeric_values) if numeric_values else 0
-                            totals_row[col] = f"${total_value:,.2f}"
+                            totals_row[col] = f"₪{total_value:,.2f}"
                         except:
-                            totals_row[col] = "$0.00"
+                            totals_row[col] = "₪0.00"
                 else:
                     totals_row[col] = ""
             
@@ -731,7 +731,7 @@ class ExcelService:
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
                     if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
-                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+                        df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
             
             # Define columns that should have grand totals (same as BOQ items export)
             total_columns = {
@@ -757,16 +757,16 @@ class ExcelService:
                         # Calculate totals from original numeric data
                         total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
                         # Apply currency formatting for all total columns
-                        totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                        totals_row[col] = f"₪{total_value:,.2f}" if isinstance(total_value, (int, float)) else "₪0.00"
                     else:
                         # If column not in original_numeric_data, try to extract numeric values from formatted data
                         try:
                             # Extract numeric values from the formatted currency strings in the DataFrame
                             numeric_values = []
                             for val in df[col]:
-                                if pd.notna(val) and isinstance(val, str) and val.startswith('$'):
-                                    # Remove $ and commas, convert to float
-                                    clean_val = val.replace('$', '').replace(',', '')
+                                if pd.notna(val) and isinstance(val, str) and (val.startswith('$') or val.startswith('₪')):
+                                    # Remove currency symbol and commas, convert to float
+                                    clean_val = val.replace('$', '').replace('₪', '').replace(',', '')
                                     try:
                                         numeric_values.append(float(clean_val))
                                     except:
@@ -774,9 +774,9 @@ class ExcelService:
                                 elif pd.notna(val) and isinstance(val, (int, float)):
                                     numeric_values.append(val)
                             total_value = sum(numeric_values) if numeric_values else 0
-                            totals_row[col] = f"${total_value:,.2f}"
+                            totals_row[col] = f"₪{total_value:,.2f}"
                         except:
-                            totals_row[col] = "$0.00"
+                            totals_row[col] = "₪0.00"
                 else:
                     totals_row[col] = ""
             
@@ -864,7 +864,7 @@ class ExcelService:
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
                     if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
-                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+                        df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
             
             # Define columns that should have grand totals (same as BOQ items export)
             total_columns = {
@@ -890,16 +890,16 @@ class ExcelService:
                         # Calculate totals from original numeric data
                         total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
                         # Apply currency formatting for all total columns
-                        totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                        totals_row[col] = f"₪{total_value:,.2f}" if isinstance(total_value, (int, float)) else "₪0.00"
                     else:
                         # If column not in original_numeric_data, try to extract numeric values from formatted data
                         try:
                             # Extract numeric values from the formatted currency strings in the DataFrame
                             numeric_values = []
                             for val in df[col]:
-                                if pd.notna(val) and isinstance(val, str) and val.startswith('$'):
-                                    # Remove $ and commas, convert to float
-                                    clean_val = val.replace('$', '').replace(',', '')
+                                if pd.notna(val) and isinstance(val, str) and (val.startswith('$') or val.startswith('₪')):
+                                    # Remove currency symbol and commas, convert to float
+                                    clean_val = val.replace('$', '').replace('₪', '').replace(',', '')
                                     try:
                                         numeric_values.append(float(clean_val))
                                     except:
@@ -907,9 +907,9 @@ class ExcelService:
                                 elif pd.notna(val) and isinstance(val, (int, float)):
                                     numeric_values.append(val)
                             total_value = sum(numeric_values) if numeric_values else 0
-                            totals_row[col] = f"${total_value:,.2f}"
+                            totals_row[col] = f"₪{total_value:,.2f}"
                         except:
-                            totals_row[col] = "$0.00"
+                            totals_row[col] = "₪0.00"
                 else:
                     totals_row[col] = ""
             
@@ -1024,7 +1024,7 @@ class ExcelService:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
                     # Only apply $ formatting to price and sum/total columns, not quantity columns
                     if ('total' in col.lower() or 'sum' in col.lower() or 'price' in col.lower()) and 'quantity' not in col.lower():
-                        df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "$0.00")
+                        df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
                     else:
                         # Format quantity columns without $ symbol
                         df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) and x != int(x) else str(int(x)) if pd.notna(x) and isinstance(x, (int, float)) else "0")
@@ -1057,7 +1057,7 @@ class ExcelService:
                         total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
                     
                     # Apply currency formatting for all total columns
-                    totals_row[col] = f"${total_value:,.2f}" if isinstance(total_value, (int, float)) else "$0.00"
+                    totals_row[col] = f"₪{total_value:,.2f}" if isinstance(total_value, (int, float)) else "₪0.00"
                 else:
                     totals_row[col] = ""
             

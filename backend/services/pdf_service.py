@@ -323,10 +323,10 @@ class PDFService:
                 data = [
                     ['Total Estimate', 'Total Submitted', 'Total PNIMI', 'Total Approved'],
                     [
-                        f"${sheet.total_estimate:,.2f}",
-                        f"${sheet.total_submitted:,.2f}",
-                        f"${sheet.total_pnimi:,.2f}",
-                        f"${sheet.total_approved:,.2f}"
+                        f"₪{sheet.total_estimate:,.2f}",
+                        f"₪{sheet.total_submitted:,.2f}",
+                        f"₪{sheet.total_pnimi:,.2f}",
+                        f"₪{sheet.total_approved:,.2f}"
                     ]
                 ]
                 
@@ -719,10 +719,10 @@ class PDFService:
                 data.append([
                     row.subsection,
                     str(row.item_count),
-                    f"${row.total_estimate:,.2f}",
-                    f"${row.total_submitted:,.2f}",
-                    f"${row.total_pnimi:,.2f}",
-                    f"${row.total_approved:,.2f}"
+                    f"₪{row.total_estimate:,.2f}",
+                    f"₪{row.total_submitted:,.2f}",
+                    f"₪{row.total_pnimi:,.2f}",
+                    f"₪{row.total_approved:,.2f}"
                 ])
                 
                 grand_totals['items'] += row.item_count
@@ -735,10 +735,10 @@ class PDFService:
             data.append([
                 'GRAND TOTAL',
                 str(grand_totals['items']),
-                f"${grand_totals['estimate']:,.2f}",
-                f"${grand_totals['submitted']:,.2f}",
-                f"${grand_totals['pnimi']:,.2f}",
-                f"${grand_totals['approved']:,.2f}"
+                f"₪{grand_totals['estimate']:,.2f}",
+                f"₪{grand_totals['submitted']:,.2f}",
+                f"₪{grand_totals['pnimi']:,.2f}",
+                f"₪{grand_totals['approved']:,.2f}"
             ])
             
             # Calculate optimal column widths based on content
@@ -791,7 +791,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(str(value))
                         else:
@@ -837,7 +837,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(str(value))
                         else:
@@ -855,7 +855,7 @@ class PDFService:
                 for key in headers:
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                            totals_row.append(f"₪{grand_totals[key]:,.2f}")
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
@@ -913,7 +913,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(str(value))
                         else:
@@ -959,7 +959,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(str(value))
                         else:
@@ -977,7 +977,7 @@ class PDFService:
                 for key in headers:
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                            totals_row.append(f"₪{grand_totals[key]:,.2f}")
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
@@ -1035,7 +1035,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1081,7 +1081,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1099,7 +1099,7 @@ class PDFService:
                 for key in headers:
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                            totals_row.append(f"${grand_totals[key]:,.2f}")
+                            totals_row.append(f"₪{grand_totals[key]:,.2f}")
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
@@ -1183,7 +1183,7 @@ class PDFService:
                         value = item[key]
                         if isinstance(value, (int, float)):
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
@@ -1256,9 +1256,9 @@ class PDFService:
                     for key in headers:
                         value = item[key]
                         if isinstance(value, (int, float)):
-                            # Only apply $ formatting to price and sum/total columns, not quantity columns
+                            # Only apply ₪ formatting to price and sum/total columns, not quantity columns
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
-                                row_data.append(f"${value:,.2f}")
+                                row_data.append(f"₪{value:,.2f}")
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
@@ -1278,7 +1278,7 @@ class PDFService:
                         totals_row.append("GRAND TOTAL")
                     elif key in total_columns and isinstance(grand_totals[key], (int, float)):
                         # Only show totals for specified columns
-                        totals_row.append(f"${grand_totals[key]:,.2f}")
+                        totals_row.append(f"₪{grand_totals[key]:,.2f}")
                     else:
                         # Empty values for all other columns
                         totals_row.append("")

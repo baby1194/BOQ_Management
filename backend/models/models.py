@@ -91,6 +91,9 @@ class ConcentrationEntry(Base):
     # Notes
     notes = Column(Text, nullable=True)
     
+    # Track whether entry was created manually (True) or auto-generated from calculation sheets (False)
+    is_manual = Column(Boolean, default=True, nullable=False)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

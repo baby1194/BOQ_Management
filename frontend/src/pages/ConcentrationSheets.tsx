@@ -1346,6 +1346,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
     internal_quantity: entry?.internal_quantity || 0,
     approved_by_project_manager: entry?.approved_by_project_manager || 0,
     notes: entry?.notes || "",
+    is_manual: entry?.is_manual ?? true, // Default to true for manual entries
   });
 
   const handleSubmit = (e: React.FormEvent) => {

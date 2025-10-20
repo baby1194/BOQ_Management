@@ -329,7 +329,8 @@ async def create_concentration_entry(
             quantity_submitted=entry.quantity_submitted,
             internal_quantity=entry.internal_quantity,
             approved_by_project_manager=entry.approved_by_project_manager,
-            notes=entry.notes
+            notes=entry.notes,
+            is_manual=True  # Mark as manually created
         )
         
         db.add(db_entry)

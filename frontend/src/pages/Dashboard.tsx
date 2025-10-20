@@ -32,6 +32,7 @@ import {
   Plus,
   Settings,
 } from "lucide-react";
+import { formatCurrency } from "../utils/format";
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -164,7 +165,7 @@ const Dashboard: React.FC = () => {
     },
     {
       name: t("dashboard.contractValue"),
-      value: `$${(stats.totalContractValue || 0).toLocaleString()}`,
+      value: formatCurrency(stats.totalContractValue || 0),
       icon: DollarSign,
       color: "bg-yellow-500",
       change: null,
@@ -176,7 +177,7 @@ const Dashboard: React.FC = () => {
   const financialMetrics = [
     {
       name: t("dashboard.totalEstimate"),
-      value: `$${(stats.totalEstimateValue || 0).toLocaleString()}`,
+      value: formatCurrency(stats.totalEstimateValue || 0),
       change: stats.estimateVariance || 0,
       changeType: (stats.estimateVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.estimateProgress || 0,
@@ -184,7 +185,7 @@ const Dashboard: React.FC = () => {
     },
     {
       name: t("dashboard.totalSubmitted"),
-      value: `$${(stats.totalSubmittedValue || 0).toLocaleString()}`,
+      value: formatCurrency(stats.totalSubmittedValue || 0),
       change: stats.submittedVariance || 0,
       changeType: (stats.submittedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.submittedProgress || 0,
@@ -192,7 +193,7 @@ const Dashboard: React.FC = () => {
     },
     {
       name: t("dashboard.totalApproved"),
-      value: `$${(stats.totalApprovedValue || 0).toLocaleString()}`,
+      value: formatCurrency(stats.totalApprovedValue || 0),
       change: stats.approvedVariance || 0,
       changeType: (stats.approvedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.approvedProgress || 0,

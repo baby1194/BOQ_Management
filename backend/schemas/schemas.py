@@ -113,6 +113,7 @@ class ConcentrationEntryBase(BaseModel):
     internal_quantity: float = Field(0.0, ge=0)
     approved_by_project_manager: float = Field(0.0, ge=0)
     notes: Optional[str] = None
+    is_manual: bool = Field(True, description="True if entry was created manually, False if auto-generated from calculation sheets")
 
 class ConcentrationEntryCreate(ConcentrationEntryBase):
     pass

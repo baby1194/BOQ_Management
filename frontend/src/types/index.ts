@@ -92,6 +92,7 @@ export interface ConcentrationEntry {
   internal_quantity: number; // Internal Quantity
   approved_by_project_manager: number; // Approved by Project Manager
   notes?: string; // Notes
+  is_manual: boolean; // True if manually created, false if auto-generated
   created_at: string;
   updated_at?: string;
 }

@@ -343,13 +343,16 @@ async def populate_concentration_entries(
                     break
             
             if existing_concentration_entry:
-                # Update existing concentration entry with new data
-                existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
-                existing_concentration_entry.quantity_submitted = calc_entry.quantity_submitted
-                existing_concentration_entry.description = calculation_sheet.description
-                existing_concentration_entry.notes = f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
-                entries_created += 1  # Count as updated
-                logger.info(f"Updated existing entry for section {calc_entry.section_number} with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} in sheet {concentration_sheet.sheet_name}")
+                # Only update if it's an auto-generated entry, don't override manual entries
+                if not existing_concentration_entry.is_manual:
+                    existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
+                    existing_concentration_entry.quantity_submitted = calc_entry.quantity_submitted
+                    existing_concentration_entry.description = calculation_sheet.description
+                    existing_concentration_entry.notes = f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                    entries_created += 1  # Count as updated
+                    logger.info(f"Updated existing auto-generated entry for section {calc_entry.section_number} with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} in sheet {concentration_sheet.sheet_name}")
+                else:
+                    logger.info(f"Skipped updating manual entry for section {calc_entry.section_number} as it was manually created")
             else:
                 # Create new concentration entry
                 new_concentration_entry = models.ConcentrationEntry(
@@ -362,7 +365,8 @@ async def populate_concentration_entries(
                     quantity_submitted=calc_entry.quantity_submitted,
                     internal_quantity=0.0,
                     approved_by_project_manager=0.0,
-                    notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                    notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
+                    is_manual=False  # Mark as auto-generated
                 )
                 
                 db.add(new_concentration_entry)
@@ -443,37 +447,19 @@ async def populate_all_calculation_entries(
         
         logger.info(f"Starting bulk population from {len(calculation_sheets)} calculation sheets")
         
-        # FIRST: Clear all existing concentration entries before repopulating
-        logger.info("Clearing all existing concentration entries...")
+        # FIRST: Clear only auto-generated concentration entries before repopulating
+        logger.info("Clearing auto-generated concentration entries (preserving manual ones)...")
         try:
-            # Delete all concentration entries
-            concentration_entries_deleted = db.query(models.ConcentrationEntry).delete()
+            # Delete only auto-generated entries (is_manual = False)
+            concentration_entries_deleted = db.query(models.ConcentrationEntry).filter(
+                models.ConcentrationEntry.is_manual == False
+            ).delete()
             db.commit()
-            logger.info(f"Deleted {concentration_entries_deleted} existing concentration entries")
+            logger.info(f"Deleted {concentration_entries_deleted} auto-generated concentration entries, preserved manual entries")
         except Exception as e:
-            logger.error(f"Error clearing concentration entries: {str(e)}")
+            logger.error(f"Error clearing auto-generated concentration entries: {str(e)}")
             db.rollback()
-            raise HTTPException(status_code=500, detail=f"Error clearing existing concentration entries: {str(e)}")
-        
-        # Reset BOQ item totals to zero since we cleared all concentration entries
-        logger.info("Resetting BOQ item totals to zero...")
-        try:
-            all_boq_items = db.query(models.BOQItem).all()
-            for boq_item in all_boq_items:
-                boq_item.estimated_quantity = 0.0
-                boq_item.quantity_submitted = 0.0
-                boq_item.internal_quantity = 0.0
-                boq_item.approved_by_project_manager = 0.0
-                boq_item.total_estimate = 0.0
-                boq_item.total_submitted = 0.0
-                boq_item.internal_total = 0.0
-                boq_item.total_approved_by_project_manager = 0.0
-            db.commit()
-            logger.info(f"Reset totals for {len(all_boq_items)} BOQ items")
-        except Exception as e:
-            logger.error(f"Error resetting BOQ item totals: {str(e)}")
-            db.rollback()
-            raise HTTPException(status_code=500, detail=f"Error resetting BOQ item totals: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error clearing auto-generated concentration entries: {str(e)}")
         
         total_entries_processed = 0
         total_boq_items_updated = 0
@@ -534,7 +520,7 @@ async def populate_all_calculation_entries(
                     
                     concentration_sheet = section_to_concentration_sheet[calc_entry.section_number]
                     
-                    # Since we cleared all existing entries, we can directly create new ones
+                    # Since we cleared auto-generated entries, we can directly create new ones
                     # Create new concentration entry
                     new_concentration_entry = models.ConcentrationEntry(
                         concentration_sheet_id=concentration_sheet.id,
@@ -546,7 +532,8 @@ async def populate_all_calculation_entries(
                         quantity_submitted=calc_entry.quantity_submitted,
                         internal_quantity=0.0,
                         approved_by_project_manager=0.0,
-                        notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                        notes=f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
+                        is_manual=False  # Mark as auto-generated
                     )
                     
                     db.add(new_concentration_entry)
@@ -598,11 +585,11 @@ async def populate_all_calculation_entries(
                 db.rollback()
                 continue
         
-        logger.info(f"Bulk population completed. Processed {processed_sheets} sheets. Total: {total_entries_processed} entries created (after clearing all existing entries), {total_boq_items_updated} BOQ items updated")
+        logger.info(f"Bulk population completed. Processed {processed_sheets} sheets. Total: {total_entries_processed} entries created (after clearing auto-generated entries), {total_boq_items_updated} BOQ items updated, manual entries preserved")
         
         return {
             "success": True,
-            "message": f"Successfully cleared all existing concentration entries and created {total_entries_processed} new concentration entries from {processed_sheets} calculation sheets. Updated {total_boq_items_updated} BOQ Items with totals.",
+            "message": f"Successfully cleared auto-generated concentration entries and created {total_entries_processed} new concentration entries from {processed_sheets} calculation sheets. Manual entries were preserved. Updated {total_boq_items_updated} BOQ Items with totals.",
             "entries_created": total_entries_processed,
             "entries_skipped": 0,  # No longer skipping entries
             "boq_items_updated": total_boq_items_updated,
