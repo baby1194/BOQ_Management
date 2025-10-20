@@ -103,7 +103,7 @@ const SummaryOfSystems: React.FC = () => {
       setSystemSummaries(response);
     } catch (err) {
       console.error("Error fetching system summaries:", err);
-      setError("Failed to fetch system summaries");
+      setError(t("summary.failedToFetchData"));
     } finally {
       setLoading(false);
     }
@@ -145,11 +145,11 @@ const SummaryOfSystems: React.FC = () => {
       setEditingValue("");
 
       // Show success message
-      setSuccessMessage(`Description saved for system: ${system}`);
+      setSuccessMessage(t("summary.dataUpdatedSuccessfully"));
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error("Error saving description:", err);
-      setError("Failed to save description");
+      setError(t("summary.failedToUpdateData"));
     } finally {
       setSaving(false);
     }
@@ -316,13 +316,11 @@ const SummaryOfSystems: React.FC = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
+        <div className={isRTL ? "text-right" : "text-left"}>
           <h1 className="text-3xl font-bold text-gray-900">
-            Summary of Systems
+            {t("summary.title")} - {t("summary.system")}
           </h1>
-          <p className="mt-2 text-gray-600">
-            Summary of BOQ items grouped by system
-          </p>
+          <p className="mt-2 text-gray-600">{t("summary.subtitle")}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-center">
@@ -336,17 +334,16 @@ const SummaryOfSystems: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
-        <div>
+        <div className={isRTL ? "text-right" : "text-left"}>
           <h1 className="text-3xl font-bold text-gray-900">
-            Summary of Systems
+            {t("summary.title")} - {t("summary.system")}
           </h1>
           <p className="mt-2 text-gray-600">
-            Summary of BOQ items grouped by system ({systemSummaries.length}{" "}
-            systems)
+            {t("summary.subtitle")} ({systemSummaries.length}{" "}
+            {t("summary.system").toLowerCase()})
           </p>
           <p className="mt-1 text-sm text-gray-500">
-            This table is automatically updated when BOQ items are imported or
-            modified. You can edit system descriptions by clicking on them.
+            {t("summary.tableAutoUpdatedDescription")}
           </p>
         </div>
         <div className="flex space-x-3">
@@ -354,13 +351,13 @@ const SummaryOfSystems: React.FC = () => {
             onClick={() => setShowColumnSettings(true)}
             className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
-            Column Settings
+            {t("summary.columnSettings")}
           </button>
           <button
             onClick={() => setShowExportModal(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Export Summary
+            {t("summary.export")} {t("summary.title")}
           </button>
         </div>
       </div>
@@ -390,57 +387,96 @@ const SummaryOfSystems: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 {columnVisibility.system && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    System
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.system")}
                   </th>
                 )}
                 {columnVisibility.system_description && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    System Description
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.system")} {t("summary.description")}
                   </th>
                 )}
                 {columnVisibility.total_contract_sum && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Contract Sum
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalContractSum")}
                   </th>
                 )}
                 {contractUpdates.map((update) =>
                   columnVisibility[`updated_contract_sum_${update.id}`] ? (
                     <th
                       key={update.id}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
                     >
-                      Total Updated Contract Sum {update.update_index}
+                      {t("summary.totalUpdatedContractSum")}{" "}
+                      {update.update_index}
                     </th>
                   ) : null
                 )}
                 {columnVisibility.total_estimate && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Estimate
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalEstimate")}
                   </th>
                 )}
                 {columnVisibility.total_submitted && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Submitted
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalSubmitted")}
                   </th>
                 )}
                 {columnVisibility.internal_total && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Internal Total
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.internalTotal")}
                   </th>
                 )}
                 {columnVisibility.total_approved_by_project_manager && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Approved by Project Manager
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.totalApproved")}
                   </th>
                 )}
                 {columnVisibility.approved_signed_total && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Approved Signed Total
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {t("summary.approvedSignedTotal")}
                   </th>
                 )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item Count
+                <th
+                  className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                    isRTL ? "text-right" : "text-left"
+                  }`}
+                >
+                  {t("common.itemCount")}
                 </th>
               </tr>
             </thead>
@@ -448,7 +484,11 @@ const SummaryOfSystems: React.FC = () => {
               {systemSummaries.map((summary) => (
                 <tr key={summary.system} className="hover:bg-gray-50">
                   {columnVisibility.system && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td
+                      className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
                       {summary.system}
                     </td>
                   )}
@@ -662,7 +702,9 @@ const SummaryOfSystems: React.FC = () => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         onExport={handleExport}
-        title="Export Systems Summary"
+        title={`${t("summary.export")} - ${t("summary.system")} ${t(
+          "summary.title"
+        )}`}
         loading={exporting}
         contractUpdates={contractUpdates}
       />
@@ -674,7 +716,7 @@ const SummaryOfSystems: React.FC = () => {
         columnVisibility={columnVisibility}
         onToggleColumn={toggleColumnVisibility}
         onResetColumns={resetColumnVisibility}
-        title="Summary of Systems"
+        title={`${t("summary.title")} - ${t("summary.system")}`}
       />
     </div>
   );
