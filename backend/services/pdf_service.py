@@ -207,7 +207,7 @@ class PDFService:
         
         return table_style, processed_data
     
-    def _create_robust_hebrew_table(self, data, headers, column_widths, repeat_rows=0):
+    def _create_robust_hebrew_table(self, data, headers, column_widths, repeat_rows=0, language="en"):
         """Create a table with robust Hebrew support using Paragraph objects"""
         from reportlab.platypus import Paragraph
         from reportlab.lib.styles import ParagraphStyle
@@ -216,8 +216,8 @@ class PDFService:
         hebrew_style = ParagraphStyle(
             'HebrewStyle',
             fontName=self.hebrew_font,
-            fontSize=10,  # Increased font size
-            alignment=1,  # Center alignment
+            fontSize=12,  # Match data font size
+            alignment=1 if language == "he" else 0,  # Right for Hebrew, Left for English
             spaceAfter=0,
             spaceBefore=0,
             leftIndent=0,
@@ -227,8 +227,8 @@ class PDFService:
         english_style = ParagraphStyle(
             'EnglishStyle',
             fontName='Helvetica',
-            fontSize=10,  # Increased font size
-            alignment=1,  # Center alignment
+            fontSize=12,  # Match data font size
+            alignment=1 if language == "he" else 0,  # Right for Hebrew, Left for English
             spaceAfter=0,
             spaceBefore=0,
             leftIndent=0,
@@ -265,6 +265,88 @@ class PDFService:
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]
+        
+        table.setStyle(TableStyle(table_style))
+        return table
+    
+    def _create_table_with_paragraphs(self, data, headers, column_widths, repeat_rows=0, language="en"):
+        """Create a table with Paragraph objects for proper text wrapping"""
+        from reportlab.platypus import Paragraph
+        from reportlab.lib.styles import ParagraphStyle
+        
+        # Create paragraph styles for different text types
+        hebrew_style = ParagraphStyle(
+            'HebrewStyle',
+            fontName=self.hebrew_font,
+            fontSize=12,  # Match the data font size
+            alignment=1 if language == "he" else 0,  # Right for Hebrew, Left for English
+            spaceAfter=0,
+            spaceBefore=0,
+            leftIndent=0,
+            rightIndent=0,
+        )
+        
+        english_style = ParagraphStyle(
+            'EnglishStyle',
+            fontName='Helvetica',
+            fontSize=12,  # Match the data font size
+            alignment=1 if language == "he" else 0,  # Right for Hebrew, Left for English
+            spaceAfter=0,
+            spaceBefore=0,
+            leftIndent=0,
+            rightIndent=0,
+        )
+        
+        header_style = ParagraphStyle(
+            'HeaderStyle',
+            fontName='Helvetica-Bold',
+            fontSize=10,  # Match the header font size
+            alignment=1,  # Center alignment for headers
+            spaceAfter=0,
+            spaceBefore=0,
+            leftIndent=0,
+            rightIndent=0,
+        )
+        
+        # Convert data to Paragraph objects for better text rendering
+        paragraph_data = []
+        for row_idx, row in enumerate(data):
+            paragraph_row = []
+            for col_idx, cell_value in enumerate(row):
+                if row_idx == 0:  # Header row
+                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", header_style))
+                elif cell_value and self._detect_rtl(str(cell_value)):
+                    # Use Hebrew paragraph style for Hebrew text with reversed text
+                    reversed_text = self._reverse_hebrew_text(str(cell_value))
+                    paragraph_row.append(Paragraph(reversed_text, hebrew_style))
+                else:
+                    # Use English paragraph style for non-Hebrew text
+                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))
+            paragraph_data.append(paragraph_row)
+        
+        # Create table with Paragraph objects and repeatRows
+        table = Table(paragraph_data, colWidths=column_widths, repeatRows=repeat_rows)
+        
+        # Apply table styling
+        table_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),  # Brighter blue for headers
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),  # Header font size
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
+        ]
+        
+        # Set alignment based on language
+        if language == "he":
+            table_style.append(('ALIGN', (0, 1), (-1, -1), 'RIGHT'))  # Right-aligned for Hebrew data
+        else:
+            table_style.append(('ALIGN', (0, 1), (-1, -1), 'LEFT'))   # Left-aligned for English data
         
         table.setStyle(TableStyle(table_style))
         return table
@@ -793,11 +875,11 @@ class PDFService:
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTSIZE', (0, 0), (-1, -1), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ])
+                    ('FONTSIZE', (0, 0), (-1, -1), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ])
             
             # Create table with processed data (Hebrew text reversed)
             project_table = Table(processed_project_data, colWidths=project_col_widths)
@@ -905,7 +987,7 @@ class PDFService:
                 
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1)
+                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1, language=language)
                     logger.info("Successfully created robust Hebrew table for concentration entries with repeatRows")
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
@@ -928,12 +1010,12 @@ class PDFService:
                         # English mode: left-aligned content
                         entries_table_style.extend([
                             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
-                        ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
-                        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
-                        ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows background - white
-                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row background
-                    ])
+                            ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
+                            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows background - white
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row background
+                        ])
                     
                     # Create table with processed data (Hebrew text reversed)
                     entries_table = Table(processed_entries_data, colWidths=column_widths)
@@ -1045,7 +1127,7 @@ class PDFService:
             
             # Use Hebrew-aware table creation
             try:
-                table = self._create_robust_hebrew_table(data, translated_headers, column_widths, repeat_rows=1)
+                table = self._create_robust_hebrew_table(data, translated_headers, column_widths, repeat_rows=1, language=language)
                 logger.info("Successfully created robust Hebrew table for summary with repeatRows")
             except Exception as e:
                 logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
@@ -1794,7 +1876,7 @@ class PDFService:
                         if language == "he":
                             totals_row.append("סה\"כ כולל")
                         else:
-                            totals_row.append("GRAND TOTAL")
+                           totals_row.append("GRAND TOTAL")
                     elif key in total_columns and isinstance(grand_totals[key], (int, float)):
                         # Only show totals for specified columns
                         totals_row.append(self._format_currency(grand_totals[key]))
@@ -1810,15 +1892,12 @@ class PDFService:
                 
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1)
+                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1, language=language)
                     logger.info("Successfully created robust Hebrew table for BOQ items with repeatRows")
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
-                    # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text
-                    table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
-                    # Create table with processed data (Hebrew text reversed) and repeatRows
-                    table = Table(processed_data, colWidths=column_widths, repeatRows=1)
-                    table.setStyle(TableStyle(table_style))
+                    # Create table with Paragraph objects for proper text wrapping
+                    table = self._create_table_with_paragraphs(data, headers, column_widths, repeat_rows=1, language=language)
                 
                 story.append(table)
             
@@ -1889,17 +1968,13 @@ class PDFService:
             
             if is_description_column:
                 # For description columns, give more generous width and padding
-                max_width = max_width * 1.5  # More padding for descriptions
-                min_width = 150  # Higher minimum width for descriptions
+                min_width = 90  # Higher minimum width for descriptions
                 if contains_hebrew:
-                    max_width = max_width * 1.2  # Extra space for Hebrew descriptions
-                    min_width = 180  # Higher minimum for Hebrew descriptions
+                    min_width = 120  # Higher minimum for Hebrew descriptions
             else:
                 # Add padding (20% extra for better readability and cell spacing)
-                max_width = max_width * 1.2
                 min_width = 60
                 if contains_hebrew:
-                    max_width = max_width * 1.1  # Extra space for Hebrew text
                     min_width = 80  # Higher minimum for Hebrew text
             
             max_width = max(min_width, max_width)
@@ -1914,7 +1989,7 @@ class PDFService:
             column_max_widths = [width * scale_factor for width in column_max_widths]
             
             # Ensure minimum width after scaling
-            min_final_width = 40
+            min_final_width = 30
             column_max_widths = [max(min_final_width, width) for width in column_max_widths]
         
         # Log the calculated widths for debugging
@@ -1953,11 +2028,11 @@ class PDFService:
             
             if is_description_column:
                 # For description columns, give more generous width and padding
-                max_width = max_width * 1.5  # More padding for descriptions
-                min_width = 200  # Higher minimum width for descriptions in optimal page size
+                max_width = max_width / 2 # More padding for descriptions
+                min_width = 120  # Higher minimum width for descriptions in optimal page size
             else:
                 # Add padding (30% extra for better readability and cell spacing)
-                max_width = max_width * 1.3
+                max_width = max_width * 1.1
                 min_width = 100
             
             max_width = max(min_width, max_width)
