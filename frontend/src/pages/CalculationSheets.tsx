@@ -479,7 +479,10 @@ const CalculationSheets: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div
+              className="flex-1 overflow-y-scroll"
+              style={{ minHeight: 0, maxHeight: "calc(100vh - 250px)" }}
+            >
               {filteredSheets.length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
                   <p>{t("calculationSheets.noSheetsFound")}</p>

@@ -285,10 +285,7 @@ const ConcentrationSheets: React.FC = () => {
         }
       }
 
-      // Select first sheet by default if no specific item was requested
-      if (sheetsWithBOQ.length > 0) {
-        setSelectedSheet(sheetsWithBOQ[0]);
-      }
+      // Don't automatically select first sheet - let user choose
     } catch (err) {
       console.error("Error fetching concentration sheets:", err);
       setError(t("concentration.failedToFetchSheets"));
@@ -1139,20 +1136,7 @@ const ConcentrationSheets: React.FC = () => {
                   )}
                 </div>
               </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div
-                  className={`text-gray-500 ${
-                    isRTL ? "text-right" : "text-center"
-                  }`}
-                >
-                  <p className="text-lg">{t("concentration.selectBOQItem")}</p>
-                  <p className="text-sm mt-1">
-                    {t("concentration.chooseItemFromList")}
-                  </p>
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

@@ -38,6 +38,8 @@ class PDFService:
             
             if system == 'windows':
                 font_paths = [
+                    ('NotoSans', 'C:/Windows/Fonts/NotoSans-Regular.ttf'),
+                    ('NotoSans', 'C:/Windows/Fonts/NotoSans-Bold.ttf'),
                     ('ArialUnicodeMS', 'C:/Windows/Fonts/arialuni.ttf'),
                     ('ArialUnicodeMS', 'C:/Windows/Fonts/ARIALUNI.TTF'),
                     ('ArialUnicodeMS', 'C:/Windows/Fonts/arial.ttf'),
@@ -108,22 +110,52 @@ class PDFService:
             # Try to calculate width with Hebrew font
             width = stringWidth(text, self.hebrew_font, 12)
             logger.info(f"Hebrew font test successful: '{text}' width = {width} using font '{self.hebrew_font}'")
+            
+            # Also test shekel symbol
+            shekel_text = "₪ 1,234.56"
+            shekel_width = stringWidth(shekel_text, self.hebrew_font, 12)
+            logger.info(f"Shekel symbol test successful: '{shekel_text}' width = {shekel_width} using font '{self.hebrew_font}'")
+            
             return True
         except Exception as e:
             logger.warning(f"Hebrew font test failed: {e}")
             return False
     
+    def _format_currency(self, value, language="en"):
+        """Format currency value with proper shekel symbol handling"""
+        if isinstance(value, (int, float)):
+            if language == "he":
+                # For Hebrew, use NIS instead of shekel symbol to avoid font issues
+                return f"₪ {value:,.2f}"
+            else:
+                # For English, use NIS instead of shekel symbol to avoid font issues
+                return f"₪ {value:,.2f}"
+        return str(value)
+    
+    def _is_currency_value(self, text):
+        """Check if text contains currency symbols that need special font handling"""
+        if isinstance(text, str):
+            return '₪' in text or 'NIS' in text.upper()
+        return False
+    
     def _detect_rtl(self, text):
-        """Detect if text contains RTL characters (Hebrew, Arabic, etc.)"""
+        """Detect if text contains RTL characters (Hebrew, Arabic, etc.) or currency symbols"""
         if not text:
             return False
         # Check for Hebrew, Arabic, and other RTL characters
         rtl_pattern = re.compile(r'[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
-        return bool(rtl_pattern.search(text))
+        # Also check for shekel symbol (₪) which needs Hebrew font support
+        has_rtl = bool(rtl_pattern.search(text))
+        has_shekel = '₪' in text
+        return has_rtl or has_shekel
     
     def _reverse_hebrew_text(self, text):
         """Reverse Hebrew text to display correctly in PDFs (RTL to LTR for PDF rendering)"""
         if not text or not self._detect_rtl(text):
+            return text
+        
+        # Check if text contains only shekel symbol or currency - don't reverse these
+        if text.strip() == '₪' or (text.strip().startswith('₪') and not re.search(r'[\u0590-\u05FF]', text)):
             return text
         
         # For Hebrew text, we need to reverse the entire text character by character
@@ -153,7 +185,7 @@ class PDFService:
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]
@@ -163,8 +195,8 @@ class PDFService:
         hebrew_cells_count = 0
         for row_idx, row in enumerate(processed_data):
             for col_idx, cell_value in enumerate(row):
-                if cell_value and self._detect_rtl(str(cell_value)):
-                    # Use Hebrew font for this cell
+                if cell_value and (self._detect_rtl(str(cell_value)) or self._is_currency_value(str(cell_value))):
+                    # Use Hebrew font for this cell (Hebrew text or currency symbols)
                     table_style.append(('FONTNAME', (col_idx, row_idx), (col_idx, row_idx), self.hebrew_font))
                     # Also set font size for Hebrew cells to ensure proper rendering
                     table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), 8))
@@ -228,7 +260,7 @@ class PDFService:
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]
@@ -297,9 +329,8 @@ class PDFService:
             is_rtl = self._detect_rtl(project_name_hebrew)
             if is_rtl:
                 canvas.setFont(self.hebrew_font_bold, 36)
-                # Reverse Hebrew text for proper PDF display
-                reversed_hebrew_name = self._reverse_hebrew_text(project_name_hebrew)
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, reversed_hebrew_name)
+                # Don't reverse Hebrew text - display as is
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
             else:
                 canvas.setFont("Helvetica-Bold", 36)
                 canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
@@ -435,10 +466,10 @@ class PDFService:
                 data = [
                     ['Total Estimate', 'Total Submitted', 'Total PNIMI', 'Total Approved'],
                     [
-                        f"₪{sheet.total_estimate:,.2f}",
-                        f"₪{sheet.total_submitted:,.2f}",
-                        f"₪{sheet.total_pnimi:,.2f}",
-                        f"₪{sheet.total_approved:,.2f}"
+                        self._format_currency(sheet.total_estimate),
+                        self._format_currency(sheet.total_submitted),
+                        self._format_currency(sheet.total_pnimi),
+                        self._format_currency(sheet.total_approved)
                     ]
                 ]
                 
@@ -590,7 +621,7 @@ class PDFService:
                     'Estimated Quantity': 'כמות מוערכת',
                     'Quantity Submitted': 'כמות הוגשה',
                     'Internal Quantity': 'כמות פנימית',
-                    'Approved by Project Manager': 'כמות מאושרת',
+                    'Approved by Project Manager': 'כמות מוגשת',
                     'Notes': 'הערות'
                 }
                 project_headers_translations = {
@@ -889,8 +920,8 @@ class PDFService:
                             ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
                             ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
-                            ('BACKGROUND', (0, 1), (-1, -2), colors.beige),  # Data rows background
-                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),  # Totals row background
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows background - white
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row background
                         ])
                     else:
                         # English mode: left-aligned content
@@ -899,8 +930,8 @@ class PDFService:
                         ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
                         ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
                         ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
-                        ('BACKGROUND', (0, 1), (-1, -2), colors.beige),  # Data rows background
-                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),  # Totals row background
+                        ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows background - white
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row background
                     ])
                     
                     # Create table with processed data (Hebrew text reversed)
@@ -986,10 +1017,10 @@ class PDFService:
                 data.append([
                     row.subsection,
                     str(row.item_count),
-                    f"₪{row.total_estimate:,.2f}",
-                    f"₪{row.total_submitted:,.2f}",
-                    f"₪{row.total_pnimi:,.2f}",
-                    f"₪{row.total_approved:,.2f}"
+                    self._format_currency(row.total_estimate),
+                    self._format_currency(row.total_submitted),
+                    self._format_currency(row.total_pnimi),
+                    self._format_currency(row.total_approved)
                 ])
                 
                 grand_totals['items'] += row.item_count
@@ -1002,10 +1033,10 @@ class PDFService:
             data.append([
                 grand_total_text,
                 str(grand_totals['items']),
-                f"₪{grand_totals['estimate']:,.2f}",
-                f"₪{grand_totals['submitted']:,.2f}",
-                f"₪{grand_totals['pnimi']:,.2f}",
-                f"₪{grand_totals['approved']:,.2f}"
+                self._format_currency(grand_totals['estimate']),
+                self._format_currency(grand_totals['submitted']),
+                self._format_currency(grand_totals['pnimi']),
+                self._format_currency(grand_totals['approved'])
             ])
             
             # Calculate optimal column widths based on content
@@ -1025,13 +1056,13 @@ class PDFService:
                 # Hebrew mode: right-aligned
                 table_style.extend([
                     ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Bright gray for header row
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Black text for better contrast
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # White background for data rows
+                ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                 ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ])
@@ -1039,13 +1070,13 @@ class PDFService:
                 # English mode: left-aligned
                 table_style.extend([
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Bright gray for header row
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Black text for better contrast
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # White background for data rows
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ])
@@ -1119,7 +1150,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1173,7 +1204,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1190,7 +1221,7 @@ class PDFService:
                 for i, key in enumerate(raw_headers):  # Use raw headers for data access
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                            totals_row.append(f"₪{grand_totals[key]:,.2f}")
+                            totals_row.append(self._format_currency(grand_totals[key]))
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
@@ -1209,7 +1240,7 @@ class PDFService:
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
@@ -1290,7 +1321,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1344,7 +1375,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1361,7 +1392,7 @@ class PDFService:
                 for i, key in enumerate(raw_headers):  # Use raw headers for data access
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                            totals_row.append(f"₪{grand_totals[key]:,.2f}")
+                            totals_row.append(self._format_currency(grand_totals[key]))
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
@@ -1380,7 +1411,7 @@ class PDFService:
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
@@ -1461,7 +1492,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1515,7 +1546,7 @@ class PDFService:
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(str(value))
                         else:
@@ -1532,7 +1563,7 @@ class PDFService:
                 for i, key in enumerate(raw_headers):  # Use raw headers for data access
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
-                            totals_row.append(f"₪{grand_totals[key]:,.2f}")
+                            totals_row.append(self._format_currency(grand_totals[key]))
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
@@ -1551,7 +1582,7 @@ class PDFService:
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
@@ -1615,7 +1646,7 @@ class PDFService:
                         value = item[key]
                         if isinstance(value, (int, float)):
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
@@ -1690,7 +1721,7 @@ class PDFService:
                         if isinstance(value, (int, float)):
                             # Only apply ₪ formatting to price and sum/total columns, not quantity columns
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
-                                row_data.append(f"₪{value:,.2f}")
+                                row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
@@ -1710,7 +1741,7 @@ class PDFService:
                         totals_row.append("GRAND TOTAL")
                     elif key in total_columns and isinstance(grand_totals[key], (int, float)):
                         # Only show totals for specified columns
-                        totals_row.append(f"₪{grand_totals[key]:,.2f}")
+                        totals_row.append(self._format_currency(grand_totals[key]))
                     else:
                         # Empty values for all other columns
                         totals_row.append("")
@@ -1785,7 +1816,7 @@ class PDFService:
                 if col_idx < len(row):
                     cell_value = str(row[col_idx]) if row[col_idx] is not None else ""
                     # Use appropriate font for width calculation
-                    if self._detect_rtl(cell_value):
+                    if self._detect_rtl(cell_value) or self._is_currency_value(cell_value):
                         cell_width = stringWidth(cell_value, hebrew_font, data_font_size)
                         # Add extra padding for Hebrew text as it often needs more space
                         cell_width = cell_width * 1.3

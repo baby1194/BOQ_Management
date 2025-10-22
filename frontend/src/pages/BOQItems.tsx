@@ -3233,7 +3233,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.description && (
                       <td
-                        className="px-3 py-4 text-sm text-gray-900 whitespace-nowrap border-r border-gray-300 cursor-pointer transition-colors"
+                        className="px-3 py-4 text-sm text-gray-900 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                       >
                         {isEditing ? (
@@ -3508,7 +3508,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.notes && (
                       <td
-                        className="px-3 py-4 text-sm text-gray-500 whitespace-nowrap border-r border-gray-300 cursor-pointer transition-colors"
+                        className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() => !isEditing && startEditing(item)}
                       >
                         {isEditing ? (

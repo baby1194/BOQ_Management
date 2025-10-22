@@ -311,7 +311,7 @@
     "exportAllExcelTitle": "Export all concentration sheets as Excel (separate sheets)",
     "selectColumns": "Select Columns",
     "exportFailed": "Export failed:",
-    "unitLabel": "Unit:",
+    "unit": "Unit:",
     "qtyLabel": "Qty:",
     "priceLabel": "Price:",
     "sectionNumberLabel": "Section Number:",
