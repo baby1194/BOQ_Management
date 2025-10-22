@@ -136,7 +136,7 @@ class PDFService:
         """Check if text contains currency symbols that need special font handling"""
         if isinstance(text, str):
             return '₪' in text or 'NIS' in text.upper()
-        return False
+            return False
     
     def _detect_rtl(self, text):
         """Detect if text contains RTL characters (Hebrew, Arabic, etc.) or currency symbols"""
@@ -207,7 +207,7 @@ class PDFService:
         
         return table_style, processed_data
     
-    def _create_robust_hebrew_table(self, data, headers, column_widths):
+    def _create_robust_hebrew_table(self, data, headers, column_widths, repeat_rows=0):
         """Create a table with robust Hebrew support using Paragraph objects"""
         from reportlab.platypus import Paragraph
         from reportlab.lib.styles import ParagraphStyle
@@ -249,8 +249,8 @@ class PDFService:
                     paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))
             paragraph_data.append(paragraph_row)
         
-        # Create table with Paragraph objects
-        table = Table(paragraph_data, colWidths=column_widths)
+        # Create table with Paragraph objects and repeatRows if specified
+        table = Table(paragraph_data, colWidths=column_widths, repeatRows=repeat_rows)
         
         # Apply basic table styling
         table_style = [
@@ -838,10 +838,10 @@ class PDFService:
                 # English mode: left-aligned
                 boq_table_style.extend([
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
-                ('FONTSIZE', (0, 0), (-1, -1), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
-            ])
+                    ('FONTSIZE', (0, 0), (-1, -1), 11),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
+                ])
             
             # Create table with processed data (Hebrew text reversed)
             boq_table = Table(processed_boq_data, colWidths=boq_col_widths)
@@ -904,11 +904,11 @@ class PDFService:
                 
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths)
-                    logger.info("Successfully created robust Hebrew table for concentration entries")
+                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1)
+                    logger.info("Successfully created robust Hebrew table for concentration entries with repeatRows")
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
-                    entries_table = Table(entries_data, colWidths=column_widths)
+                    entries_table = Table(entries_data, colWidths=column_widths, repeatRows=1)
                     # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text (same as BOQ items)
                     entries_table_style, processed_entries_data = self._create_hebrew_aware_table_style(entries_data, current_headers, column_widths)
                     
@@ -1044,12 +1044,12 @@ class PDFService:
             
             # Use Hebrew-aware table creation
             try:
-                table = self._create_robust_hebrew_table(data, translated_headers, column_widths)
-                logger.info("Successfully created robust Hebrew table for summary")
+                table = self._create_robust_hebrew_table(data, translated_headers, column_widths, repeat_rows=1)
+                logger.info("Successfully created robust Hebrew table for summary with repeatRows")
             except Exception as e:
                 logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
-            table = Table(data, colWidths=column_widths)
-            table_style, processed_data = self._create_hebrew_aware_table_style(data, translated_headers, column_widths)
+                table = Table(data, colWidths=column_widths, repeatRows=1)
+                table_style, processed_data = self._create_hebrew_aware_table_style(data, translated_headers, column_widths)
                 
                 # Set alignment based on language
             if language == "he":
@@ -1809,16 +1809,14 @@ class PDFService:
                 
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    table = self._create_robust_hebrew_table(data, headers, column_widths)
-                    logger.info("Successfully created robust Hebrew table for BOQ items")
+                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1)
+                    logger.info("Successfully created robust Hebrew table for BOQ items with repeatRows")
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
-                    # Create table with calculated column widths
-                    table = Table(data, colWidths=column_widths)
                     # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text
                     table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
-                    # Create table with processed data (Hebrew text reversed)
-                    table = Table(processed_data, colWidths=column_widths)
+                    # Create table with processed data (Hebrew text reversed) and repeatRows
+                    table = Table(processed_data, colWidths=column_widths, repeatRows=1)
                     table.setStyle(TableStyle(table_style))
                 
                 story.append(table)
