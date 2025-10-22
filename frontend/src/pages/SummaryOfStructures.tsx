@@ -571,7 +571,7 @@ const SummaryOfStructures: React.FC = () => {
               <tr>
                 {columnVisibility.structure && (
                   <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                    GRAND TOTALS
+                    {t("common.grandtotal")}
                   </td>
                 )}
                 {columnVisibility.structure_description && (

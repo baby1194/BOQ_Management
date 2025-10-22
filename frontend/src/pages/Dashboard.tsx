@@ -178,7 +178,7 @@ const Dashboard: React.FC = () => {
     {
       name: t("dashboard.totalEstimate"),
       value: formatCurrency(stats.totalEstimateValue || 0),
-      change: stats.estimateVariance || 0,
+      change: formatCurrency(Math.abs(stats.estimateVariance || 0)),
       changeType: (stats.estimateVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.estimateProgress || 0,
       icon: TrendingUp,
@@ -186,7 +186,7 @@ const Dashboard: React.FC = () => {
     {
       name: t("dashboard.totalSubmitted"),
       value: formatCurrency(stats.totalSubmittedValue || 0),
-      change: stats.submittedVariance || 0,
+      change: formatCurrency(Math.abs(stats.submittedVariance || 0)),
       changeType: (stats.submittedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.submittedProgress || 0,
       icon: Upload,
@@ -194,7 +194,7 @@ const Dashboard: React.FC = () => {
     {
       name: t("dashboard.totalApproved"),
       value: formatCurrency(stats.totalApprovedValue || 0),
-      change: stats.approvedVariance || 0,
+      change: formatCurrency(Math.abs(stats.approvedVariance || 0)),
       changeType: (stats.approvedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.approvedProgress || 0,
       icon: CheckCircle,
@@ -396,7 +396,7 @@ const Dashboard: React.FC = () => {
                   ) : (
                     <ArrowDownRight className="h-4 w-4 mr-1" />
                   )}
-                  ${Math.abs(metric.change || 0).toLocaleString()}
+                  {metric.change}
                 </div>
               </div>
               <p className="text-3xl font-bold text-gray-900 mb-4">

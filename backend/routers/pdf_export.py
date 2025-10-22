@@ -842,8 +842,11 @@ async def export_boq_items_pdf(
                 if filtered_item:
                     filtered_items.append(filtered_item)
         
+        # Extract language parameter
+        language = request.get("language", "en")
+        
         # Generate PDF
-        pdf_path = pdf_service.export_boq_items(filtered_items, db)
+        pdf_path = pdf_service.export_boq_items(filtered_items, db, language)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]

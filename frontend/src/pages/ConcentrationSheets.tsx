@@ -844,7 +844,7 @@ const ConcentrationSheets: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-gray-600 font-medium">
-                        {t("concentration.unitLabel")}
+                        {t("concentration.unit")}
                       </label>
                       <p className="text-gray-900">
                         {selectedSheet.boq_item.unit}

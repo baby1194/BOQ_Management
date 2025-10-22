@@ -330,10 +330,10 @@ class PDFService:
             if is_rtl:
                 canvas.setFont(self.hebrew_font_bold, 36)
                 # Don't reverse Hebrew text - display as is
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, self._reverse_hebrew_text(project_name_hebrew))
             else:
                 canvas.setFont("Helvetica-Bold", 36)
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, self._reverse_hebrew_text(project_name_hebrew))
         
         # Footer with underlined blanks
         footer_y = 0.5*inch
@@ -359,7 +359,7 @@ class PDFService:
             if language == "he":
                 # Hebrew: right-aligned with Hebrew font
                 canvas.setFont(self.hebrew_font_bold, 24)
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, title_text)
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, self._reverse_hebrew_text(title_text))
             else:
                 # English: left-aligned with regular font
                 canvas.setFont("Helvetica-Bold", 24)
@@ -1598,8 +1598,8 @@ class PDFService:
             logger.error(f"Error generating subsections summary PDF: {str(e)}")
             raise
 
-    def export_boq_items(self, items, db_session=None):
-        """Export BOQ items to PDF"""
+    def export_boq_items(self, items, db_session=None, language="en"):
+        """Export BOQ items to PDF with language support"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"boq_items_{timestamp}.pdf"
@@ -1607,6 +1607,56 @@ class PDFService:
             
             # Get project names for header
             project_name, project_name_hebrew = self._get_project_names(db_session, items)
+            
+            # Define Hebrew translations for BOQ column headers
+            if language == "he":
+                headers_translations = {
+                    'serial_number': 'מספר סידורי',
+                    'structure': 'מבנה',
+                    'system': 'מערכת',
+                    'section_number': 'מספר סעיף',
+                    'description': 'תיאור',
+                    'unit': 'יחידה',
+                    'price': 'מחיר',
+                    'original_contract_quantity': 'כמות חוזה מקורית',
+                    'total_contract_sum': 'סכום חוזה כולל',
+                    'estimated_quantity': 'כמות מוערכת',
+                    'quantity_submitted': 'כמות שהוגשה',
+                    'internal_quantity': 'כמות פנימית',
+                    'approved_by_project_manager': 'אושר על ידי מנהל פרויקט',
+                    'approved_signed_quantity': 'כמות אושרה וחתומה',
+                    'total_estimate': 'הערכה כוללת',
+                    'total_submitted': 'סה"כ הוגש',
+                    'internal_total': 'סה"כ פנימי',
+                    'total_approved_by_project_manager': 'סה"כ אושר על ידי מנהל פרויקט',
+                    'approved_signed_total': 'סה"כ אושר וחתום',
+                    'subsection': 'תת סעיף',
+                    'notes': 'הערות'
+                }
+            else:
+                headers_translations = {
+                    'serial_number': 'Serial Number',
+                    'structure': 'Structure',
+                    'system': 'System',
+                    'section_number': 'Section Number',
+                    'description': 'Description',
+                    'unit': 'Unit',
+                    'price': 'Price',
+                    'original_contract_quantity': 'Original Contract Quantity',
+                    'total_contract_sum': 'Total Contract Sum',
+                    'estimated_quantity': 'Estimated Quantity',
+                    'quantity_submitted': 'Quantity Submitted',
+                    'internal_quantity': 'Internal Quantity',
+                    'approved_by_project_manager': 'Approved by Project Manager',
+                    'approved_signed_quantity': 'Approved Signed Quantity',
+                    'total_estimate': 'Total Estimate',
+                    'total_submitted': 'Total Submitted',
+                    'internal_total': 'Internal Total',
+                    'total_approved_by_project_manager': 'Total Approved by Project Manager',
+                    'approved_signed_total': 'Approved Signed Total',
+                    'subsection': 'Subsection',
+                    'notes': 'Notes'
+                }
             
             # Calculate optimal page size and column widths based on content
             if items:
@@ -1694,7 +1744,9 @@ class PDFService:
                 ])
                 
                 # Only include headers that exist in the data
-                headers = [h for h in all_possible_headers if h in items[0].keys()]
+                raw_headers = [h for h in all_possible_headers if h in items[0].keys()]
+                # Translate headers based on language
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 data = [headers]
                 
                 # Define columns that should have grand totals (same as Excel export)
@@ -1707,16 +1759,16 @@ class PDFService:
                     'approved_signed_total'
                 }
                 # Add updated contract sum columns
-                for key in headers:
+                for key in raw_headers:
                     if key.startswith('updated_contract_sum_'):
                         total_columns.add(key)
                 
-                grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in headers}
+                grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in raw_headers}
                 
                 # First pass: collect all data and calculate totals
                 for item in items:
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:
                         value = item[key]
                         if isinstance(value, (int, float)):
                             # Only apply ₪ formatting to price and sum/total columns, not quantity columns
@@ -1729,16 +1781,19 @@ class PDFService:
                     data.append(row_data)
                     
                     # Calculate grand totals only for specified columns
-                    for key in headers:
+                    for key in raw_headers:
                         if key in total_columns and isinstance(item[key], (int, float)):
                             grand_totals[key] += item[key]
                 
                 # Add grand totals row
                 totals_row = []
-                for i, key in enumerate(headers):
+                for i, key in enumerate(raw_headers):
                     if i == 0:
                         # First column shows "GRAND TOTAL"
-                        totals_row.append("GRAND TOTAL")
+                        if language == "he":
+                            totals_row.append("סה\"כ כולל")
+                        else:
+                            totals_row.append("GRAND TOTAL")
                     elif key in total_columns and isinstance(grand_totals[key], (int, float)):
                         # Only show totals for specified columns
                         totals_row.append(self._format_currency(grand_totals[key]))

@@ -1,5 +1,6 @@
 {
   "common": {
+    "grandtotal": "GrandTotal",
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",

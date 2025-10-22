@@ -585,7 +585,7 @@ const SummaryOfSubsections: React.FC = () => {
               <tr>
                 {columnVisibility.subsection && (
                   <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                    GRAND TOTALS
+                    {t("common.grandtotal")}
                   </td>
                 )}
                 {columnVisibility.subsection_description && (

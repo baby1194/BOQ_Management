@@ -1187,7 +1187,11 @@ const BOQItems: React.FC = () => {
               filteredData,
               grandTotals
             )
-          : await exportApi.exportBOQItemsPDF(request, filteredData);
+          : await exportApi.exportBOQItemsPDF(
+              request,
+              filteredData,
+              isRTL ? "he" : "en"
+            );
 
       if (response.success && response.pdf_path) {
         // Create download link

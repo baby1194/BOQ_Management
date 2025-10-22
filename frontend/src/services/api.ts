@@ -445,11 +445,12 @@ export const exportApi = {
       })
       .then((res) => res.data),
 
-  exportBOQItemsPDF: (request: any, data?: any[]) =>
+  exportBOQItemsPDF: (request: any, data?: any[], language?: string) =>
     api
       .post<PDFExportResponse>("/export/boq-items/pdf", {
         ...request,
         data,
+        language: language || "en",
       })
       .then((res) => res.data),
 
