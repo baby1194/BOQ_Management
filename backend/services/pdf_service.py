@@ -184,7 +184,7 @@ class PDFService:
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -259,7 +259,7 @@ class PDFService:
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -485,7 +485,7 @@ class PDFService:
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 12),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
                 
@@ -1239,7 +1239,7 @@ class PDFService:
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),
                     ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1410,7 +1410,7 @@ class PDFService:
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),
                     ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
@@ -1581,7 +1581,7 @@ class PDFService:
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),
                     ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
