@@ -11,6 +11,8 @@ import logging
 import re
 from datetime import datetime
 from models import models
+from bidi.algorithm import get_display
+import arabic_reshaper
 
 logger = logging.getLogger(__name__)
 
@@ -241,12 +243,13 @@ class PDFService:
             paragraph_row = []
             for col_idx, cell_value in enumerate(row):
                 if cell_value and self._detect_rtl(str(cell_value)):
+                    reshaped_text = arabic_reshaper.reshape(str(cell_value))
+                    display_text = get_display(reshaped_text)
                     # Use Hebrew paragraph style for Hebrew text with reversed text
-                    reversed_text = self._reverse_hebrew_text(str(cell_value))
-                    paragraph_row.append(Paragraph(reversed_text, hebrew_style))
+                    paragraph_row.append(Paragraph(display_text, hebrew_style))
                 else:
                     # Use English paragraph style for non-Hebrew text
-                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))
+                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))    
             paragraph_data.append(paragraph_row)
         
         # Create table with Paragraph objects and repeatRows if specified
