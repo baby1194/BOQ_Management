@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface FilterDropdownProps {
   columnName: string;
@@ -21,6 +23,8 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   onToggle,
   onClose,
 }) => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [searchTerm, setSearchTerm] = useState("");
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -148,7 +152,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         className={`p-1 rounded hover:bg-gray-200 transition-colors ${
           selectedValues.length > 0 ? "text-blue-600" : "text-gray-400"
         }`}
-        title={`Filter ${columnName}`}
+        title={`${t("common.filter")} ${columnName}`}
       >
         <svg
           className="w-4 h-4"
@@ -169,6 +173,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
       {isOpen && (
         <div
           className="fixed w-64 bg-white border border-gray-300 rounded-md shadow-xl z-[9999]"
+          dir={isRTL ? "rtl" : "ltr"}
           style={{
             top: dropdownPosition.top,
             left: dropdownPosition.left,
@@ -178,13 +183,13 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-700">
-                Filter {columnName}
+                {t("common.filter")} {columnName}
               </h3>
               <button
                 onClick={onClearFilter}
                 className="text-xs text-red-600 hover:text-red-800"
               >
-                Clear Filter
+                {t("common.clearFilter")}
               </button>
             </div>
           </div>
@@ -193,7 +198,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           <div className="px-3 py-2 border-b border-gray-200">
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t("common.search")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -213,7 +218,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-gray-700">
-                (Select All)
+                ({t("common.selectAll")})
               </span>
             </label>
           </div>
@@ -222,7 +227,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           <div className="max-h-48 overflow-y-auto">
             {filteredValues.length === 0 ? (
               <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                No values found
+                {t("common.noValuesFound")}
               </div>
             ) : (
               filteredValues.map((value) => (
@@ -238,7 +243,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                       className="text-sm text-gray-700 truncate"
                       title={value}
                     >
-                      {value || "(Empty)"}
+                      {value || `(${t("common.empty")})`}
                     </span>
                   </label>
                 </div>
@@ -252,13 +257,13 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
               onClick={onClose}
               className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               onClick={onClose}
               className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
             >
-              OK
+              {t("common.ok")}
             </button>
           </div>
         </div>

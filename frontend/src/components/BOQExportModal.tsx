@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import { ContractQuantityUpdate } from "../types";
 
 interface BOQExportRequest {
@@ -44,6 +46,8 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
   loading = false,
   contractUpdates = [],
 }) => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [exportRequest, setExportRequest] = useState<BOQExportRequest>(() => {
     const baseRequest = {
       include_serial_number: true,
@@ -157,7 +161,10 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+      <div
+        className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto"
+        dir={isRTL ? "rtl" : "ltr"}
+      >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
           <button
@@ -182,22 +189,18 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
         </div>
 
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-3">
-            Select the columns you want to include in your export:
-          </p>
-
           <div className="flex gap-2 mb-3">
             <button
               onClick={handleSelectAll}
               className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
             >
-              Select All
+              {t("common.selectAll")}
             </button>
             <button
               onClick={handleDeselectAll}
               className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700"
             >
-              Deselect All
+              {t("common.deselectAll")}
             </button>
           </div>
 
@@ -210,7 +213,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_serial_number")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Serial Number</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.serialNumber")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -220,7 +225,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_structure")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Structure</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.structure")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -230,7 +237,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_system")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">System</span>
+              <span className="text-sm text-gray-700">{t("boq.system")}</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -241,7 +248,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm text-gray-700">
-                Section Number (Code)
+                {t("boq.sectionNumber")}
               </span>
             </label>
 
@@ -252,7 +259,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_description")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Description</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.description")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -262,7 +271,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_unit")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Unit</span>
+              <span className="text-sm text-gray-700">{t("boq.unit")}</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -272,7 +281,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_price")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Price</span>
+              <span className="text-sm text-gray-700">{t("boq.price")}</span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -284,7 +293,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Contract Qty</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.contractQty")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -296,7 +307,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Contract Sum</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.contractSum")}
+              </span>
             </label>
 
             {/* Contract Update Quantity Columns */}
@@ -396,7 +409,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Approved Qty</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.approvedQuantity")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -408,7 +423,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Approved Signed Qty</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.approvedSignedQuantity")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -418,7 +435,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_total_estimate")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Total Est.</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.totalEstimate")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -428,7 +447,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_total_submitted")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Total Submitted</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.totalSubmitted")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -438,7 +459,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_internal_total")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Internal Total</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.internalTotal")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -454,7 +477,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Total Approved</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.totalApproved")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -467,7 +492,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm text-gray-700">
-                Approved Signed Total
+                {t("boq.approvedSignedTotal")}
               </span>
             </label>
 
@@ -478,7 +503,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_subsection")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Subchapter</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.subchapter")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -488,7 +515,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 onChange={() => handleCheckboxChange("include_notes")}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">Notes</span>
+              <span className="text-sm text-gray-700">{t("boq.notes")}</span>
             </label>
           </div>
         </div>
@@ -499,21 +526,21 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
             className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
             disabled={loading}
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             onClick={() => onExport(exportRequest, "excel")}
             disabled={loading || Object.values(exportRequest).every((v) => !v)}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Exporting..." : "Export to Excel"}
+            {loading ? t("common.exporting") : t("common.exportToExcel")}
           </button>
           <button
             onClick={() => onExport(exportRequest, "pdf")}
             disabled={loading || Object.values(exportRequest).every((v) => !v)}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Exporting..." : "Export to PDF"}
+            {loading ? t("common.exporting") : t("common.exportToPdf")}
           </button>
         </div>
       </div>

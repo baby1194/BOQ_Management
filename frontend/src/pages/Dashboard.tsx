@@ -272,7 +272,7 @@ const Dashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className={`text-center ${isRTL ? "text-right" : "text-left"}`}>
+        <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <div className="text-lg text-gray-600">
             {t("dashboard.loadingDashboard")}
@@ -286,7 +286,7 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-start">
-        <div className={isRTL ? "text-right" : "text-left"}>
+        <div>
           <h1 className="text-3xl font-bold text-gray-900">
             {t("dashboard.title")}
           </h1>
@@ -334,18 +334,10 @@ const Dashboard: React.FC = () => {
                     <Icon className="h-6 w-6 text-white" />
                   </div>
                   <div className={`${isRTL ? "mr-4" : "ml-4"}`}>
-                    <p
-                      className={`text-sm font-medium text-gray-600 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className="text-sm font-medium text-gray-600">
                       {stat.name}
                     </p>
-                    <p
-                      className={`text-2xl font-semibold text-gray-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className="text-2xl font-semibold text-gray-900">
                       {stat.value}
                     </p>
                   </div>
@@ -369,13 +361,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-              <p
-                className={`text-xs text-gray-500 mt-3 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
-                {stat.description}
-              </p>
+              <p className="text-xs text-gray-500 mt-3">{stat.description}</p>
             </div>
           );
         })}
@@ -394,11 +380,7 @@ const Dashboard: React.FC = () => {
                       isRTL ? "ml-2" : "mr-2"
                     }`}
                   />
-                  <h3
-                    className={`text-lg font-medium text-gray-900 ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
+                  <h3 className="text-lg font-medium text-gray-900">
                     {metric.name}
                   </h3>
                 </div>
@@ -417,11 +399,7 @@ const Dashboard: React.FC = () => {
                   ${Math.abs(metric.change || 0).toLocaleString()}
                 </div>
               </div>
-              <p
-                className={`text-3xl font-bold text-gray-900 mb-4 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-3xl font-bold text-gray-900 mb-4">
                 {metric.value}
               </p>
 
@@ -432,9 +410,7 @@ const Dashboard: React.FC = () => {
                     isRTL ? "flex-row-reverse" : ""
                   }`}
                 >
-                  <span className={isRTL ? "text-right" : "text-left"}>
-                    {t("dashboard.progress")}
-                  </span>
+                  <span>{t("dashboard.progress")}</span>
                   <span className={isRTL ? "text-left" : "text-right"}>
                     {metric.progress.toFixed(1)}%
                   </span>
@@ -447,11 +423,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              <p
-                className={`text-xs text-gray-500 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-xs text-gray-500">
                 {metric.changeType === "positive"
                   ? t("dashboard.aboveContractValue")
                   : t("dashboard.belowContractValue")}
@@ -474,9 +446,7 @@ const Dashboard: React.FC = () => {
               <PieChart
                 className={`h-5 w-5 text-blue-600 ${isRTL ? "ml-2" : "mr-2"}`}
               />
-              <span className={isRTL ? "text-right" : "text-left"}>
-                {t("dashboard.subChaptersSummary")}
-              </span>
+              <span>{t("dashboard.subChaptersSummary")}</span>
             </h2>
           </div>
           <div className="p-6">
@@ -487,19 +457,11 @@ const Dashboard: React.FC = () => {
                     key={index}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
-                    <div className={isRTL ? "text-right" : "text-left"}>
-                      <p
-                        className={`font-medium text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                    <div>
+                      <p className="font-medium text-gray-900">
                         {item.sub_chapter}
                       </p>
-                      <p
-                        className={`text-sm text-gray-600 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-sm text-gray-600">
                         {item.item_count} {t("dashboard.items")}
                       </p>
                     </div>
@@ -523,11 +485,7 @@ const Dashboard: React.FC = () => {
                 ))}
                 {summary.summaries.length > 5 && (
                   <div className="text-center pt-2">
-                    <button
-                      className={`text-blue-600 hover:text-blue-800 text-sm font-medium ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                       {t("dashboard.viewAllSubChapters", {
                         count: summary.summaries.length,
                       })}
@@ -536,15 +494,9 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div
-                className={`text-center text-gray-500 py-8 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <div className="text-center text-gray-500 py-8">
                 <PieChart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className={isRTL ? "text-right" : "text-left"}>
-                  {t("dashboard.noSubChapterDataAvailable")}
-                </p>
+                <p>{t("dashboard.noSubChapterDataAvailable")}</p>
               </div>
             )}
           </div>
@@ -561,9 +513,7 @@ const Dashboard: React.FC = () => {
               <Activity
                 className={`h-5 w-5 text-green-600 ${isRTL ? "ml-2" : "mr-2"}`}
               />
-              <span className={isRTL ? "text-right" : "text-left"}>
-                {t("dashboard.systemStatus")}
-              </span>
+              <span>{t("dashboard.systemStatus")}</span>
             </h2>
           </div>
           <div className="p-6">
@@ -571,28 +521,16 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
                 <div className="flex items-center">
                   <CheckCircle className="h-5 w-5 text-green-600 mr-3" />
-                  <div className={isRTL ? "text-right" : "text-left"}>
-                    <p
-                      className={`font-medium text-green-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                  <div>
+                    <p className="font-medium text-green-900">
                       {t("dashboard.systemOperational")}
                     </p>
-                    <p
-                      className={`text-sm text-green-700 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className="text-sm text-green-700">
                       {t("dashboard.allServicesRunningNormally")}
                     </p>
                   </div>
                 </div>
-                <span
-                  className={`text-green-600 text-sm font-medium ${
-                    isRTL ? "text-left" : "text-right"
-                  }`}
-                >
+                <span className="text-green-600 text-sm font-medium">
                   ✓ {t("dashboard.active")}
                 </span>
               </div>
@@ -600,19 +538,11 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center">
                   <Package className="h-5 w-5 text-blue-600 mr-3" />
-                  <div className={isRTL ? "text-right" : "text-left"}>
-                    <p
-                      className={`font-medium text-blue-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                  <div>
+                    <p className="font-medium text-blue-900">
                       {t("dashboard.dataIntegrity")}
                     </p>
-                    <p
-                      className={`text-sm text-blue-700 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className="text-sm text-blue-700">
                       {t("dashboard.boqItemsValidated", {
                         count: stats.totalBOQItems || 0,
                       })}
@@ -631,19 +561,11 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                 <div className="flex items-center">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 mr-3" />
-                  <div className={isRTL ? "text-right" : "text-left"}>
-                    <p
-                      className={`font-medium text-yellow-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                  <div>
+                    <p className="font-medium text-yellow-900">
                       {t("dashboard.pendingActions")}
                     </p>
-                    <p
-                      className={`text-sm text-yellow-700 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className="text-sm text-yellow-700">
                       {t("dashboard.itemsNeedConcentrationSheets", {
                         count: stats.itemsWithoutEntries || 0,
                       })}
@@ -674,9 +596,7 @@ const Dashboard: React.FC = () => {
             <Clock
               className={`h-5 w-5 text-gray-600 ${isRTL ? "ml-2" : "mr-2"}`}
             />
-            <span className={isRTL ? "text-right" : "text-left"}>
-              {t("dashboard.recentActivity")}
-            </span>
+            <span>{t("dashboard.recentActivity")}</span>
           </h2>
         </div>
         <div className="p-6">
@@ -695,18 +615,10 @@ const Dashboard: React.FC = () => {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className={`${isRTL ? "mr-4" : "ml-4"} flex-1`}>
-                      <p
-                        className={`text-sm font-medium text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-sm font-medium text-gray-900">
                         {activity.message}
                       </p>
-                      <p
-                        className={`text-xs text-gray-500 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-xs text-gray-500">
                         {activity.timestamp}
                       </p>
                     </div>
@@ -715,16 +627,10 @@ const Dashboard: React.FC = () => {
               })}
             </div>
           ) : (
-            <div
-              className={`text-center text-gray-500 py-8 ${
-                isRTL ? "text-right" : "text-left"
-              }`}
-            >
+            <div className="text-center text-gray-500 py-8">
               <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p className={isRTL ? "text-right" : "text-left"}>
-                {t("dashboard.noRecentActivityDisplay")}
-              </p>
-              <p className={`text-sm ${isRTL ? "text-right" : "text-left"}`}>
+              <p>{t("dashboard.noRecentActivityDisplay")}</p>
+              <p className="text-sm">
                 {t("dashboard.importBOQFileToGetStarted")}
               </p>
             </div>
@@ -735,11 +641,7 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2
-            className={`text-lg font-semibold text-gray-900 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <h2 className="text-lg font-semibold text-gray-900">
             {t("dashboard.quickActions")}
           </h2>
         </div>
@@ -779,9 +681,7 @@ const Dashboard: React.FC = () => {
             <Download
               className={`h-5 w-5 text-blue-600 ${isRTL ? "ml-2" : "mr-2"}`}
             />
-            <span className={isRTL ? "text-right" : "text-left"}>
-              {t("dashboard.exportOptions")}
-            </span>
+            <span>{t("dashboard.exportOptions")}</span>
           </h3>
           <div className="space-y-3">
             <button
@@ -789,20 +689,12 @@ const Dashboard: React.FC = () => {
               className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between">
-                <span
-                  className={`font-medium text-gray-900 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
+                <span className="font-medium text-gray-900">
                   {t("dashboard.boqSummaryReport")}
                 </span>
                 <Download className="h-4 w-4 text-gray-400" />
               </div>
-              <p
-                className={`text-sm text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600">
                 {t("dashboard.pdfSummaryAllBOQItems")}
               </p>
             </button>
@@ -811,20 +703,12 @@ const Dashboard: React.FC = () => {
               className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between">
-                <span
-                  className={`font-medium text-gray-900 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
+                <span className="font-medium text-gray-900">
                   {t("dashboard.concentrationSheets")}
                 </span>
                 <Download className="h-4 w-4 text-gray-400" />
               </div>
-              <p
-                className={`text-sm text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600">
                 {t("dashboard.excelExportWithAllData")}
               </p>
             </button>
@@ -833,20 +717,12 @@ const Dashboard: React.FC = () => {
               className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between">
-                <span
-                  className={`font-medium text-gray-900 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
+                <span className="font-medium text-gray-900">
                   {t("dashboard.calculationSheets")}
                 </span>
                 <Download className="h-4 w-4 text-gray-400" />
               </div>
-              <p
-                className={`text-sm text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600">
                 {t("dashboard.viewAndExportCalculationData")}
               </p>
             </button>
@@ -863,9 +739,7 @@ const Dashboard: React.FC = () => {
             <TrendingUp
               className={`h-5 w-5 text-green-600 ${isRTL ? "ml-2" : "mr-2"}`}
             />
-            <span className={isRTL ? "text-right" : "text-left"}>
-              {t("dashboard.performance")}
-            </span>
+            <span>{t("dashboard.performance")}</span>
           </h3>
           <div className="space-y-4">
             <div
@@ -873,11 +747,7 @@ const Dashboard: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <span
-                className={`text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <span className="text-gray-600">
                 {t("dashboard.dataCompleteness")}
               </span>
               <span
@@ -909,11 +779,7 @@ const Dashboard: React.FC = () => {
                 }}
               ></div>
             </div>
-            <div
-              className={`text-sm text-gray-500 ${
-                isRTL ? "text-right" : "text-left"
-              }`}
-            >
+            <div className="text-sm text-gray-500">
               {t("dashboard.itemsHaveConcentrationSheets", {
                 withEntries: stats.itemsWithEntries || 0,
                 total: stats.totalBOQItems || 0,
@@ -932,9 +798,7 @@ const Dashboard: React.FC = () => {
             <Building
               className={`h-5 w-5 text-purple-600 ${isRTL ? "ml-2" : "mr-2"}`}
             />
-            <span className={isRTL ? "text-right" : "text-left"}>
-              {t("dashboard.systemInfo")}
-            </span>
+            <span>{t("dashboard.systemInfo")}</span>
           </h3>
           <div className="space-y-3 text-sm">
             <div
@@ -942,13 +806,7 @@ const Dashboard: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <span
-                className={`text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
-                {t("dashboard.version")}:
-              </span>
+              <span className="text-gray-600">{t("dashboard.version")}:</span>
               <span
                 className={`font-medium ${isRTL ? "text-left" : "text-right"}`}
               >
@@ -960,11 +818,7 @@ const Dashboard: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <span
-                className={`text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <span className="text-gray-600">
                 {t("dashboard.lastUpdated")}:
               </span>
               <span
@@ -978,13 +832,7 @@ const Dashboard: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <span
-                className={`text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
-                {t("dashboard.database")}:
-              </span>
+              <span className="text-gray-600">{t("dashboard.database")}:</span>
               <span
                 className={`font-medium ${isRTL ? "text-left" : "text-right"}`}
               >
@@ -996,13 +844,7 @@ const Dashboard: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <span
-                className={`text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
-                {t("dashboard.backend")}:
-              </span>
+              <span className="text-gray-600">{t("dashboard.backend")}:</span>
               <span
                 className={`font-medium ${isRTL ? "text-left" : "text-right"}`}
               >

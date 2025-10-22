@@ -357,7 +357,7 @@ const CalculationSheets: React.FC = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className={isRTL ? "text-right" : "text-left"}>
+        <div>
           <h1 className="text-3xl font-bold text-gray-900">
             {t("calculationSheets.title")}
           </h1>
@@ -376,7 +376,7 @@ const CalculationSheets: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className={isRTL ? "text-right" : "text-left"}>
+      <div>
         <h1 className="text-3xl font-bold text-gray-900">
           {t("calculationSheets.title")}
         </h1>
@@ -417,10 +417,6 @@ const CalculationSheets: React.FC = () => {
                 </>
               )}
             </button>
-            <p className="text-xs text-gray-500 text-center mt-2 max-w-xs mx-auto">
-              Clears auto-generated concentration entries and recreates them
-              from all calculation sheets. Manual entries are preserved.
-            </p>
           </div>
 
           {/* Sync All Button */}
@@ -443,25 +439,13 @@ const CalculationSheets: React.FC = () => {
                 </>
               )}
             </button>
-            <p className="text-xs text-gray-500 text-center mt-2 max-w-xs mx-auto">
-              Updates concentration entries and BOQ items to match calculation
-              sheet data.
-            </p>
           </div>
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
-              <h2
-                className={`text-lg font-semibold text-gray-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h2 className="text-lg font-semibold text-gray-900">
                 {t("calculationSheets.title")}
               </h2>
-              <p
-                className={`text-sm text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600">
                 {t("calculationSheets.selectSheetToViewEntries")}
               </p>
 
@@ -497,19 +481,9 @@ const CalculationSheets: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto">
               {filteredSheets.length === 0 ? (
-                <div
-                  className={`p-4 text-center text-gray-500 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
-                  <p className={isRTL ? "text-right" : "text-left"}>
-                    {t("calculationSheets.noSheetsFound")}
-                  </p>
-                  <p
-                    className={`text-sm mt-1 ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
+                <div className="p-4 text-center text-gray-500">
+                  <p>{t("calculationSheets.noSheetsFound")}</p>
+                  <p className="text-sm mt-1">
                     {t("calculationSheets.importFromFileImportPage")}
                   </p>
                 </div>
@@ -569,19 +543,11 @@ const CalculationSheets: React.FC = () => {
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2
-                        className={`text-xl font-semibold text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <h2 className="text-xl font-semibold text-gray-900">
                         {t("calculationSheets.title")} -{" "}
                         {selectedSheet.calculation_sheet_no}
                       </h2>
-                      <p
-                        className={`text-sm text-gray-600 mt-1 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-sm text-gray-600 mt-1">
                         {selectedSheet.description}
                       </p>
                     </div>
@@ -619,50 +585,26 @@ const CalculationSheets: React.FC = () => {
                   {/* Sheet Information Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("calculationSheets.sheetNumber")}:
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {selectedSheet.calculation_sheet_no}
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("calculationSheets.drawingNumber")}:
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {selectedSheet.drawing_no}
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("common.importDate")}:
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {new Date(
                           selectedSheet.import_date
                         ).toLocaleDateString()}
@@ -672,11 +614,7 @@ const CalculationSheets: React.FC = () => {
 
                   {/* Comment Field */}
                   <div className="mt-4">
-                    <label
-                      className={`block text-gray-600 font-medium mb-2 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <label className="block text-gray-600 font-medium mb-2">
                       {t("calculationSheets.comment")}:
                     </label>
                     {editingComment ? (
@@ -734,11 +672,7 @@ const CalculationSheets: React.FC = () => {
                 {/* Entries Table */}
                 <div className="flex-1 p-6 overflow-hidden flex flex-col">
                   <div className="flex justify-between items-center mb-4">
-                    <h3
-                      className={`text-lg font-medium text-gray-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <h3 className="text-lg font-medium text-gray-900">
                       {t("calculationSheets.entries")} ({entries.length})
                     </h3>
                   </div>
@@ -753,39 +687,19 @@ const CalculationSheets: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.sectionNumber")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.estimatedQuantity")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.quantitySubmitted")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.notes")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("calculationSheets.actions")}
                               </th>
                             </tr>

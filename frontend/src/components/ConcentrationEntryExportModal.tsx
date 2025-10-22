@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../contexts/LanguageContext";
 import { ConcentrationEntryExportRequest } from "../types";
 
 interface ConcentrationEntryExportModalProps {
@@ -13,6 +15,8 @@ interface ConcentrationEntryExportModalProps {
 const ConcentrationEntryExportModal: React.FC<
   ConcentrationEntryExportModalProps
 > = ({ isOpen, onClose, onExport, title, loading = false, exportFormat }) => {
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const [exportRequest, setExportRequest] =
     useState<ConcentrationEntryExportRequest>(() => {
       const baseRequest = {
@@ -71,7 +75,10 @@ const ConcentrationEntryExportModal: React.FC<
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+      <div
+        className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+        dir={isRTL ? "rtl" : "ltr"}
+      >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
           <button
@@ -97,8 +104,7 @@ const ConcentrationEntryExportModal: React.FC<
 
         <div className="mb-4">
           <p className="text-sm text-gray-600 mb-3">
-            Select the concentration entry columns you want to include in the
-            export:
+            {t("concentration.selectColumnsForExport")}
           </p>
 
           <div className="flex gap-2 mb-3">
@@ -107,14 +113,14 @@ const ConcentrationEntryExportModal: React.FC<
               className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
               disabled={loading}
             >
-              Select All
+              {t("common.selectAll")}
             </button>
             <button
               onClick={handleDeselectAll}
               className="px-3 py-1 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
               disabled={loading}
             >
-              Deselect All
+              {t("common.deselectAll")}
             </button>
           </div>
 
@@ -127,7 +133,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Description</span>
+              <span className="text-sm">{t("boq.description")}</span>
             </label>
 
             <label className="flex items-center">
@@ -140,7 +146,9 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Calculation Sheet No</span>
+              <span className="text-sm">
+                {t("concentration.calculationSheetNo")}
+              </span>
             </label>
 
             <label className="flex items-center">
@@ -151,7 +159,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Drawing No</span>
+              <span className="text-sm">{t("concentration.drawingNo")}</span>
             </label>
 
             <label className="flex items-center">
@@ -164,7 +172,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Estimated Quantity</span>
+              <span className="text-sm">{t("boq.estimatedQuantity")}</span>
             </label>
 
             <label className="flex items-center">
@@ -177,7 +185,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Quantity Submitted</span>
+              <span className="text-sm">{t("boq.quantitySubmitted")}</span>
             </label>
 
             <label className="flex items-center">
@@ -190,7 +198,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Internal Quantity</span>
+              <span className="text-sm">{t("boq.internalQuantity")}</span>
             </label>
 
             <label className="flex items-center">
@@ -203,7 +211,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Approved Quantity</span>
+              <span className="text-sm">{t("boq.approvedQuantity")}</span>
             </label>
 
             <label className="flex items-center">
@@ -214,7 +222,7 @@ const ConcentrationEntryExportModal: React.FC<
                 className="mr-2"
                 disabled={loading}
               />
-              <span className="text-sm">Notes</span>
+              <span className="text-sm">{t("boq.notes")}</span>
             </label>
           </div>
         </div>
@@ -229,13 +237,15 @@ const ConcentrationEntryExportModal: React.FC<
                 : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
             }`}
           >
-            {loading ? "Exporting..." : `Export ${exportFormat.toUpperCase()}`}
+            {loading
+              ? t("common.exporting")
+              : `${t("common.export")} ${exportFormat.toUpperCase()}`}
           </button>
         </div>
 
         {Object.values(exportRequest).every((v) => !v) && (
           <p className="text-sm text-red-600 mt-2 text-center">
-            Please select at least one column to export
+            {t("concentration.selectAtLeastOneColumn")}
           </p>
         )}
       </div>

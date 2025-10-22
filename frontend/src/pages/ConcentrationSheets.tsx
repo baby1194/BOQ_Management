@@ -369,6 +369,22 @@ const ConcentrationSheets: React.FC = () => {
     }
   };
 
+  // Delete entry
+  const deleteEntry = async (entryId: number) => {
+    try {
+      setSaving(true);
+      await concentrationApi.deleteEntry(entryId);
+
+      setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+      setError(null);
+    } catch (err) {
+      console.error("Error deleting entry:", err);
+      setError(t("auth.failedToDeleteEntry"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Start editing entry
   const startEditing = (entry: ConcentrationEntry) => {
     setEditingEntry(entry);
@@ -441,20 +457,10 @@ const ConcentrationSheets: React.FC = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1
-            className={`text-3xl font-bold text-gray-900 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <h1 className="text-3xl font-bold text-gray-900">
             {t("concentration.title")}
           </h1>
-          <p
-            className={`mt-2 text-gray-600 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
-            {t("concentration.subtitle")}
-          </p>
+          <p className="mt-2 text-gray-600">{t("concentration.subtitle")}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-center">
@@ -469,18 +475,10 @@ const ConcentrationSheets: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1
-            className={`text-3xl font-bold text-gray-900 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <h1 className="text-3xl font-bold text-gray-900">
             {t("concentration.title")}
           </h1>
-          <p
-            className={`mt-2 text-gray-600 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <p className="mt-2 text-gray-600">
             {t("concentration.subtitle")} ({sheets.length}{" "}
             {t("concentration.sheetsCount")})
           </p>
@@ -541,9 +539,7 @@ const ConcentrationSheets: React.FC = () => {
       {showNavigationMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md p-4">
           <div className="flex">
-            <div
-              className={`text-green-600 ${isRTL ? "text-right" : "text-left"}`}
-            >
+            <div className="text-green-600">
               {t("concentration.navigatedFromBOQ")}
             </div>
           </div>
@@ -555,18 +551,10 @@ const ConcentrationSheets: React.FC = () => {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
-              <h2
-                className={`text-lg font-semibold text-gray-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h2 className="text-lg font-semibold text-gray-900">
                 {t("concentration.boqItems")}
               </h2>
-              <p
-                className={`text-sm text-gray-600 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600">
                 {t("concentration.selectItemToViewSheet")}
                 {sectionNumberFilter && (
                   <span className={`${isRTL ? "mr-2" : "ml-2"} text-blue-600`}>
@@ -578,11 +566,7 @@ const ConcentrationSheets: React.FC = () => {
 
               {navigatedFromBOQ && selectedSheet && (
                 <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <div
-                    className={`text-sm text-blue-800 ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
+                  <div className="text-sm text-blue-800">
                     <div className="font-medium">
                       {t("concentration.currentlyViewing")}
                     </div>
@@ -605,11 +589,7 @@ const ConcentrationSheets: React.FC = () => {
 
               {/* Section Number Filter */}
               <div className="mt-3">
-                <label
-                  className={`block text-sm font-medium text-gray-700 mb-1 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t("concentration.filterBySectionNumber")}
                 </label>
                 <div className="relative">
@@ -723,18 +703,10 @@ const ConcentrationSheets: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              <p
-                                className={`text-sm text-gray-600 mt-1 line-clamp-2 ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                                 {sheet.boq_item.description}
                               </p>
-                              <div
-                                className={`mt-2 text-xs text-gray-500 ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <div className="mt-2 text-xs text-gray-500">
                                 <div>
                                   {t("concentration.unit")}{" "}
                                   {sheet.boq_item.unit}
@@ -785,11 +757,7 @@ const ConcentrationSheets: React.FC = () => {
                     }`}
                   >
                     <div>
-                      <h2
-                        className={`text-xl font-semibold text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <h2 className="text-xl font-semibold text-gray-900">
                         {t("concentration.concentrationSheet")}{" "}
                         {selectedSheet.boq_item.section_number}
                       </h2>
@@ -819,98 +787,46 @@ const ConcentrationSheets: React.FC = () => {
                   {/* Project Information Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.projectName")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
-                        {projectInfo.projectName}
-                      </p>
+                      <p className="text-gray-900">{projectInfo.projectName}</p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.contractorInCharge")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {projectInfo.contractorInCharge}
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-300 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-300 font-medium">
                         {t("concentration.contractNo")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
-                        {projectInfo.contractNo}
-                      </p>
+                      <p className="text-gray-900">{projectInfo.contractNo}</p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.developerName")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {projectInfo.developerName}
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.sectionNumberLabel")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {selectedSheet.boq_item.section_number}
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.contractQuantity")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {formatNumber(
                           selectedSheet.boq_item.latest_contract_quantity
                         )}{" "}
@@ -928,52 +844,28 @@ const ConcentrationSheets: React.FC = () => {
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.unitLabel")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {selectedSheet.boq_item.unit}
                       </p>
                     </div>
                     <div>
-                      <label
-                        className={`block text-gray-600 font-medium ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <label className="block text-gray-600 font-medium">
                         {t("concentration.priceLabel")}
                       </label>
-                      <p
-                        className={`text-gray-900 ${
-                          isRTL ? "text-right" : "text-left"
-                        }`}
-                      >
+                      <p className="text-gray-900">
                         {formatCurrency(selectedSheet.boq_item.price)}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4">
-                    <label
-                      className={`block text-gray-600 font-medium ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <label className="block text-gray-600 font-medium">
                       {t("concentration.descriptionLabel")}
                     </label>
-                    <p
-                      className={`text-gray-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className="text-gray-900">
                       {selectedSheet.boq_item.description}
                     </p>
                   </div>
@@ -987,23 +879,15 @@ const ConcentrationSheets: React.FC = () => {
                         }`}
                       >
                         <div>
-                          <label
-                            className={`block text-blue-800 font-medium text-sm ${
-                              isRTL ? "text-right" : "text-left"
-                            }`}
-                          >
+                          <label className="block text-blue-800 font-medium text-sm">
                             {t("concentration.contractQuantityUpdated")}
                           </label>
-                          <p
-                            className={`text-blue-700 text-sm mt-1 ${
-                              isRTL ? "text-right" : "text-left"
-                            }`}
-                          >
+                          <p className="text-blue-700 text-sm mt-1">
                             {t("concentration.hasBeenUpdated")}
                             {selectedSheet.boq_item.latest_update_index}).
                           </p>
                         </div>
-                        <div className={isRTL ? "text-left" : "text-right"}>
+                        <div className="text-right">
                           <div className="text-xs text-blue-600">
                             {t("concentration.original")}{" "}
                             {formatNumber(
@@ -1031,11 +915,7 @@ const ConcentrationSheets: React.FC = () => {
                       isRTL ? "flex-row-reverse" : ""
                     }`}
                   >
-                    <h3
-                      className={`text-lg font-medium text-gray-900 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <h3 className="text-lg font-medium text-gray-900">
                       {t("concentration.concentrationEntries")}
                     </h3>
                     <button
@@ -1079,67 +959,31 @@ const ConcentrationSheets: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.descriptionLabel")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.calcSheetNo")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.drawingNoLabel")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.estQuantity")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.qtySubmitted")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.internalQty")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.approvedQty")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("boq.notes")}
                               </th>
-                              <th
-                                className={`px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                  isRTL ? "text-right" : "text-left"
-                                }`}
-                              >
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.actions")}
                               </th>
                             </tr>
@@ -1199,13 +1043,32 @@ const ConcentrationSheets: React.FC = () => {
                                     </div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <button
-                                      onClick={() => startEditing(entry)}
-                                      disabled={saving}
-                                      className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                                    >
-                                      {t("concentration.editNotes")}
-                                    </button>
+                                    {entry.is_manual ? (
+                                      <div className="flex space-x-2">
+                                        <button
+                                          onClick={() => startEditing(entry)}
+                                          disabled={saving}
+                                          className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                        >
+                                          {t("common.edit")}
+                                        </button>
+                                        <button
+                                          onClick={() => deleteEntry(entry.id)}
+                                          disabled={saving}
+                                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                        >
+                                          {t("common.delete")}
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => startEditing(entry)}
+                                        disabled={saving}
+                                        className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                      >
+                                        {t("concentration.editNotes")}
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               ))
@@ -1214,11 +1077,7 @@ const ConcentrationSheets: React.FC = () => {
                             {/* Totals Row */}
                             {entries.length > 0 && (
                               <tr className="bg-gray-50 border-t-2 border-gray-300">
-                                <td
-                                  className={`px-3 py-3 text-sm font-bold text-gray-900 ${
-                                    isRTL ? "text-right" : "text-left"
-                                  }`}
-                                >
+                                <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {t("concentration.totals")}
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
@@ -1373,7 +1232,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             value={formData.description}
             onChange={(e) => handleChange("description", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 
@@ -1388,7 +1247,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               handleChange("calculation_sheet_no", e.target.value)
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 
@@ -1401,7 +1260,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             value={formData.drawing_no}
             onChange={(e) => handleChange("drawing_no", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 
@@ -1420,7 +1279,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 
@@ -1439,7 +1298,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 
@@ -1455,7 +1314,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               handleChange("internal_quantity", parseFloat(e.target.value) || 0)
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 
@@ -1474,7 +1333,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || !!entry}
+            disabled={saving || (!!entry && !entry.is_manual)}
           />
         </div>
 

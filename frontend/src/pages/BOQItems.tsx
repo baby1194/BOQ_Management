@@ -34,6 +34,14 @@ const formatDateMMYYYY = (dateString: string): string => {
   return `${month}/${year}`;
 };
 
+const formatDateToMonth = (dateString: string): string => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${year}-${month}`;
+};
+
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -983,10 +991,20 @@ const BOQItems: React.FC = () => {
       setProjectInfo(response);
       setProjectInfoDraft({
         project_name: response.project_name || "",
+        project_name_hebrew: response.project_name_hebrew || "",
         main_contractor_name: response.main_contractor_name || "",
         subcontractor_name: response.subcontractor_name || "",
         developer_name: response.developer_name || "",
         contract_no: response.contract_no || "",
+        invoice_no_submitted_qty: response.invoice_no_submitted_qty || "",
+        invoice_date_submitted_qty: formatDateToMonth(
+          response.invoice_date_submitted_qty || ""
+        ),
+        invoice_no_approved_signed_qty:
+          response.invoice_no_approved_signed_qty || "",
+        invoice_date_approved_signed_qty: formatDateToMonth(
+          response.invoice_date_approved_signed_qty || ""
+        ),
       });
     } catch (err) {
       console.error("Error fetching project info:", err);
@@ -1236,6 +1254,25 @@ const BOQItems: React.FC = () => {
   };
 
   const handleEditProjectInfo = () => {
+    if (projectInfo) {
+      setProjectInfoDraft({
+        project_name: projectInfo.project_name || "",
+        project_name_hebrew: projectInfo.project_name_hebrew || "",
+        main_contractor_name: projectInfo.main_contractor_name || "",
+        subcontractor_name: projectInfo.subcontractor_name || "",
+        developer_name: projectInfo.developer_name || "",
+        contract_no: projectInfo.contract_no || "",
+        invoice_no_submitted_qty: projectInfo.invoice_no_submitted_qty || "",
+        invoice_date_submitted_qty: formatDateToMonth(
+          projectInfo.invoice_date_submitted_qty || ""
+        ),
+        invoice_no_approved_signed_qty:
+          projectInfo.invoice_no_approved_signed_qty || "",
+        invoice_date_approved_signed_qty: formatDateToMonth(
+          projectInfo.invoice_date_approved_signed_qty || ""
+        ),
+      });
+    }
     setEditingProjectInfo(true);
     setProjectInfoError(null);
   };
@@ -1244,10 +1281,20 @@ const BOQItems: React.FC = () => {
     setEditingProjectInfo(false);
     setProjectInfoDraft({
       project_name: projectInfo?.project_name || "",
+      project_name_hebrew: projectInfo?.project_name_hebrew || "",
       main_contractor_name: projectInfo?.main_contractor_name || "",
       subcontractor_name: projectInfo?.subcontractor_name || "",
       developer_name: projectInfo?.developer_name || "",
       contract_no: projectInfo?.contract_no || "",
+      invoice_no_submitted_qty: projectInfo?.invoice_no_submitted_qty || "",
+      invoice_date_submitted_qty: formatDateToMonth(
+        projectInfo?.invoice_date_submitted_qty || ""
+      ),
+      invoice_no_approved_signed_qty:
+        projectInfo?.invoice_no_approved_signed_qty || "",
+      invoice_date_approved_signed_qty: formatDateToMonth(
+        projectInfo?.invoice_date_approved_signed_qty || ""
+      ),
     });
     setProjectInfoError(null);
   };
@@ -1257,7 +1304,20 @@ const BOQItems: React.FC = () => {
       setSavingProjectInfo(true);
       setProjectInfoError(null);
 
-      const updatedProjectInfo = await projectInfoApi.update(projectInfoDraft);
+      // Convert month strings to datetime format for backend
+      const draftToSend = { ...projectInfoDraft };
+
+      if (draftToSend.invoice_date_submitted_qty) {
+        // Convert "YYYY-MM" to "YYYY-MM-01T00:00:00"
+        draftToSend.invoice_date_submitted_qty = `${draftToSend.invoice_date_submitted_qty}-01T00:00:00`;
+      }
+
+      if (draftToSend.invoice_date_approved_signed_qty) {
+        // Convert "YYYY-MM" to "YYYY-MM-01T00:00:00"
+        draftToSend.invoice_date_approved_signed_qty = `${draftToSend.invoice_date_approved_signed_qty}-01T00:00:00`;
+      }
+
+      const updatedProjectInfo = await projectInfoApi.update(draftToSend);
       setProjectInfo(updatedProjectInfo);
       setEditingProjectInfo(false);
       setError(null);
@@ -1563,20 +1623,10 @@ const BOQItems: React.FC = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1
-            className={`text-3xl font-bold text-gray-900 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <h1 className={`text-3xl font-bold text-gray-900`}>
             {t("boq.title")}
           </h1>
-          <p
-            className={`mt-2 text-gray-600 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
-            {t("boq.subtitle")}
-          </p>
+          <p className={`mt-2 text-gray-600`}>{t("boq.subtitle")}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-center">
@@ -1591,18 +1641,10 @@ const BOQItems: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1
-            className={`text-3xl font-bold text-gray-900 ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <h1 className={`text-3xl font-bold text-gray-900`}>
             {t("boq.title")}
           </h1>
-          <p
-            className={`mt-2 text-gray-600 text-right ${
-              isRTL ? "text-right" : "text-left"
-            }`}
-          >
+          <p className={`mt-2 text-gray-600`}>
             {t("boq.subtitle")} ({items.length} {t("common.items", "items")})
           </p>
         </div>
@@ -1674,19 +1716,11 @@ const BOQItems: React.FC = () => {
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3
-                className={`text-sm font-medium text-blue-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h3 className={`text-sm font-medium text-blue-900`}>
                 {t("boq.contractQuantityUpdates")} ({contractUpdates.length}{" "}
                 {t("boq.activeUpdates")})
               </h3>
-              <p
-                className={`text-sm text-blue-700 mt-1 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className={`text-sm text-blue-700 mt-1`}>
                 {t("boq.contractUpdatesDescription")}
               </p>
             </div>
@@ -1711,11 +1745,7 @@ const BOQItems: React.FC = () => {
                     <h4 className="text-sm font-medium text-blue-900">
                       {update.update_name}
                     </h4>
-                    <p
-                      className={`text-xs text-blue-600 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
+                    <p className={`text-xs text-blue-600`}>
                       {t("boq.created")}{" "}
                       {new Date(update.created_at).toLocaleDateString()}
                     </p>
@@ -1741,18 +1771,10 @@ const BOQItems: React.FC = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2
-                className={`text-xl font-semibold text-gray-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h2 className={`text-xl font-semibold text-gray-900`}>
                 {t("projectInfo.title")}
               </h2>
-              <p
-                className={`text-sm text-gray-600 mt-1 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600 mt-1">
                 {t("boq.projectInformationSync")}
               </p>
             </div>
@@ -1780,11 +1802,7 @@ const BOQItems: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label
-                className={`block text-sm font-medium text-gray-700 mb-1 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t("projectInfo.projectName")}
               </label>
               {editingProjectInfo ? (
@@ -1794,17 +1812,11 @@ const BOQItems: React.FC = () => {
                   onChange={(e) =>
                     handleProjectInfoDraftChange("project_name", e.target.value)
                   }
-                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder={t("boq.projectNamePlaceholder")}
                 />
               ) : (
-                <div
-                  className={`px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
                   {projectInfo?.project_name || t("boq.notSpecified")}
                 </div>
               )}
@@ -1812,7 +1824,7 @@ const BOQItems: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Project Name (Hebrew)
+                {t("projectInfo.projectNameHebrew")}
               </label>
               {editingProjectInfo ? (
                 <input
@@ -1825,18 +1837,18 @@ const BOQItems: React.FC = () => {
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="שם הפרויקט"
+                  placeholder={t("projectInfo.projectNameHebrew")}
                 />
               ) : (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.project_name_hebrew || "Not specified"}
+                  {projectInfo?.project_name_hebrew || t("boq.notSpecified")}
                 </div>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Main Contractor Name
+                {t("projectInfo.mainContractorName")}
               </label>
               {editingProjectInfo ? (
                 <input
@@ -1849,18 +1861,18 @@ const BOQItems: React.FC = () => {
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter main contractor name"
+                  placeholder={t("projectInfo.mainContractorName")}
                 />
               ) : (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.main_contractor_name || "Not specified"}
+                  {projectInfo?.main_contractor_name || t("boq.notSpecified")}
                 </div>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Supervison Company Name
+                {t("projectInfo.subcontractorName")}
               </label>
               {editingProjectInfo ? (
                 <input
@@ -1873,18 +1885,18 @@ const BOQItems: React.FC = () => {
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter subcontractor name"
+                  placeholder={t("projectInfo.subcontractorName")}
                 />
               ) : (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.subcontractor_name || "Not specified"}
+                  {projectInfo?.subcontractor_name || t("boq.notSpecified")}
                 </div>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Developer Name
+                {t("projectInfo.developerName")}
               </label>
               {editingProjectInfo ? (
                 <input
@@ -1897,18 +1909,18 @@ const BOQItems: React.FC = () => {
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter developer name"
+                  placeholder={t("projectInfo.developerName")}
                 />
               ) : (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.developer_name || "Not specified"}
+                  {projectInfo?.developer_name || t("boq.notSpecified")}
                 </div>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contract No.
+                {t("projectInfo.contractNumber")}
               </label>
               {editingProjectInfo ? (
                 <input
@@ -1918,11 +1930,11 @@ const BOQItems: React.FC = () => {
                     handleProjectInfoDraftChange("contract_no", e.target.value)
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter contract number"
+                  placeholder={t("projectInfo.contractNumber")}
                 />
               ) : (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                  {projectInfo?.contract_no || "Not specified"}
+                  {projectInfo?.contract_no || t("boq.notSpecified")}
                 </div>
               )}
             </div>
@@ -1932,7 +1944,7 @@ const BOQItems: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Invoice No for Submitted QTY
+                    {t("projectInfo.invoiceNoSubmitted")}
                   </label>
                   {editingProjectInfo ? (
                     <input
@@ -1945,22 +1957,23 @@ const BOQItems: React.FC = () => {
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter invoice number for submitted qty"
+                      placeholder={t("projectInfo.invoiceNoSubmitted")}
                     />
                   ) : (
                     <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
-                      {projectInfo?.invoice_no_submitted_qty || "Not specified"}
+                      {projectInfo?.invoice_no_submitted_qty ||
+                        t("boq.notSpecified")}
                     </div>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Invoice Date for Submitted QTY
+                    {t("projectInfo.invoiceDateSubmitted")}
                   </label>
                   {editingProjectInfo ? (
                     <input
-                      type="date"
+                      type="month"
                       value={projectInfoDraft.invoice_date_submitted_qty || ""}
                       onChange={(e) =>
                         handleProjectInfoDraftChange(
@@ -1976,7 +1989,7 @@ const BOQItems: React.FC = () => {
                         ? formatDateMMYYYY(
                             projectInfo.invoice_date_submitted_qty
                           )
-                        : "Not specified"}
+                        : t("boq.notSpecified")}
                     </div>
                   )}
                 </div>
@@ -1987,7 +2000,7 @@ const BOQItems: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Invoice No for Approved Signed QTY
+                    {t("projectInfo.invoiceNoApproved")}
                   </label>
                   {editingProjectInfo ? (
                     <input
@@ -2002,23 +2015,23 @@ const BOQItems: React.FC = () => {
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter invoice number for approved signed qty"
+                      placeholder={t("projectInfo.invoiceNoApproved")}
                     />
                   ) : (
                     <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
                       {projectInfo?.invoice_no_approved_signed_qty ||
-                        "Not specified"}
+                        t("boq.notSpecified")}
                     </div>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Invoice Date for Approved Signed QTY
+                    {t("projectInfo.invoiceDateApproved")}
                   </label>
                   {editingProjectInfo ? (
                     <input
-                      type="date"
+                      type="month"
                       value={
                         projectInfoDraft.invoice_date_approved_signed_qty || ""
                       }
@@ -2036,7 +2049,7 @@ const BOQItems: React.FC = () => {
                         ? formatDateMMYYYY(
                             projectInfo.invoice_date_approved_signed_qty
                           )
-                        : "Not specified"}
+                        : t("boq.notSpecified")}
                     </div>
                   )}
                 </div>
@@ -2050,14 +2063,14 @@ const BOQItems: React.FC = () => {
                 onClick={handleCancelProjectInfo}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleSaveProjectInfo}
                 disabled={savingProjectInfo}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {savingProjectInfo ? "Saving..." : "Save Changes"}
+                {t(savingProjectInfo ? "boq.saving" : "boq.saveChanges")}
               </button>
             </div>
           )}
@@ -2069,18 +2082,10 @@ const BOQItems: React.FC = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2
-                className={`text-xl font-semibold text-gray-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h2 className="text-xl font-semibold text-gray-900">
                 {t("boq.addNewItem")}
               </h2>
-              <p
-                className={`text-sm text-gray-600 mt-1 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600 mt-1">
                 {t("boq.manuallyCreateDescription")}
               </p>
             </div>
@@ -2094,11 +2099,7 @@ const BOQItems: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label
-                className={`block text-sm font-medium text-gray-700 mb-1 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t("boq.sectionNumber")} *
               </label>
               <input
@@ -2108,16 +2109,10 @@ const BOQItems: React.FC = () => {
                 onChange={(e) =>
                   handleNewItemFormChange("section_number", e.target.value)
                 }
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder={t("boq.sectionNumberPlaceholder")}
               />
-              <p
-                className={`text-xs text-gray-500 mt-1 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-xs text-gray-500 mt-1">
                 {t("boq.subsectionWillBe")}{" "}
                 {newItemForm.section_number.split(".").length >= 2
                   ? newItemForm.section_number.split(".").slice(0, 2).join(".")
@@ -2160,7 +2155,7 @@ const BOQItems: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description *
+                {t("boq.description")} *
               </label>
               <input
                 type="text"
@@ -2176,7 +2171,7 @@ const BOQItems: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Unit *
+                {t("boq.unit")} *
               </label>
               <input
                 type="text"
@@ -2192,7 +2187,7 @@ const BOQItems: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Original Contract Quantity *
+                {t("boq.contractQty")} *
               </label>
               <input
                 type="number"
@@ -2212,7 +2207,7 @@ const BOQItems: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price *
+                {t("boq.price")} *
               </label>
               <input
                 type="number"
@@ -2233,23 +2228,15 @@ const BOQItems: React.FC = () => {
 
           {/* Calculated Values Preview */}
           <div className="mt-4 p-4 bg-gray-50 rounded-md">
-            <h3
-              className={`text-sm font-medium text-gray-700 mb-2 ${
-                isRTL ? "text-right" : "text-left"
-              }`}
-            >
+            <h3 className="text-sm font-medium text-gray-700 mb-2">
               {t("boq.calculatedValues")}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div className={isRTL ? "text-right" : "text-left"}>
+              <div className="text-left">
                 <span className="text-gray-600">
                   {t("boq.totalContractSum")}:
                 </span>
-                <span
-                  className={`${
-                    isRTL ? "mr-2" : "ml-2"
-                  } font-medium text-gray-900`}
-                >
+                <span className="ml-2 font-medium text-gray-900">
                   {formatCurrency(
                     newItemForm.original_contract_quantity * newItemForm.price
                   )}
@@ -2290,11 +2277,7 @@ const BOQItems: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <h3
-                className={`text-lg font-semibold text-gray-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h3 className="text-lg font-semibold text-gray-900">
                 {passwordAction === "create" && t("boq.confirmBOQItemCreation")}
                 {passwordAction === "update" &&
                   t("boq.confirmContractQuantityUpdate")}
@@ -2440,14 +2423,6 @@ const BOQItems: React.FC = () => {
             </div>
 
             {/* Column Filters */}
-            <div className="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-md mb-4">
-              💡 <strong>Filter Tips:</strong> Column filters are now located
-              beneath each column header in the table below. Use{" "}
-              <code className="bg-white px-1 rounded">&gt;100</code>,{" "}
-              <code className="bg-white px-1 rounded">&lt;50</code>,
-              <code className="bg-white px-1 rounded">=25</code> for numeric
-              fields. Press Enter in any filter field to apply.
-            </div>
 
             <div className="flex justify-between items-center">
               <button
@@ -2514,18 +2489,14 @@ const BOQItems: React.FC = () => {
               {/* Column Headers Row */}
               <tr className="border-b border-gray-300 bg-gray-50">
                 {columnVisibility.serial_number && (
-                  <th
-                    className={`px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px] ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
-                    Serial
+                  <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
+                    {t("boq.serialNumber")}
                   </th>
                 )}
                 {columnVisibility.structure && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
                     <div className="flex items-center justify-between">
-                      <span>Structure</span>
+                      <span>{t("boq.structure")}</span>
                       <FilterDropdown
                         columnName="Structure"
                         values={uniqueValues.structure}
@@ -2546,7 +2517,7 @@ const BOQItems: React.FC = () => {
                 {columnVisibility.system && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
                     <div className="flex items-center justify-between">
-                      <span>System</span>
+                      <span>{t("boq.system")}</span>
                       <FilterDropdown
                         columnName="System"
                         values={uniqueValues.system}
@@ -2566,18 +2537,18 @@ const BOQItems: React.FC = () => {
                 )}
                 {columnVisibility.section_number && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
-                    Code
+                    {t("boq.sectionNumber")}
                   </th>
                 )}
                 {columnVisibility.description && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[200px]">
-                    Description
+                    {t("boq.description")}
                   </th>
                 )}
                 {columnVisibility.unit && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
                     <div className="flex items-center justify-between">
-                      <span>Unit</span>
+                      <span>{t("boq.unit")}</span>
                       <FilterDropdown
                         columnName="Unit"
                         values={uniqueValues.unit}
@@ -2595,17 +2566,17 @@ const BOQItems: React.FC = () => {
                 )}
                 {columnVisibility.price && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
-                    Price
+                    {t("boq.price")}
                   </th>
                 )}
                 {columnVisibility.original_contract_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px]">
-                    Contract Qty
+                    {t("boq.contractQty")}
                   </th>
                 )}
                 {columnVisibility.total_contract_sum && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
-                    Contract Sum
+                    {t("boq.contractSum")}
                   </th>
                 )}
                 {/* Dynamic Contract Update Columns */}
@@ -2634,67 +2605,67 @@ const BOQItems: React.FC = () => {
                 })}
                 {columnVisibility.estimated_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-red-100">
-                    Est. Qty
+                    {t("boq.estimatedQuantity")}
                   </th>
                 )}
                 {columnVisibility.quantity_submitted && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-blue-100">
-                    Submitted Qty
+                    {t("boq.quantitySubmitted")}
                   </th>
                 )}
                 {columnVisibility.internal_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[100px] bg-yellow-100">
-                    Internal Qty
+                    {t("boq.internalQuantity")}
                   </th>
                 )}
                 {columnVisibility.approved_by_project_manager && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-100">
-                    Approved Qty
+                    {t("boq.approvedQuantity")}
                   </th>
                 )}
                 {columnVisibility.approved_signed_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
-                    Approved Signed Qty
+                    {t("boq.approvedSignedQuantity")}
                   </th>
                 )}
                 {columnVisibility.total_estimate && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-red-100">
-                    Total Est.
+                    {t("boq.totalEstimate")}
                   </th>
                 )}
                 {columnVisibility.total_submitted && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-blue-100">
-                    Total Submitted
+                    {t("boq.totalSubmitted")}
                   </th>
                 )}
                 {columnVisibility.internal_total && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-yellow-100">
-                    Internal Total
+                    {t("boq.internalTotal")}
                   </th>
                 )}
                 {columnVisibility.total_approved_by_project_manager && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-100">
-                    Total Approved
+                    {t("boq.totalApproved")}
                   </th>
                 )}
                 {columnVisibility.approved_signed_total && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
-                    Approved Signed Total
+                    {t("boq.approvedSignedTotal")}
                   </th>
                 )}
                 {columnVisibility.subsection && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
-                    Subchapter
+                    {t("boq.subchapter")}
                   </th>
                 )}
                 {columnVisibility.notes && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
-                    Notes
+                    {t("boq.notes")}
                   </th>
                 )}
                 {columnVisibility.actions && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                    Actions
+                    {t("boq.actions")}
                   </th>
                 )}
               </tr>
@@ -3588,9 +3559,11 @@ const BOQItems: React.FC = () => {
                               className="text-purple-600 hover:text-purple-800 px-2 py-1 rounded text-sm hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               title={`View concentration sheet for ${item.section_number}: ${item.description}`}
                             >
-                              {navigatingToSheet === item.id
-                                ? "Navigating..."
-                                : "View Sheet"}
+                              {t(
+                                navigatingToSheet === item.id
+                                  ? "common.navigating"
+                                  : "concentration.viewSheet"
+                              )}
                             </button>
                             <button
                               onClick={() => handleDeleteItem(item)}
@@ -3762,9 +3735,7 @@ const BOQItems: React.FC = () => {
       {/* Empty State */}
       {!loading && items.length === 0 && (
         <div className="bg-white rounded-lg shadow p-6">
-          <div
-            className={`text-gray-500 ${isRTL ? "text-right" : "text-center"}`}
-          >
+          <div className="text-gray-500">
             <p className="text-lg font-medium">{t("boq.noItemsFound")}</p>
             <p className="text-sm mt-1">
               {searchQuery || selectedSubchapter
@@ -3784,11 +3755,7 @@ const BOQItems: React.FC = () => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <h3
-                className={`text-lg font-semibold text-gray-900 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <h3 className="text-lg font-semibold text-gray-900">
                 {t("boq.columnSettings")}
               </h3>
               <button
@@ -3813,19 +3780,11 @@ const BOQItems: React.FC = () => {
             </div>
 
             <div className="mb-4">
-              <p
-                className={`text-sm text-gray-600 mb-3 ${
-                  isRTL ? "text-right" : "text-left"
-                }`}
-              >
+              <p className="text-sm text-gray-600 mb-3">
                 {t("boq.toggleColumnVisibilityDescription")}
               </p>
               {contractUpdates.length > 0 && (
-                <p
-                  className={`text-xs text-gray-500 mb-3 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
+                <p className="text-xs text-gray-500 mb-3">
                   <span className="font-medium">{t("common.note")}:</span>{" "}
                   {t("boq.contractUpdateColumnsNote")}
                 </p>
@@ -3857,7 +3816,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("structure")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Structure</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.structure")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -3867,7 +3828,7 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("system")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">System</span>
+                <span className="text-sm text-gray-700">{t("boq.system")}</span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -3878,7 +3839,7 @@ const BOQItems: React.FC = () => {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700">
-                  Section Number (Code)
+                  {t("boq.sectionNumber")}
                 </span>
               </label>
 
@@ -3889,7 +3850,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("description")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Description</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.description")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -3899,7 +3862,7 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("unit")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Unit</span>
+                <span className="text-sm text-gray-700">{t("boq.unit")}</span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -3911,7 +3874,9 @@ const BOQItems: React.FC = () => {
                   }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Contract Qty</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.contractQty")}
+                </span>
               </label>
 
               {/* Contract Update Quantity Columns */}
@@ -3946,7 +3911,7 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("price")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Price</span>
+                <span className="text-sm text-gray-700">{t("boq.price")}</span>
               </label>
 
               {/* Contract Update Sum Columns */}
@@ -3981,7 +3946,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("total_contract_sum")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Contract Sum</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.contractSum")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -3991,7 +3958,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("estimated_quantity")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Est. Qty</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.estimatedQuantity")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4001,7 +3970,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("quantity_submitted")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Submitted Qty</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.quantitySubmitted")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4011,7 +3982,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("internal_quantity")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Internal Qty</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.internalQuantity")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4023,7 +3996,9 @@ const BOQItems: React.FC = () => {
                   }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Approved Qty</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.approvedQuantity")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4036,7 +4011,7 @@ const BOQItems: React.FC = () => {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700">
-                  Approved Signed Qty
+                  {t("boq.approvedSignedQuantity")}
                 </span>
               </label>
 
@@ -4047,7 +4022,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("total_estimate")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Total Est.</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.totalEstimate")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4057,7 +4034,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("total_submitted")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Total Submitted</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.totalSubmitted")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4067,7 +4046,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("internal_total")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Internal Total</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.internalTotal")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4079,7 +4060,9 @@ const BOQItems: React.FC = () => {
                   }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Total Approved</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.totalApproved")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4092,7 +4075,7 @@ const BOQItems: React.FC = () => {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700">
-                  Approved Signed Total
+                  {t("boq.approvedSignedTotal")}
                 </span>
               </label>
 
@@ -4103,7 +4086,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("subsection")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Subchapter</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.subchapter")}
+                </span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4113,7 +4098,7 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("notes")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Notes</span>
+                <span className="text-sm text-gray-700">{t("boq.notes")}</span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -4123,7 +4108,9 @@ const BOQItems: React.FC = () => {
                   onChange={() => toggleColumnVisibility("actions")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Actions</span>
+                <span className="text-sm text-gray-700">
+                  {t("boq.actions")}
+                </span>
               </label>
             </div>
 
@@ -4132,7 +4119,7 @@ const BOQItems: React.FC = () => {
                 onClick={() => setShowColumnSettings(false)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Close
+                {t("common.close")}
               </button>
             </div>
           </div>

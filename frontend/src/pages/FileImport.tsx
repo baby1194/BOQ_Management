@@ -61,7 +61,8 @@ const FileImport: React.FC = () => {
       },
       onError: (error: any) => {
         toast.error(
-          error.response?.data?.detail || "Failed to import calculation sheets"
+          error.response?.data?.detail ||
+            t("import.failedToImportCalculationSheets")
         );
       },
     }
@@ -76,7 +77,7 @@ const FileImport: React.FC = () => {
       setSelectedFile(file);
       setImportResult(null);
     } else {
-      toast.error("Please select a valid Excel file (.xlsx or .xls)");
+      toast.error(t("import.selectValidExcel"));
     }
   };
 
@@ -89,13 +90,13 @@ const FileImport: React.FC = () => {
     );
 
     if (excelFiles.length === 0) {
-      toast.error("No valid Excel files found in the selected folder");
+      toast.error(t("import.noValidExcelFiles"));
       return;
     }
 
     setSelectedFolder(files);
     setCalculationImportResult(null);
-    toast.success(`Found ${excelFiles.length} Excel files`);
+    toast.success(t("import.foundExcelFiles", { count: excelFiles.length }));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -189,12 +190,12 @@ const FileImport: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={isRTL ? "rtl" : "ltr"}>
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">File Import</h1>
-        <p className="mt-2 text-gray-600">
-          Import BOQ files and calculation sheets
-        </p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("import.title")}
+        </h1>
+        <p className="mt-2 text-gray-600">{t("import.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -203,11 +204,10 @@ const FileImport: React.FC = () => {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Import BOQ File
+                {t("import.boqImportSection")}
               </h2>
               <p className="text-sm text-gray-600">
-                Upload your BOQ.xlsx file. Items with existing section numbers
-                will be skipped (not overwritten).
+                {t("import.boqImportDescription")}
               </p>
             </div>
 
@@ -243,13 +243,19 @@ const FileImport: React.FC = () => {
                     >
                       {importMutation.isLoading ? (
                         <div className="flex items-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Importing...
+                          <div
+                            className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
+                              isRTL ? "ml-2" : "mr-2"
+                            }`}
+                          ></div>
+                          {t("import.importing")}
                         </div>
                       ) : (
                         <div className="flex items-center">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Import File
+                          <Upload
+                            className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
+                          />
+                          {t("import.importFile")}
                         </div>
                       )}
                     </button>
@@ -257,8 +263,8 @@ const FileImport: React.FC = () => {
                       onClick={clearFile}
                       className="btn btn-outline btn-md"
                     >
-                      <X className="h-4 w-4 mr-2" />
-                      Clear
+                      <X className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+                      {t("import.clear")}
                     </button>
                   </div>
                 </div>
@@ -267,10 +273,10 @@ const FileImport: React.FC = () => {
                   <Upload className="h-12 w-12 text-gray-400 mx-auto" />
                   <div>
                     <p className="text-lg font-medium text-gray-900">
-                      Drop your BOQ file here
+                      {t("import.dropBoqFileHere")}
                     </p>
                     <p className="text-sm text-gray-500">
-                      or click to browse files
+                      {t("import.orClickToBrowse")}
                     </p>
                   </div>
                   <input
@@ -284,8 +290,8 @@ const FileImport: React.FC = () => {
                     htmlFor="boq-file-input"
                     className="btn btn-primary btn-md cursor-pointer"
                   >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose File
+                    <Upload className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+                    {t("import.chooseFile")}
                   </label>
                 </div>
               )}
@@ -296,7 +302,7 @@ const FileImport: React.FC = () => {
           {importResult && (
             <div className="mt-6 space-y-4">
               <h3 className="text-md font-semibold text-gray-900">
-                Import Results
+                {t("import.importResults")}
               </h3>
 
               <div
@@ -307,9 +313,17 @@ const FileImport: React.FC = () => {
                 }`}
               >
                 {importResult.success ? (
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                  <CheckCircle
+                    className={`h-5 w-5 text-green-500 ${
+                      isRTL ? "ml-3" : "mr-3"
+                    }`}
+                  />
                 ) : (
-                  <AlertCircle className="h-5 w-5 text-red-500 mr-3" />
+                  <AlertCircle
+                    className={`h-5 w-5 text-red-500 ${
+                      isRTL ? "ml-3" : "mr-3"
+                    }`}
+                  />
                 )}
                 <div>
                   <p
@@ -354,7 +368,7 @@ const FileImport: React.FC = () => {
               {importResult.errors && importResult.errors.length > 0 && (
                 <div className="mt-4">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">
-                    Import Details:
+                    {t("import.importDetails")}
                   </h4>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {importResult.errors.map((error, index) => (
@@ -381,11 +395,10 @@ const FileImport: React.FC = () => {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Import Calculation Sheets
+                {t("import.calculationSheetsSection")}
               </h2>
               <p className="text-sm text-gray-600">
-                Upload a folder containing calculation sheet Excel files. The
-                system will extract calculation data from each sheet.
+                {t("import.calculationSheetsDescription")}
               </p>
             </div>
 
@@ -407,10 +420,12 @@ const FileImport: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-lg font-medium text-gray-900">
-                      Folder Selected
+                      {t("import.folderSelected")}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {getExcelFilesCount()} Excel files found
+                      {t("import.excelFilesFound", {
+                        count: getExcelFilesCount(),
+                      })}
                     </p>
                     <div className="mt-2 text-xs text-gray-400 max-h-20 overflow-y-auto">
                       {Array.from(selectedFolder)
@@ -420,13 +435,15 @@ const FileImport: React.FC = () => {
                             key={index}
                             className="flex items-center justify-center"
                           >
-                            <FileSpreadsheet className="h-3 w-3 mr-1" />
+                            <FileSpreadsheet
+                              className={`h-3 w-3 ${isRTL ? "ml-1" : "mr-1"}`}
+                            />
                             {file.name}
                           </div>
                         ))}
                       {selectedFolder.length > 5 && (
                         <div className="text-gray-400">
-                          ... and {selectedFolder.length - 5} more
+                          ... {t("import.andMore")} {selectedFolder.length - 5}
                         </div>
                       )}
                     </div>
@@ -439,13 +456,19 @@ const FileImport: React.FC = () => {
                     >
                       {calculationImportMutation.isLoading ? (
                         <div className="flex items-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Importing...
+                          <div
+                            className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
+                              isRTL ? "ml-2" : "mr-2"
+                            }`}
+                          ></div>
+                          {t("import.importing")}
                         </div>
                       ) : (
                         <div className="flex items-center">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Import Sheets
+                          <Upload
+                            className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
+                          />
+                          {t("import.importSheets")}
                         </div>
                       )}
                     </button>
@@ -453,8 +476,8 @@ const FileImport: React.FC = () => {
                       onClick={clearFolder}
                       className="btn btn-outline btn-md"
                     >
-                      <X className="h-4 w-4 mr-2" />
-                      Clear
+                      <X className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+                      {t("import.clear")}
                     </button>
                   </div>
                 </div>
@@ -463,10 +486,10 @@ const FileImport: React.FC = () => {
                   <FolderOpen className="h-12 w-12 text-gray-400 mx-auto" />
                   <div>
                     <p className="text-lg font-medium text-gray-900">
-                      Drop calculation sheets folder here
+                      {t("import.dropCalculationSheetsFolder")}
                     </p>
                     <p className="text-sm text-gray-500">
-                      or click to browse folder
+                      {t("import.orClickToBrowseFolder")}
                     </p>
                   </div>
                   <input
@@ -481,8 +504,10 @@ const FileImport: React.FC = () => {
                     htmlFor="calculation-folder-input"
                     className="btn btn-success btn-md cursor-pointer"
                   >
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    Choose Folder
+                    <FolderOpen
+                      className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
+                    />
+                    {t("import.chooseFolder")}
                   </label>
                 </div>
               )}
@@ -493,7 +518,7 @@ const FileImport: React.FC = () => {
           {calculationImportResult && (
             <div className="mt-6 space-y-4">
               <h3 className="text-md font-semibold text-gray-900">
-                Import Results
+                {t("import.importResults")}
               </h3>
 
               <div
@@ -504,9 +529,17 @@ const FileImport: React.FC = () => {
                 }`}
               >
                 {calculationImportResult.success ? (
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+                  <CheckCircle
+                    className={`h-5 w-5 text-green-500 ${
+                      isRTL ? "ml-3" : "mr-3"
+                    }`}
+                  />
                 ) : (
-                  <AlertCircle className="h-5 w-5 text-red-500 mr-3" />
+                  <AlertCircle
+                    className={`h-5 w-5 text-red-500 ${
+                      isRTL ? "ml-3" : "mr-3"
+                    }`}
+                  />
                 )}
                 <div>
                   <p
@@ -516,9 +549,11 @@ const FileImport: React.FC = () => {
                         : "text-red-800"
                     }`}
                   >
-                    {calculationImportResult.success
-                      ? "Import Successful"
-                      : "Import Failed"}
+                    {t(
+                      calculationImportResult.success
+                        ? "import.importSuccessful"
+                        : "import.importFailed"
+                    )}
                   </p>
                   <p
                     className={`text-sm ${
@@ -535,7 +570,7 @@ const FileImport: React.FC = () => {
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-medium text-gray-600">
-                    Files Processed
+                    {t("import.filesProcessed")}
                   </p>
                   <p className="text-xl font-bold text-gray-900">
                     {calculationImportResult.files_processed || 0}
@@ -543,7 +578,7 @@ const FileImport: React.FC = () => {
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-medium text-gray-600">
-                    Sheets Imported
+                    {t("import.sheetsImported")}
                   </p>
                   <p className="text-xl font-bold text-gray-900">
                     {calculationImportResult.sheets_imported || 0}
@@ -551,7 +586,7 @@ const FileImport: React.FC = () => {
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-medium text-gray-600">
-                    Entries Imported
+                    {t("import.entriesImported")}
                   </p>
                   <p className="text-xl font-bold text-gray-900">
                     {calculationImportResult.entries_imported || 0}
@@ -564,7 +599,7 @@ const FileImport: React.FC = () => {
                 calculationImportResult.errors.length > 0 && (
                   <div className="mt-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">
-                      Import Details:
+                      {t("import.importDetails")}
                     </h4>
                     <div className="space-y-2 max-h-40 overflow-y-auto">
                       {calculationImportResult.errors.map((error, index) => (
@@ -584,69 +619,6 @@ const FileImport: React.FC = () => {
                 )}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-blue-900 mb-4">
-          Import Instructions
-        </h3>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <h4 className="text-md font-semibold text-blue-800 mb-2">
-              BOQ File Import:
-            </h4>
-            <ul className="text-sm text-blue-800 space-y-2">
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Upload your BOQ.xlsx file containing the Bill of Quantities data
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                The system uses "Section Number" as the unique identifier for
-                each item
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Items with existing section numbers will be skipped (not
-                overwritten)
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Supported file formats: .xlsx, .xls
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-md font-semibold text-blue-800 mb-2">
-              Calculation Sheets Import:
-            </h4>
-            <ul className="text-sm text-blue-800 space-y-2">
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Upload a folder containing multiple calculation sheet Excel
-                files
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Each sheet must have data in specific cells (C1, C2, C3, J5-L5,
-                J6-L6, J24-L24)
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                The system extracts: Sheet No, Drawing No, Description, Section
-                Numbers, Quantities
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Data is automatically saved to the database for each calculation
-                sheet
-              </li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>
