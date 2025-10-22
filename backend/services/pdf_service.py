@@ -178,11 +178,11 @@ class PDFService:
         
         # Start with basic table style
         table_style = [
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Brighter blue for headers
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),  # Increased header font size
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
@@ -199,7 +199,7 @@ class PDFService:
                     # Use Hebrew font for this cell (Hebrew text or currency symbols)
                     table_style.append(('FONTNAME', (col_idx, row_idx), (col_idx, row_idx), self.hebrew_font))
                     # Also set font size for Hebrew cells to ensure proper rendering
-                    table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), 8))
+                    table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), 10))
                     hebrew_cells_count += 1
                     logger.debug(f"Applied Hebrew font to cell ({row_idx}, {col_idx}): '{cell_value}' using font '{self.hebrew_font}'")
         
@@ -216,7 +216,7 @@ class PDFService:
         hebrew_style = ParagraphStyle(
             'HebrewStyle',
             fontName=self.hebrew_font,
-            fontSize=8,
+            fontSize=10,  # Increased font size
             alignment=1,  # Center alignment
             spaceAfter=0,
             spaceBefore=0,
@@ -227,7 +227,7 @@ class PDFService:
         english_style = ParagraphStyle(
             'EnglishStyle',
             fontName='Helvetica',
-            fontSize=8,
+            fontSize=10,  # Increased font size
             alignment=1,  # Center alignment
             spaceAfter=0,
             spaceBefore=0,
@@ -254,10 +254,11 @@ class PDFService:
         
         # Apply basic table styling
         table_style = [
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Brighter blue for headers
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),  # Increased header font size
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
@@ -550,7 +551,7 @@ class PDFService:
             
             # Calculate width for each column based on content
             column_widths = []
-            font_size = 8
+            font_size = 12
             header_font = 'Helvetica-Bold'
             data_font = 'Helvetica'
             
@@ -830,7 +831,7 @@ class PDFService:
                 # Hebrew mode: right-aligned
                 boq_table_style.extend([
                     ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # All columns right-aligned for Hebrew
-                    ('FONTSIZE', (0, 0), (-1, -1), 11),
+                    ('FONTSIZE', (0, 0), (-1, -1), 12),  # Increased data font size
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
                 ])
@@ -838,7 +839,7 @@ class PDFService:
                 # English mode: left-aligned
                 boq_table_style.extend([
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
-                    ('FONTSIZE', (0, 0), (-1, -1), 11),
+                    ('FONTSIZE', (0, 0), (-1, -1), 12),  # Increased data font size
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
                 ])
