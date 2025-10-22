@@ -27,6 +27,9 @@ async def export_concentration_sheets(
         # Get entry columns configuration if provided
         entry_columns = request.get("entry_columns", None)
         
+        # Get language parameter (default to English)
+        language = request.get("language", "en")
+        
         # Get concentration sheets to export
         if request.get("export_all", False):
             sheets = db.query(models.ConcentrationSheet).all()
@@ -61,8 +64,8 @@ async def export_concentration_sheets(
                 models.ConcentrationEntry.concentration_sheet_id == sheet.id
             ).order_by(models.ConcentrationEntry.id).all()
             
-            # Generate individual PDF for this sheet with entry columns configuration
-            pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns)
+            # Generate individual PDF for this sheet with entry columns configuration and language
+            pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
             pdf_paths.append(pdf_path)
         
         # Create a zip file containing all individual PDF files
@@ -107,10 +110,13 @@ async def export_concentration_sheets(
 @router.post("/concentration-sheet/{sheet_id}", response_model=schemas.PDFExportResponse)
 async def export_single_concentration_sheet(
     sheet_id: int,
+    request: dict = None,
     db: Session = Depends(get_db)
 ):
     """Export a single concentration sheet to PDF"""
     try:
+        # Get language parameter (default to English)
+        language = request.get("language", "en") if request else "en"
         # Get the concentration sheet with BOQ item and entries
         sheet = db.query(models.ConcentrationSheet).filter(
             models.ConcentrationSheet.id == sheet_id
@@ -133,7 +139,7 @@ async def export_single_concentration_sheet(
         ).order_by(models.ConcentrationEntry.id).all()
         
         pdf_service = PDFService()
-        pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db)
+        pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, None, language)
         
         # Return the filename for download
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -249,10 +255,13 @@ async def export_single_concentration_sheet_excel(
         )
 
 @router.post("/summary", response_model=schemas.PDFExportResponse)
-async def export_summary(db: Session = Depends(get_db)):
+async def export_summary(request: dict = None, db: Session = Depends(get_db)):
     """Export summary report to PDF"""
     try:
         pdf_service = PDFService()
+        
+        # Get language parameter (default to English)
+        language = request.get("language", "en") if request else "en"
         
         # Get summary data
         from sqlalchemy import func
@@ -268,8 +277,8 @@ async def export_summary(db: Session = Depends(get_db)):
             models.BOQItem.subsection.isnot(None)
         ).group_by(models.BOQItem.subsection).all()
         
-        # Generate PDF
-        pdf_path = pdf_service.export_summary(summary_data, db)
+        # Generate PDF with language support
+        pdf_path = pdf_service.export_summary(summary_data, db, language)
         
         return schemas.PDFExportResponse(
             success=True,
@@ -293,6 +302,9 @@ async def export_structures_summary(
     """Export structures summary to PDF"""
     try:
         pdf_service = PDFService()
+        
+        # Get language parameter (default to English)
+        language = getattr(request, 'language', 'en')
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if request.data:
@@ -347,8 +359,8 @@ async def export_structures_summary(
         logger.info(f"Final filtered summaries keys: {[list(s.keys()) for s in filtered_summaries]}")
         logger.info(f"First filtered summary: {filtered_summaries[0] if filtered_summaries else 'None'}")
         
-        # Generate PDF
-        pdf_path = pdf_service.export_structures_summary(filtered_summaries, db)
+        # Generate PDF with language support
+        pdf_path = pdf_service.export_structures_summary(filtered_summaries, db, language)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -374,6 +386,9 @@ async def export_systems_summary(
     """Export systems summary to PDF"""
     try:
         pdf_service = PDFService()
+        
+        # Get language parameter (default to English)
+        language = getattr(request, 'language', 'en')
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if request.data:
@@ -421,8 +436,8 @@ async def export_systems_summary(
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
         
-        # Generate PDF
-        pdf_path = pdf_service.export_systems_summary(filtered_summaries, db)
+        # Generate PDF with language support
+        pdf_path = pdf_service.export_systems_summary(filtered_summaries, db, language)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -448,6 +463,9 @@ async def export_subsections_summary(
     """Export subsections summary to PDF"""
     try:
         pdf_service = PDFService()
+        
+        # Get language parameter (default to English)
+        language = getattr(request, 'language', 'en')
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if request.data:
@@ -495,8 +513,8 @@ async def export_subsections_summary(
             if filtered_summary:  # Only add if at least one column is selected
                 filtered_summaries.append(filtered_summary)
         
-        # Generate PDF
-        pdf_path = pdf_service.export_subsections_summary(filtered_summaries, db)
+        # Generate PDF with language support
+        pdf_path = pdf_service.export_subsections_summary(filtered_summaries, db, language)
         
         # Return the filename for download using the download endpoint
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]

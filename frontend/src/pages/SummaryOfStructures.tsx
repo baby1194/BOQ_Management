@@ -223,7 +223,8 @@ const SummaryOfStructures: React.FC = () => {
       if (format === "pdf") {
         response = await exportApi.exportStructuresSummary(
           request,
-          filteredData
+          filteredData,
+          isRTL ? "he" : "en"
         );
       } else {
         response = await exportApi.exportStructuresSummaryExcel(

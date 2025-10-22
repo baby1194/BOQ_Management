@@ -223,7 +223,8 @@ const SummaryOfSubsections: React.FC = () => {
       if (format === "pdf") {
         response = await exportApi.exportSubsectionsSummary(
           request,
-          filteredData
+          filteredData,
+          isRTL ? "he" : "en"
         );
       } else {
         response = await exportApi.exportSubsectionsSummaryExcel(

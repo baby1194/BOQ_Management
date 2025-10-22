@@ -317,12 +317,14 @@ export const importApi = {
 export const exportApi = {
   exportConcentrationSheets: (
     request: PDFExportRequest,
-    entryColumnRequest?: ConcentrationEntryExportRequest
+    entryColumnRequest?: ConcentrationEntryExportRequest,
+    language?: string
   ) =>
     api
       .post<PDFExportResponse>("/export/concentration-sheets", {
         ...request,
         entry_columns: entryColumnRequest,
+        language: language || "en",
       })
       .then((res) => res.data),
 
@@ -339,11 +341,13 @@ export const exportApi = {
 
   exportSingleConcentrationSheetPDF: (
     sheetId: number,
-    entryColumnRequest?: ConcentrationEntryExportRequest
+    entryColumnRequest?: ConcentrationEntryExportRequest,
+    language?: string
   ) =>
     api
       .post<PDFExportResponse>(`/export/concentration-sheet/${sheetId}`, {
         entry_columns: entryColumnRequest,
+        language: language || "en",
       })
       .then((res) => res.data),
 
@@ -357,28 +361,50 @@ export const exportApi = {
       })
       .then((res) => res.data),
 
-  exportSummary: () =>
-    api.post<PDFExportResponse>("/export/summary").then((res) => res.data),
+  exportSummary: (language?: string) =>
+    api
+      .post<PDFExportResponse>("/export/summary", {
+        language: language || "en",
+      })
+      .then((res) => res.data),
 
   // Summary export endpoints
-  exportStructuresSummary: (request: SummaryExportRequest, data?: any[]) =>
+  exportStructuresSummary: (
+    request: SummaryExportRequest,
+    data?: any[],
+    language?: string
+  ) =>
     api
       .post<PDFExportResponse>("/export/structures-summary", {
         ...request,
         data,
+        language: language || "en",
       })
       .then((res) => res.data),
 
-  exportSystemsSummary: (request: SummaryExportRequest, data?: any[]) =>
+  exportSystemsSummary: (
+    request: SummaryExportRequest,
+    data?: any[],
+    language?: string
+  ) =>
     api
-      .post<PDFExportResponse>("/export/systems-summary", { ...request, data })
+      .post<PDFExportResponse>("/export/systems-summary", {
+        ...request,
+        data,
+        language: language || "en",
+      })
       .then((res) => res.data),
 
-  exportSubsectionsSummary: (request: SummaryExportRequest, data?: any[]) =>
+  exportSubsectionsSummary: (
+    request: SummaryExportRequest,
+    data?: any[],
+    language?: string
+  ) =>
     api
       .post<PDFExportResponse>("/export/subsections-summary", {
         ...request,
         data,
+        language: language || "en",
       })
       .then((res) => res.data),
 

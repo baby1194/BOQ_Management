@@ -122,7 +122,8 @@ const ConcentrationSheets: React.FC = () => {
         format === "pdf"
           ? await exportApi.exportSingleConcentrationSheetPDF(
               selectedSheet.id,
-              entryColumnRequest
+              entryColumnRequest,
+              isRTL ? "he" : "en"
             )
           : await exportApi.exportSingleConcentrationSheetExcel(
               selectedSheet.id,
@@ -177,7 +178,8 @@ const ConcentrationSheets: React.FC = () => {
                 export_all: true,
                 export_non_empty_only: false,
               },
-              entryColumnRequest
+              entryColumnRequest,
+              isRTL ? "he" : "en"
             )
           : await exportApi.exportAllConcentrationSheetsExcel(
               {

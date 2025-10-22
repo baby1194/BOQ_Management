@@ -213,7 +213,11 @@ const SummaryOfSystems: React.FC = () => {
 
       let response;
       if (format === "pdf") {
-        response = await exportApi.exportSystemsSummary(request, filteredData);
+        response = await exportApi.exportSystemsSummary(
+          request,
+          filteredData,
+          isRTL ? "he" : "en"
+        );
       } else {
         response = await exportApi.exportSystemsSummaryExcel(
           request,

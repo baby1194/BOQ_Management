@@ -10,6 +10,7 @@ from pathlib import Path
 import logging
 import re
 from datetime import datetime
+from models import models
 
 logger = logging.getLogger(__name__)
 
@@ -318,40 +319,36 @@ class PDFService:
         
         canvas.restoreState()
     
-    def _add_concentration_header_footer(self, canvas, doc, project_name, project_name_hebrew):
-        """Add header and footer to concentration sheet PDF pages with English and Hebrew project names"""
+    def _add_concentration_header_footer(self, canvas, doc, title_text, language="en"):
+        """Add header and footer to concentration sheet PDF pages with title"""
         canvas.saveState()
         
-        # English project name at top left
-        if project_name:
-            canvas.setFont("Helvetica-Bold", 24)
-            canvas.drawString(0.5*inch, doc.pagesize[1] - 0.5*inch, project_name)
-        
-        # Hebrew project name at top right
-        if project_name_hebrew:
-            # Use Hebrew-compatible font for Hebrew text
-            is_rtl = self._detect_rtl(project_name_hebrew)
-            if is_rtl:
+        # Title at top
+        if title_text:
+            if language == "he":
+                # Hebrew: right-aligned with Hebrew font
                 canvas.setFont(self.hebrew_font_bold, 24)
-                # Reverse Hebrew text for proper PDF display
-                reversed_hebrew_name = self._reverse_hebrew_text(project_name_hebrew)
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, reversed_hebrew_name)
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, title_text)
             else:
+                # English: left-aligned with regular font
                 canvas.setFont("Helvetica-Bold", 24)
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, project_name_hebrew)
+                canvas.drawString(0.5*inch, doc.pagesize[1] - 0.5*inch, title_text)
         
-        # Footer with underlined blanks
+        
+        # Footer
         footer_y = 0.5*inch
-        line_y = footer_y - 5
+        line_y = footer_y + 0.1*inch
         
-        # Left side blank
-        canvas.setFont("Helvetica", 9)
+        if language == "he":
+            # Hebrew footer: right-aligned
+            canvas.setFont("Helvetica", 10)
+            canvas.drawRightString(doc.pagesize[0] - 0.5*inch, footer_y, "________________")
+            canvas.line(doc.pagesize[0] - 2*inch, line_y, doc.pagesize[0] - 0.5*inch, line_y)
+        else:
+            # English footer: left-aligned
+            canvas.setFont("Helvetica", 10)
         canvas.drawString(0.5*inch, footer_y, "________________")
         canvas.line(0.5*inch, line_y, 2*inch, line_y)
-        
-        # Right side blank
-        canvas.drawRightString(doc.pagesize[0] - 0.5*inch, footer_y, "________________")
-        canvas.line(doc.pagesize[0] - 2*inch, line_y, doc.pagesize[0] - 0.5*inch, line_y)
         
         canvas.restoreState()
     
@@ -571,15 +568,87 @@ class PDFService:
             # Fallback to A4 size
             return (8.5*72, 11*72)
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en"):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"concentration_sheet_{sheet.id}_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            # Get project names (English and Hebrew) for header
-            project_name, project_name_hebrew = self._get_project_names(db_session, sheet)
+            # Get project information from ProjectInfo table
+            project_info = None
+            if db_session:
+                project_info = db_session.query(models.ProjectInfo).first()
+            
+            # Define translations for headers based on language
+            if language == "he":
+                # Hebrew translations
+                headers_translations = {
+                    'Description': 'תיאור:',
+                    'Calculation Sheet No': 'מס\' דף חישוב',
+                    'Drawing No': 'מס\' שרטוט',
+                    'Estimated Quantity': 'כמות מוערכת',
+                    'Quantity Submitted': 'כמות הוגשה',
+                    'Internal Quantity': 'כמות פנימית',
+                    'Approved by Project Manager': 'כמות מאושרת',
+                    'Notes': 'הערות'
+                }
+                project_headers_translations = {
+                    'Contract No': 'מספר החוזה',
+                    'Developer Name': 'שם יזם',
+                    'Project Name': 'שם הפרויקט',
+                    'Contractor in Charge': 'הקבלן האחראי'
+                }
+                boq_headers_translations = {
+                    'Section No': 'סעיף מספר',
+                    'Contract Quantity': 'כמות החוזה',
+                    'Unit': 'יחידה',
+                    'Price': 'מחיר',
+                    'Description': 'תיאור:'
+                }
+                # Use project_name_hebrew from ProjectInfo if available, otherwise fall back to project_name
+                if project_info and project_info.project_name_hebrew:
+                    title_text = project_info.project_name_hebrew
+                elif project_info and project_info.project_name:
+                    title_text = project_info.project_name
+                else:
+                    title_text = f"דף ריכוז - {boq_item.section_number}"
+                entries_title = "רשומות ריכוז"
+                totals_text = "סיכומים"
+            else:
+                # English (default)
+                headers_translations = {
+                    'Description': 'Description:',
+                    'Calculation Sheet No': 'Calc. Sheet No',
+                    'Drawing No': 'Drawing No',
+                    'Estimated Quantity': 'Est. Quantity',
+                    'Quantity Submitted': 'Qty Submitted',
+                    'Internal Quantity': 'Internal Qty',
+                    'Approved by Project Manager': 'Approved Qty',
+                    'Notes': 'Notes'
+                }
+                project_headers_translations = {
+                    'Contract No': 'Contract No',
+                    'Developer Name': 'Developer Name',
+                    'Project Name': 'Project Name',
+                    'Contractor in Charge': 'Contractor in Charge'
+                }
+                boq_headers_translations = {
+                    'Section No': 'Section No',
+                    'Contract Quantity': 'Contract Quantity',
+                    'Unit': 'Unit',
+                    'Price': 'Price',
+                    'Description': 'Description:'
+                }
+                # Use project_name from ProjectInfo if available, otherwise fall back to concentration sheet
+                if project_info and project_info.project_name:
+                    title_text = project_info.project_name
+                elif sheet.project_name:
+                    title_text = sheet.project_name
+                else:
+                    title_text = f"Concentration Sheet - {boq_item.section_number}"
+                entries_title = "Concentration Entries"
+                totals_text = "TOTALS"
             
             # Apply column filtering based on entry_columns if provided (define early for use throughout method)
             all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
@@ -608,6 +677,9 @@ class PDFService:
                 # If no filtering specified, include all columns
                 filtered_headers = all_headers
             
+            # Translate headers based on language
+            translated_headers = [headers_translations[header] for header in filtered_headers]
+            
             # Create list of column indices to include
             header_indices = [all_headers.index(header) for header in filtered_headers]
             
@@ -617,8 +689,8 @@ class PDFService:
             concentration_column_widths = None
             
             if entries:
-                # Prepare data for optimal page size calculation using filtered headers
-                calc_data = [filtered_headers]
+                # Prepare data for optimal page size calculation using translated headers
+                calc_data = [translated_headers]
                 for entry in entries[:10]:  # Use first 10 entries for calculation
                     all_entry_data = [
                         entry.description or '',
@@ -635,11 +707,11 @@ class PDFService:
                     calc_data.append(filtered_entry_data)
                 
                 # Add a sample totals row for calculation
-                calc_data.append(["TOTALS"] + [""] * (len(filtered_headers) - 1))
+                calc_data.append([totals_text] + [""] * (len(translated_headers) - 1))
                 
                 # Calculate optimal page size using the same method as BOQ items
                 page_size, page_name, concentration_column_widths = self._calculate_optimal_page_size(
-                    filtered_headers, calc_data, font_size=9
+                    translated_headers, calc_data, font_size=9
                 )
                 page_width = page_size[0]
                 logger.info(f"Calculated optimal page size: {page_name} for concentration sheet")
@@ -654,24 +726,41 @@ class PDFService:
             story = []
             styles = getSampleStyleSheet()
             story.append(Spacer(1, 20))
-            # First Table: Project Information (2 rows, 4 columns)
-            project_headers = ['Contract No', 'Developer Name', 'Project Name', 'Contractor in Charge']
+            # First Table: Project Information (2 rows, 3 columns) - Removed Project Name
+            project_headers = ['Contract No', 'Developer Name', 'Contractor in Charge']
+            # Use ProjectInfo data if available, otherwise fall back to ConcentrationSheet data
             project_values = [
-                sheet.contract_no or 'N/A',
-                sheet.developer_name or 'N/A', 
-                sheet.project_name or 'N/A',
-                sheet.contractor_in_charge or 'N/A'
+                (project_info.contract_no if project_info else None) or sheet.contract_no or 'N/A',
+                (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A', 
+                (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'
             ]
             
-            project_data = [project_headers, project_values]
+            # Translate project headers
+            translated_project_headers = [project_headers_translations[header] for header in project_headers]
+            
+            project_data = [translated_project_headers, project_values]
             # Calculate column widths based on actual content
-            project_col_widths = self._calculate_column_widths(project_data, project_headers, page_width, 12, 12)
+            project_col_widths = self._calculate_column_widths(project_data, translated_project_headers, page_width, 12, 12)
             project_table = Table(project_data, colWidths=project_col_widths)
-            project_table_style, processed_project_data = self._create_hebrew_aware_table_style(project_data, project_headers, project_col_widths)
-            project_table_style.extend([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            project_table_style, processed_project_data = self._create_hebrew_aware_table_style(project_data, translated_project_headers, project_col_widths)
+            # Set alignment based on language
+            if language == "he":
+                # Hebrew mode: right-aligned
+                project_table_style.extend([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ])
+            else:
+                # English mode: left-aligned
+                project_table_style.extend([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTSIZE', (0, 0), (-1, -1), 12),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
@@ -694,18 +783,30 @@ class PDFService:
                 boq_item.description or ''
             ]
             
-            boq_data = [boq_headers, boq_values]
+            # Translate BOQ headers
+            translated_boq_headers = [boq_headers_translations[header] for header in boq_headers]
+            
+            boq_data = [translated_boq_headers, boq_values]
             # Calculate column widths based on actual content with special handling for description
-            boq_col_widths = self._calculate_column_widths(boq_data, boq_headers, page_width, 11, 11)
+            boq_col_widths = self._calculate_column_widths(boq_data, translated_boq_headers, page_width, 11, 11)
             boq_table = Table(boq_data, colWidths=boq_col_widths)
             
             # Use Hebrew-aware styling for the BOQ item details table
-            boq_table_style, processed_boq_data = self._create_hebrew_aware_table_style(boq_data, boq_headers, boq_col_widths)
+            boq_table_style, processed_boq_data = self._create_hebrew_aware_table_style(boq_data, translated_boq_headers, boq_col_widths)
             
-            # Customize the style for BOQ item details
-            boq_table_style.extend([
-                ('ALIGN', (0, 0), (3, -1), 'CENTER'),  # First 4 columns center-aligned
-                ('ALIGN', (4, 0), (4, -1), 'CENTER'),    # Description column left-aligned for better readability
+            # Customize the style for BOQ item details based on language
+            if language == "he":
+                # Hebrew mode: right-aligned
+                boq_table_style.extend([
+                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # All columns right-aligned for Hebrew
+                    ('FONTSIZE', (0, 0), (-1, -1), 11),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
+                ])
+            else:
+                # English mode: left-aligned
+                boq_table_style.extend([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
                 ('FONTSIZE', (0, 0), (-1, -1), 11),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
@@ -720,8 +821,8 @@ class PDFService:
             
             # Third Table: Concentration Entries (following the order shown on concentration sheets page)
             if entries:
-                # Use the already defined filtered_headers and header_indices from page size calculation
-                entries_data = [filtered_headers]
+                # Use the already defined translated_headers and header_indices from page size calculation
+                entries_data = [translated_headers]
                 
                 for entry in entries:
                     all_entry_data = [
@@ -746,7 +847,7 @@ class PDFService:
                 
                 # Create full totals row and filter based on selected columns
                 all_totals_row = [
-                    'TOTALS',
+                    totals_text,
                     '',
                     '',
                     f"{total_estimate:,.2f}",
@@ -759,8 +860,8 @@ class PDFService:
                 entries_data.append(filtered_totals_row)
                 
                 # Use pre-calculated column widths from page size calculation (same as BOQ items)
-                # Use filtered headers for table creation
-                current_headers = filtered_headers
+                # Use translated headers for table creation
+                current_headers = translated_headers
                 
                 if concentration_column_widths is None:
                     # Fallback: calculate column widths if not pre-calculated
@@ -780,10 +881,21 @@ class PDFService:
                     # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text (same as BOQ items)
                     entries_table_style, processed_entries_data = self._create_hebrew_aware_table_style(entries_data, current_headers, column_widths)
                     
-                    # Customize the style for concentration entries (different from BOQ items)
-                    entries_table_style.extend([
-                        ('ALIGN', (0, 0), (0, -1), 'LEFT'),  # Description column left-aligned for better readability
-                        ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),  # Numeric columns right-aligned
+                    # Customize the style for concentration entries based on language
+                    if language == "he":
+                        # Hebrew mode: right-aligned content
+                        entries_table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # All columns right-aligned for Hebrew
+                            ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
+                            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.beige),  # Data rows background
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),  # Totals row background
+                        ])
+                    else:
+                        # English mode: left-aligned content
+                        entries_table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
                         ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
                         ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
                         ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
@@ -797,8 +909,8 @@ class PDFService:
                 
                 story.append(entries_table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, project_name_hebrew), 
-                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, project_name_hebrew))
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, title_text, language), 
+                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, title_text, language))
             logger.info(f"Generated concentration sheet PDF with RTL layout: {filepath}")
             return str(filepath)
             
@@ -806,34 +918,61 @@ class PDFService:
             logger.error(f"Error generating single concentration sheet PDF: {str(e)}")
             raise
 
-    def export_summary(self, summary_data, db_session=None):
-        """Export summary report to PDF"""
+    def export_summary(self, summary_data, db_session=None, language="en"):
+        """Export summary report to PDF with language support"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"summary_report_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            # Get project name for header
-            project_name = self._get_project_name(db_session, summary_data)
+            # Get project information from ProjectInfo table
+            project_info = None
+            if db_session:
+                project_info = db_session.query(models.ProjectInfo).first()
+            
+            # Define translations based on language
+            if language == "he":
+                # Hebrew translations
+                headers_translations = {
+                    'Sub-chapter': 'תת-פרק',
+                    'Items': 'פריטים',
+                    'Total Estimate': 'סה"כ הערכה',
+                    'Total Submitted': 'סה"כ הוגש',
+                    'Total PNIMI': 'סה"כ פנימי',
+                    'Total Approved': 'סה"כ מאושר'
+                }
+                title_text = "דוח סיכום BOQ"
+                grand_total_text = "סה\"כ כללי"
+            else:
+                # English (default)
+                headers_translations = {
+                    'Sub-chapter': 'Sub-chapter',
+                    'Items': 'Items',
+                    'Total Estimate': 'Total Estimate',
+                    'Total Submitted': 'Total Submitted',
+                    'Total PNIMI': 'Total PNIMI',
+                    'Total Approved': 'Total Approved'
+                }
+                title_text = "BOQ Summary Report"
+                grand_total_text = "GRAND TOTAL"
+            
+            # Get project name for title
+            if language == "he":
+                project_name = (project_info.project_name_hebrew if project_info and project_info.project_name_hebrew 
+                               else project_info.project_name if project_info 
+                               else "דוח סיכום BOQ")
+            else:
+                project_name = (project_info.project_name if project_info and project_info.project_name
+                               else "BOQ Summary Report")
             
             doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
             story = []
             styles = getSampleStyleSheet()
             
-            # Title
-            title_style = ParagraphStyle(
-                'CustomTitle',
-                parent=styles['Heading1'],
-                fontSize=16,
-                spaceAfter=30,
-                alignment=1  # Center alignment
-            )
-            story.append(Paragraph("BOQ Summary Report", title_style))
-            story.append(Spacer(1, 12))
-            
-            # Create table for summary data
+            # Create table for summary data with translated headers
             headers = ['Sub-chapter', 'Items', 'Total Estimate', 'Total Submitted', 'Total PNIMI', 'Total Approved']
-            data = [headers]
+            translated_headers = [headers_translations[header] for header in headers]
+            data = [translated_headers]
             
             grand_totals = {
                 'items': 0,
@@ -859,9 +998,9 @@ class PDFService:
                 grand_totals['pnimi'] += row.total_pnimi
                 grand_totals['approved'] += row.total_approved
             
-            # Add grand totals row
+            # Add grand totals row with translated text
             data.append([
-                'GRAND TOTAL',
+                grand_total_text,
                 str(grand_totals['items']),
                 f"₪{grand_totals['estimate']:,.2f}",
                 f"₪{grand_totals['submitted']:,.2f}",
@@ -870,13 +1009,24 @@ class PDFService:
             ])
             
             # Calculate optimal column widths based on content
-            column_widths = self._calculate_column_widths(data, headers, 'A4', 10, 10)
+            column_widths = self._calculate_column_widths(data, translated_headers, 'A4', 10, 10)
             
+            # Use Hebrew-aware table creation
+            try:
+                table = self._create_robust_hebrew_table(data, translated_headers, column_widths)
+                logger.info("Successfully created robust Hebrew table for summary")
+            except Exception as e:
+                logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
             table = Table(data, colWidths=column_widths)
-            table.setStyle(TableStyle([
+            table_style, processed_data = self._create_hebrew_aware_table_style(data, translated_headers, column_widths)
+                
+                # Set alignment based on language
+            if language == "he":
+                # Hebrew mode: right-aligned
+                table_style.extend([
+                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
@@ -884,21 +1034,39 @@ class PDFService:
                 ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
                 ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
+                ])
+            else:
+                # English mode: left-aligned
+                table_style.extend([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ])
+            
+            table = Table(processed_data, colWidths=column_widths)
+            table.setStyle(TableStyle(table_style))
             
             story.append(table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
-                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
-            logger.info(f"Generated summary PDF: {filepath}")
+            # Use the same header approach as concentration sheets
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language), 
+                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language))
+            logger.info(f"Generated summary PDF with {language} layout: {filepath}")
             return str(filepath)
             
         except Exception as e:
             logger.error(f"Error generating summary PDF: {str(e)}")
             raise
 
-    def export_structures_summary(self, summaries, db_session=None):
-        """Export structures summary to PDF"""
+    def export_structures_summary(self, summaries, db_session=None, language="en"):
+        """Export structures summary to PDF with language support"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"structures_summary_{timestamp}.pdf"
@@ -907,15 +1075,47 @@ class PDFService:
             # Get project name for header
             project_name = self._get_project_name(db_session, summaries)
             
+            # Define translations for headers based on language
+            if language == "he":
+                # Hebrew translations for structures summary
+                headers_translations = {
+                    'structure': 'מבנה',
+                    'description': 'תיאור',
+                    'total_contract_sum': 'סה"כ חוזה',
+                    'total_estimate': 'סה"כ הערכה',
+                    'total_submitted': 'סה"כ הוגש',
+                    'internal_total': 'סה"כ פנימי',
+                    'total_approved': 'סה"כ מאושר',
+                    'approved_signed_total': 'סה"כ מאושר חתום',
+                    'item_count': 'מספר פריטים'
+                }
+                grand_total_text = "סה\"כ כללי"
+            else:
+                # English (default)
+                headers_translations = {
+                    'structure': 'Structure',
+                    'description': 'Description',
+                    'total_contract_sum': 'Total Contract Sum',
+                    'total_estimate': 'Total Estimate',
+                    'total_submitted': 'Total Submitted',
+                    'internal_total': 'Internal Total',
+                    'total_approved': 'Total Approved',
+                    'approved_signed_total': 'Approved Signed Total',
+                    'item_count': 'Item Count'
+                }
+                grand_total_text = "GRAND TOTAL"
+            
             # Calculate optimal page size and column widths based on content
             if summaries:
-                headers = list(summaries[0].keys())
+                raw_headers = list(summaries[0].keys())
+                # Translate headers
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 
                 # Prepare data for size calculation (headers + sample data + totals row)
                 calc_data = [headers]
                 for summary in summaries[:10]:  # Use first 10 items for calculation to avoid too large pages
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
@@ -927,7 +1127,7 @@ class PDFService:
                     calc_data.append(row_data)
                 
                 # Add a sample totals row for calculation
-                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
+                calc_data.append([grand_total_text] + [""] * (len(headers) - 1))
                 
                 # Calculate optimal page size
                 page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
@@ -949,19 +1149,27 @@ class PDFService:
                 spaceAfter=30,
                 alignment=1  # Center alignment
             )
-            story.append(Paragraph("Structures Summary Report", title_style))
+            # Use language-specific title
+            if language == "he":
+                title_text = "דוח סיכום מבנים"
+            else:
+                title_text = "Structures Summary Report"
+            
+            story.append(Paragraph(title_text, title_style))
             story.append(Spacer(1, 12))
             
             # Create table for summary data
             if summaries:
-                headers = list(summaries[0].keys())
+                # Use the same raw_headers and translated headers from above
+                raw_headers = list(summaries[0].keys())
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 data = [headers]
                 
-                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in headers}
+                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in raw_headers}
                 
                 for summary in summaries:
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
@@ -973,23 +1181,21 @@ class PDFService:
                     data.append(row_data)
                     
                     # Calculate grand totals
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         if isinstance(summary[key], (int, float)):
                             grand_totals[key] += summary[key]
                 
                 # Add grand totals row
-                xxx=0
                 totals_row = []
-                for key in headers:
+                for i, key in enumerate(raw_headers):  # Use raw headers for data access
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
                             totals_row.append(f"₪{grand_totals[key]:,.2f}")
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
-                        if xxx==0:
-                            totals_row.append("GRAND TOTAL")
-                            xxx=1 #only add grand total once
+                        if i == 0:  # Only add grand total text in first column
+                            totals_row.append(grand_total_text)
                         else:
                             totals_row.append("")
                 data.append(totals_row)
@@ -1010,34 +1216,77 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
-                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
-            logger.info(f"Generated structures summary PDF: {filepath}")
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language), 
+                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language))
+            logger.info(f"Generated structures summary PDF with {language} layout: {filepath}")
             return str(filepath)
             
         except Exception as e:
             logger.error(f"Error generating structures summary PDF: {str(e)}")
             raise
 
-    def export_systems_summary(self, summaries, db_session=None):
-        """Export systems summary to PDF"""
+    def export_systems_summary(self, summaries, db_session=None, language="en"):
+        """Export systems summary to PDF with language support"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"systems_summary_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            # Get project name for header
-            project_name = self._get_project_name(db_session, summaries)
+            # Get project information from ProjectInfo table
+            project_info = None
+            if db_session:
+                project_info = db_session.query(models.ProjectInfo).first()
+            
+            # Get project name for title
+            if language == "he":
+                project_name = (project_info.project_name_hebrew if project_info and project_info.project_name_hebrew 
+                               else project_info.project_name if project_info 
+                               else "דוח סיכום מערכות")
+            else:
+                project_name = (project_info.project_name if project_info and project_info.project_name
+                               else "Systems Summary Report")
+            
+            # Define translations for headers based on language
+            if language == "he":
+                # Hebrew translations for systems summary
+                headers_translations = {
+                    'system': 'מערכת',
+                    'description': 'תיאור',
+                    'total_contract_sum': 'סה"כ חוזה',
+                    'total_estimate': 'סה"כ הערכה',
+                    'total_submitted': 'סה"כ הוגש',
+                    'internal_total': 'סה"כ פנימי',
+                    'total_approved': 'סה"כ מאושר',
+                    'approved_signed_total': 'סה"כ מאושר חתום',
+                    'item_count': 'מספר פריטים'
+                }
+                grand_total_text = "סה\"כ כללי"
+            else:
+                # English (default)
+                headers_translations = {
+                    'system': 'System',
+                    'description': 'Description',
+                    'total_contract_sum': 'Total Contract Sum',
+                    'total_estimate': 'Total Estimate',
+                    'total_submitted': 'Total Submitted',
+                    'internal_total': 'Internal Total',
+                    'total_approved': 'Total Approved',
+                    'approved_signed_total': 'Approved Signed Total',
+                    'item_count': 'Item Count'
+                }
+                grand_total_text = "GRAND TOTAL"
             
             # Calculate optimal page size and column widths based on content
             if summaries:
-                headers = list(summaries[0].keys())
+                raw_headers = list(summaries[0].keys())
+                # Translate headers
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 
                 # Prepare data for size calculation (headers + sample data + totals row)
                 calc_data = [headers]
                 for summary in summaries[:10]:  # Use first 10 items for calculation to avoid too large pages
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
@@ -1049,7 +1298,7 @@ class PDFService:
                     calc_data.append(row_data)
                 
                 # Add a sample totals row for calculation
-                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
+                calc_data.append([grand_total_text] + [""] * (len(headers) - 1))
                 
                 # Calculate optimal page size
                 page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
@@ -1071,19 +1320,27 @@ class PDFService:
                 spaceAfter=30,
                 alignment=1  # Center alignment
             )
-            story.append(Paragraph("Systems Summary Report", title_style))
+            # Use language-specific title
+            if language == "he":
+                title_text = "דוח סיכום מערכות"
+            else:
+                title_text = "Systems Summary Report"
+            
+            story.append(Paragraph(title_text, title_style))
             story.append(Spacer(1, 12))
             
             # Create table for summary data
             if summaries:
-                headers = list(summaries[0].keys())
+                # Use the same raw_headers and translated headers from above
+                raw_headers = list(summaries[0].keys())
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 data = [headers]
                 
-                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in headers}
+                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in raw_headers}
                 
                 for summary in summaries:
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
@@ -1095,23 +1352,21 @@ class PDFService:
                     data.append(row_data)
                     
                     # Calculate grand totals
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         if isinstance(summary[key], (int, float)):
                             grand_totals[key] += summary[key]
                 
                 # Add grand totals row
                 totals_row = []
-                xxx=0
-                for key in headers:
+                for i, key in enumerate(raw_headers):  # Use raw headers for data access
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
                             totals_row.append(f"₪{grand_totals[key]:,.2f}")
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
-                        if xxx==0:
-                            totals_row.append("GRAND TOTAL")
-                            xxx=1 #only add grand total once
+                        if i == 0:  # Only add grand total text in first column
+                            totals_row.append(grand_total_text)
                         else:
                             totals_row.append("")
                 data.append(totals_row)
@@ -1132,34 +1387,77 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
-                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
-            logger.info(f"Generated systems summary PDF: {filepath}")
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language), 
+                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language))
+            logger.info(f"Generated systems summary PDF with {language} layout: {filepath}")
             return str(filepath)
             
         except Exception as e:
             logger.error(f"Error generating systems summary PDF: {str(e)}")
             raise
 
-    def export_subsections_summary(self, summaries, db_session=None):
-        """Export subsections summary to PDF"""
+    def export_subsections_summary(self, summaries, db_session=None, language="en"):
+        """Export subsections summary to PDF with language support"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"subsections_summary_{timestamp}.pdf"
             filepath = self.exports_dir / filename
             
-            # Get project name for header
-            project_name = self._get_project_name(db_session, summaries)
+            # Get project information from ProjectInfo table
+            project_info = None
+            if db_session:
+                project_info = db_session.query(models.ProjectInfo).first()
+            
+            # Get project name for title
+            if language == "he":
+                project_name = (project_info.project_name_hebrew if project_info and project_info.project_name_hebrew 
+                               else project_info.project_name if project_info 
+                               else "דוח סיכום תת-פרקים")
+            else:
+                project_name = (project_info.project_name if project_info and project_info.project_name
+                               else "Subsections Summary Report")
+            
+            # Define translations for headers based on language
+            if language == "he":
+                # Hebrew translations for subsections summary
+                headers_translations = {
+                    'subsection': 'תת-פרק',
+                    'description': 'תיאור',
+                    'total_contract_sum': 'סה"כ חוזה',
+                    'total_estimate': 'סה"כ הערכה',
+                    'total_submitted': 'סה"כ הוגש',
+                    'internal_total': 'סה"כ פנימי',
+                    'total_approved': 'סה"כ מאושר',
+                    'approved_signed_total': 'סה"כ מאושר חתום',
+                    'item_count': 'מספר פריטים'
+                }
+                grand_total_text = "סה\"כ כללי"
+            else:
+                # English (default)
+                headers_translations = {
+                    'subsection': 'Subsection',
+                    'description': 'Description',
+                    'total_contract_sum': 'Total Contract Sum',
+                    'total_estimate': 'Total Estimate',
+                    'total_submitted': 'Total Submitted',
+                    'internal_total': 'Internal Total',
+                    'total_approved': 'Total Approved',
+                    'approved_signed_total': 'Approved Signed Total',
+                    'item_count': 'Item Count'
+                }
+                grand_total_text = "GRAND TOTAL"
             
             # Calculate optimal page size and column widths based on content
             if summaries:
-                headers = list(summaries[0].keys())
+                raw_headers = list(summaries[0].keys())
+                # Translate headers
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 
                 # Prepare data for size calculation (headers + sample data + totals row)
                 calc_data = [headers]
                 for summary in summaries[:10]:  # Use first 10 items for calculation to avoid too large pages
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
@@ -1171,7 +1469,7 @@ class PDFService:
                     calc_data.append(row_data)
                 
                 # Add a sample totals row for calculation
-                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
+                calc_data.append([grand_total_text] + [""] * (len(headers) - 1))
                 
                 # Calculate optimal page size
                 page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
@@ -1193,19 +1491,27 @@ class PDFService:
                 spaceAfter=30,
                 alignment=1  # Center alignment
             )
-            story.append(Paragraph("Subsections Summary Report", title_style))
+            # Use language-specific title
+            if language == "he":
+                title_text = "דוח סיכום תת-פרקים"
+            else:
+                title_text = "Subsections Summary Report"
+            
+            story.append(Paragraph(title_text, title_style))
             story.append(Spacer(1, 12))
             
             # Create table for summary data
             if summaries:
-                headers = list(summaries[0].keys())
+                # Use the same raw_headers and translated headers from above
+                raw_headers = list(summaries[0].keys())
+                headers = [headers_translations.get(header, header) for header in raw_headers]
                 data = [headers]
                 
-                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in headers}
+                grand_totals = {key: 0 if isinstance(summaries[0][key], (int, float)) else "" for key in raw_headers}
                 
                 for summary in summaries:
                     row_data = []
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         value = summary[key]
                         if isinstance(value, (int, float)):
                             if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
@@ -1217,23 +1523,21 @@ class PDFService:
                     data.append(row_data)
                     
                     # Calculate grand totals
-                    for key in headers:
+                    for key in raw_headers:  # Use raw headers for data access
                         if isinstance(summary[key], (int, float)):
                             grand_totals[key] += summary[key]
                 
                 # Add grand totals row
-                xxx=0
                 totals_row = []
-                for key in headers:
+                for i, key in enumerate(raw_headers):  # Use raw headers for data access
                     if isinstance(grand_totals[key], (int, float)):
                         if 'total' in key.lower() or 'estimate' in key.lower() or 'submitted' in key.lower() or 'approved' in key.lower():
                             totals_row.append(f"₪{grand_totals[key]:,.2f}")
                         else:
                             totals_row.append(str(grand_totals[key]))
                     else:
-                        if xxx==0:
-                            totals_row.append("GRAND TOTAL")
-                            xxx=1 #only add grand total once
+                        if i == 0:  # Only add grand total text in first column
+                            totals_row.append(grand_total_text)
                         else:
                             totals_row.append("")
                 data.append(totals_row)
@@ -1254,9 +1558,9 @@ class PDFService:
                 
                 story.append(table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name), 
-                     onLaterPages=lambda canvas, doc: self._add_header_footer(canvas, doc, project_name))
-            logger.info(f"Generated subsections summary PDF: {filepath}")
+            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language), 
+                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, project_name, language))
+            logger.info(f"Generated subsections summary PDF with {language} layout: {filepath}")
             return str(filepath)
             
         except Exception as e:
