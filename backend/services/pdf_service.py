@@ -150,6 +150,78 @@ class PDFService:
         has_rtl = bool(rtl_pattern.search(text))
         has_shekel = '₪' in text
         return has_rtl or has_shekel
+
+    def _wrap_hebrew_text(self, text, column_width_points):
+        """Wrap Hebrew text and reverse line order for proper RTL display"""
+        if not text or not self._detect_rtl(text):
+            return text
+            
+        # First, reshape the text for proper Hebrew display
+        reshaped_text = arabic_reshaper.reshape(str(text))
+        display_text = get_display(reshaped_text)
+        
+        # Convert column width from points to approximate character count
+        # For 10pt Hebrew font, characters are typically 5-6 points wide
+        # Use a more accurate estimate based on typical Hebrew character width
+        char_width_points = 5  # More accurate estimate for 10pt Hebrew character width
+        max_chars_per_line = max(20, int(column_width_points / char_width_points))
+        
+        # Apply a reasonable maximum to prevent excessive wrapping
+        # Allow more characters per line for better readability
+        max_chars_per_line = min(max_chars_per_line, 60)  # Allow up to 60 characters per line
+        
+        # Debug logging
+        logger.debug(f"Hebrew text wrapping: '{text[:50]}...', column_width: {column_width_points:.1f}pts, max_chars: {max_chars_per_line}")
+        
+        # Split text into words
+        words = display_text.split()
+        if not words:
+            return text
+            
+        # Wrap text by building lines with intelligent word breaking
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            word_length = len(word)
+            # Add space length (1) if not the first word in line
+            space_length = 1 if current_line else 0
+            
+            # Check if adding this word would exceed the line limit
+            if current_length + space_length + word_length <= max_chars_per_line:
+                current_line.append(word)
+                current_length += space_length + word_length
+            else:
+                # Start a new line, but avoid very short lines if possible
+                if current_line:
+                    # If the current line is very short (less than 30% of max), 
+                    # and the word is not too long, try to fit it anyway
+                    if len(' '.join(current_line)) < max_chars_per_line * 0.3 and word_length <= max_chars_per_line * 0.7:
+                        current_line.append(word)
+                        current_length += space_length + word_length
+                    else:
+                        # Normal wrapping - start new line
+                        lines.append(' '.join(current_line))
+                        current_line = [word]
+                        current_length = word_length
+                else:
+                    # Single word that's too long - force it on its own line
+                    current_line = [word]
+                    current_length = word_length
+        
+        # Add the last line
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        # For Hebrew/RTL text, reverse the line order so the first logical line
+        # appears on the right (visually first) and subsequent lines appear to the left
+        if len(lines) > 1:
+            lines.reverse()
+        
+        result = '<br/>'.join(lines)
+        logger.debug(f"Final wrapped result: '{result}'")
+        return result
     
     def _reverse_hebrew_text(self, text):
         """Reverse Hebrew text to display correctly in PDFs (RTL to LTR for PDF rendering)"""
@@ -166,14 +238,19 @@ class PDFService:
     
     def _create_hebrew_aware_table_style(self, data, headers, column_widths):
         """Create table style that uses Hebrew fonts for Hebrew text in cells"""
-        # Process data to reverse Hebrew text for proper PDF display
+        # Process data to handle Hebrew text wrapping for proper PDF display
         processed_data = []
         for row in data:
             processed_row = []
-            for cell_value in row:
+            for col_idx, cell_value in enumerate(row):
                 if cell_value and self._detect_rtl(str(cell_value)):
-                    # Reverse Hebrew text for proper PDF display
-                    processed_row.append(self._reverse_hebrew_text(str(cell_value)))
+                    # Use Hebrew text wrapping for proper RTL line ordering
+                    # Use actual column width for accurate wrapping
+                    col_width = column_widths[col_idx] if col_idx < len(column_widths) else 100
+                    wrapped_text = self._wrap_hebrew_text(str(cell_value), col_width)
+                    # Convert <br/> tags to actual line breaks for proper PDF rendering
+                    wrapped_text = wrapped_text.replace('<br/>', '\n')
+                    processed_row.append(wrapped_text)
                 else:
                     processed_row.append(cell_value)
             processed_data.append(processed_row)
@@ -182,14 +259,15 @@ class PDFService:
         table_style = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Brighter blue for headers
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Left alignment for table cells
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),  # Increased header font size
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP')  # Top alignment for multi-line content
         ]
         
         # Add Hebrew font styling for individual cells
@@ -202,6 +280,8 @@ class PDFService:
                     table_style.append(('FONTNAME', (col_idx, row_idx), (col_idx, row_idx), self.hebrew_font))
                     # Also set font size for Hebrew cells to ensure proper rendering
                     table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), 10))
+                    # Right align Hebrew text cells
+                    table_style.append(('ALIGN', (col_idx, row_idx), (col_idx, row_idx), 'RIGHT'))
                     hebrew_cells_count += 1
                     logger.debug(f"Applied Hebrew font to cell ({row_idx}, {col_idx}): '{cell_value}' using font '{self.hebrew_font}'")
         
@@ -219,7 +299,7 @@ class PDFService:
             'HebrewStyle',
             fontName=self.hebrew_font,
             fontSize=10,  # Increased font size
-            alignment=1,  # Center alignment
+            alignment=2,  # Right alignment for Hebrew text
             spaceAfter=0,
             spaceBefore=0,
             leftIndent=0,
@@ -230,7 +310,7 @@ class PDFService:
             'EnglishStyle',
             fontName='Helvetica',
             fontSize=10,  # Increased font size
-            alignment=1,  # Center alignment
+            alignment=0,  # Left alignment for English text
             spaceAfter=0,
             spaceBefore=0,
             leftIndent=0,
@@ -243,10 +323,12 @@ class PDFService:
             paragraph_row = []
             for col_idx, cell_value in enumerate(row):
                 if cell_value and self._detect_rtl(str(cell_value)):
-                    reshaped_text = arabic_reshaper.reshape(str(cell_value))
-                    display_text = get_display(reshaped_text)
-                    # Use Hebrew paragraph style for Hebrew text with reversed text
-                    paragraph_row.append(Paragraph(display_text, hebrew_style))
+                    # Use Hebrew text wrapping for proper RTL line ordering
+                    # Use actual column width for accurate wrapping
+                    col_width = column_widths[col_idx] if col_idx < len(column_widths) else 100
+                    wrapped_text = self._wrap_hebrew_text(str(cell_value), col_width)
+                    # Use Hebrew paragraph style for Hebrew text
+                    paragraph_row.append(Paragraph(wrapped_text, hebrew_style))
                 else:
                     # Use English paragraph style for non-Hebrew text
                     paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))    
@@ -259,14 +341,15 @@ class PDFService:
         table_style = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Brighter blue for headers
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Left alignment for table cells
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),  # Increased header font size
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP')  # Top alignment for multi-line content
         ]
         
         table.setStyle(TableStyle(table_style))
@@ -1056,37 +1139,37 @@ class PDFService:
                 table_style, processed_data = self._create_hebrew_aware_table_style(data, translated_headers, column_widths)
                 
                 # Set alignment based on language
-            if language == "he":
-                # Hebrew mode: right-aligned
-                table_style.extend([
-                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Bright gray for header row
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Black text for better contrast
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # White background for data rows
-                ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
-                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ])
-            else:
-                # English mode: left-aligned
-                table_style.extend([
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Bright gray for header row
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Black text for better contrast
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # White background for data rows
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
-                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ])
-            
-            table = Table(processed_data, colWidths=column_widths)
-            table.setStyle(TableStyle(table_style))
+                if language == "he":
+                    # Hebrew mode: right-aligned
+                    table_style.extend([
+                        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Bright gray for header row
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Black text for better contrast
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # White background for data rows
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ])
+                else:
+                    # English mode: left-aligned
+                    table_style.extend([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Bright gray for header row
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Black text for better contrast
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # White background for data rows
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ])
+                
+                table = Table(processed_data, colWidths=column_widths)
+                table.setStyle(TableStyle(table_style))
             
             story.append(table)
             
@@ -1235,19 +1318,47 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                table = Table(data, colWidths=column_widths)
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
-                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
+                # Try to use robust Hebrew table method first, fallback to regular table if it fails
+                try:
+                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1)
+                    logger.info("Successfully created robust Hebrew table for structures summary with repeatRows")
+                except Exception as e:
+                    logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
+                    table = Table(data, colWidths=column_widths, repeat_rows=1)
+                    table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
+                    
+                    # Set alignment based on language
+                    if language == "he":
+                        # Hebrew mode: right-aligned
+                        table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ])
+                    else:
+                        # English mode: left-aligned
+                        table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ])
+                    
+                    table = Table(processed_data, colWidths=column_widths)
+                    table.setStyle(TableStyle(table_style))
                 
                 story.append(table)
             
@@ -1406,19 +1517,47 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                table = Table(data, colWidths=column_widths)
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
-                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
+                # Try to use robust Hebrew table method first, fallback to regular table if it fails
+                try:
+                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1)
+                    logger.info("Successfully created robust Hebrew table for systems summary with repeatRows")
+                except Exception as e:
+                    logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
+                    table = Table(data, colWidths=column_widths, repeat_rows=1)
+                    table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
+                    
+                    # Set alignment based on language
+                    if language == "he":
+                        # Hebrew mode: right-aligned
+                        table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ])
+                    else:
+                        # English mode: left-aligned
+                        table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ])
+                    
+                    table = Table(processed_data, colWidths=column_widths)
+                    table.setStyle(TableStyle(table_style))
                 
                 story.append(table)
             
@@ -1577,19 +1716,47 @@ class PDFService:
                             totals_row.append("")
                 data.append(totals_row)
                 
-                table = Table(data, colWidths=column_widths)
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -2), colors.white),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
-                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
+                # Try to use robust Hebrew table method first, fallback to regular table if it fails
+                try:
+                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1)
+                    logger.info("Successfully created robust Hebrew table for subsections summary with repeatRows")
+                except Exception as e:
+                    logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
+                    table = Table(data, colWidths=column_widths, repeat_rows=1)
+                    table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
+                    
+                    # Set alignment based on language
+                    if language == "he":
+                        # Hebrew mode: right-aligned
+                        table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ])
+                    else:
+                        # English mode: left-aligned
+                        table_style.extend([
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+                            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ])
+                    
+                    table = Table(processed_data, colWidths=column_widths)
+                    table.setStyle(TableStyle(table_style))
                 
                 story.append(table)
             
@@ -1956,11 +2123,11 @@ class PDFService:
             
             if is_description_column:
                 # For description columns, give more generous width and padding
-                max_width = max_width / 2 # More padding for descriptions
-                min_width = 150  # Higher minimum width for descriptions in optimal page size
+                max_width = max_width / 3 # More padding for descriptions
+                min_width = 100  # Higher minimum width for descriptions in optimal page size
             else:
                 # Add padding (30% extra for better readability and cell spacing)
-                max_width = max_width * 1.1
+                # max_width = max_width * 1
                 min_width = 100
             
             max_width = max(min_width, max_width)
