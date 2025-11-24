@@ -289,7 +289,7 @@ class PDFService:
         
         return table_style, processed_data
     
-    def _create_robust_hebrew_table(self, data, headers, column_widths, repeat_rows=0):
+    def _create_robust_hebrew_table(self, data, headers, column_widths, repeat_rows=0, language="en"):
         """Create a table with robust Hebrew support using Paragraph objects"""
         from reportlab.platypus import Paragraph
         from reportlab.lib.styles import ParagraphStyle
@@ -298,7 +298,7 @@ class PDFService:
         hebrew_style = ParagraphStyle(
             'HebrewStyle',
             fontName=self.hebrew_font,
-            fontSize=10,  # Increased font size
+            fontSize=12,  # Same font size as other tables
             alignment=2,  # Right alignment for Hebrew text
             spaceAfter=0,
             spaceBefore=0,
@@ -309,7 +309,7 @@ class PDFService:
         english_style = ParagraphStyle(
             'EnglishStyle',
             fontName='Helvetica',
-            fontSize=10,  # Increased font size
+            fontSize=12,  # Same font size as other tables
             alignment=0,  # Left alignment for English text
             spaceAfter=0,
             spaceBefore=0,
@@ -337,14 +337,18 @@ class PDFService:
         # Create table with Paragraph objects and repeatRows if specified
         table = Table(paragraph_data, colWidths=column_widths, repeatRows=repeat_rows)
         
+        # Set alignment based on language
+        align_mode = 'RIGHT' if language == "he" else 'LEFT'
+        
         # Apply basic table styling
         table_style = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Brighter blue for headers
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Left alignment for table cells
+            ('ALIGN', (0, 0), (-1, -1), align_mode),  # Alignment based on language
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),  # Increased header font size
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),  # Same font size as other tables
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table for all rows
+            ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table for all rows
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
@@ -445,8 +449,19 @@ class PDFService:
         if title_text:
             if language == "he":
                 # Hebrew: right-aligned with Hebrew font
+                # Split title to preserve section number (don't reverse numbers)
+                # Format: "section_number - Hebrew text"
+                if " - " in title_text:
+                    parts = title_text.split(" - ", 1)
+                    section_number = parts[0]
+                    hebrew_text = parts[1]
+                    # Only reverse the Hebrew part, keep section number as-is
+                    reversed_hebrew = self._reverse_hebrew_text(hebrew_text)
+                    display_title = f"{section_number} - {reversed_hebrew}"
+                else:
+                    display_title = self._reverse_hebrew_text(title_text)
                 canvas.setFont(self.hebrew_font_bold, 24)
-                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, self._reverse_hebrew_text(title_text))
+                canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, display_title)
             else:
                 # English: left-aligned with regular font
                 canvas.setFont("Helvetica-Bold", 24)
@@ -724,13 +739,8 @@ class PDFService:
                     'Price': 'מחיר',
                     'Description': 'תיאור:'
                 }
-                # Use project_name_hebrew from ProjectInfo if available, otherwise fall back to project_name
-                if project_info and project_info.project_name_hebrew:
-                    title_text = project_info.project_name_hebrew
-                elif project_info and project_info.project_name:
-                    title_text = project_info.project_name
-                else:
-                    title_text = f"דף ריכוז - {boq_item.section_number}"
+                # Title is always "[section number] - Concentration Sheet" (section number first to preserve it during reversal)
+                title_text = f"{boq_item.section_number} - דף ריכוז"
                 entries_title = "רשומות ריכוז"
                 totals_text = "סיכומים"
             else:
@@ -758,13 +768,8 @@ class PDFService:
                     'Price': 'Price',
                     'Description': 'Description:'
                 }
-                # Use project_name from ProjectInfo if available, otherwise fall back to concentration sheet
-                if project_info and project_info.project_name:
-                    title_text = project_info.project_name
-                elif sheet.project_name:
-                    title_text = sheet.project_name
-                else:
-                    title_text = f"Concentration Sheet - {boq_item.section_number}"
+                # Title is always "Concentration Sheet - [section number]"
+                title_text = f"Concentration Sheet - {boq_item.section_number}"
                 entries_title = "Concentration Entries"
                 totals_text = "TOTALS"
             
@@ -801,11 +806,16 @@ class PDFService:
             # Create list of column indices to include
             header_indices = [all_headers.index(header) for header in filtered_headers]
             
+            # In Hebrew mode, we'll reverse the column order later when creating the table
+            
             # Calculate optimal page size based on content using the same method as BOQ items
             page_size = None
             page_width = None
             concentration_column_widths = None
             
+            # print("translated_headers", translated_headers)
+            # print("header_indices", header_indices)
+
             if entries:
                 # Prepare data for optimal page size calculation using translated headers
                 calc_data = [translated_headers]
@@ -829,7 +839,7 @@ class PDFService:
                 
                 # Calculate optimal page size using the same method as BOQ items
                 page_size, page_name, concentration_column_widths = self._calculate_optimal_page_size(
-                    translated_headers, calc_data, font_size=9
+                    translated_headers, calc_data, font_size=12
                 )
                 page_width = page_size[0]
                 logger.info(f"Calculated optimal page size: {page_name} for concentration sheet")
@@ -844,100 +854,148 @@ class PDFService:
             story = []
             styles = getSampleStyleSheet()
             story.append(Spacer(1, 20))
-            # First Table: Project Information (2 rows, 3 columns) - Removed Project Name
-            project_headers = ['Contract No', 'Developer Name', 'Contractor in Charge']
-            # Use ProjectInfo data if available, otherwise fall back to ConcentrationSheet data
-            project_values = [
-                (project_info.contract_no if project_info else None) or sheet.contract_no or 'N/A',
-                (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A', 
-                (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'
+            # Combined Table: Project Information and BOQ Item Details (2 columns layout)
+            # Left column: Project Name, Contract No, Section Number, Unit, Description
+            # Right column: Contractor in Charge, Developer Name, Contract Quantity, Price
+            
+            # Prepare left column data
+            left_column_data = []
+            if language == "he":
+                left_column_data = [
+                    [project_headers_translations['Project Name'], (project_info.project_name_hebrew if project_info and project_info.project_name_hebrew else None) or (project_info.project_name if project_info else None) or sheet.project_name or 'N/A'],
+                    [project_headers_translations['Contract No'], (project_info.contract_no if project_info else None) or sheet.contract_no or 'N/A'],
+                    [boq_headers_translations['Section No'], boq_item.section_number],
+                    [boq_headers_translations['Unit'], boq_item.unit],
+                    [boq_headers_translations['Description'], boq_item.description or '']
+                ]
+            else:
+                left_column_data = [
+                    [project_headers_translations['Project Name'], (project_info.project_name if project_info else None) or sheet.project_name or 'N/A'],
+                    [project_headers_translations['Contract No'], (project_info.contract_no if project_info else None) or sheet.contract_no or 'N/A'],
+                    [boq_headers_translations['Section No'], boq_item.section_number],
+                    [boq_headers_translations['Unit'], boq_item.unit],
+                    [boq_headers_translations['Description'], boq_item.description or '']
+                ]
+            
+            # Prepare right column data
+            right_column_data = []
+            if language == "he":
+                right_column_data = [
+                    [project_headers_translations['Contractor in Charge'], (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'],
+                    [project_headers_translations['Developer Name'], (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A'],
+                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.2f} ({boq_item.unit})"],
+                    [boq_headers_translations['Price'], f"{boq_item.price:,.2f} ₪"]
+                ]
+            else:
+                right_column_data = [
+                    [project_headers_translations['Contractor in Charge'], (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'],
+                    [project_headers_translations['Developer Name'], (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A'],
+                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.2f} ({boq_item.unit})"],
+                    [boq_headers_translations['Price'], f"{boq_item.price:,.2f} ₪"]
+                ]
+            
+            # Combine into a single table with 2 columns
+            # Find the maximum number of rows
+            max_rows = max(len(left_column_data), len(right_column_data))
+            
+            # Create combined data structure
+            # In Hebrew mode: value should be on left, label on right (reversed from English)
+            combined_data = []
+            for i in range(max_rows):
+                left_row = left_column_data[i] if i < len(left_column_data) else ['', '']
+                right_row = right_column_data[i] if i < len(right_column_data) else ['', '']
+                if language == "he":
+                    # Hebrew: [value, label, value, label]
+                    combined_data.append([left_row[1], left_row[0], right_row[1], right_row[0]])
+                else:
+                    # English: [label, value, label, value]
+                    combined_data.append([left_row[0], left_row[1], right_row[0], right_row[1]])
+            
+            # Calculate column widths using the proper method
+            # Create dummy headers for width calculation (4 columns: left_label, left_value, right_label, right_value)
+            dummy_headers = ['Label', 'Value', 'Label', 'Value']
+            combined_col_widths = self._calculate_column_widths(combined_data, dummy_headers, page_width, 12, 12)
+            
+            # Create table with combined data
+            combined_table = Table(combined_data, colWidths=combined_col_widths)
+            
+            # Use Hebrew-aware styling
+            combined_table_style, processed_combined_data = self._create_hebrew_aware_table_style(combined_data, [], combined_col_widths)
+            
+            # Customize the style based on language
+            # Override default header styling since we don't have headers
+            align_mode = 'RIGHT' if language == "he" else 'LEFT'
+            combined_table_style = [
+                ('ALIGN', (0, 0), (-1, -1), align_mode),  # All columns aligned based on language
+                ('FONTSIZE', (0, 0), (-1, -1), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                ('TOPPADDING', (0, 0), (-1, -1), 12),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line content
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                # # Style label columns (0 and 2) with gray background
+                # ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+                # ('BACKGROUND', (2, 0), (2, -1), colors.lightgrey),
+                # # Style value columns (1 and 3) with white background
+                # ('BACKGROUND', (1, 0), (1, -1), colors.white),
+                # ('BACKGROUND', (3, 0), (3, -1), colors.white),
             ]
             
-            # Translate project headers
-            translated_project_headers = [project_headers_translations[header] for header in project_headers]
-            
-            project_data = [translated_project_headers, project_values]
-            # Calculate column widths based on actual content
-            project_col_widths = self._calculate_column_widths(project_data, translated_project_headers, page_width, 12, 12)
-            project_table = Table(project_data, colWidths=project_col_widths)
-            project_table_style, processed_project_data = self._create_hebrew_aware_table_style(project_data, translated_project_headers, project_col_widths)
-            # Set alignment based on language
-            if language == "he":
-                # Hebrew mode: right-aligned
-                project_table_style.extend([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ])
-            else:
-                # English mode: left-aligned
-                project_table_style.extend([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ])
+            # Add Hebrew font styling for individual cells from processed data
+            for row_idx, row in enumerate(processed_combined_data):
+                for col_idx, cell_value in enumerate(row):
+                    if cell_value and (self._detect_rtl(str(cell_value)) or self._is_currency_value(str(cell_value))):
+                        # Use Hebrew font for this cell (Hebrew text or currency symbols)
+                        combined_table_style.append(('FONTNAME', (col_idx, row_idx), (col_idx, row_idx), self.hebrew_font))
+                        combined_table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), 12))
+                        if language == "he":
+                            combined_table_style.append(('ALIGN', (col_idx, row_idx), (col_idx, row_idx), 'RIGHT'))
             
             # Create table with processed data (Hebrew text reversed)
-            project_table = Table(processed_project_data, colWidths=project_col_widths)
-            project_table.setStyle(TableStyle(project_table_style))
-            story.append(project_table)
-            story.append(Spacer(1, 20))
+            combined_table = Table(processed_combined_data, colWidths=combined_col_widths)
+            combined_table.setStyle(TableStyle(combined_table_style))
             
-            # Second Table: BOQ Item Details (2 rows, 5 columns)
-            boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
-            boq_values = [
-                boq_item.section_number,
-                f"{boq_item.original_contract_quantity:,.2f}",
-                boq_item.unit,
-                f"{boq_item.price:,.2f}",
-                boq_item.description or ''
-            ]
-            
-            # Translate BOQ headers
-            translated_boq_headers = [boq_headers_translations[header] for header in boq_headers]
-            
-            boq_data = [translated_boq_headers, boq_values]
-            # Calculate column widths based on actual content with special handling for description
-            boq_col_widths = self._calculate_column_widths(boq_data, translated_boq_headers, page_width, 11, 11)
-            boq_table = Table(boq_data, colWidths=boq_col_widths)
-            
-            # Use Hebrew-aware styling for the BOQ item details table
-            boq_table_style, processed_boq_data = self._create_hebrew_aware_table_style(boq_data, translated_boq_headers, boq_col_widths)
-            
-            # Customize the style for BOQ item details based on language
+            # Position table left (English) or right (Hebrew) by wrapping in a container table
+            table_width = sum(combined_col_widths)
+            available_width = page_width - 108  # Subtract margins
+            print("available_width", available_width)
+            print("table_width", table_width)
             if language == "he":
-                # Hebrew mode: right-aligned
-                boq_table_style.extend([
-                    ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # All columns right-aligned for Hebrew
-                    ('FONTSIZE', (0, 0), (-1, -1), 12),  # Increased data font size
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
-                ])
+                # Hebrew: position table to the right
+                spacer_width = available_width - table_width
+                if spacer_width > 0:
+                    # Create a wrapper table with spacer on left and table on right
+                    wrapper_data = [[Spacer(spacer_width, 0), combined_table]]
+                    wrapper_table = Table(wrapper_data, colWidths=[spacer_width, table_width])
+                    wrapper_table.setStyle(TableStyle([
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                        ('TOPPADDING', (0, 0), (-1, -1), 0),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                    ]))
+                    story.append(wrapper_table)
+                else:
+                    story.append(combined_table)
             else:
-                # English mode: left-aligned
-                boq_table_style.extend([
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
-                    ('FONTSIZE', (0, 0), (-1, -1), 12),  # Increased data font size
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line description
-                ])
-                
-            # Create table with processed data (Hebrew text reversed)
-            boq_table = Table(processed_boq_data, colWidths=boq_col_widths)
-            boq_table.setStyle(TableStyle(boq_table_style))
-            
-            story.append(boq_table)
+                # English: position table to the left with spacer on right
+                spacer_width = available_width - table_width
+                if spacer_width > 0:
+                    # Create a wrapper table with table on left and spacer on right
+                    wrapper_data = [[combined_table, Spacer(spacer_width, 0)]]
+                    wrapper_table = Table(wrapper_data, colWidths=[table_width, spacer_width])
+                    wrapper_table.setStyle(TableStyle([
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                        ('TOPPADDING', (0, 0), (-1, -1), 0),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                    ]))
+                    story.append(wrapper_table)
+                else:
+                    story.append(combined_table)
             story.append(Spacer(1, 20))
             
-            # Third Table: Concentration Entries (following the order shown on concentration sheets page)
+            # Second Table: Concentration Entries (following the order shown on concentration sheets page)
             if entries:
                 # Use the already defined translated_headers and header_indices from page size calculation
                 entries_data = [translated_headers]
@@ -977,22 +1035,41 @@ class PDFService:
                 filtered_totals_row = [all_totals_row[i] for i in header_indices]
                 entries_data.append(filtered_totals_row)
                 
-                # Use pre-calculated column widths from page size calculation (same as BOQ items)
-                # Use translated headers for table creation
-                current_headers = translated_headers
-                
-                if concentration_column_widths is None:
-                    # Fallback: calculate column widths if not pre-calculated
-                    column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 9, 9)
+                # In Hebrew mode, reverse the column order for RTL display
+                if language == "he":
+                    # Reverse headers
+                    current_headers = list(reversed(translated_headers))
+                    # Reverse each row in entries_data (including header row and totals row)
+                    entries_data = [[row[col_idx] for col_idx in range(len(row)-1, -1, -1)] for row in entries_data]
                 else:
-                    # Note: concentration_column_widths was calculated for all columns, we need to filter it too
-                    # For now, calculate new widths based on filtered data
-                    column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 9, 9)
+                    current_headers = translated_headers
+                
+                # Use pre-calculated column widths from page size calculation (same as BOQ items)
+                # Calculate column widths based on current (possibly reversed) data
+                column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12)
                 
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1)
+                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1, language=language)
                     logger.info("Successfully created robust Hebrew table for concentration entries with repeatRows")
+                    # Override grey backgrounds - remove header and totals row grey backgrounds
+                    # Recreate style with white backgrounds instead of grey
+                    align_mode = 'RIGHT' if language == "he" else 'LEFT'
+                    override_style = TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background (was lightgrey)
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text (was white)
+                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # Alignment based on language
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 12),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                        ('TOPPADDING', (0, 0), (-1, -1), 12),
+                        ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows - white
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.white),  # Totals row - white background (was lightgrey)
+                        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP')
+                    ])
+                    entries_table.setStyle(override_style)
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
                     entries_table = Table(entries_data, colWidths=column_widths, repeatRows=1)
@@ -1004,28 +1081,68 @@ class PDFService:
                         # Hebrew mode: right-aligned content
                         entries_table_style.extend([
                             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # All columns right-aligned for Hebrew
-                            ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
-                            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
+                            ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as first table
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
+                            ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
-                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows background - white
-                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row background
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.white),  # Totals row - white background
                         ])
                     else:
                         # English mode: left-aligned content
                         entries_table_style.extend([
                             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
-                            ('FONTSIZE', (0, 0), (-1, -1), 9),  # Slightly smaller font for concentration entries
-                            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),  # Less padding for more compact rows
+                            ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as first table
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
+                            ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
-                            ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows background - white
-                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row background
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.white),  # Totals row - white background
                         ])
                     
                     # Create table with processed data (Hebrew text reversed)
                     entries_table = Table(processed_entries_data, colWidths=column_widths)
                     entries_table.setStyle(TableStyle(entries_table_style))
                 
-                story.append(entries_table)
+                # Position table left (English) or right (Hebrew) by wrapping in a container table
+                table_width = sum(column_widths)
+                available_width = page_width - 108  # Subtract margins
+                if language == "he":
+                    # Hebrew: position table to the right
+                    spacer_width = available_width - table_width
+                    if spacer_width > 0:
+                        # Create a wrapper table with spacer on left and table on right
+                        wrapper_data = [[Spacer(spacer_width, 0), entries_table]]
+                        wrapper_table = Table(wrapper_data, colWidths=[spacer_width, table_width])
+                        wrapper_table.setStyle(TableStyle([
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                            ('TOPPADDING', (0, 0), (-1, -1), 0),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                        ]))
+                        story.append(wrapper_table)
+                    else:
+                        story.append(entries_table)
+                else:
+                    # English: position table to the left with spacer on right
+                    spacer_width = available_width - table_width
+                    if spacer_width > 0:
+                        # Create a wrapper table with table on left and spacer on right
+                        wrapper_data = [[entries_table, Spacer(spacer_width, 0)]]
+                        wrapper_table = Table(wrapper_data, colWidths=[table_width, spacer_width])
+                        wrapper_table.setStyle(TableStyle([
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                            ('TOPPADDING', (0, 0), (-1, -1), 0),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                        ]))
+                        story.append(wrapper_table)
+                    else:
+                        story.append(entries_table)
             
             doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, title_text, language), 
                      onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, title_text, language))
