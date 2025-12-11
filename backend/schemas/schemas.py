@@ -465,6 +465,7 @@ class StructureDescriptionUpdate(BaseModel):
 class SummaryExportRequest(BaseModel):
     include_structure: bool = True
     include_description: bool = True
+    include_total_decreases: bool = True
     include_total_contract_sum: bool = True
     include_total_estimate: bool = True
     include_total_submitted: bool = True

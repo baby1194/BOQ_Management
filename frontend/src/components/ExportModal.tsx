@@ -23,6 +23,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
       const baseRequest = {
         include_structure: true,
         include_description: true,
+        include_total_decreases: true,
         include_total_contract_sum: true,
         include_total_estimate: true,
         include_total_submitted: true,
@@ -47,6 +48,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
     setExportRequest({
       include_structure: true,
       include_description: true,
+      include_total_decreases: true,
       include_total_contract_sum: true,
       include_total_estimate: true,
       include_total_submitted: true,
@@ -62,6 +64,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
     setExportRequest({
       include_structure: false,
       include_description: false,
+      include_total_decreases: false,
       include_total_contract_sum: false,
       include_total_estimate: false,
       include_total_submitted: false,
@@ -148,6 +151,17 @@ const ExportModal: React.FC<ExportModalProps> = ({
                 disabled={loading}
               />
               <span className="text-sm">Description</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_total_decreases}
+                onChange={() => handleCheckboxChange("include_total_decreases")}
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">Total Decreases</span>
             </label>
 
             <label className="flex items-center">

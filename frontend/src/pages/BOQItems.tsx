@@ -104,6 +104,7 @@ const BOQItems: React.FC = () => {
     total_approved_by_project_manager: "",
     approved_signed_quantity: "",
     approved_signed_total: "",
+    quantity_decrease: "",
 
     // Contract update filters - will be populated dynamically
     contract_updates: {} as Record<number, { quantity: string; sum: string }>,
@@ -139,6 +140,7 @@ const BOQItems: React.FC = () => {
     internal_quantity: true,
     approved_by_project_manager: true,
     approved_signed_quantity: true,
+    quantity_decrease: true,
     total_estimate: true,
     total_submitted: true,
     internal_total: true,
@@ -197,6 +199,7 @@ const BOQItems: React.FC = () => {
       internal_quantity: true,
       approved_by_project_manager: true,
       approved_signed_quantity: true,
+      quantity_decrease: true,
       total_estimate: true,
       total_submitted: true,
       internal_total: true,
@@ -441,6 +444,38 @@ const BOQItems: React.FC = () => {
     }
   };
 
+  // Helper function to get current contract quantity (latest update or original)
+  const getCurrentContractQuantity = (item: BOQItem): number => {
+    // Get the latest contract update quantity if available
+    const latestUpdate = contractUpdates
+      .map((update) => {
+        const boqUpdate = boqItemUpdates.find(
+          (u) => u.boq_item_id === item.id && u.contract_update_id === update.id
+        );
+        return boqUpdate
+          ? {
+              id: update.id,
+              quantity: boqUpdate.updated_contract_quantity || 0,
+            }
+          : null;
+      })
+      .filter((u) => u !== null)
+      .sort((a, b) => (b?.id || 0) - (a?.id || 0))[0];
+
+    return latestUpdate?.quantity || item.original_contract_quantity || 0;
+  };
+
+  // Helper function to calculate quantity decrease
+  const calculateQuantityDecrease = (item: BOQItem): number => {
+    const contractQty = getCurrentContractQuantity(item);
+    const estimatedQty = item.estimated_quantity || 0;
+
+    if (estimatedQty < contractQty) {
+      return contractQty - estimatedQty;
+    }
+    return 0;
+  };
+
   // Apply filters to items
   const applyFilters = (items: BOQItem[]): BOQItem[] => {
     return items.filter((item) => {
@@ -548,6 +583,12 @@ const BOQItems: React.FC = () => {
         item.total_approved_by_project_manager || 0
       );
 
+      const quantityDecrease = calculateQuantityDecrease(item);
+      const matchesQuantityDecrease = parseNumericFilter(
+        filters.quantity_decrease,
+        quantityDecrease
+      );
+
       // Contract update filters
       // console.log(Object.entries(filters.contract_updates || {}));
       const matchesContractUpdates = Object.entries(
@@ -650,6 +691,7 @@ const BOQItems: React.FC = () => {
         matchesTotalSubmitted &&
         matchesInternalTotal &&
         matchesTotalApprovedByProjectManager &&
+        matchesQuantityDecrease &&
         matchesContractUpdates
       );
     });
@@ -1097,6 +1139,8 @@ const BOQItems: React.FC = () => {
             item.approved_by_project_manager;
         if (request.include_approved_signed_quantity)
           filteredItem.approved_signed_quantity = item.approved_signed_quantity;
+        if (request.include_quantity_decrease)
+          filteredItem.quantity_decrease = calculateQuantityDecrease(item);
         if (request.include_total_estimate)
           filteredItem.total_estimate = item.total_estimate;
         if (request.include_total_submitted)
@@ -1465,6 +1509,7 @@ const BOQItems: React.FC = () => {
       total_approved_by_project_manager: "",
       approved_signed_quantity: "",
       approved_signed_total: "",
+      quantity_decrease: "",
       contract_updates: clearedContractUpdates,
     });
   };
@@ -2632,6 +2677,11 @@ const BOQItems: React.FC = () => {
                     {t("boq.approvedSignedQuantity")}
                   </th>
                 )}
+                {columnVisibility.quantity_decrease && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-orange-100">
+                    {t("boq.quantityDecrease")}
+                  </th>
+                )}
                 {columnVisibility.total_estimate && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-red-100">
                     {t("boq.totalEstimate")}
@@ -2971,6 +3021,22 @@ const BOQItems: React.FC = () => {
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
                         "approved_signed_quantity"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.quantity_decrease && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.quantity_decrease}
+                      onChange={(e) =>
+                        handleFilterChange("quantity_decrease", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "quantity_decrease"
                       )}`}
                     />
                   </th>
@@ -3459,6 +3525,11 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
+                    {columnVisibility.quantity_decrease && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-orange-50">
+                        {formatNumber(calculateQuantityDecrease(item))}
+                      </td>
+                    )}
                     {columnVisibility.total_estimate && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-100">
                         {formatCurrency(
@@ -3682,6 +3753,10 @@ const BOQItems: React.FC = () => {
                 {/* Approved Signed Quantity - No total */}
                 {columnVisibility.approved_signed_quantity && (
                   <td className="px-3 py-4 bg-green-100"></td>
+                )}
+                {/* Quantity Decrease - No total */}
+                {columnVisibility.quantity_decrease && (
+                  <td className="px-3 py-4 bg-orange-50"></td>
                 )}
                 {/* Total Estimate - WITH TOTAL */}
                 {columnVisibility.total_estimate && (
@@ -4016,6 +4091,18 @@ const BOQItems: React.FC = () => {
                 />
                 <span className="text-sm text-gray-700">
                   {t("boq.approvedSignedQuantity")}
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.quantity_decrease}
+                  onChange={() => toggleColumnVisibility("quantity_decrease")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  {t("boq.quantityDecrease")}
                 </span>
               </label>
 

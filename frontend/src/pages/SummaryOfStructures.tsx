@@ -35,6 +35,7 @@ const SummaryOfStructures: React.FC = () => {
   const [columnVisibility, setColumnVisibility] = useState({
     structure: true,
     structure_description: true,
+    total_decreases: true,
     total_contract_sum: true,
     total_estimate: true,
     total_submitted: true,
@@ -81,6 +82,7 @@ const SummaryOfStructures: React.FC = () => {
     const baseVisibility = {
       structure: true,
       structure_description: true,
+      total_decreases: true,
       total_contract_sum: true,
       total_estimate: true,
       total_submitted: true,
@@ -192,6 +194,12 @@ const SummaryOfStructures: React.FC = () => {
           filteredSummary.structure = summary.structure;
         if (request.include_description)
           filteredSummary.description = summary.description;
+        if (request.include_total_decreases) {
+          filteredSummary.total_decreases =
+            summary.total_estimate < summary.total_contract_sum
+              ? summary.total_contract_sum - summary.total_estimate
+              : 0;
+        }
         if (request.include_total_contract_sum)
           filteredSummary.total_contract_sum = summary.total_contract_sum;
         if (request.include_total_estimate)
@@ -268,7 +276,12 @@ const SummaryOfStructures: React.FC = () => {
   // Calculate grand totals
   const grandTotals = structureSummaries.reduce(
     (acc, summary) => {
+      const summaryDecreases =
+        summary.total_estimate < summary.total_contract_sum
+          ? summary.total_contract_sum - summary.total_estimate
+          : 0;
       const newAcc = {
+        totalDecreases: acc.totalDecreases + summaryDecreases,
         totalContractSum: acc.totalContractSum + summary.total_contract_sum,
         contractUpdateSums: { ...acc.contractUpdateSums },
         totalEstimate: acc.totalEstimate + summary.total_estimate,
@@ -291,6 +304,7 @@ const SummaryOfStructures: React.FC = () => {
       return newAcc;
     },
     {
+      totalDecreases: 0,
       totalContractSum: 0,
       contractUpdateSums: {} as Record<number, number>,
       totalEstimate: 0,
@@ -412,6 +426,13 @@ const SummaryOfStructures: React.FC = () => {
                     {t("summary.structure")} {t("summary.description")}
                   </th>
                 )}
+                {columnVisibility.total_decreases && (
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider`}
+                  >
+                    {t("summary.totalDecreases")}
+                  </th>
+                )}
                 {columnVisibility.total_contract_sum && (
                   <th
                     className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider`}
@@ -518,6 +539,15 @@ const SummaryOfStructures: React.FC = () => {
                       )}
                     </td>
                   )}
+                  {columnVisibility.total_decreases && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(
+                        summary.total_estimate < summary.total_contract_sum
+                          ? summary.total_contract_sum - summary.total_estimate
+                          : 0
+                      )}
+                    </td>
+                  )}
                   {columnVisibility.total_contract_sum && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatCurrency(summary.total_contract_sum)}
@@ -576,6 +606,11 @@ const SummaryOfStructures: React.FC = () => {
                 )}
                 {columnVisibility.structure_description && (
                   <td className="px-6 py-4 text-sm text-gray-500">-</td>
+                )}
+                {columnVisibility.total_decreases && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.totalDecreases)}
+                  </td>
                 )}
                 {columnVisibility.total_contract_sum && (
                   <td className="px-6 py-4 text-sm font-bold text-gray-900">
