@@ -318,6 +318,7 @@ export interface SummaryExportRequest {
   include_structure: boolean;
   include_description: boolean;
   include_total_decreases: boolean;
+  include_total_increases: boolean;
   include_total_contract_sum: boolean;
   include_total_estimate: boolean;
   include_total_submitted: boolean;

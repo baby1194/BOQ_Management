@@ -333,6 +333,14 @@ async def export_structures_summary(
                     if total_estimate < total_contract_sum
                     else 0
                 )
+            if request.include_total_increases:
+                total_contract_sum = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
+                total_estimate = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+                filtered_summary["total_increases"] = (
+                    total_estimate - total_contract_sum
+                    if total_estimate > total_contract_sum
+                    else 0
+                )
             if request.include_total_contract_sum:
                 filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
@@ -425,6 +433,14 @@ async def export_systems_summary(
                     if total_estimate < total_contract_sum
                     else 0
                 )
+            if request.include_total_increases:
+                total_contract_sum = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
+                total_estimate = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+                filtered_summary["total_increases"] = (
+                    total_estimate - total_contract_sum
+                    if total_estimate > total_contract_sum
+                    else 0
+                )
             if request.include_total_contract_sum:
                 filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
@@ -510,6 +526,14 @@ async def export_subsections_summary(
                     if total_estimate < total_contract_sum
                     else 0
                 )
+            if request.include_total_increases:
+                total_contract_sum = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
+                total_estimate = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+                filtered_summary["total_increases"] = (
+                    total_estimate - total_contract_sum
+                    if total_estimate > total_contract_sum
+                    else 0
+                )
             if request.include_total_contract_sum:
                 filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
@@ -590,6 +614,14 @@ async def export_structures_summary_excel(
                 filtered_summary["total_decreases"] = (
                     total_contract_sum - total_estimate
                     if total_estimate < total_contract_sum
+                    else 0
+                )
+            if request.include_total_increases:
+                total_contract_sum = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
+                total_estimate = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+                filtered_summary["total_increases"] = (
+                    total_estimate - total_contract_sum
+                    if total_estimate > total_contract_sum
                     else 0
                 )
             if request.include_total_contract_sum:
@@ -674,6 +706,14 @@ async def export_systems_summary_excel(
                     if total_estimate < total_contract_sum
                     else 0
                 )
+            if request.include_total_increases:
+                total_contract_sum = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
+                total_estimate = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+                filtered_summary["total_increases"] = (
+                    total_estimate - total_contract_sum
+                    if total_estimate > total_contract_sum
+                    else 0
+                )
             if request.include_total_contract_sum:
                 filtered_summary["total_contract_sum"] = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
             if request.include_total_estimate:
@@ -754,6 +794,14 @@ async def export_subsections_summary_excel(
                 filtered_summary["total_decreases"] = (
                     total_contract_sum - total_estimate
                     if total_estimate < total_contract_sum
+                    else 0
+                )
+            if request.include_total_increases:
+                total_contract_sum = summary.get("total_contract_sum") if isinstance(summary, dict) else summary.total_contract_sum
+                total_estimate = summary.get("total_estimate") if isinstance(summary, dict) else summary.total_estimate
+                filtered_summary["total_increases"] = (
+                    total_estimate - total_contract_sum
+                    if total_estimate > total_contract_sum
                     else 0
                 )
             if request.include_total_contract_sum:

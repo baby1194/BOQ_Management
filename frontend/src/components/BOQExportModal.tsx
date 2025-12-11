@@ -19,6 +19,7 @@ interface BOQExportRequest {
   include_approved_by_project_manager: boolean;
   include_approved_signed_quantity: boolean;
   include_quantity_decrease: boolean;
+  include_quantity_increase: boolean;
   include_total_estimate: boolean;
   include_total_submitted: boolean;
   include_internal_total: boolean;
@@ -66,6 +67,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_approved_by_project_manager: true,
       include_approved_signed_quantity: true,
       include_quantity_decrease: true,
+      include_quantity_increase: true,
       include_total_estimate: true,
       include_total_submitted: true,
       include_internal_total: true,
@@ -108,6 +110,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_approved_by_project_manager: true,
       include_approved_signed_quantity: true,
       include_quantity_decrease: true,
+      include_quantity_increase: true,
       include_total_estimate: true,
       include_total_submitted: true,
       include_internal_total: true,
@@ -143,6 +146,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_approved_by_project_manager: false,
       include_approved_signed_quantity: false,
       include_quantity_decrease: false,
+      include_quantity_increase: false,
       include_total_estimate: false,
       include_total_submitted: false,
       include_internal_total: false,
@@ -443,6 +447,20 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               />
               <span className="text-sm text-gray-700">
                 {t("boq.quantityDecrease")}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_quantity_increase}
+                onChange={() =>
+                  handleCheckboxChange("include_quantity_increase")
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.quantityIncrease")}
               </span>
             </label>
 
