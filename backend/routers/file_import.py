@@ -26,6 +26,60 @@ class CreateConcentrationSheetsResponse(BaseModel):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Base directory for creating folders
+FATINA_BASE_DIR = Path("C:/FATINA")
+
+def create_folders_for_boq_items(db: Session):
+    """
+    Create folders named after section_numbers of BOQ items under C:\FATINA\
+    Skips folders that already exist
+    """
+    try:
+        # Ensure base directory exists
+        FATINA_BASE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Get all BOQ items (section_number is required and unique)
+        boq_items = db.query(models.BOQItem).all()
+        
+        created_count = 0
+        skipped_count = 0
+        
+        for item in boq_items:
+            if item.section_number:
+                # Use section_number as folder name
+                folder_name = str(item.section_number)
+                # Sanitize folder name to avoid invalid characters for Windows
+                folder_name = folder_name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+                folder_path = FATINA_BASE_DIR / folder_name
+                
+                # Skip if folder already exists
+                if folder_path.exists() and folder_path.is_dir():
+                    skipped_count += 1
+                    logger.debug(f"Folder already exists: {folder_path}")
+                else:
+                    try:
+                        folder_path.mkdir(parents=True, exist_ok=True)
+                        # Double-check that folder was created successfully
+                        if folder_path.exists() and folder_path.is_dir():
+                            created_count += 1
+                            logger.info(f"Created folder: {folder_path}")
+                        else:
+                            logger.warning(f"Folder creation may have failed: {folder_path}")
+                    except PermissionError as e:
+                        logger.error(f"Permission denied creating folder {folder_path}: {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Error creating folder {folder_path}: {str(e)}")
+        
+        logger.info(f"Folder creation completed: {created_count} created, {skipped_count} skipped")
+        return created_count, skipped_count
+        
+    except PermissionError as e:
+        logger.error(f"Permission denied accessing base directory {FATINA_BASE_DIR}: {str(e)}")
+        return 0, 0
+    except Exception as e:
+        logger.error(f"Error in create_folders_for_boq_items: {str(e)}")
+        return 0, 0
+
 @router.post("/upload/", response_model=schemas.ImportResponse)
 async def upload_file(
     file: UploadFile = File(...),
@@ -91,6 +145,9 @@ async def upload_file(
             
             # Commit the serial_number updates
             db.commit()
+            
+            # Create folders for all BOQ items (including newly imported ones)
+            create_folders_for_boq_items(db)
         
         # Create import log
         log = models.ImportLog(
@@ -221,6 +278,9 @@ async def import_folder(
         
         # Commit the serial_number updates
         db.commit()
+        
+        # Create folders for all BOQ items (including newly imported ones)
+        create_folders_for_boq_items(db)
     
     # Count skipped items from errors
     skipped_messages = [error for error in all_errors if "Skipped" in error and "existing items" in error]
