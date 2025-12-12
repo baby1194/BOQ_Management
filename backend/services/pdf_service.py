@@ -14,6 +14,15 @@ from models import models
 from bidi.algorithm import get_display
 import arabic_reshaper
 
+# Base directory for saving concentration sheet PDFs to item folders
+FATINA_BASE_DIR = Path("c:/Fatina")
+
+def sanitize_folder_name(folder_name: str) -> str:
+    """
+    Sanitize folder name to avoid invalid characters for Windows
+    """
+    return folder_name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+
 logger = logging.getLogger(__name__)
 
 class PDFService:
@@ -706,7 +715,18 @@ class PDFService:
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"concentration_sheet_{sheet.id}_{timestamp}.pdf"
-            filepath = self.exports_dir / filename
+            
+            # Save to item folder under c:/Fatina/{section_number}/
+            if boq_item and boq_item.section_number:
+                # Sanitize section number for folder name
+                folder_name = sanitize_folder_name(str(boq_item.section_number))
+                item_folder = FATINA_BASE_DIR / folder_name
+                # Create folder if it doesn't exist
+                item_folder.mkdir(parents=True, exist_ok=True)
+                filepath = item_folder / filename
+            else:
+                # Fallback to exports directory if no section number
+                filepath = self.exports_dir / filename
             
             # Get project information from ProjectInfo table
             project_info = None
