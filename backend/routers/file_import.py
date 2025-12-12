@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict
 from pydantic import BaseModel
 import pandas as pd
 import os
@@ -29,6 +29,12 @@ logger = logging.getLogger(__name__)
 # Base directory for creating folders
 FATINA_BASE_DIR = Path("C:/FATINA")
 
+def sanitize_folder_name(folder_name: str) -> str:
+    """
+    Sanitize folder name to avoid invalid characters for Windows
+    """
+    return folder_name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+
 def create_folders_for_boq_items(db: Session):
     """
     Create folders named after section_numbers of BOQ items under C:\FATINA\
@@ -47,9 +53,7 @@ def create_folders_for_boq_items(db: Session):
         for item in boq_items:
             if item.section_number:
                 # Use section_number as folder name
-                folder_name = str(item.section_number)
-                # Sanitize folder name to avoid invalid characters for Windows
-                folder_name = folder_name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+                folder_name = sanitize_folder_name(str(item.section_number))
                 folder_path = FATINA_BASE_DIR / folder_name
                 
                 # Skip if folder already exists
@@ -79,6 +83,91 @@ def create_folders_for_boq_items(db: Session):
     except Exception as e:
         logger.error(f"Error in create_folders_for_boq_items: {str(e)}")
         return 0, 0
+
+def save_calculation_sheet_to_item_folders(
+    source_file_path: Path,
+    calculation_entries: List[Dict],
+    db: Session
+) -> int:
+    """
+    Save calculation sheet Excel file to all contract item folders related to the calculation sheet.
+    Each calculation sheet contains calculations for one or more items (identified by section_number).
+    
+    Args:
+        source_file_path: Path to the source Excel file
+        calculation_entries: List of calculation entries with section_number
+        db: Database session
+        
+    Returns:
+        Number of folders the file was saved to
+    """
+    try:
+        # Ensure base directory exists
+        FATINA_BASE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Extract unique section numbers from calculation entries
+        section_numbers = set()
+        for entry in calculation_entries:
+            section_number = entry.get('section_number')
+            if section_number and str(section_number).strip():
+                section_numbers.add(str(section_number).strip())
+        
+        if not section_numbers:
+            logger.warning(f"No valid section numbers found in calculation entries for file: {source_file_path}")
+            return 0
+        
+        # Find BOQ items with matching section numbers
+        matching_boq_items = db.query(models.BOQItem).filter(
+            models.BOQItem.section_number.in_(section_numbers)
+        ).all()
+        
+        if not matching_boq_items:
+            logger.warning(f"No BOQ items found with section numbers: {section_numbers} for file: {source_file_path}")
+            return 0
+        
+        files_saved = 0
+        
+        # Save the file to each related item's folder
+        for boq_item in matching_boq_items:
+            if not boq_item.section_number:
+                continue
+                
+            # Create folder path using sanitized section number
+            folder_name = sanitize_folder_name(str(boq_item.section_number))
+            folder_path = FATINA_BASE_DIR / folder_name
+            
+            try:
+                # Create folder if it doesn't exist
+                folder_path.mkdir(parents=True, exist_ok=True)
+                
+                # Copy the Excel file to the folder
+                destination_file = folder_path / source_file_path.name
+                
+                # Handle filename conflicts by adding a number suffix
+                original_destination = destination_file
+                counter = 1
+                while destination_file.exists():
+                    stem = original_destination.stem
+                    suffix = original_destination.suffix
+                    destination_file = folder_path / f"{stem}_{counter}{suffix}"
+                    counter += 1
+                
+                # Copy the file
+                shutil.copy2(source_file_path, destination_file)
+                files_saved += 1
+                logger.info(f"Saved calculation sheet to folder: {destination_file}")
+                
+            except PermissionError as e:
+                logger.error(f"Permission denied saving file to folder {folder_path}: {str(e)}")
+            except Exception as e:
+                logger.error(f"Error saving file to folder {folder_path}: {str(e)}")
+        
+        logger.info(f"Saved calculation sheet {source_file_path.name} to {files_saved} item folder(s)")
+        return files_saved
+        
+    except Exception as e:
+        logger.error(f"Error in save_calculation_sheet_to_item_folders: {str(e)}")
+        return 0
 
 @router.post("/upload/", response_model=schemas.ImportResponse)
 async def upload_file(
@@ -454,12 +543,19 @@ async def import_calculation_sheets_from_folder(
                 db.add(new_entry)
                 entries_created += 1
             
+            # Save the calculation sheet Excel file to all related contract item folders
+            files_saved_count = save_calculation_sheet_to_item_folders(
+                file_path,
+                sheet_data['entries'],
+                db
+            )
+            
             # Count as imported (whether new or updated)
             total_sheets_imported += 1
             total_entries_imported += entries_created
             
             action = "updated" if existing_sheet else "imported"
-            logger.info(f"Successfully {action} calculation sheet {file_path.name} with {entries_created} entries (source: {source_file_path})")
+            logger.info(f"Successfully {action} calculation sheet {file_path.name} with {entries_created} entries (source: {source_file_path}). Saved to {files_saved_count} item folder(s).")
             
         except Exception as e:
             error_msg = f"{file_path.name} - Error processing file: {str(e)}"
@@ -570,12 +666,19 @@ async def import_calculation_sheets(
                     db.add(new_entry)
                     entries_created += 1
                 
+                # Save the calculation sheet Excel file to all related contract item folders
+                files_saved_count = save_calculation_sheet_to_item_folders(
+                    file_path,
+                    sheet_data['entries'],
+                    db
+                )
+                
                 # Count as imported (whether new or updated)
                 total_sheets_imported += 1
                 total_entries_imported += entries_created
                 
                 action = "updated" if existing_sheet else "imported"
-                logger.info(f"Successfully {action} calculation sheet {file.filename} with {entries_created} entries (saved to: {source_file_path})")
+                logger.info(f"Successfully {action} calculation sheet {file.filename} with {entries_created} entries (saved to: {source_file_path}). Saved to {files_saved_count} item folder(s).")
                 
             except Exception as e:
                 error_msg = f"{file.filename} - Error processing file: {str(e)}"
