@@ -178,6 +178,20 @@ export const calculationSheetsApi = {
       .put<CalculationSheet>(`/calculation-sheets/${id}/comment`, { comment })
       .then((res) => res.data),
 
+  updateSourceFilePath: (id: number, sourceFilePath: string) =>
+    api
+      .put<CalculationSheet>(`/calculation-sheets/${id}/source-file-path`, {
+        source_file_path: sourceFilePath,
+      })
+      .then((res) => res.data),
+
+  openSourceFile: (id: number) =>
+    api
+      .post<{ success: boolean; message: string }>(
+        `/calculation-sheets/${id}/open-source-file`
+      )
+      .then((res) => res.data),
+
   // Entries
   getEntries: (sheetId: number) =>
     api
@@ -296,6 +310,19 @@ export const importApi = {
         {
           headers: { "Content-Type": "multipart/form-data" },
         }
+      )
+      .then((res) => res.data);
+  },
+
+  importCalculationSheetsFromFolder: (folderPath: string, recursive = true) => {
+    const request = {
+      folder_path: folderPath,
+      recursive: recursive,
+    };
+    return api
+      .post<CalculationImportResponse>(
+        "/file-import/import-calculation-sheets-from-folder/",
+        request
       )
       .then((res) => res.data);
   },

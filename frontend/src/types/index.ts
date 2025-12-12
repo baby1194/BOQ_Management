@@ -175,6 +175,7 @@ export interface CalculationSheet {
   drawing_no: string;
   description: string;
   comment?: string;
+  source_file_path?: string;
   import_date: string;
   created_at: string;
   updated_at?: string;

@@ -135,6 +135,7 @@ class CalculationSheet(Base):
     drawing_no = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     comment = Column(Text, nullable=True)  # User-editable comment field
+    source_file_path = Column(String(500), nullable=True)  # Original file path when imported
     import_date = Column(DateTime(timezone=True), server_default=func.now())
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

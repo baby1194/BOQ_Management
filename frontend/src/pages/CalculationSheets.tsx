@@ -4,7 +4,14 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { calculationSheetsApi } from "../services/api";
 import { CalculationSheet, CalculationEntry } from "../types";
 import { formatNumber } from "../utils/format";
-import { FileText, Trash2, Eye, Search, Filter } from "lucide-react";
+import {
+  FileText,
+  Trash2,
+  Eye,
+  Search,
+  Filter,
+  FolderOpen,
+} from "lucide-react";
 
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
@@ -28,6 +35,7 @@ const CalculationSheets: React.FC = () => {
   const [commentValue, setCommentValue] = useState("");
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [openingFile, setOpeningFile] = useState(false);
 
   // Fetch all calculation sheets
   const fetchSheets = async () => {
@@ -235,6 +243,40 @@ const CalculationSheets: React.FC = () => {
       });
     } finally {
       setPopulatingEntries(false);
+    }
+  };
+
+  // Open source Excel file
+  const handleOpenSourceFile = async () => {
+    if (!selectedSheet) return;
+
+    if (!selectedSheet.source_file_path) {
+      alert(
+        "Source file path is not set for this calculation sheet. Please set it first."
+      );
+      return;
+    }
+
+    try {
+      setOpeningFile(true);
+      setError(null);
+      const response = await calculationSheetsApi.openSourceFile(
+        selectedSheet.id
+      );
+      if (response.success) {
+        // File opening is handled by the backend
+        console.log(response.message);
+      }
+    } catch (err: any) {
+      console.error("Error opening source file:", err);
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        "Failed to open source file";
+      setError(errorMessage);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setOpeningFile(false);
     }
   };
 
@@ -555,33 +597,64 @@ const CalculationSheets: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
-                      <button
-                        onClick={handlePopulateConcentrationEntries}
-                        disabled={populatingEntries || entries.length === 0}
-                        className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                        title={t("calculationSheets.populateEntries")}
-                      >
-                        {populatingEntries ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>{t("calculationSheets.populating")}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>📋</span>
-                            <span>
-                              {t("calculationSheets.populateEntries")}
-                            </span>
-                          </>
+                      <div className="flex space-x-2">
+                        {selectedSheet.source_file_path && (
+                          <button
+                            onClick={handleOpenSourceFile}
+                            disabled={openingFile}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                            title="Open source Excel file"
+                          >
+                            {openingFile ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Opening...</span>
+                              </>
+                            ) : (
+                              <>
+                                <FolderOpen className="h-4 w-4" />
+                                <span>Open Source File</span>
+                              </>
+                            )}
+                          </button>
                         )}
-                      </button>
-                      <p
+                        <button
+                          onClick={handlePopulateConcentrationEntries}
+                          disabled={populatingEntries || entries.length === 0}
+                          className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                          title={t("calculationSheets.populateEntries")}
+                        >
+                          {populatingEntries ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              <span>{t("calculationSheets.populating")}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>📋</span>
+                              <span>
+                                {t("calculationSheets.populateEntries")}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      {selectedSheet.source_file_path && (
+                        <p
+                          className={`text-xs text-gray-500 max-w-xs ${
+                            isRTL ? "text-left" : "text-right"
+                          }`}
+                        >
+                          Source: {selectedSheet.source_file_path}
+                        </p>
+                      )}
+                      {/* <p
                         className={`text-xs text-gray-500 max-w-xs ${
                           isRTL ? "text-left" : "text-right"
                         }`}
                       >
                         {t("calculationSheets.populateEntriesDescription")}
-                      </p>
+                      </p> */}
                     </div>
                   </div>
 

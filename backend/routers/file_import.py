@@ -302,102 +302,226 @@ async def create_concentration_sheets_for_all_items(db: Session = Depends(get_db
             created_count=0
         )
 
-@router.post("/import-calculation-sheets/", response_model=schemas.CalculationImportResponse)
-async def import_calculation_sheets(
-    files: List[UploadFile] = File(...),
+@router.post("/import-calculation-sheets-from-folder/", response_model=schemas.CalculationImportResponse)
+async def import_calculation_sheets_from_folder(
+    request: schemas.ImportRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Import multiple calculation sheet Excel files
+    Import calculation sheet Excel files from a folder path
+    Automatically captures and saves the source file paths
     """
-    if not files:
-        raise HTTPException(status_code=400, detail="No files provided")
+    folder_path = Path(request.folder_path)
+    
+    if not folder_path.exists():
+        raise HTTPException(status_code=400, detail="Folder does not exist")
+    
+    if not folder_path.is_dir():
+        raise HTTPException(status_code=400, detail="Path is not a directory")
+    
+    # Find all Excel files in the folder
+    excel_files = []
+    if request.recursive:
+        excel_files = list(folder_path.rglob("*.xlsx")) + list(folder_path.rglob("*.xls"))
+    else:
+        excel_files = list(folder_path.glob("*.xlsx")) + list(folder_path.glob("*.xls"))
+    
+    if not excel_files:
+        raise HTTPException(status_code=400, detail="No Excel files found in folder")
     
     excel_service = ExcelService()
     total_sheets_imported = 0
     total_entries_imported = 0
     all_errors = []
     
-    try:
-        # Create temporary directory for processing
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
+    for file_path in excel_files:
+        try:
+            logger.info(f"Processing calculation sheet file: {file_path}")
             
-            for file in files:
-                if not file.filename.endswith(('.xlsx', '.xls')):
-                    all_errors.append(f"{file.filename} - Not an Excel file")
-                    continue
+            # Process the calculation sheet
+            sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
+            
+            # Get the full source file path (automatically captured from folder)
+            source_file_path = str(file_path.absolute())
+            
+            # Check if calculation sheet already exists (by calculation_sheet_no and drawing_no)
+            existing_sheet = db.query(models.CalculationSheet).filter(
+                models.CalculationSheet.calculation_sheet_no == sheet_data['calculation_sheet_no'],
+                models.CalculationSheet.drawing_no == sheet_data['drawing_no']
+            ).first()
+            
+            if existing_sheet:
+                # Update existing calculation sheet with new data
+                logger.info(f"Updating existing calculation sheet: {file_path.name} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
                 
-                try:
-                    # Save uploaded file to temporary directory
-                    file_path = temp_path / file.filename
-                    with open(file_path, "wb") as buffer:
-                        content = await file.read()
-                        buffer.write(content)
+                # Update the existing sheet with new data
+                existing_sheet.file_name = file_path.name
+                existing_sheet.description = sheet_data['description']
+                existing_sheet.source_file_path = source_file_path  # Always update with the actual path
+                
+                # Delete existing calculation entries for this sheet
+                db.query(models.CalculationEntry).filter(
+                    models.CalculationEntry.calculation_sheet_id == existing_sheet.id
+                ).delete()
+                
+                current_sheet = existing_sheet
+            else:
+                # Create new calculation sheet record
+                logger.info(f"Creating new calculation sheet: {file_path.name} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
+                
+                new_sheet = models.CalculationSheet(
+                    file_name=file_path.name,
+                    calculation_sheet_no=sheet_data['calculation_sheet_no'],
+                    drawing_no=sheet_data['drawing_no'],
+                    description=sheet_data['description'],
+                    source_file_path=source_file_path  # Automatically save the full path
+                )
+                
+                db.add(new_sheet)
+                db.flush()  # Get the ID without committing
+                current_sheet = new_sheet
+            
+            # Create calculation entries (for both new and updated sheets)
+            entries_created = 0
+            for entry_data in sheet_data['entries']:
+                new_entry = models.CalculationEntry(
+                    calculation_sheet_id=current_sheet.id,
+                    section_number=entry_data['section_number'],
+                    estimated_quantity=entry_data['estimated_quantity'],
+                    quantity_submitted=entry_data['quantity_submitted'],
+                    notes=entry_data.get('notes', '')
+                )
+                db.add(new_entry)
+                entries_created += 1
+            
+            # Count as imported (whether new or updated)
+            total_sheets_imported += 1
+            total_entries_imported += entries_created
+            
+            action = "updated" if existing_sheet else "imported"
+            logger.info(f"Successfully {action} calculation sheet {file_path.name} with {entries_created} entries (source: {source_file_path})")
+            
+        except Exception as e:
+            error_msg = f"{file_path.name} - Error processing file: {str(e)}"
+            logger.error(error_msg)
+            all_errors.append(error_msg)
+            continue
+    
+    # Commit all changes
+    db.commit()
+
+@router.post("/import-calculation-sheets/", response_model=schemas.CalculationImportResponse)
+async def import_calculation_sheets(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Import multiple calculation sheet Excel files (uploaded via form)
+    Files are saved to the uploads directory and the path is automatically saved as source_file_path
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    try:
+        # Create uploads directory if it doesn't exist
+        upload_dir = Path("uploads")
+        upload_dir.mkdir(exist_ok=True)
+        
+        excel_service = ExcelService()
+        total_sheets_imported = 0
+        total_entries_imported = 0
+        all_errors = []
+        
+        for file in files:
+            if not file.filename.endswith(('.xlsx', '.xls')):
+                all_errors.append(f"{file.filename} - Not an Excel file")
+                continue
+            
+            try:
+                # Save uploaded file to uploads directory (permanent location)
+                file_path = upload_dir / file.filename
+                
+                # Handle filename conflicts by adding a number suffix
+                original_file_path = file_path
+                counter = 1
+                while file_path.exists():
+                    stem = original_file_path.stem
+                    suffix = original_file_path.suffix
+                    file_path = upload_dir / f"{stem}_{counter}{suffix}"
+                    counter += 1
+                
+                with open(file_path, "wb") as buffer:
+                    content = await file.read()
+                    buffer.write(content)
+                
+                # Get the absolute path to save as source_file_path
+                source_file_path = str(file_path.absolute())
+                
+                # Process the calculation sheet
+                sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
+                
+                # Check if calculation sheet already exists (by calculation_sheet_no and drawing_no)
+                existing_sheet = db.query(models.CalculationSheet).filter(
+                    models.CalculationSheet.calculation_sheet_no == sheet_data['calculation_sheet_no'],
+                    models.CalculationSheet.drawing_no == sheet_data['drawing_no']
+                ).first()
+                
+                if existing_sheet:
+                    # Update existing calculation sheet with new data
+                    logger.info(f"Updating existing calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
                     
-                    # Process the calculation sheet
-                    sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
+                    # Update the existing sheet with new data
+                    existing_sheet.file_name = file.filename
+                    existing_sheet.description = sheet_data['description']
+                    existing_sheet.source_file_path = source_file_path  # Save the upload directory path
                     
-                    # Check if calculation sheet already exists (by calculation_sheet_no and drawing_no)
-                    existing_sheet = db.query(models.CalculationSheet).filter(
-                        models.CalculationSheet.calculation_sheet_no == sheet_data['calculation_sheet_no'],
-                        models.CalculationSheet.drawing_no == sheet_data['drawing_no']
-                    ).first()
+                    # Delete existing calculation entries for this sheet
+                    db.query(models.CalculationEntry).filter(
+                        models.CalculationEntry.calculation_sheet_id == existing_sheet.id
+                    ).delete()
                     
-                    if existing_sheet:
-                        # Update existing calculation sheet with new data
-                        logger.info(f"Updating existing calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
-                        
-                        # Update the existing sheet with new data
-                        existing_sheet.file_name = file.filename
-                        existing_sheet.description = sheet_data['description']
-                        
-                        # Delete existing calculation entries for this sheet
-                        db.query(models.CalculationEntry).filter(
-                            models.CalculationEntry.calculation_sheet_id == existing_sheet.id
-                        ).delete()
-                        
-                        current_sheet = existing_sheet
-                    else:
-                        # Create new calculation sheet record
-                        logger.info(f"Creating new calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
-                        
-                        new_sheet = models.CalculationSheet(
-                            file_name=file.filename,
-                            calculation_sheet_no=sheet_data['calculation_sheet_no'],
-                            drawing_no=sheet_data['drawing_no'],
-                            description=sheet_data['description']
-                        )
-                        
-                        db.add(new_sheet)
-                        db.flush()  # Get the ID without committing
-                        current_sheet = new_sheet
+                    current_sheet = existing_sheet
+                else:
+                    # Create new calculation sheet record
+                    logger.info(f"Creating new calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
                     
-                    # Create calculation entries (for both new and updated sheets)
-                    entries_created = 0
-                    for entry_data in sheet_data['entries']:
-                        new_entry = models.CalculationEntry(
-                            calculation_sheet_id=current_sheet.id,
-                            section_number=entry_data['section_number'],
-                            estimated_quantity=entry_data['estimated_quantity'],
-                            quantity_submitted=entry_data['quantity_submitted'],
-                            notes=entry_data.get('notes', '')
-                        )
-                        db.add(new_entry)
-                        entries_created += 1
+                    new_sheet = models.CalculationSheet(
+                        file_name=file.filename,
+                        calculation_sheet_no=sheet_data['calculation_sheet_no'],
+                        drawing_no=sheet_data['drawing_no'],
+                        description=sheet_data['description'],
+                        source_file_path=source_file_path  # Save the upload directory path
+                    )
                     
-                    # Count as imported (whether new or updated)
-                    total_sheets_imported += 1
-                    total_entries_imported += entries_created
-                    
-                    action = "updated" if existing_sheet else "imported"
-                    logger.info(f"Successfully {action} calculation sheet {file.filename} with {entries_created} entries")
-                    
-                except Exception as e:
-                    error_msg = f"{file.filename} - Error processing file: {str(e)}"
-                    logger.error(error_msg)
-                    all_errors.append(error_msg)
-                    continue
+                    db.add(new_sheet)
+                    db.flush()  # Get the ID without committing
+                    current_sheet = new_sheet
+                
+                # Create calculation entries (for both new and updated sheets)
+                entries_created = 0
+                for entry_data in sheet_data['entries']:
+                    new_entry = models.CalculationEntry(
+                        calculation_sheet_id=current_sheet.id,
+                        section_number=entry_data['section_number'],
+                        estimated_quantity=entry_data['estimated_quantity'],
+                        quantity_submitted=entry_data['quantity_submitted'],
+                        notes=entry_data.get('notes', '')
+                    )
+                    db.add(new_entry)
+                    entries_created += 1
+                
+                # Count as imported (whether new or updated)
+                total_sheets_imported += 1
+                total_entries_imported += entries_created
+                
+                action = "updated" if existing_sheet else "imported"
+                logger.info(f"Successfully {action} calculation sheet {file.filename} with {entries_created} entries (saved to: {source_file_path})")
+                
+            except Exception as e:
+                error_msg = f"{file.filename} - Error processing file: {str(e)}"
+                logger.error(error_msg)
+                all_errors.append(error_msg)
+                continue
         
         # Commit all changes
         db.commit()
@@ -424,7 +548,6 @@ async def import_calculation_sheets(
             entries_imported=total_entries_imported,
             errors=all_errors
         )
-        
     except Exception as e:
         db.rollback()
         error_msg = f"Error importing calculation sheets: {str(e)}"
@@ -432,7 +555,7 @@ async def import_calculation_sheets(
         return schemas.CalculationImportResponse(
             success=False,
             message=error_msg,
-            files_processed=len(files),
+            files_processed=len(files) if files else 0,
             sheets_imported=0,
             entries_imported=0,
             errors=[error_msg]

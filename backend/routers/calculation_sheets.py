@@ -63,6 +63,7 @@ async def get_calculation_sheet_with_entries(
         drawing_no=sheet.drawing_no,
         description=sheet.description,
         comment=sheet.comment,
+        source_file_path=sheet.source_file_path,
         import_date=sheet.import_date,
         created_at=sheet.created_at,
         updated_at=sheet.updated_at,
@@ -93,6 +94,65 @@ async def update_calculation_sheet_comment(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating calculation sheet comment: {str(e)}")
+
+@router.put("/{sheet_id}/source-file-path", response_model=schemas.CalculationSheet)
+async def update_calculation_sheet_source_file_path(
+    sheet_id: int,
+    source_file_path_update: schemas.CalculationSheetSourceFilePathUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the source_file_path field of a calculation sheet
+    """
+    sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Calculation sheet not found")
+    
+    try:
+        # Update only the source_file_path field
+        sheet.source_file_path = source_file_path_update.source_file_path
+        db.commit()
+        db.refresh(sheet)
+        return sheet
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating calculation sheet source file path: {str(e)}")
+
+@router.post("/{sheet_id}/open-source-file")
+async def open_source_file(
+    sheet_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Open the source Excel file in the default application (Windows)
+    """
+    import os
+    import platform
+    import subprocess
+    
+    sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Calculation sheet not found")
+    
+    if not sheet.source_file_path:
+        raise HTTPException(status_code=400, detail="Source file path not set for this calculation sheet")
+    
+    if not os.path.exists(sheet.source_file_path):
+        raise HTTPException(status_code=404, detail=f"Source file not found at path: {sheet.source_file_path}")
+    
+    try:
+        # Open file based on operating system
+        if platform.system() == 'Windows':
+            os.startfile(sheet.source_file_path)
+        elif platform.system() == 'Darwin':  # macOS
+            subprocess.call(['open', sheet.source_file_path])
+        else:  # Linux
+            subprocess.call(['xdg-open', sheet.source_file_path])
+        
+        return {"success": True, "message": f"Opening file: {sheet.source_file_path}"}
+    except Exception as e:
+        logger.error(f"Error opening file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error opening file: {str(e)}")
 
 @router.delete("/{sheet_id}")
 async def delete_calculation_sheet(

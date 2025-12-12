@@ -243,6 +243,7 @@ class CalculationSheetBase(BaseModel):
     drawing_no: str = Field(..., min_length=1, max_length=100)
     description: str = Field(..., min_length=1)
     comment: Optional[str] = None
+    source_file_path: Optional[str] = None
 
 class CalculationSheetCreate(CalculationSheetBase):
     pass
@@ -258,6 +259,12 @@ class CalculationSheet(CalculationSheetBase):
 
 class CalculationSheetUpdate(BaseModel):
     comment: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class CalculationSheetSourceFilePathUpdate(BaseModel):
+    source_file_path: Optional[str] = None
 
     class Config:
         from_attributes = True
