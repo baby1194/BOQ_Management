@@ -89,6 +89,8 @@ const BOQItems: React.FC = () => {
     unit: "",
     subsection: "",
     notes: "",
+    internal_field_1: "",
+    internal_field_2: "",
 
     // Numeric filters (>, <, =, >=, <=)
     original_contract_quantity: "",
@@ -150,6 +152,8 @@ const BOQItems: React.FC = () => {
     approved_signed_total: true,
     subsection: true,
     notes: true,
+    internal_field_1: true,
+    internal_field_2: true,
     actions: true,
   });
 
@@ -210,6 +214,8 @@ const BOQItems: React.FC = () => {
       approved_signed_total: true,
       subsection: true,
       notes: true,
+      internal_field_1: true,
+      internal_field_2: true,
       actions: true,
     };
 
@@ -544,6 +550,18 @@ const BOQItems: React.FC = () => {
         !filters.notes ||
         (item.notes || "").toLowerCase().includes(filters.notes.toLowerCase());
 
+      const matchesInternalField1 =
+        !filters.internal_field_1 ||
+        (item.internal_field_1 || "")
+          .toLowerCase()
+          .includes(filters.internal_field_1.toLowerCase());
+
+      const matchesInternalField2 =
+        !filters.internal_field_2 ||
+        (item.internal_field_2 || "")
+          .toLowerCase()
+          .includes(filters.internal_field_2.toLowerCase());
+
       // Numeric filters
       const matchesOriginalContractQuantity = parseNumericFilter(
         filters.original_contract_quantity,
@@ -700,6 +718,8 @@ const BOQItems: React.FC = () => {
         matchesUnit &&
         matchesSubsection &&
         matchesNotes &&
+        matchesInternalField1 &&
+        matchesInternalField2 &&
         matchesOriginalContractQuantity &&
         matchesPrice &&
         matchesTotalContractSum &&
@@ -1519,6 +1539,8 @@ const BOQItems: React.FC = () => {
       unit: "",
       subsection: "",
       notes: "",
+      internal_field_1: "",
+      internal_field_2: "",
       original_contract_quantity: "",
       price: "",
       total_contract_sum: "",
@@ -2746,6 +2768,16 @@ const BOQItems: React.FC = () => {
                     {t("boq.notes")}
                   </th>
                 )}
+                {columnVisibility.internal_field_1 && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
+                    Internal Field 1
+                  </th>
+                )}
+                {columnVisibility.internal_field_2 && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[150px]">
+                    Internal Field 2
+                  </th>
+                )}
                 {columnVisibility.actions && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                     {t("boq.actions")}
@@ -3204,6 +3236,38 @@ const BOQItems: React.FC = () => {
                     />
                   </th>
                 )}
+                {columnVisibility.internal_field_1 && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.internal_field_1}
+                      onChange={(e) =>
+                        handleFilterChange("internal_field_1", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "internal_field_1"
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.internal_field_2 && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.internal_field_2}
+                      onChange={(e) =>
+                        handleFilterChange("internal_field_2", e.target.value)
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder="Filter..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "internal_field_2"
+                      )}`}
+                    />
+                  </th>
+                )}
                 {columnVisibility.actions && (
                   <th className="px-2 py-2">
                     <div className="flex gap-1">
@@ -3657,6 +3721,66 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
+                    {columnVisibility.internal_field_1 && (
+                      <td
+                        className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={
+                              currentValues.internal_field_1 !== undefined &&
+                              currentValues.internal_field_1 !== null
+                                ? currentValues.internal_field_1
+                                : item.internal_field_1 || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "internal_field_1",
+                                e.target.value
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          item.internal_field_1 || "-"
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.internal_field_2 && (
+                      <td
+                        className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
+                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        title="Double-click to edit"
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={
+                              currentValues.internal_field_2 !== undefined &&
+                              currentValues.internal_field_2 !== null
+                                ? currentValues.internal_field_2
+                                : item.internal_field_2 || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                "internal_field_2",
+                                e.target.value
+                              )
+                            }
+                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          item.internal_field_2 || "-"
+                        )}
+                      </td>
+                    )}
                     {columnVisibility.actions && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                         {isEditing ? (
@@ -3853,6 +3977,14 @@ const BOQItems: React.FC = () => {
                 )}
                 {/* Notes - No total */}
                 {columnVisibility.notes && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
+                {/* Internal Field 1 - No total */}
+                {columnVisibility.internal_field_1 && (
+                  <td className="px-3 py-4 bg-gray-50"></td>
+                )}
+                {/* Internal Field 2 - No total */}
+                {columnVisibility.internal_field_2 && (
                   <td className="px-3 py-4 bg-gray-50"></td>
                 )}
                 {/* Actions - No total */}
@@ -4256,6 +4388,26 @@ const BOQItems: React.FC = () => {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-700">{t("boq.notes")}</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.internal_field_1}
+                  onChange={() => toggleColumnVisibility("internal_field_1")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Internal Field 1</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.internal_field_2}
+                  onChange={() => toggleColumnVisibility("internal_field_2")}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Internal Field 2</span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">

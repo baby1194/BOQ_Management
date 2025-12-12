@@ -24,6 +24,8 @@ class BOQItemBase(BaseModel):
     approved_signed_quantity: float = Field(0.0, ge=0)
     approved_signed_total: float = Field(0.0, ge=0)
     notes: Optional[str] = None
+    internal_field_1: Optional[str] = Field(None, max_length=255)
+    internal_field_2: Optional[str] = Field(None, max_length=255)
     subsection: Optional[str] = Field(None, max_length=50)
 
 class BOQItemCreate(BaseModel):
@@ -58,6 +60,8 @@ class BOQItemUpdate(BaseModel):
     approved_signed_quantity: Optional[float] = Field(None, ge=0)
     approved_signed_total: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
+    internal_field_1: Optional[str] = Field(None, max_length=255)
+    internal_field_2: Optional[str] = Field(None, max_length=255)
     subsection: Optional[str] = Field(None, max_length=50)
 
 class BOQItem(BOQItemBase):

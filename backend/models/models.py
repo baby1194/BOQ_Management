@@ -33,6 +33,10 @@ class BOQItem(Base):
     
     notes = Column(Text, nullable=True)
     
+    # Internal fields for internal use only
+    internal_field_1 = Column(String(255), nullable=True)
+    internal_field_2 = Column(String(255), nullable=True)
+    
     # Computed fields
     subsection = Column(String(50), nullable=True, index=True)  # Extracted from section_number
     

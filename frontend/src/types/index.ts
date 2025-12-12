@@ -20,6 +20,8 @@ export interface BOQItem {
   approved_signed_quantity: number;
   approved_signed_total: number;
   notes?: string;
+  internal_field_1?: string;
+  internal_field_2?: string;
   subsection?: string;
   created_at: string;
   updated_at?: string;
@@ -57,6 +59,8 @@ export interface BOQItemUpdate {
   approved_signed_quantity?: number;
   approved_signed_total?: number;
   notes?: string;
+  internal_field_1?: string;
+  internal_field_2?: string;
   subsection?: string;
 }
 
