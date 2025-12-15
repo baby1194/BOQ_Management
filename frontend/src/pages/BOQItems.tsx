@@ -49,8 +49,15 @@ const BOQItems: React.FC = () => {
   const [items, setItems] = useState<BOQItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSubchapter, setSelectedSubchapter] = useState<string>("");
+  // Initialize state from localStorage using lazy initialization
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const saved = localStorage.getItem("boq-search-query");
+    return saved !== null ? saved : "";
+  });
+  const [selectedSubchapter, setSelectedSubchapter] = useState<string>(() => {
+    const saved = localStorage.getItem("boq-selected-subchapter");
+    return saved !== null ? saved : "";
+  });
   const [subchapters, setSubchapters] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingValues, setEditingValues] = useState<Partial<BOQItem>>({});
@@ -60,8 +67,18 @@ const BOQItems: React.FC = () => {
   );
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Panel collapse state
-  const [panelsCollapsed, setPanelsCollapsed] = useState(false);
+  // Panel collapse state - initialize from localStorage
+  const [panelsCollapsed, setPanelsCollapsed] = useState(() => {
+    const saved = localStorage.getItem("boq-panels-collapsed");
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
 
   // Project Info state
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
@@ -76,45 +93,71 @@ const BOQItems: React.FC = () => {
   );
 
   // Comprehensive filter system
-  const [filters, setFilters] = useState({
-    // String filters (contains)
-    serial_number: "",
-    structure: "",
-    system: "",
-    section_number: "",
-    description: "",
-    unit: "",
-    subsection: "",
-    notes: "",
-    internal_field_1: "",
-    internal_field_2: "",
+  const [filters, setFilters] = useState(() => {
+    const defaultFilters = {
+      // String filters (contains)
+      serial_number: "",
+      structure: "",
+      system: "",
+      section_number: "",
+      description: "",
+      unit: "",
+      subsection: "",
+      notes: "",
+      internal_field_1: "",
+      internal_field_2: "",
 
-    // Numeric filters (>, <, =, >=, <=)
-    original_contract_quantity: "",
-    price: "",
-    total_contract_sum: "",
-    estimated_quantity: "",
-    quantity_submitted: "",
-    internal_quantity: "",
-    approved_by_project_manager: "",
-    total_estimate: "",
-    total_submitted: "",
-    internal_total: "",
-    total_approved_by_project_manager: "",
-    approved_signed_quantity: "",
-    approved_signed_total: "",
-    quantity_decrease: "",
-    quantity_increase: "",
+      // Numeric filters (>, <, =, >=, <=)
+      original_contract_quantity: "",
+      price: "",
+      total_contract_sum: "",
+      estimated_quantity: "",
+      quantity_submitted: "",
+      internal_quantity: "",
+      approved_by_project_manager: "",
+      total_estimate: "",
+      total_submitted: "",
+      internal_total: "",
+      total_approved_by_project_manager: "",
+      approved_signed_quantity: "",
+      approved_signed_total: "",
+      quantity_decrease: "",
+      quantity_increase: "",
 
-    // Contract update filters - will be populated dynamically
-    contract_updates: {} as Record<number, { quantity: string; sum: string }>,
+      // Contract update filters - will be populated dynamically
+      contract_updates: {} as Record<number, { quantity: string; sum: string }>,
+    };
+
+    const saved = localStorage.getItem("boq-filters");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...defaultFilters, ...parsed };
+      } catch {
+        return defaultFilters;
+      }
+    }
+    return defaultFilters;
   });
 
   // Dropdown filter states for Structure, System, and Unit columns
-  const [dropdownFilters, setDropdownFilters] = useState({
-    structure: [] as string[],
-    system: [] as string[],
-    unit: [] as string[],
+  const [dropdownFilters, setDropdownFilters] = useState(() => {
+    const defaultFilters = {
+      structure: [] as string[],
+      system: [] as string[],
+      unit: [] as string[],
+    };
+
+    const saved = localStorage.getItem("boq-dropdown-filters");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...defaultFilters, ...parsed };
+      } catch {
+        return defaultFilters;
+      }
+    }
+    return defaultFilters;
   });
 
   // Dropdown open/close states
@@ -124,59 +167,86 @@ const BOQItems: React.FC = () => {
     unit: false,
   });
 
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState({
-    serial_number: true,
-    structure: true,
-    system: true,
-    section_number: true,
-    description: true,
-    unit: true,
-    original_contract_quantity: true,
-    price: true,
-    total_contract_sum: true,
-    estimated_quantity: true,
-    quantity_submitted: true,
-    internal_quantity: true,
-    approved_by_project_manager: true,
-    approved_signed_quantity: true,
-    quantity_decrease: true,
-    quantity_increase: true,
-    total_estimate: true,
-    total_submitted: true,
-    internal_total: true,
-    total_approved_by_project_manager: true,
-    approved_signed_total: true,
-    subsection: true,
-    notes: true,
-    internal_field_1: true,
-    internal_field_2: true,
-    actions: true,
+  // Column visibility state - initialize from localStorage
+  const [columnVisibility, setColumnVisibility] = useState(() => {
+    const defaultVisibility = {
+      serial_number: true,
+      structure: true,
+      system: true,
+      section_number: true,
+      description: true,
+      unit: true,
+      original_contract_quantity: true,
+      price: true,
+      total_contract_sum: true,
+      estimated_quantity: true,
+      quantity_submitted: true,
+      internal_quantity: true,
+      approved_by_project_manager: true,
+      approved_signed_quantity: true,
+      quantity_decrease: true,
+      quantity_increase: true,
+      total_estimate: true,
+      total_submitted: true,
+      internal_total: true,
+      total_approved_by_project_manager: true,
+      approved_signed_total: true,
+      subsection: true,
+      notes: true,
+      internal_field_1: true,
+      internal_field_2: true,
+      actions: true,
+    };
+
+    const saved = localStorage.getItem("boq-column-visibility");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...defaultVisibility, ...parsed };
+      } catch {
+        return defaultVisibility;
+      }
+    }
+    return defaultVisibility;
   });
 
   // Column visibility settings modal state
   const [showColumnSettings, setShowColumnSettings] = useState(false);
 
-  // Load column visibility preferences from localStorage
-  useEffect(() => {
-    const savedVisibility = localStorage.getItem("boq-column-visibility");
-    if (savedVisibility) {
-      try {
-        const parsed = JSON.parse(savedVisibility);
-        setColumnVisibility((prev) => ({ ...prev, ...parsed }));
-      } catch (error) {
-        console.error("Error loading column visibility preferences:", error);
-      }
-    }
-  }, []);
-
-  // Save column visibility preferences to localStorage
+  // Save all display settings to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(
       "boq-column-visibility",
       JSON.stringify(columnVisibility)
     );
   }, [columnVisibility]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "boq-panels-collapsed",
+      JSON.stringify(panelsCollapsed)
+    );
+  }, [panelsCollapsed]);
+
+  useEffect(() => {
+    const { contract_updates, ...staticFilters } = filters;
+    localStorage.setItem("boq-filters", JSON.stringify(staticFilters));
+  }, [filters]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "boq-dropdown-filters",
+      JSON.stringify(dropdownFilters)
+    );
+  }, [dropdownFilters]);
+
+  useEffect(() => {
+    localStorage.setItem("boq-search-query", searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    localStorage.setItem("boq-selected-subchapter", selectedSubchapter);
+  }, [selectedSubchapter]);
 
   // Column visibility functions
   const toggleColumnVisibility = (columnKey: keyof typeof columnVisibility) => {
@@ -4418,6 +4488,7 @@ const BOQItems: React.FC = () => {
       )}
 
       {/* Export Modal */}
+      {/* ============ MARKER: Line 4425 - Export loading prop ============ */}
       <BOQExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
