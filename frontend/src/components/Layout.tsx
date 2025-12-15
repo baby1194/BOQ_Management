@@ -9,6 +9,8 @@ import {
   User,
   Settings,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../contexts/AuthContext";
@@ -26,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSignOut = async () => {
@@ -106,8 +109,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className={`min-h-screen bg-gray-50 ${isRTL ? "rtl" : "ltr"}`}>
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 z-50 w-64 bg-white shadow-lg flex flex-col ${
+        className={`fixed inset-y-0 z-50 w-64 bg-white shadow-lg flex flex-col transition-transform duration-300 ease-in-out ${
           isRTL ? "right-0 sidebar-rtl" : "left-0 sidebar-ltr"
+        } ${
+          isSidebarOpen
+            ? "translate-x-0"
+            : isRTL
+            ? "translate-x-full"
+            : "-translate-x-full"
         }`}
         style={{
           [isRTL ? "right" : "left"]: "0px",
@@ -123,7 +132,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             {t("common.appTitle")}
           </h1>
-          <LanguageSwitcher />
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+            >
+              {isSidebarOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -221,12 +243,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main content */}
       <div
-        className={`${isRTL ? "pr-64" : "pl-64"}`}
+        className={`transition-all duration-300 ease-in-out ${
+          isSidebarOpen ? (isRTL ? "pr-64" : "pl-64") : ""
+        }`}
         style={{
-          [isRTL ? "paddingRight" : "paddingLeft"]: "16rem", // 64 * 0.25rem = 16rem
+          [isRTL ? "paddingRight" : "paddingLeft"]: isSidebarOpen
+            ? "16rem"
+            : "0px", // 64 * 0.25rem = 16rem
           [isRTL ? "paddingLeft" : "paddingRight"]: "0px",
         }}
       >
+        {/* Toggle button when sidebar is closed */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className={`fixed top-4 z-40 p-2 rounded-md bg-white shadow-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors ${
+              isRTL ? "right-4" : "left-4"
+            }`}
+            aria-label="Open sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
         <main className="p-8">{children}</main>
       </div>
     </div>
