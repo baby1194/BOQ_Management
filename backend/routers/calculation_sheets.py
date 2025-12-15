@@ -193,6 +193,79 @@ async def delete_calculation_sheet(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting calculation sheet: {str(e)}")
 
+@router.post("/bulk-delete", response_model=schemas.BulkDeleteCalculationSheetsResponse)
+async def bulk_delete_calculation_sheets(
+    request: schemas.BulkDeleteCalculationSheetsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete multiple calculation sheets at once with automatic synchronization
+    """
+    if not request.sheet_ids:
+        raise HTTPException(status_code=400, detail="No sheet IDs provided")
+    
+    try:
+        # Initialize sync service
+        sync_service = SyncService(db)
+        
+        sheets_deleted = 0
+        total_entries_deleted = 0
+        total_boq_items_updated = 0
+        errors = []
+        
+        # Process each sheet deletion
+        for sheet_id in request.sheet_ids:
+            try:
+                sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
+                if not sheet:
+                    errors.append(f"Sheet ID {sheet_id} not found")
+                    continue
+                
+                # Sync the deletion (this will handle concentration entries and BOQ items)
+                sync_result = sync_service.sync_calculation_sheet_deletion(sheet_id)
+                
+                if not sync_result["success"]:
+                    logger.warning(f"Sync failed during calculation sheet deletion {sheet_id}: {sync_result['message']}")
+                    errors.append(f"Sync failed for sheet ID {sheet_id}: {sync_result['message']}")
+                
+                # Delete the calculation sheet
+                db.delete(sheet)
+                db.commit()
+                
+                sheets_deleted += 1
+                total_entries_deleted += sync_result.get("entries_deleted", 0)
+                total_boq_items_updated += sync_result.get("boq_items_updated", 0)
+                
+                logger.info(f"Successfully deleted calculation sheet {sheet_id}")
+                
+            except Exception as e:
+                db.rollback()
+                error_msg = f"Error deleting sheet ID {sheet_id}: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                continue
+        
+        message = f"Successfully deleted {sheets_deleted} calculation sheet(s)"
+        if total_entries_deleted > 0 or total_boq_items_updated > 0:
+            message += f". Synchronized: {total_entries_deleted} concentration entries deleted, {total_boq_items_updated} BOQ items updated"
+        
+        if errors:
+            message += f". {len(errors)} error(s) occurred during deletion."
+        
+        return {
+            "success": sheets_deleted > 0,
+            "message": message,
+            "sheets_deleted": sheets_deleted,
+            "total_entries_deleted": total_entries_deleted,
+            "total_boq_items_updated": total_boq_items_updated,
+            "errors": errors
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in bulk delete operation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error in bulk delete operation: {str(e)}")
+
 @router.delete("/entries/{entry_id}")
 async def delete_calculation_entry(
     entry_id: int,

@@ -318,6 +318,19 @@ class PopulateConcentrationEntriesResponse(BaseModel):
     boq_items_updated: int
     concentration_sheet_id: int
 
+# Bulk Delete Request
+class BulkDeleteCalculationSheetsRequest(BaseModel):
+    sheet_ids: List[int] = Field(..., min_items=1, description="List of calculation sheet IDs to delete")
+
+# Bulk Delete Response
+class BulkDeleteCalculationSheetsResponse(BaseModel):
+    success: bool
+    message: str
+    sheets_deleted: int
+    total_entries_deleted: int
+    total_boq_items_updated: int
+    errors: List[str] = []
+
 # Project Info Schemas
 class ProjectInfoBase(BaseModel):
     project_name: Optional[str] = Field(None, max_length=200)

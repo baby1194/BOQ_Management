@@ -46,6 +46,10 @@ const CalculationSheets: React.FC = () => {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [openingFile, setOpeningFile] = useState(false);
+  const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
+    new Set()
+  );
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Fetch all calculation sheets
   const fetchSheets = async () => {
@@ -152,6 +156,13 @@ const CalculationSheets: React.FC = () => {
         setEntries([]);
       }
 
+      // Remove from selected if it was selected
+      setSelectedSheetIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(sheetId);
+        return newSet;
+      });
+
       // Show synchronization message if available
       if (response.sync_result && response.sync_result.success) {
         const syncMsg = `Synchronized: ${response.sync_result.entries_deleted} concentration entries deleted, ${response.sync_result.boq_items_updated} BOQ items updated`;
@@ -166,6 +177,96 @@ const CalculationSheets: React.FC = () => {
       setError(t("auth.failedToDeleteCalculationSheet"));
     } finally {
       setDeletingSheet(false);
+    }
+  };
+
+  // Bulk delete calculation sheets
+  const handleBulkDeleteSheets = async () => {
+    if (selectedSheetIds.size === 0) {
+      alert("Please select at least one calculation sheet to delete.");
+      return;
+    }
+
+    const selectedCount = selectedSheetIds.size;
+    const sheetNumbers = Array.from(selectedSheetIds)
+      .map(
+        (id) => sheets.find((s) => s.id === id)?.calculation_sheet_no || id
+      )
+      .join(", ");
+
+    if (
+      !confirm(
+        `Are you sure you want to delete ${selectedCount} calculation sheet(s)?\n\nSelected sheets: ${sheetNumbers}\n\nThis will also delete related concentration entries and update BOQ items. This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setBulkDeleting(true);
+      setError(null);
+
+      const sheetIdsArray = Array.from(selectedSheetIds);
+      const response = await calculationSheetsApi.bulkDelete(sheetIdsArray);
+
+      // Remove deleted sheets from state
+      setSheets((prev) =>
+        prev.filter((sheet) => !selectedSheetIds.has(sheet.id))
+      );
+
+      // Clear selection if selected sheet was deleted
+      if (selectedSheet && selectedSheetIds.has(selectedSheet.id)) {
+        setSelectedSheet(null);
+        setEntries([]);
+      }
+
+      // Clear selected sheet IDs
+      setSelectedSheetIds(new Set());
+
+      // Show success message
+      let successMsg = response.message;
+      if (response.errors && response.errors.length > 0) {
+        successMsg += `\n\nErrors:\n${response.errors.join("\n")}`;
+      }
+
+      alert(successMsg);
+      setError(null);
+
+      // Refresh sheets list
+      await fetchSheets();
+    } catch (err: any) {
+      console.error("Error bulk deleting calculation sheets:", err);
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        t("auth.failedToDeleteCalculationSheet");
+      setError(errorMessage);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  // Toggle sheet selection
+  const handleToggleSheetSelection = (sheetId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSheetIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(sheetId)) {
+        newSet.delete(sheetId);
+      } else {
+        newSet.add(sheetId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle select all
+  const handleToggleSelectAll = () => {
+    if (selectedSheetIds.size === filteredSheets.length) {
+      setSelectedSheetIds(new Set());
+    } else {
+      setSelectedSheetIds(new Set(filteredSheets.map((sheet) => sheet.id)));
     }
   };
 
@@ -508,6 +609,30 @@ const CalculationSheets: React.FC = () => {
               )}
             </button>
           </div>
+
+          {/* Bulk Delete Button */}
+          {selectedSheetIds.size > 0 && (
+            <div className="mb-4">
+              <button
+                onClick={handleBulkDeleteSheets}
+                disabled={bulkDeleting}
+                className="w-full bg-red-600 text-white px-4 py-3 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                title={`Delete ${selectedSheetIds.size} selected calculation sheet(s)`}
+              >
+                {bulkDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete Selected ({selectedSheetIds.size})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
@@ -560,29 +685,64 @@ const CalculationSheets: React.FC = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
+                  {/* Select All Checkbox */}
+                  <div className="p-3 bg-gray-50 border-b border-gray-200 flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredSheets.length > 0 &&
+                        selectedSheetIds.size === filteredSheets.length
+                      }
+                      onChange={handleToggleSelectAll}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <label
+                      className="text-sm font-medium text-gray-700 cursor-pointer"
+                      onClick={handleToggleSelectAll}
+                    >
+                      Select All ({filteredSheets.length})
+                    </label>
+                  </div>
+
                   {filteredSheets.map((sheet) => (
                     <div
                       key={sheet.id}
-                      className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                      className={`p-4 hover:bg-gray-50 transition-colors ${
                         selectedSheet?.id === sheet.id
                           ? "bg-blue-50 border-r-4 border-blue-500"
                           : ""
                       }`}
-                      onClick={() => handleSheetSelect(sheet)}
                     >
                       <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">
-                            {sheet.calculation_sheet_no}
-                          </h3>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {sheet.drawing_no}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                            {sheet.description}
-                          </p>
-                          <div className="mt-2 text-xs text-gray-400">
-                            {new Date(sheet.import_date).toLocaleDateString()}
+                        <div
+                          className="flex-1 cursor-pointer"
+                          onClick={() => handleSheetSelect(sheet)}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedSheetIds.has(sheet.id)}
+                              onChange={() => {}}
+                              onClick={(e) =>
+                                handleToggleSheetSelection(sheet.id, e)
+                              }
+                              className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer flex-shrink-0"
+                            />
+                            <div className="flex-1">
+                              <h3 className="font-medium text-gray-900">
+                                {sheet.calculation_sheet_no}
+                              </h3>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {sheet.drawing_no}
+                              </p>
+                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                                {sheet.description}
+                              </p>
+                              <div className="mt-2 text-xs text-gray-400">
+                                {new Date(sheet.import_date).toLocaleDateString()}
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <button
@@ -590,7 +750,7 @@ const CalculationSheets: React.FC = () => {
                             e.stopPropagation();
                             handleDeleteSheet(sheet.id);
                           }}
-                          disabled={deletingSheet}
+                          disabled={deletingSheet || bulkDeleting}
                           className="text-red-600 hover:text-red-800 disabled:opacity-50 ml-2"
                           title={t("calculationSheets.delete")}
                         >

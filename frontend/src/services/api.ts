@@ -190,6 +190,18 @@ export const calculationSheetsApi = {
   delete: (id: number) =>
     api.delete(`/calculation-sheets/${id}`).then((res) => res.data),
 
+  bulkDelete: (sheetIds: number[]) =>
+    api
+      .post<{
+        success: boolean;
+        message: string;
+        sheets_deleted: number;
+        total_entries_deleted: number;
+        total_boq_items_updated: number;
+        errors: string[];
+      }>("/calculation-sheets/bulk-delete", { sheet_ids: sheetIds })
+      .then((res) => res.data),
+
   updateComment: (id: number, comment: string) =>
     api
       .put<CalculationSheet>(`/calculation-sheets/${id}/comment`, { comment })
