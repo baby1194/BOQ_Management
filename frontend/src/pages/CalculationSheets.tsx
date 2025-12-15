@@ -24,9 +24,19 @@ const CalculationSheets: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [entriesLoading, setEntriesLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterSheetNo, setFilterSheetNo] = useState("");
-  const [filterDrawingNo, setFilterDrawingNo] = useState("");
+  // Initialize filters from localStorage
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const saved = localStorage.getItem("calculation-sheets-search-query");
+    return saved !== null ? saved : "";
+  });
+  const [filterSheetNo, setFilterSheetNo] = useState(() => {
+    const saved = localStorage.getItem("calculation-sheets-filter-sheet-no");
+    return saved !== null ? saved : "";
+  });
+  const [filterDrawingNo, setFilterDrawingNo] = useState(() => {
+    const saved = localStorage.getItem("calculation-sheets-filter-drawing-no");
+    return saved !== null ? saved : "";
+  });
   const [deletingSheet, setDeletingSheet] = useState(false);
   const [deletingEntry, setDeletingEntry] = useState<number | null>(null);
   const [populatingEntries, setPopulatingEntries] = useState(false);
@@ -395,6 +405,22 @@ const CalculationSheets: React.FC = () => {
   useEffect(() => {
     fetchSheets();
   }, []);
+
+  // Save filter values to localStorage
+  useEffect(() => {
+    localStorage.setItem("calculation-sheets-search-query", searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    localStorage.setItem("calculation-sheets-filter-sheet-no", filterSheetNo);
+  }, [filterSheetNo]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "calculation-sheets-filter-drawing-no",
+      filterDrawingNo
+    );
+  }, [filterDrawingNo]);
 
   if (loading) {
     return (

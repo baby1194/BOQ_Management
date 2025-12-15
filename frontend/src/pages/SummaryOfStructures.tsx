@@ -31,37 +31,35 @@ const SummaryOfStructures: React.FC = () => {
     ContractQuantityUpdate[]
   >([]);
 
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState({
-    structure: true,
-    structure_description: true,
-    total_decreases: true,
-    total_increases: true,
-    total_contract_sum: true,
-    total_estimate: true,
-    total_submitted: true,
-    internal_total: true,
-    total_approved_by_project_manager: true,
-    approved_signed_total: true,
+  // Column visibility state - initialize from localStorage
+  const [columnVisibility, setColumnVisibility] = useState(() => {
+    const defaultVisibility = {
+      structure: true,
+      structure_description: true,
+      total_decreases: true,
+      total_increases: true,
+      total_contract_sum: true,
+      total_estimate: true,
+      total_submitted: true,
+      internal_total: true,
+      total_approved_by_project_manager: true,
+      approved_signed_total: true,
+    };
+
+    const saved = localStorage.getItem("structures-column-visibility");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...defaultVisibility, ...parsed };
+      } catch {
+        return defaultVisibility;
+      }
+    }
+    return defaultVisibility;
   });
 
   // Column settings modal state
   const [showColumnSettings, setShowColumnSettings] = useState(false);
-
-  // Load column visibility preferences from localStorage
-  useEffect(() => {
-    const savedVisibility = localStorage.getItem(
-      "structures-column-visibility"
-    );
-    if (savedVisibility) {
-      try {
-        const parsed = JSON.parse(savedVisibility);
-        setColumnVisibility((prev) => ({ ...prev, ...parsed }));
-      } catch (error) {
-        console.error("Error loading column visibility preferences:", error);
-      }
-    }
-  }, []);
 
   // Save column visibility preferences to localStorage
   useEffect(() => {

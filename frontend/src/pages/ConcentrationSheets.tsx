@@ -36,7 +36,11 @@ const ConcentrationSheets: React.FC = () => {
   const [exportingAllExcel, setExportingAllExcel] = useState(false);
   const [showNavigationMessage, setShowNavigationMessage] = useState(false);
   const [navigatedFromBOQ, setNavigatedFromBOQ] = useState(false);
-  const [sectionNumberFilter, setSectionNumberFilter] = useState("");
+  // Initialize filter from localStorage
+  const [sectionNumberFilter, setSectionNumberFilter] = useState(() => {
+    const saved = localStorage.getItem("concentration-sheets-section-filter");
+    return saved !== null ? saved : "";
+  });
   const [showEntryColumnModal, setShowEntryColumnModal] = useState(false);
   const [pendingExportAction, setPendingExportAction] = useState<{
     type: "single" | "all";
@@ -407,6 +411,14 @@ const ConcentrationSheets: React.FC = () => {
   useEffect(() => {
     fetchSheets();
   }, []);
+
+  // Save section number filter to localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      "concentration-sheets-section-filter",
+      sectionNumberFilter
+    );
+  }, [sectionNumberFilter]);
 
   // Refresh data when page becomes visible (e.g., user navigates back from BOQ Items)
   useEffect(() => {
