@@ -139,7 +139,8 @@
     "approvedSignedQuantity": "Approved Signed Quantity",
     "clickToAddDescription": "Click to add description",
     "selectColumnsForExport": "Select the concentration entry columns you want to include in the export:",
-    "selectAtLeastOneColumn": "Please select at least one column to export"
+    "selectAtLeastOneColumn": "Please select at least one column to export",
+    "searchAllFields": "Search all fields..."
   },
   "boq": {
     "title": "BOQ Items",

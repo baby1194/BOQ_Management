@@ -140,7 +140,8 @@
     "approvedSignedQuantity": "כמות מאושרת וחתומה",
     "clickToAddDescription": "לחץ כדי להוסיף תיאור",
     "selectColumnsForExport": "בחר את עמודות רשומות הריכוז שברצונך לכלול בייצוא:",
-    "selectAtLeastOneColumn": "אנא בחר לפחות עמודה אחת לייצוא"
+    "selectAtLeastOneColumn": "אנא בחר לפחות עמודה אחת לייצוא",
+    "searchAllFields": "חפש בכל השדות..."
   },
   "boq": {
     "title": "פריטי BOQ",

@@ -50,9 +50,6 @@ const BOQItems: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchType, setSearchType] = useState<"both" | "code" | "description">(
-    "both"
-  );
   const [selectedSubchapter, setSelectedSubchapter] = useState<string>("");
   const [subchapters, setSubchapters] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -1022,10 +1019,10 @@ const BOQItems: React.FC = () => {
       setError(null);
 
       if (searchQuery.trim()) {
-        // Search functionality - fetch all matching results
+        // Search functionality - fetch all matching results (searches across all fields)
         const response = await searchApi.search(
           searchQuery,
-          searchType,
+          "all", // general search across all fields
           0, // offset
           10000 // large limit to get all results
         );
@@ -1463,7 +1460,7 @@ const BOQItems: React.FC = () => {
 
   useEffect(() => {
     fetchItems();
-  }, [searchQuery, searchType, selectedSubchapter]);
+  }, [searchQuery, selectedSubchapter]);
 
   // Update items when filteredItems change
   useEffect(() => {
@@ -1519,7 +1516,6 @@ const BOQItems: React.FC = () => {
   const handleClearFilters = () => {
     setSearchQuery("");
     setSelectedSubchapter("");
-    setSearchType("both");
 
     // Clear all filters including contract updates
     const clearedContractUpdates: Record<
@@ -2459,7 +2455,7 @@ const BOQItems: React.FC = () => {
       {!panelsCollapsed && (
         <div className="bg-white rounded-lg shadow p-6">
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t("common.search")}
@@ -2468,25 +2464,11 @@ const BOQItems: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t("auth.searchByCodeOrDescription")}
+                  placeholder={
+                    t("auth.searchAllFields") || "Search all fields..."
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t("auth.searchType")}
-                </label>
-                <select
-                  value={searchType}
-                  onChange={(e) => setSearchType(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="both">{t("auth.both")}</option>
-                  <option value="code">{t("auth.codeOnly")}</option>
-                  <option value="description">
-                    {t("auth.descriptionOnly")}
-                  </option>
-                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

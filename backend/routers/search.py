@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, cast, String, func
 from typing import List, Optional
 import logging
 
@@ -14,25 +14,59 @@ router = APIRouter()
 @router.get("/", response_model=schemas.SearchResponse)
 async def search_boq_items(
     q: str = Query(..., min_length=1, description="Search query"),
-    search_type: str = Query("both", pattern="^(code|description|both)$", description="Search type"),
+    search_type: Optional[str] = Query(None, pattern="^(code|description|both|all)$", description="Search type (deprecated, kept for backward compatibility)"),
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(10000, ge=1, le=50000, description="Maximum number of items to return"),
     db: Session = Depends(get_db)
 ):
-    """Search BOQ items by code or description"""
+    """Search BOQ items across all fields"""
     try:
         query = db.query(models.BOQItem)
         
-        # Build search filter based on search type
+        # For backward compatibility, support old search_type parameter
+        # But by default, search across all fields
         if search_type == "code":
             query = query.filter(models.BOQItem.section_number.ilike(f"%{q}%"))
         elif search_type == "description":
             query = query.filter(models.BOQItem.description.ilike(f"%{q}%"))
-        else:  # both
+        elif search_type == "both":
             query = query.filter(
                 or_(
                     models.BOQItem.section_number.ilike(f"%{q}%"),
                     models.BOQItem.description.ilike(f"%{q}%")
+                )
+            )
+        else:
+            # General search across all fields
+            # String fields
+            search_pattern = f"%{q}%"
+            query = query.filter(
+                or_(
+                    # String/text fields (handle NULLs with coalesce)
+                    models.BOQItem.section_number.ilike(search_pattern),
+                    models.BOQItem.description.ilike(search_pattern),
+                    models.BOQItem.unit.ilike(search_pattern),
+                    func.coalesce(models.BOQItem.subsection, "").ilike(search_pattern),
+                    func.coalesce(models.BOQItem.notes, "").ilike(search_pattern),
+                    func.coalesce(models.BOQItem.system, "").ilike(search_pattern),
+                    func.coalesce(models.BOQItem.internal_field_1, "").ilike(search_pattern),
+                    func.coalesce(models.BOQItem.internal_field_2, "").ilike(search_pattern),
+                    # Numeric fields converted to string for searching (handle NULLs)
+                    cast(func.coalesce(models.BOQItem.serial_number, 0), String).ilike(search_pattern),
+                    cast(func.coalesce(models.BOQItem.structure, 0), String).ilike(search_pattern),
+                    cast(models.BOQItem.original_contract_quantity, String).ilike(search_pattern),
+                    cast(models.BOQItem.price, String).ilike(search_pattern),
+                    cast(models.BOQItem.total_contract_sum, String).ilike(search_pattern),
+                    cast(models.BOQItem.estimated_quantity, String).ilike(search_pattern),
+                    cast(models.BOQItem.quantity_submitted, String).ilike(search_pattern),
+                    cast(models.BOQItem.internal_quantity, String).ilike(search_pattern),
+                    cast(models.BOQItem.approved_by_project_manager, String).ilike(search_pattern),
+                    cast(models.BOQItem.total_estimate, String).ilike(search_pattern),
+                    cast(models.BOQItem.total_submitted, String).ilike(search_pattern),
+                    cast(models.BOQItem.internal_total, String).ilike(search_pattern),
+                    cast(models.BOQItem.total_approved_by_project_manager, String).ilike(search_pattern),
+                    cast(models.BOQItem.approved_signed_quantity, String).ilike(search_pattern),
+                    cast(models.BOQItem.approved_signed_total, String).ilike(search_pattern),
                 )
             )
         
