@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { authApi } from "../services/api";
 import { User, AuthStatus } from "../types";
+import { clearAppLocalStorage } from "../utils/localStorage";
 
 interface AuthContextType {
   user: User | null;
@@ -73,10 +74,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await authApi.signout();
       setUser(null);
+      clearAppLocalStorage();
     } catch (error: any) {
       console.error("Sign out error:", error);
-      // Even if the API call fails, clear the local state
+      // Even if the API call fails, clear the local state and localStorage
       setUser(null);
+      clearAppLocalStorage();
     }
   };
 
@@ -106,10 +109,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
       } else {
         setUser(null);
+        clearAppLocalStorage();
       }
     } catch (error) {
       console.error("Auth check failed:", error);
       setUser(null);
+      clearAppLocalStorage();
     } finally {
       setIsLoading(false);
     }

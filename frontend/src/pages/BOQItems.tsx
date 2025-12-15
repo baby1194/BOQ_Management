@@ -699,6 +699,9 @@ const BOQItems: React.FC = () => {
       const matchesContractUpdates = Object.entries(
         filters.contract_updates || {}
       ).every(([updateId, update]) => {
+        // Type assertion for contract update filter structure
+        const updateFilter = update as { quantity: string; sum: string };
+
         // console.log("updateId", updateId);
         // console.log("update", update);
         // console.log("!update", !update);
@@ -707,9 +710,10 @@ const BOQItems: React.FC = () => {
         // console.log("!update.sum", !update.sum);
         // Safety check: ensure update object exists and has expected structure
         if (
-          !update ||
-          typeof update !== "object" ||
-          (update.quantity.trim() === "" && update.sum.trim() === "")
+          !updateFilter ||
+          typeof updateFilter !== "object" ||
+          (updateFilter.quantity.trim() === "" &&
+            updateFilter.sum.trim() === "")
         ) {
           return true; // Skip invalid filter entries
         }
@@ -717,7 +721,7 @@ const BOQItems: React.FC = () => {
         // console.log("OKKKKKKKKKKKK");
 
         // If no filter values, skip this filter
-        if (!update.quantity.trim() && !update.sum.trim()) {
+        if (!updateFilter.quantity.trim() && !updateFilter.sum.trim()) {
           return true;
         }
         // console.log("_________________");
@@ -734,7 +738,7 @@ const BOQItems: React.FC = () => {
         //   {
         //     itemId: item.id,
         //     updateId: parseInt(updateId),
-        //     filterValues: update,
+        //     filterValues: updateFilter,
         //     foundUpdate: currentUpdate,
         //     allUpdates: boqItemUpdates.length,
         //   }
@@ -750,17 +754,17 @@ const BOQItems: React.FC = () => {
 
         // Check quantity filter
         const matchesQuantity =
-          !update.quantity.trim() ||
+          !updateFilter.quantity.trim() ||
           parseNumericFilter(
-            update.quantity,
+            updateFilter.quantity,
             currentUpdate.updated_contract_quantity || 0
           );
 
         // Check sum filter
         const matchesSum =
-          !update.sum.trim() ||
+          !updateFilter.sum.trim() ||
           parseNumericFilter(
-            update.sum,
+            updateFilter.sum,
             currentUpdate.updated_contract_sum || 0
           );
 
@@ -843,9 +847,19 @@ const BOQItems: React.FC = () => {
           typeof contractUpdateFilters === "object"
         ) {
           Object.values(contractUpdateFilters).forEach((update) => {
-            if (update && update.quantity && update.quantity.trim() !== "")
+            const updateFilter = update as { quantity: string; sum: string };
+            if (
+              updateFilter &&
+              updateFilter.quantity &&
+              updateFilter.quantity.trim() !== ""
+            )
               count++;
-            if (update && update.sum && update.sum.trim() !== "") count++;
+            if (
+              updateFilter &&
+              updateFilter.sum &&
+              updateFilter.sum.trim() !== ""
+            )
+              count++;
           });
         }
       } else if (typeof value === "string" && value.trim() !== "") {
@@ -855,7 +869,8 @@ const BOQItems: React.FC = () => {
 
     // Count dropdown filters
     Object.values(dropdownFilters).forEach((selectedValues) => {
-      if (selectedValues.length > 0) count++;
+      const selectedValuesArray = selectedValues as string[];
+      if (selectedValuesArray.length > 0) count++;
     });
 
     return count;
@@ -952,13 +967,16 @@ const BOQItems: React.FC = () => {
 
       // Safety check: ensure contractUpdateFilters exists and is an object
       if (contractUpdateFilters && typeof contractUpdateFilters === "object") {
-        hasValue = Object.values(contractUpdateFilters).some(
-          (update) =>
-            update &&
-            update.quantity &&
-            update.sum &&
-            (update.quantity.trim() !== "" || update.sum.trim() !== "")
-        );
+        hasValue = Object.values(contractUpdateFilters).some((update) => {
+          const updateFilter = update as { quantity: string; sum: string };
+          return (
+            updateFilter &&
+            updateFilter.quantity &&
+            updateFilter.sum &&
+            (updateFilter.quantity.trim() !== "" ||
+              updateFilter.sum.trim() !== "")
+          );
+        });
       }
     } else {
       hasValue = (filters[field] as string).trim() !== "";

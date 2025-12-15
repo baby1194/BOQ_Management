@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import {
   BOQItem,
   BOQItemCreate,
@@ -36,6 +36,7 @@ import {
   AuthStatus,
   SignupAllowed,
 } from "../types";
+import { clearAppLocalStorage } from "../utils/localStorage";
 
 const api = axios.create({
   baseURL: "/api",
@@ -44,6 +45,22 @@ const api = axios.create({
   },
   withCredentials: true, // This ensures cookies are sent with all requests
 });
+
+// Add response interceptor to handle 401 errors (unauthorized/expired sessions)
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // If we get a 401 Unauthorized error, clear localStorage and redirect to signin
+    if (error.response?.status === 401) {
+      clearAppLocalStorage();
+      // Redirect to signin page if not already there
+      if (window.location.pathname !== "/signin") {
+        window.location.href = "/signin";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // BOQ API
 export const boqApi = {
