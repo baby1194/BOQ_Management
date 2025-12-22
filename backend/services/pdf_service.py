@@ -715,9 +715,9 @@ class PDFService:
         try:
             # Use section number in filename if available, otherwise use sheet ID
             if boq_item and boq_item.section_number:
-                filename = f"concentration_sheet_{boq_item.section_number}.pdf"
+                filename = f"{boq_item.section_number}.pdf"
             else:
-                filename = f"concentration_sheet_{sheet.id}.pdf"
+                filename = f"{sheet.id}.pdf"
             
             # Save to item folder under c:/Fatina/{section_number}/
             if boq_item and boq_item.section_number:
@@ -743,10 +743,10 @@ class PDFService:
                     'Description': 'תיאור:',
                     'Calculation Sheet No': 'מס\' דף חישוב',
                     'Drawing No': 'מס\' שרטוט',
-                    'Estimated Quantity': 'כמות מוערכת',
-                    'Quantity Submitted': 'כמות הוגשה',
+                    'Estimated Quantity': 'כמות משוערת',
+                    'Quantity Submitted': 'כמות מוגשת',
                     'Internal Quantity': 'כמות פנימית',
-                    'Approved by Project Manager': 'כמות מוגשת',
+                    'Approved by Project Manager': 'כמות מאושרת',
                     'Notes': 'הערות'
                 }
                 project_headers_translations = {
@@ -765,7 +765,7 @@ class PDFService:
                 # Title is always "[section number] - Concentration Sheet" (section number first to preserve it during reversal)
                 title_text = f"{boq_item.section_number} - דף ריכוז"
                 entries_title = "רשומות ריכוז"
-                totals_text = "סיכומים"
+                totals_text = "סה\"כ"
             else:
                 # English (default)
                 headers_translations = {
@@ -1940,7 +1940,7 @@ class PDFService:
                     'price': 'מחיר',
                     'original_contract_quantity': 'כמות חוזה מקורית',
                     'total_contract_sum': 'סכום חוזה כולל',
-                    'estimated_quantity': 'כמות מוערכת',
+                    'estimated_quantity': 'כמות משוערת',
                     'quantity_submitted': 'כמות שהוגשה',
                     'internal_quantity': 'כמות פנימית',
                     'approved_by_project_manager': 'אושר על ידי מנהל פרויקט',

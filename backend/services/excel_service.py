@@ -273,7 +273,7 @@ class ExcelService:
         """Export a single concentration sheet to Excel with specific format: 3 tables"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"concentration_sheet_{sheet.id}_{timestamp}.xlsx"
+            filename = f"{sheet.id}_{timestamp}.xlsx"
             filepath = self.exports_dir / filename
             
             # Create Excel writer

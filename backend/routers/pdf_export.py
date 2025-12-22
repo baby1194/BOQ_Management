@@ -113,7 +113,7 @@ async def export_concentration_sheets(
                 
                 if boq_item:
                     # Create filename with section number
-                    pdf_filename = f"concentration_sheet_{boq_item.section_number}.pdf"
+                    pdf_filename = f"{boq_item.section_number}.pdf"
                     # Add PDF to zip with section number in filename
                     zipf.write(pdf_path, pdf_filename)
         

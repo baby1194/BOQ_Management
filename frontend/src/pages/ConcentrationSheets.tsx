@@ -198,9 +198,7 @@ const ConcentrationSheets: React.FC = () => {
         // Extract filename from the path
         const filename =
           response.pdf_path.split("/").pop() ||
-          `concentration_sheet_${selectedSheet.id}.${
-            format === "pdf" ? "pdf" : "xlsx"
-          }`;
+          `${selectedSheet.id}.${format === "pdf" ? "pdf" : "xlsx"}`;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
