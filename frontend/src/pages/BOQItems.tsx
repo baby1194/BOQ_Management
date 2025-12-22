@@ -1566,11 +1566,8 @@ const BOQItems: React.FC = () => {
     const scrollContainer = tableScrollContainerRef.current;
 
     if (!scrollContainer) {
-      console.log("[BOQ Scroll] Container not available for scroll listener");
       return;
     }
-
-    console.log("[BOQ Scroll] Adding scroll event listener to container");
 
     const handleScroll = () => {
       const scrollTop = scrollContainer.scrollTop;
@@ -1580,47 +1577,18 @@ const BOQItems: React.FC = () => {
       const scrollPercentage =
         maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
 
-      console.log("[BOQ Scroll] Position saved:", {
-        scrollTop,
-        scrollPercentage: scrollPercentage.toFixed(2) + "%",
-        scrollHeight,
-        clientHeight,
-        maxScroll,
-      });
-
       localStorage.setItem("boq-table-scroll-position", scrollTop.toString());
     };
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
 
-    console.log("[BOQ Scroll] Scroll event listener attached", {
-      containerExists: !!scrollContainer,
-      scrollHeight: scrollContainer.scrollHeight,
-      clientHeight: scrollContainer.clientHeight,
-      isScrollable: scrollContainer.scrollHeight > scrollContainer.clientHeight,
-    });
-
-    // Test if we can read scroll position immediately
-    console.log("[BOQ Scroll] Initial scroll position:", {
-      scrollTop: scrollContainer.scrollTop,
-    });
-
     return () => {
-      console.log("[BOQ Scroll] Removing scroll event listener");
       scrollContainer.removeEventListener("scroll", handleScroll);
     };
   }, [items.length]); // Re-attach when items change to ensure container is ready
 
   // Reset restoration flag when navigating to this page and restore scroll position
   useEffect(() => {
-    console.log("[BOQ Scroll Restore] Effect triggered:", {
-      pathname: location.pathname,
-      loading,
-      itemsCount: items.length,
-      hasContainer: !!tableScrollContainerRef.current,
-      alreadyRestored: scrollPositionRestoredRef.current,
-    });
-
     // Reset flag when pathname changes (user navigated to/back to this page)
     scrollPositionRestoredRef.current = false;
 
@@ -1636,21 +1604,12 @@ const BOQItems: React.FC = () => {
         "boq-table-scroll-position"
       );
 
-      console.log("[BOQ Scroll Restore] Checking saved position:", {
-        savedScrollPosition,
-      });
-
       if (savedScrollPosition) {
         const scrollTop = parseInt(savedScrollPosition, 10);
-        console.log("[BOQ Scroll Restore] Attempting to restore:", {
-          scrollTop,
-        });
-
         // Function to restore scroll position
         const restoreScroll = () => {
           const container = tableScrollContainerRef.current;
           if (!container) {
-            console.log("[BOQ Scroll Restore] Container not available");
             return false;
           }
 
@@ -1663,16 +1622,6 @@ const BOQItems: React.FC = () => {
             maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
           const hasContent = scrollHeight > 0 && tableRows.length > 0;
 
-          console.log("[BOQ Scroll Restore] Checking content:", {
-            tableRowsCount: tableRows.length,
-            scrollHeight,
-            clientHeight,
-            maxScroll,
-            hasContent,
-            targetScrollTop: scrollTop,
-            targetPercentage: scrollPercentage.toFixed(2) + "%",
-          });
-
           if (hasContent) {
             // Set scroll position
             container.scrollTop = scrollTop;
@@ -1682,14 +1631,6 @@ const BOQItems: React.FC = () => {
             const actualPercentage =
               maxScroll > 0 ? (actualScrollTop / maxScroll) * 100 : 0;
 
-            console.log("[BOQ Scroll Restore] ✅ Restored successfully:", {
-              targetScrollTop: scrollTop,
-              actualScrollTop,
-              targetPercentage: scrollPercentage.toFixed(2) + "%",
-              actualPercentage: actualPercentage.toFixed(2) + "%",
-              difference: Math.abs(actualScrollTop - scrollTop),
-            });
-
             return true; // Success
           }
 
@@ -1698,23 +1639,14 @@ const BOQItems: React.FC = () => {
 
         // Try immediately
         if (!restoreScroll()) {
-          console.log(
-            "[BOQ Scroll Restore] Not ready immediately, starting retry loop"
-          );
           // If not ready, try with delays
           let attempts = 0;
           const maxAttempts = 30; // Try up to 30 times (1.5 seconds total)
 
           const tryRestore = () => {
             attempts++;
-            console.log(
-              `[BOQ Scroll Restore] Retry attempt ${attempts}/${maxAttempts}`
-            );
             if (restoreScroll() || attempts >= maxAttempts) {
               if (attempts >= maxAttempts) {
-                console.warn(
-                  "[BOQ Scroll Restore] ⚠️ Max attempts reached, giving up"
-                );
                 scrollPositionRestoredRef.current = true;
               }
               return;
@@ -1726,7 +1658,6 @@ const BOQItems: React.FC = () => {
           setTimeout(tryRestore, 100);
         }
       } else {
-        console.log("[BOQ Scroll Restore] No saved position found");
         // No saved position, mark as restored
         scrollPositionRestoredRef.current = true;
       }

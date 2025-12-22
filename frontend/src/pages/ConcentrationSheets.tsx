@@ -24,6 +24,13 @@ const ConcentrationSheets: React.FC = () => {
   const [entries, setEntries] = useState<ConcentrationEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Debug: Log error state changes
+  useEffect(() => {
+    if (error) {
+      console.log("Error state set to:", error);
+    }
+  }, [error]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ConcentrationEntry | null>(
     null
@@ -99,32 +106,92 @@ const ConcentrationSheets: React.FC = () => {
     format: "pdf" | "excel",
     entryColumnRequest: ConcentrationEntryExportRequest
   ) => {
+    console.log("executeSingleSheetExport called with format:", format);
+
     if (!selectedSheet) {
       setError(t("auth.noSheetSelectedForExport"));
       return;
     }
 
     try {
+      console.log("Starting export, setting loading state...");
       if (format === "pdf") {
         setExportingPDF(true);
       } else {
         setExportingExcel(true);
       }
       setError(null);
+      console.log("Loading state set, making API call...");
 
-      const response =
-        format === "pdf"
-          ? await exportApi.exportSingleConcentrationSheetPDF(
-              selectedSheet.id,
-              entryColumnRequest,
-              isRTL ? "he" : "en"
-            )
-          : await exportApi.exportSingleConcentrationSheetExcel(
-              selectedSheet.id,
-              entryColumnRequest
-            );
+      let response;
+      try {
+        response =
+          format === "pdf"
+            ? await exportApi.exportSingleConcentrationSheetPDF(
+                selectedSheet.id,
+                entryColumnRequest,
+                isRTL ? "he" : "en"
+              )
+            : await exportApi.exportSingleConcentrationSheetExcel(
+                selectedSheet.id,
+                entryColumnRequest
+              );
+        console.log("API call completed, response received:", response);
+      } catch (apiError: any) {
+        console.error("API call threw an error:", apiError);
+        console.error("Error response:", apiError?.response);
+        console.error("Error data:", apiError?.response?.data);
+        // If the API call itself fails, handle it
+        throw apiError;
+      }
 
-      if (response.success && response.pdf_path) {
+      console.log("Export response:", response);
+      console.log("Response type:", typeof response);
+      console.log("Response.success:", response?.success);
+      console.log("Response.message:", response?.message);
+      console.log(
+        "Response keys:",
+        response ? Object.keys(response) : "response is null/undefined"
+      );
+
+      // Check for error first - be very explicit
+      const isSuccess = response && response.success === true;
+      console.log("isSuccess check:", isSuccess);
+
+      if (!isSuccess) {
+        console.log("Export was NOT successful, handling error...");
+        const errorMessage =
+          (response && response.message) ||
+          t("concentration.exportFailed") + " " + format.toUpperCase();
+        console.error(
+          `Export failed - setting error: ${errorMessage}`,
+          "Full response:",
+          response
+        );
+        console.log("About to call setError with:", errorMessage);
+
+        // Force a synchronous check
+        const currentError = error;
+        console.log("Current error state before setError:", currentError);
+
+        setError(errorMessage);
+
+        // Use setTimeout to check state after React updates
+        setTimeout(() => {
+          console.log(
+            "Error state after setError (delayed check):",
+            errorMessage
+          );
+        }, 100);
+
+        console.log("setError called, error state should be:", errorMessage);
+        return;
+      }
+
+      console.log("Export was successful, proceeding with download...");
+
+      // If successful and has pdf_path, download the file
+      if (response.pdf_path) {
         // Create download link
         const link = document.createElement("a");
         link.href = `/api${response.pdf_path}`;
@@ -138,10 +205,42 @@ const ConcentrationSheets: React.FC = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      } else {
+        // Success but no pdf_path - this shouldn't happen but handle it
+        const errorMessage =
+          response?.message ||
+          t("concentration.exportFailed") + " " + format.toUpperCase();
+        console.error(
+          `Export succeeded but no file path - setting error: ${errorMessage}`,
+          response
+        );
+        setError(errorMessage);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Error exporting ${format}:`, err);
-      setError(t("concentration.exportFailed") + " " + format.toUpperCase());
+      console.error("Error object:", err);
+      console.error("Error response:", err?.response);
+      console.error("Error response data:", err?.response?.data);
+
+      // Extract error message from axios error response
+      let errorMessage =
+        t("concentration.exportFailed") + " " + format.toUpperCase();
+
+      // Check if error has response data (axios error)
+      if (err?.response?.data) {
+        // If response.data has a message, use it
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+
+      console.log("Setting error message:", errorMessage);
+      setError(errorMessage);
+      console.log("Error set, current error state should be:", errorMessage);
     } finally {
       if (format === "pdf") {
         setExportingPDF(false);
@@ -185,7 +284,26 @@ const ConcentrationSheets: React.FC = () => {
               entryColumnRequest
             );
 
-      if (response.success && response.pdf_path) {
+      console.log("Bulk export response:", response);
+
+      // Check for error first
+      if (!response || !response.success) {
+        const errorMessage =
+          response?.message ||
+          t("concentration.exportFailed") + " " + format.toUpperCase();
+        console.error(
+          `Bulk export failed - setting error: ${errorMessage}`,
+          "Full response:",
+          response
+        );
+        console.log("About to call setError with:", errorMessage);
+        setError(errorMessage);
+        console.log("setError called, error state should be:", errorMessage);
+        return;
+      }
+
+      // If successful and has pdf_path, download the file
+      if (response.pdf_path) {
         // Create download link
         const link = document.createElement("a");
         link.href = `/api${response.pdf_path}`;
@@ -197,15 +315,31 @@ const ConcentrationSheets: React.FC = () => {
         link.click();
         document.body.removeChild(link);
       } else {
-        setError(t("concentration.exportFailed") + " " + response.message);
+        // Success but no pdf_path - this shouldn't happen but handle it
+        const errorMessage =
+          response?.message ||
+          t("concentration.exportFailed") + " " + format.toUpperCase();
+        console.error(
+          `Bulk export succeeded but no file path - setting error: ${errorMessage}`,
+          response
+        );
+        setError(errorMessage);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Error exporting all ${format}s:`, err);
-      setError(
+      // Extract error message from axios error response
+      let errorMessage =
         t("concentration.exportFailed") +
-          " " +
-          t("concentration.exportAllSheetsPDF")
-      );
+        " " +
+        t("concentration.exportAllSheetsPDF");
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
     } finally {
       if (format === "pdf") {
         setExportingAllPDF(false);
@@ -565,9 +699,24 @@ const ConcentrationSheets: React.FC = () => {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex">
-            <div className="text-red-600">{error}</div>
+        <div
+          className="bg-red-50 border-2 border-red-300 rounded-md p-4 mb-4 shadow-md"
+          style={{ display: "block", visibility: "visible" }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-red-700 font-medium flex-1">
+              {error || "Error message is empty"}
+            </div>
+            <button
+              onClick={() => {
+                console.log("Closing error message, current error:", error);
+                setError(null);
+              }}
+              className="ml-4 text-red-600 hover:text-red-800 focus:outline-none transition-colors"
+              aria-label="Close error"
+            >
+              <X size={20} />
+            </button>
           </div>
         </div>
       )}

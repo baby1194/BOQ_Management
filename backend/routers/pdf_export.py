@@ -50,6 +50,7 @@ async def export_concentration_sheets(
         
         # Generate individual PDF files for each concentration sheet
         pdf_paths = []
+        failed_sheets = []
         for sheet in sheets:
             # Get the associated BOQ item
             boq_item = db.query(models.BOQItem).filter(
@@ -65,8 +66,33 @@ async def export_concentration_sheets(
             ).order_by(models.ConcentrationEntry.id).all()
             
             # Generate individual PDF for this sheet with entry columns configuration and language
-            pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
-            pdf_paths.append(pdf_path)
+            try:
+                pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
+                pdf_paths.append(pdf_path)
+            except Exception as e:
+                error_message = str(e)
+                if "destination file is in use" in error_message:
+                    failed_sheets.append(boq_item.section_number if boq_item else f"Sheet {sheet.id}")
+                    logger.warning(f"Failed to export sheet {sheet.id}: {error_message}")
+                else:
+                    # Re-raise other exceptions
+                    raise
+        
+        # Check if any sheets failed
+        if failed_sheets:
+            failed_list = ", ".join(failed_sheets)
+            return schemas.PDFExportResponse(
+                success=False,
+                message=f"Export failed for the following sheets because the destination files are in use. Please close the files and try again: {failed_list}",
+                sheets_exported=len(pdf_paths)
+            )
+        
+        if not pdf_paths:
+            return schemas.PDFExportResponse(
+                success=False,
+                message="No concentration sheets were exported. All files may be in use.",
+                sheets_exported=0
+            )
         
         # Create a zip file containing all individual PDF files
         import zipfile
@@ -95,17 +121,27 @@ async def export_concentration_sheets(
         filename = zip_path.name
         return schemas.PDFExportResponse(
             success=True,
-            message=f"Successfully exported {len(sheets)} concentration sheets as individual PDF files in zip",
+            message=f"Successfully exported {len(pdf_paths)} concentration sheets as individual PDF files in zip",
             pdf_path=f"/export/download/{filename}",
-            sheets_exported=len(sheets)
+            sheets_exported=len(pdf_paths)
         )
         
     except Exception as e:
-        logger.error(f"Error exporting concentration sheets: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+        error_message = str(e)
+        # Check if it's a file in use error
+        if "destination file is in use" in error_message:
+            logger.error(f"Error exporting concentration sheets: {error_message}")
+            return schemas.PDFExportResponse(
+                success=False,
+                message="Export failed because one or more destination files are in use. Please close the files and try again.",
+                sheets_exported=0
+            )
+        else:
+            logger.error(f"Error exporting concentration sheets: {error_message}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
 
 @router.post("/concentration-sheet/{sheet_id}", response_model=schemas.PDFExportResponse)
 async def export_single_concentration_sheet(
@@ -153,11 +189,21 @@ async def export_single_concentration_sheet(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error exporting concentration sheet {sheet_id}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+        error_message = str(e)
+        # Check if it's a file in use error
+        if "destination file is in use" in error_message:
+            logger.error(f"Error exporting concentration sheet {sheet_id}: {error_message}")
+            return schemas.PDFExportResponse(
+                success=False,
+                message="Export failed because the destination file is in use. Please close the file and try again.",
+                sheets_exported=0
+            )
+        else:
+            logger.error(f"Error exporting concentration sheet {sheet_id}: {error_message}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
 
 @router.post("/concentration-sheets/excel", response_model=schemas.PDFExportResponse)
 async def export_all_concentration_sheets_excel(

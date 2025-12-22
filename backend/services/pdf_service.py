@@ -713,8 +713,11 @@ class PDFService:
     def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en"):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"concentration_sheet_{sheet.id}_{timestamp}.pdf"
+            # Use section number in filename if available, otherwise use sheet ID
+            if boq_item and boq_item.section_number:
+                filename = f"concentration_sheet_{boq_item.section_number}.pdf"
+            else:
+                filename = f"concentration_sheet_{sheet.id}.pdf"
             
             # Save to item folder under c:/Fatina/{section_number}/
             if boq_item and boq_item.section_number:
@@ -1169,6 +1172,15 @@ class PDFService:
             logger.info(f"Generated concentration sheet PDF with RTL layout: {filepath}")
             return str(filepath)
             
+        except (PermissionError, OSError) as e:
+            # Check if error is related to file being in use
+            error_msg = str(e).lower()
+            if "being used by another process" in error_msg or "permission denied" in error_msg or "access is denied" in error_msg:
+                logger.error(f"Error generating single concentration sheet PDF - file in use: {str(e)}")
+                raise Exception("Export failed because the destination file is in use. Please close the file and try again.")
+            else:
+                logger.error(f"Error generating single concentration sheet PDF: {str(e)}")
+                raise
         except Exception as e:
             logger.error(f"Error generating single concentration sheet PDF: {str(e)}")
             raise
