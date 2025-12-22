@@ -237,7 +237,9 @@
     "contractUpdateColumnsNote": "עמודות עדכון חוזה תמיד גלויות כאשר קיימים עדכוני חוזה ואי אפשר להסתירן.",
     "confirmBOQItemCreation": "אישור יצירת פריט BOQ",
     "confirmContractQuantityUpdate": "אישור עדכון כמות חוזה",
-    "confirmContractUpdateDeletion": "אישור מחיקת עדכון חוזה"
+    "confirmContractUpdateDeletion": "אישור מחיקת עדכון חוזה",
+    "hasManualEntries": "לפריט זה יש רשומות ריכוז ידניות",
+    "manualEntry": "ידני"
   },
   "concentration": {
     "title": "דפי ריכוז",

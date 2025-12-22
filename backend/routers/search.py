@@ -11,6 +11,33 @@ from schemas import schemas
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+def add_manual_entries_flag(items: List[models.BOQItem], db: Session) -> List[dict]:
+    """Helper function to add has_manual_entries flag to BOQ items"""
+    items_with_flag = []
+    for item in items:
+        # Check if this BOQ item has a concentration sheet with manual entries
+        concentration_sheet = db.query(models.ConcentrationSheet).filter(
+            models.ConcentrationSheet.boq_item_id == item.id
+        ).first()
+        
+        has_manual = False
+        if concentration_sheet:
+            # Check if there are any manual entries for this concentration sheet
+            manual_entry_count = db.query(models.ConcentrationEntry).filter(
+                models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id,
+                models.ConcentrationEntry.is_manual == True
+            ).count()
+            has_manual = manual_entry_count > 0
+        
+        # Create a dict representation and add the has_manual_entries field
+        item_dict = {
+            **item.__dict__,
+            "has_manual_entries": has_manual
+        }
+        items_with_flag.append(item_dict)
+    
+    return items_with_flag
+
 @router.get("/", response_model=schemas.SearchResponse)
 async def search_boq_items(
     q: str = Query(..., min_length=1, description="Search query"),
@@ -76,10 +103,13 @@ async def search_boq_items(
         # Apply pagination
         items = query.offset(skip).limit(limit).all()
         
+        # Add has_manual_entries flag to items
+        items_with_flag = add_manual_entries_flag(items, db)
+        
         logger.info(f"Search for '{q}' returned {len(items)} items (total: {total_count})")
         
         return schemas.SearchResponse(
-            items=items,
+            items=items_with_flag,
             total_count=total_count,
             query=q
         )
@@ -104,8 +134,11 @@ async def get_items_by_subchapter(
             models.BOQItem.subsection == sub_chapter
         ).offset(skip).limit(limit).all()
         
+        # Add has_manual_entries flag to items
+        items_with_flag = add_manual_entries_flag(items, db)
+        
         logger.info(f"Found {len(items)} items for sub-chapter: {sub_chapter}")
-        return items
+        return items_with_flag
         
     except Exception as e:
         logger.error(f"Error fetching items by sub-chapter {sub_chapter}: {str(e)}")
@@ -181,8 +214,11 @@ async def filter_boq_items(
         # Apply pagination
         items = query.offset(skip).limit(limit).all()
         
+        # Add has_manual_entries flag to items
+        items_with_flag = add_manual_entries_flag(items, db)
+        
         logger.info(f"Filter returned {len(items)} items")
-        return items
+        return items_with_flag
         
     except Exception as e:
         logger.error(f"Error filtering BOQ items: {str(e)}")

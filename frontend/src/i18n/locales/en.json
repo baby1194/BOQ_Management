@@ -236,7 +236,9 @@
     "contractUpdateColumnsNote": "Contract update columns are always visible when contract updates exist and cannot be hidden.",
     "confirmBOQItemCreation": "Confirm BOQ Item Creation",
     "confirmContractQuantityUpdate": "Confirm Contract Quantity Update",
-    "confirmContractUpdateDeletion": "Confirm Contract Update Deletion"
+    "confirmContractUpdateDeletion": "Confirm Contract Update Deletion",
+    "hasManualEntries": "This item has manual concentration entries",
+    "manualEntry": "Manual"
   },
   "concentration": {
     "title": "Concentration Sheets",

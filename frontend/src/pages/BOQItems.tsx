@@ -3589,7 +3589,17 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.section_number && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-300">
-                        {item.section_number}
+                        <div className="flex items-center gap-2">
+                          <span>{item.section_number}</span>
+                          {item.has_manual_entries && (
+                            <span
+                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+                              title={t("boq.hasManualEntries")}
+                            >
+                              {t("boq.manualEntry")}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     )}
                     {columnVisibility.description && (

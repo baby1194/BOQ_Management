@@ -68,6 +68,7 @@ class BOQItem(BOQItemBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+    has_manual_entries: Optional[bool] = Field(None, description="True if this BOQ item has manual concentration entries")
 
     class Config:
         from_attributes = True

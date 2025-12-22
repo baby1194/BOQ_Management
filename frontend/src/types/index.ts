@@ -23,6 +23,7 @@ export interface BOQItem {
   internal_field_1?: string;
   internal_field_2?: string;
   subsection?: string;
+  has_manual_entries?: boolean; // True if this BOQ item has manual concentration entries
   created_at: string;
   updated_at?: string;
 }

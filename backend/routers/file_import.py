@@ -87,7 +87,8 @@ def create_folders_for_boq_items(db: Session):
 def save_calculation_sheet_to_item_folders(
     source_file_path: Path,
     calculation_entries: List[Dict],
-    db: Session
+    db: Session,
+    original_filename: str = None
 ) -> int:
     """
     Save calculation sheet Excel file to all contract item folders related to the calculation sheet.
@@ -97,6 +98,7 @@ def save_calculation_sheet_to_item_folders(
         source_file_path: Path to the source Excel file
         calculation_entries: List of calculation entries with section_number
         db: Database session
+        original_filename: Optional original filename to use when saving (preserves original name)
         
     Returns:
         Number of folders the file was saved to
@@ -125,6 +127,9 @@ def save_calculation_sheet_to_item_folders(
             logger.warning(f"No BOQ items found with section numbers: {section_numbers} for file: {source_file_path}")
             return 0
         
+        # Use original filename if provided, otherwise use the source file path name
+        filename_to_use = original_filename if original_filename else source_file_path.name
+        
         files_saved = 0
         
         # Save the file to each related item's folder
@@ -140,8 +145,8 @@ def save_calculation_sheet_to_item_folders(
                 # Create folder if it doesn't exist
                 folder_path.mkdir(parents=True, exist_ok=True)
                 
-                # Copy the Excel file to the folder
-                destination_file = folder_path / source_file_path.name
+                # Copy the Excel file to the folder using the original filename
+                destination_file = folder_path / filename_to_use
                 
                 # Handle filename conflicts by adding a number suffix
                 original_destination = destination_file
@@ -162,7 +167,7 @@ def save_calculation_sheet_to_item_folders(
             except Exception as e:
                 logger.error(f"Error saving file to folder {folder_path}: {str(e)}")
         
-        logger.info(f"Saved calculation sheet {source_file_path.name} to {files_saved} item folder(s)")
+        logger.info(f"Saved calculation sheet {filename_to_use} to {files_saved} item folder(s)")
         return files_saved
         
     except Exception as e:
@@ -544,10 +549,12 @@ async def import_calculation_sheets_from_folder(
                 entries_created += 1
             
             # Save the calculation sheet Excel file to all related contract item folders
+            # Use the original filename (file_path.name) to preserve the original name
             files_saved_count = save_calculation_sheet_to_item_folders(
                 file_path,
                 sheet_data['entries'],
-                db
+                db,
+                original_filename=file_path.name
             )
             
             # Count as imported (whether new or updated)
@@ -667,10 +674,12 @@ async def import_calculation_sheets(
                     entries_created += 1
                 
                 # Save the calculation sheet Excel file to all related contract item folders
+                # Use the original filename (file.filename) to preserve the original name even if it was renamed during upload
                 files_saved_count = save_calculation_sheet_to_item_folders(
                     file_path,
                     sheet_data['entries'],
-                    db
+                    db,
+                    original_filename=file.filename
                 )
                 
                 # Count as imported (whether new or updated)

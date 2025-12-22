@@ -62,7 +62,9 @@ const CalculationSheets: React.FC = () => {
       setSheets(response);
 
       // Restore previously selected sheet from localStorage
-      const savedSheetId = localStorage.getItem("calculation-selected-sheet-id");
+      const savedSheetId = localStorage.getItem(
+        "calculation-selected-sheet-id"
+      );
       if (savedSheetId && response.length > 0) {
         const savedSheet = response.find(
           (sheet) => sheet.id === parseInt(savedSheetId)
@@ -213,9 +215,7 @@ const CalculationSheets: React.FC = () => {
 
     const selectedCount = selectedSheetIds.size;
     const sheetNumbers = Array.from(selectedSheetIds)
-      .map(
-        (id) => sheets.find((s) => s.id === id)?.calculation_sheet_no || id
-      )
+      .map((id) => sheets.find((s) => s.id === id)?.calculation_sheet_no || id)
       .join(", ");
 
     if (
@@ -765,7 +765,9 @@ const CalculationSheets: React.FC = () => {
                                 {sheet.description}
                               </p>
                               <div className="mt-2 text-xs text-gray-400">
-                                {new Date(sheet.import_date).toLocaleDateString()}
+                                {new Date(
+                                  sheet.import_date
+                                ).toLocaleDateString()}
                               </div>
                             </div>
                           </div>
