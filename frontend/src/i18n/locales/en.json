@@ -322,7 +322,8 @@
     "priceLabel": "Price:",
     "sectionNumberLabel": "Section Number:",
     "descriptionLabel": "Description:",
-    "viewSheet": "View Sheet"
+    "viewSheet": "View Sheet",
+    "selectColumnsForExport": "Select the concentration entry columns you want to include in the export:"
   },
   "projectInfo": {
     "title": "Project Information",

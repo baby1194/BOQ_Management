@@ -323,7 +323,8 @@
     "priceLabel": "מחיר:",
     "sectionNumberLabel": "סעיף מספר:",
     "descriptionLabel": "תיאור:",
-    "viewSheet": "הצג דף"
+    "viewSheet": "הצג דף",
+    "selectColumnsForExport": "בחר את העמודות של הרשומות ריכוז שברצונך לכלול בייצוא:"
   },
   "projectInfo": {
     "title": "מידע הפרויקט",
