@@ -1071,6 +1071,19 @@ class PDFService:
                 # Calculate column widths based on current (possibly reversed) data
                 column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12)
                 
+                # Identify numerical columns (columns that contain quantities)
+                # Use the actual translated headers to identify numerical columns
+                numerical_column_indices = []
+                numerical_header_keys = ['Estimated Quantity', 'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager']
+                
+                # Get the translated headers for numerical columns
+                numerical_translated_headers = [headers_translations[key] for key in numerical_header_keys if key in headers_translations]
+                
+                for idx, header in enumerate(current_headers):
+                    # Check if this header is a numerical column (matches translated header exactly)
+                    if header in numerical_translated_headers:
+                        numerical_column_indices.append(idx)
+                
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
                     entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1, language=language)
@@ -1081,17 +1094,20 @@ class PDFService:
                     override_style = TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background (was lightgrey)
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text (was white)
-                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # Alignment based on language
+                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # Default alignment based on language
                         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, 0), 12),
                         ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                         ('TOPPADDING', (0, 0), (-1, -1), 12),
                         ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows - white
-                        ('BACKGROUND', (0, -1), (-1, -1), colors.white),  # Totals row - white background (was lightgrey)
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
                         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                         ('GRID', (0, 0), (-1, -1), 1, colors.black),
                         ('VALIGN', (0, 0), (-1, -1), 'TOP')
                     ])
+                    # Center-align numerical columns for all rows
+                    for col_idx in numerical_column_indices:
+                        override_style.add('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER')
                     entries_table.setStyle(override_style)
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
@@ -1103,27 +1119,31 @@ class PDFService:
                     if language == "he":
                         # Hebrew mode: right-aligned content
                         entries_table_style.extend([
-                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # All columns right-aligned for Hebrew
+                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # Default: all columns right-aligned for Hebrew
                             ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as first table
                             ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
                             ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
                             ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
                             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
-                            ('BACKGROUND', (0, -1), (-1, -1), colors.white),  # Totals row - white background
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
                         ])
                     else:
                         # English mode: left-aligned content
                         entries_table_style.extend([
-                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # All columns left-aligned for English
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Default: all columns left-aligned for English
                             ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as first table
                             ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
                             ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
                             ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
                             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
-                            ('BACKGROUND', (0, -1), (-1, -1), colors.white),  # Totals row - white background
+                            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
                         ])
+                    
+                    # Center-align numerical columns for all rows
+                    for col_idx in numerical_column_indices:
+                        entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
                     
                     # Create table with processed data (Hebrew text reversed)
                     entries_table = Table(processed_entries_data, colWidths=column_widths)
