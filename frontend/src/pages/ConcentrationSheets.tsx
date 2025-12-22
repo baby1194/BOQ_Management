@@ -58,14 +58,6 @@ const ConcentrationSheets: React.FC = () => {
 
   // Load project info from selected sheet
   const loadProjectInfoFromSheet = (sheet: ConcentrationSheetWithBOQData) => {
-    console.log("Loading project info from sheet:", {
-      id: sheet.id,
-      project_name: sheet.project_name,
-      contractor_in_charge: sheet.contractor_in_charge,
-      contract_no: sheet.contract_no,
-      developer_name: sheet.developer_name,
-    });
-
     const info = {
       projectName: sheet.project_name || "",
       contractorInCharge: sheet.contractor_in_charge || "",
@@ -73,8 +65,6 @@ const ConcentrationSheets: React.FC = () => {
       developerName: sheet.developer_name || "",
     };
     setProjectInfo(info);
-
-    console.log("Project info loaded:", info);
   };
 
   // Export functions with column selection modal
@@ -285,7 +275,37 @@ const ConcentrationSheets: React.FC = () => {
           setNavigatedFromBOQ(true);
           setTimeout(() => setShowNavigationMessage(false), 3000);
 
+          // Save selected sheet ID to localStorage
+          localStorage.setItem(
+            "concentration-selected-sheet-id",
+            targetSheet.id.toString()
+          );
+
           return; // Don't set default selection
+        }
+      }
+
+      // Restore previously selected sheet from localStorage
+      const savedSheetId = localStorage.getItem(
+        "concentration-selected-sheet-id"
+      );
+      if (savedSheetId) {
+        const savedSheet = sheetsWithBOQ.find(
+          (sheet) => sheet.id === parseInt(savedSheetId)
+        );
+        if (savedSheet) {
+          setSelectedSheet(savedSheet);
+          loadProjectInfoFromSheet(savedSheet);
+          fetchEntries(savedSheet.id);
+
+          // Scroll to the selected sheet in the sidebar
+          setTimeout(() => {
+            const element = document.getElementById(`sheet-${savedSheet.id}`);
+            if (element) {
+              element.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 100);
+          return;
         }
       }
 
@@ -319,6 +339,11 @@ const ConcentrationSheets: React.FC = () => {
     setShowAddForm(false);
     loadProjectInfoFromSheet(sheet);
     fetchEntries(sheet.id);
+    // Save selected sheet ID to localStorage
+    localStorage.setItem(
+      "concentration-selected-sheet-id",
+      sheet.id.toString()
+    );
   };
 
   // Create new entry

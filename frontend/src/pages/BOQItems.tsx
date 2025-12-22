@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
@@ -44,6 +44,7 @@ const formatDateToMonth = (dateString: string): string => {
 
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [items, setItems] = useState<BOQItem[]>([]);
@@ -212,6 +213,11 @@ const BOQItems: React.FC = () => {
 
   // Column visibility settings modal state
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+
+  // Ref for the scrollable table container
+  const tableScrollContainerRef = useRef<HTMLDivElement>(null);
+  // Flag to track if scroll position has been restored (only restore once per page load)
+  const scrollPositionRestoredRef = useRef(false);
 
   // Save all display settings to localStorage whenever they change
   useEffect(() => {
@@ -1555,6 +1561,178 @@ const BOQItems: React.FC = () => {
     setItems(filteredItems);
   }, [filteredItems]);
 
+  // Save scroll position to localStorage
+  useEffect(() => {
+    const scrollContainer = tableScrollContainerRef.current;
+
+    if (!scrollContainer) {
+      console.log("[BOQ Scroll] Container not available for scroll listener");
+      return;
+    }
+
+    console.log("[BOQ Scroll] Adding scroll event listener to container");
+
+    const handleScroll = () => {
+      const scrollTop = scrollContainer.scrollTop;
+      const scrollHeight = scrollContainer.scrollHeight;
+      const clientHeight = scrollContainer.clientHeight;
+      const maxScroll = scrollHeight - clientHeight;
+      const scrollPercentage =
+        maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
+
+      console.log("[BOQ Scroll] Position saved:", {
+        scrollTop,
+        scrollPercentage: scrollPercentage.toFixed(2) + "%",
+        scrollHeight,
+        clientHeight,
+        maxScroll,
+      });
+
+      localStorage.setItem("boq-table-scroll-position", scrollTop.toString());
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+
+    console.log("[BOQ Scroll] Scroll event listener attached", {
+      containerExists: !!scrollContainer,
+      scrollHeight: scrollContainer.scrollHeight,
+      clientHeight: scrollContainer.clientHeight,
+      isScrollable: scrollContainer.scrollHeight > scrollContainer.clientHeight,
+    });
+
+    // Test if we can read scroll position immediately
+    console.log("[BOQ Scroll] Initial scroll position:", {
+      scrollTop: scrollContainer.scrollTop,
+    });
+
+    return () => {
+      console.log("[BOQ Scroll] Removing scroll event listener");
+      scrollContainer.removeEventListener("scroll", handleScroll);
+    };
+  }, [items.length]); // Re-attach when items change to ensure container is ready
+
+  // Reset restoration flag when navigating to this page and restore scroll position
+  useEffect(() => {
+    console.log("[BOQ Scroll Restore] Effect triggered:", {
+      pathname: location.pathname,
+      loading,
+      itemsCount: items.length,
+      hasContainer: !!tableScrollContainerRef.current,
+      alreadyRestored: scrollPositionRestoredRef.current,
+    });
+
+    // Reset flag when pathname changes (user navigated to/back to this page)
+    scrollPositionRestoredRef.current = false;
+
+    // If we're on the BOQ page and items are loaded, try to restore scroll
+    if (
+      location.pathname === "/boq" &&
+      !loading &&
+      items.length > 0 &&
+      tableScrollContainerRef.current &&
+      !scrollPositionRestoredRef.current
+    ) {
+      const savedScrollPosition = localStorage.getItem(
+        "boq-table-scroll-position"
+      );
+
+      console.log("[BOQ Scroll Restore] Checking saved position:", {
+        savedScrollPosition,
+      });
+
+      if (savedScrollPosition) {
+        const scrollTop = parseInt(savedScrollPosition, 10);
+        console.log("[BOQ Scroll Restore] Attempting to restore:", {
+          scrollTop,
+        });
+
+        // Function to restore scroll position
+        const restoreScroll = () => {
+          const container = tableScrollContainerRef.current;
+          if (!container) {
+            console.log("[BOQ Scroll Restore] Container not available");
+            return false;
+          }
+
+          // Check if table has content rendered (check for actual table rows)
+          const tableRows = container.querySelectorAll("tbody tr");
+          const scrollHeight = container.scrollHeight;
+          const clientHeight = container.clientHeight;
+          const maxScroll = scrollHeight - clientHeight;
+          const scrollPercentage =
+            maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
+          const hasContent = scrollHeight > 0 && tableRows.length > 0;
+
+          console.log("[BOQ Scroll Restore] Checking content:", {
+            tableRowsCount: tableRows.length,
+            scrollHeight,
+            clientHeight,
+            maxScroll,
+            hasContent,
+            targetScrollTop: scrollTop,
+            targetPercentage: scrollPercentage.toFixed(2) + "%",
+          });
+
+          if (hasContent) {
+            // Set scroll position
+            container.scrollTop = scrollTop;
+            scrollPositionRestoredRef.current = true;
+
+            const actualScrollTop = container.scrollTop;
+            const actualPercentage =
+              maxScroll > 0 ? (actualScrollTop / maxScroll) * 100 : 0;
+
+            console.log("[BOQ Scroll Restore] ✅ Restored successfully:", {
+              targetScrollTop: scrollTop,
+              actualScrollTop,
+              targetPercentage: scrollPercentage.toFixed(2) + "%",
+              actualPercentage: actualPercentage.toFixed(2) + "%",
+              difference: Math.abs(actualScrollTop - scrollTop),
+            });
+
+            return true; // Success
+          }
+
+          return false; // Not ready yet
+        };
+
+        // Try immediately
+        if (!restoreScroll()) {
+          console.log(
+            "[BOQ Scroll Restore] Not ready immediately, starting retry loop"
+          );
+          // If not ready, try with delays
+          let attempts = 0;
+          const maxAttempts = 30; // Try up to 30 times (1.5 seconds total)
+
+          const tryRestore = () => {
+            attempts++;
+            console.log(
+              `[BOQ Scroll Restore] Retry attempt ${attempts}/${maxAttempts}`
+            );
+            if (restoreScroll() || attempts >= maxAttempts) {
+              if (attempts >= maxAttempts) {
+                console.warn(
+                  "[BOQ Scroll Restore] ⚠️ Max attempts reached, giving up"
+                );
+                scrollPositionRestoredRef.current = true;
+              }
+              return;
+            }
+            setTimeout(tryRestore, 50);
+          };
+
+          // Start retry loop after initial delay
+          setTimeout(tryRestore, 100);
+        }
+      } else {
+        console.log("[BOQ Scroll Restore] No saved position found");
+        // No saved position, mark as restored
+        scrollPositionRestoredRef.current = true;
+      }
+    }
+  }, [location.pathname, loading, items.length]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
   };
@@ -2647,7 +2825,10 @@ const BOQItems: React.FC = () => {
         )}
 
         {/* Table Container with Vertical Scrolling */}
-        <div className="overflow-auto max-h-[70vh]">
+        <div
+          ref={tableScrollContainerRef}
+          className="overflow-auto max-h-[70vh]"
+        >
           <table className="min-w-full border border-gray-300">
             {/* Frozen Header */}
             <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm border-t-2">

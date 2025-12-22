@@ -60,6 +60,28 @@ const CalculationSheets: React.FC = () => {
       const response = await calculationSheetsApi.getAll(0, 10000);
       // console.log("Calculation sheets response:", response);
       setSheets(response);
+
+      // Restore previously selected sheet from localStorage
+      const savedSheetId = localStorage.getItem("calculation-selected-sheet-id");
+      if (savedSheetId && response.length > 0) {
+        const savedSheet = response.find(
+          (sheet) => sheet.id === parseInt(savedSheetId)
+        );
+        if (savedSheet) {
+          setSelectedSheet(savedSheet);
+          setCommentValue(savedSheet.comment || "");
+          setEditingComment(false);
+          fetchEntries(savedSheet.id);
+
+          // Scroll to the selected sheet in the sidebar
+          setTimeout(() => {
+            const element = document.getElementById(`sheet-${savedSheet.id}`);
+            if (element) {
+              element.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 100);
+        }
+      }
     } catch (err) {
       console.error("Error fetching calculation sheets:", err);
       setError(t("auth.failedToFetchCalculationSheets"));
@@ -90,6 +112,8 @@ const CalculationSheets: React.FC = () => {
     setCommentValue(sheet.comment || "");
     setEditingComment(false);
     fetchEntries(sheet.id);
+    // Save selected sheet ID to localStorage
+    localStorage.setItem("calculation-selected-sheet-id", sheet.id.toString());
   };
 
   // Handle comment update
@@ -708,6 +732,7 @@ const CalculationSheets: React.FC = () => {
                   {filteredSheets.map((sheet) => (
                     <div
                       key={sheet.id}
+                      id={`sheet-${sheet.id}`}
                       className={`p-4 hover:bg-gray-50 transition-colors ${
                         selectedSheet?.id === sheet.id
                           ? "bg-blue-50 border-r-4 border-blue-500"
