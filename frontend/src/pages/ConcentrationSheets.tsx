@@ -190,21 +190,25 @@ const ConcentrationSheets: React.FC = () => {
 
       console.log("Export was successful, proceeding with download...");
 
-      // If successful and has pdf_path, download the file
-      if (response.pdf_path) {
-        // Create download link
+      // For Excel exports, files are saved server-side to C:/Fatina/{section_number}/
+      // For PDF exports, download the file
+      if (format === "excel") {
+        // Excel files are saved server-side, just show success message
+        // The response.message already contains the success message
+        console.log("Excel file saved server-side:", response.message);
+      } else if (response.pdf_path) {
+        // PDF export - download the file
         const link = document.createElement("a");
         link.href = `/api${response.pdf_path}`;
         // Extract filename from the path
         const filename =
-          response.pdf_path.split("/").pop() ||
-          `${selectedSheet.id}.${format === "pdf" ? "pdf" : "xlsx"}`;
+          response.pdf_path.split("/").pop() || `${selectedSheet.id}.pdf`;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       } else {
-        // Success but no pdf_path - this shouldn't happen but handle it
+        // Success but no pdf_path for PDF - this shouldn't happen but handle it
         const errorMessage =
           response?.message ||
           t("concentration.exportFailed") + " " + format.toUpperCase();
@@ -300,20 +304,22 @@ const ConcentrationSheets: React.FC = () => {
         return;
       }
 
-      // If successful and has pdf_path, download the file
-      if (response.pdf_path) {
-        // Create download link
+      // For Excel exports, files are saved server-side to C:/Fatina/{section_number}/
+      // For PDF exports, download the zip file
+      if (format === "excel") {
+        // Excel files are saved server-side, just show success message
+        // The response.message already contains the success message
+        console.log("Excel files saved server-side:", response.message);
+      } else if (response.pdf_path) {
+        // PDF export - download the zip file
         const link = document.createElement("a");
         link.href = `/api${response.pdf_path}`;
-        link.download =
-          format === "pdf"
-            ? `all_concentration_sheets_individual.zip`
-            : `all_concentration_sheets.xlsx`;
+        link.download = `all_concentration_sheets_individual.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       } else {
-        // Success but no pdf_path - this shouldn't happen but handle it
+        // Success but no pdf_path for PDF - this shouldn't happen but handle it
         const errorMessage =
           response?.message ||
           t("concentration.exportFailed") + " " + format.toUpperCase();

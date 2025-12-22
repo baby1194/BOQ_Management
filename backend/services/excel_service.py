@@ -272,9 +272,16 @@ class ExcelService:
     def export_single_concentration_sheet(self, sheet, boq_item, entries):
         """Export a single concentration sheet to Excel with specific format: 3 tables"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{sheet.id}_{timestamp}.xlsx"
-            filepath = self.exports_dir / filename
+            # Save to C:/Fatina/{section_number} directory
+            section_number = str(boq_item.section_number) if boq_item else str(sheet.id)
+            # Sanitize section number for use in file path (remove invalid characters)
+            safe_section_number = "".join(c for c in section_number if c.isalnum() or c in ('-', '_', '.'))
+            base_dir = Path("C:/Fatina") / safe_section_number
+            base_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Use section number as filename (no timestamp, overwrite existing)
+            filename = f"{safe_section_number}.xlsx"
+            filepath = base_dir / filename
             
             # Create Excel writer
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
@@ -415,40 +422,47 @@ class ExcelService:
             raise
 
     def export_all_concentration_sheets(self, sheets, db_session):
-        """Export all concentration sheets to Excel with separate sheets (sheet name = section number)"""
+        """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"all_concentration_sheets_{timestamp}.xlsx"
-            filepath = self.exports_dir / filename
+            exported_paths = []
             
-            # Create Excel writer
-            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+            # Create individual Excel files for each concentration sheet
+            for sheet in sheets:
+                # Get the associated BOQ item
+                boq_item = db_session.query(models.BOQItem).filter(
+                    models.BOQItem.id == sheet.boq_item_id
+                ).first()
                 
-                # Create individual sheets for each concentration sheet
-                for sheet in sheets:
-                    # Get the associated BOQ item
-                    boq_item = db_session.query(models.BOQItem).filter(
-                        models.BOQItem.id == sheet.boq_item_id
-                    ).first()
-                    
-                    if not boq_item:
-                        continue
-                    
-                    # Get all entries for this concentration sheet
-                    entries = db_session.query(models.ConcentrationEntry).filter(
-                        models.ConcentrationEntry.concentration_sheet_id == sheet.id
-                    ).order_by(models.ConcentrationEntry.id).all()
-                    
-                    # Use section number as sheet name (Excel sheet name limit is 31 characters)
-                    sheet_name = str(boq_item.section_number)[:31]
-                    
+                if not boq_item:
+                    continue
+                
+                # Get all entries for this concentration sheet
+                entries = db_session.query(models.ConcentrationEntry).filter(
+                    models.ConcentrationEntry.concentration_sheet_id == sheet.id
+                ).order_by(models.ConcentrationEntry.id).all()
+                
+                # Save to C:/Fatina/{section_number} directory
+                section_number = str(boq_item.section_number)
+                # Sanitize section number for use in file path (remove invalid characters)
+                safe_section_number = "".join(c for c in section_number if c.isalnum() or c in ('-', '_', '.'))
+                base_dir = Path("C:/Fatina") / safe_section_number
+                base_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Use section number as filename (no timestamp, overwrite existing)
+                filename = f"{safe_section_number}.xlsx"
+                filepath = base_dir / filename
+                
+                # Create Excel writer for this sheet
+                with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                    # Single sheet with all content
+                    sheet_name = 'Concentration Sheet'
                     current_row = 0
                     
                     # First Table: Project Information (2 rows, 4 columns)
                     project_headers = ['Contract No', 'Developer Name', 'Project Name', 'Contractor in Charge']
                     project_values = [
-                            sheet.contract_no or 'N/A',
-                            sheet.developer_name or 'N/A',
+                        sheet.contract_no or 'N/A',
+                        sheet.developer_name or 'N/A',
                         sheet.project_name or 'N/A',
                         sheet.contractor_in_charge or 'N/A'
                     ]
@@ -461,8 +475,8 @@ class ExcelService:
                     # Second Table: BOQ Item Details (2 rows, 5 columns)
                     boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
                     boq_values = [
-                            boq_item.section_number,
-                            f"{boq_item.original_contract_quantity:,.2f}",
+                        boq_item.section_number,
+                        f"{boq_item.original_contract_quantity:,.2f}",
                         boq_item.unit,
                         f"{boq_item.price:,.2f}",
                         boq_item.description or ''
@@ -512,7 +526,7 @@ class ExcelService:
                         df_entries = pd.DataFrame(entries_data)
                         df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                     
-                    # Apply formatting to the sheet
+                    # Apply formatting to the single sheet
                     workbook = writer.book
                     worksheet = workbook[sheet_name]
                     
@@ -567,8 +581,15 @@ class ExcelService:
                             cell.font = Font(bold=True)
                             cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
                 
-                logger.info(f"Generated all concentration sheets Excel with {len(sheets)} sheets: {filepath}")
-            return str(filepath)
+                exported_paths.append(str(filepath))
+                logger.info(f"Generated concentration sheet Excel: {filepath}")
+            
+            # Return the first path for backward compatibility (though all files are saved)
+            if exported_paths:
+                logger.info(f"Generated {len(exported_paths)} concentration sheet Excel files")
+                return exported_paths[0]  # Return first path for backward compatibility
+            else:
+                raise ValueError("No sheets were exported")
             
         except Exception as e:
             logger.error(f"Error generating all concentration sheets Excel: {str(e)}")

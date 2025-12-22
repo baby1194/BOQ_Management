@@ -232,15 +232,14 @@ async def export_all_concentration_sheets_excel(
                 sheets_exported=0
             )
         
-        # Generate Excel file with all sheets
+        # Generate Excel files - saved to C:/Fatina/{section_number}/ directories
         excel_path = excel_service.export_all_concentration_sheets(sheets, db)
         
-        # Return the filename for download
-        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        # Files are saved server-side to C:/Fatina/{section_number}/, no download needed
         return schemas.PDFExportResponse(
             success=True,
-            message=f"Successfully exported {len(sheets)} concentration sheets to Excel",
-            pdf_path=f"/export/download/{filename}",
+            message=f"Successfully exported {len(sheets)} concentration sheets to Excel. Files saved to C:/Fatina/{{section_number}}/ directories.",
+            pdf_path=None,  # No download path since files are saved server-side
             sheets_exported=len(sheets)
         )
         
@@ -282,12 +281,12 @@ async def export_single_concentration_sheet_excel(
         excel_service = ExcelService()
         excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries)
         
-        # Return the filename for download
-        filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
+        # File is saved to C:/Fatina/{section_number}/, no download path needed
+        section_number = boq_item.section_number if boq_item else sheet.id
         return schemas.PDFExportResponse(
             success=True,
-            message=f"Successfully exported concentration sheet to Excel: {sheet.sheet_name}",
-            pdf_path=f"/export/download/{filename}",
+            message=f"Successfully exported concentration sheet to Excel. File saved to C:/Fatina/{section_number}",
+            pdf_path=None,  # No download path since file is saved server-side
             sheets_exported=1
         )
         
