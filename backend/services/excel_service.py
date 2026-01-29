@@ -8,6 +8,38 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
+def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_no):
+    """Resolve calculation_sheet_no + drawing_no to CalculationSheet.file_name, or None."""
+    if not db_session or not calculation_sheet_no or not drawing_no:
+        return None
+    sheet = db_session.query(models.CalculationSheet).filter(
+        models.CalculationSheet.calculation_sheet_no == calculation_sheet_no,
+        models.CalculationSheet.drawing_no == drawing_no,
+    ).first()
+    return sheet.file_name if sheet else None
+
+
+def _add_calculation_sheet_hyperlinks(worksheet, entries, start_row_1based, col_index_0based, db_session, skip_totals_row=True):
+    """Add file hyperlinks to the Calculation Sheet No column. Uses relative path (filename only) so it works on any PC when the Excel and files are in the same directory."""
+    from openpyxl.styles import Font
+    from openpyxl.styles.colors import BLUE
+    link_font = Font(color=BLUE, underline="single")
+    num_data_rows = len(entries)
+    if skip_totals_row:
+        num_data_rows -= 1  # last row is totals
+    for i in range(num_data_rows):
+        entry = entries[i]
+        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
+        if not file_name:
+            continue
+        # Use relative path (filename only) so the link works on any PC when files are in the same directory
+        row_1based = start_row_1based + 1 + i  # header at start_row_1based, first data at start_row_1based+1
+        cell = worksheet.cell(row=row_1based, column=col_index_0based + 1)
+        cell.hyperlink = file_name
+        cell.font = link_font
+
+
 class ExcelService:
     def __init__(self):
         self.supported_extensions = ['.xlsx', '.xls']
@@ -269,9 +301,10 @@ class ExcelService:
             errors.append(error_msg)
             return items, errors 
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None, db_session=None):
         """Export a single concentration sheet to Excel with specific format: 3 tables.
-        entry_columns: optional dict with include_* keys to filter which columns to include."""
+        entry_columns: optional dict with include_* keys to filter which columns to include.
+        db_session: optional DB session to resolve Calculation Sheet No -> file link in same directory."""
         try:
             # Save to C:/Fatina/{section_number} directory
             section_number = str(boq_item.section_number) if boq_item else str(sheet.id)
@@ -379,6 +412,19 @@ class ExcelService:
                     
                     df_entries = pd.DataFrame(entries_data)
                     df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                    
+                    # Add hyperlinks to Calculation Sheet No column (relative path, same directory)
+                    if db_session and "Calculation Sheet No" in filtered_headers:
+                        calc_sheet_col_idx = filtered_headers.index("Calculation Sheet No")
+                        workbook = writer.book
+                        worksheet = workbook[sheet_name]
+                        _add_calculation_sheet_hyperlinks(
+                            worksheet, entries,
+                            start_row_1based=current_row + 1,
+                            col_index_0based=calc_sheet_col_idx,
+                            db_session=db_session,
+                            skip_totals_row=True,
+                        )
                 
                 # Apply formatting to the single sheet
                 workbook = writer.book
@@ -547,6 +593,17 @@ class ExcelService:
                         
                         df_entries = pd.DataFrame(entries_data)
                         df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
+                        
+                        # Add hyperlinks to Calculation Sheet No column (relative path, same directory)
+                        workbook = writer.book
+                        worksheet = workbook[sheet_name]
+                        _add_calculation_sheet_hyperlinks(
+                            worksheet, entries,
+                            start_row_1based=current_row + 1,
+                            col_index_0based=1,  # Calculation Sheet No is 2nd column
+                            db_session=db_session,
+                            skip_totals_row=True,
+                        )
                     
                     # Apply formatting to the single sheet
                     workbook = writer.book

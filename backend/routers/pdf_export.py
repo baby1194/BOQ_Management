@@ -306,7 +306,7 @@ async def export_single_concentration_sheet_excel(
         ).order_by(models.ConcentrationEntry.id).all()
         
         excel_service = ExcelService()
-        excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries, entry_columns)
+        excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries, entry_columns, db_session=db)
         # Copy related calculation sheets to the same destination folder
         if boq_item and boq_item.section_number:
             copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
