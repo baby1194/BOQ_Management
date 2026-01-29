@@ -38,9 +38,15 @@ async def export_concentration_sheets(
             # This would need to be implemented based on item_codes
             sheets = db.query(models.ConcentrationSheet).all()
         
-        # Filter out empty sheets if requested
+        # Filter out sheets with empty concentration entries table if requested
         if request.get("export_non_empty_only", True):
-            sheets = [sheet for sheet in sheets if sheet.total_estimate > 0 or sheet.total_submitted > 0]
+            sheet_ids_with_entries = {
+                row[0]
+                for row in db.query(models.ConcentrationEntry.concentration_sheet_id)
+                .distinct()
+                .all()
+            }
+            sheets = [s for s in sheets if s.id in sheet_ids_with_entries]
         
         if not sheets:
             return schemas.PDFExportResponse(
@@ -228,9 +234,15 @@ async def export_all_concentration_sheets_excel(
             # This would need to be implemented based on item_codes
             sheets = db.query(models.ConcentrationSheet).all()
         
-        # Filter out empty sheets if requested
+        # Filter out sheets with empty concentration entries table if requested
         if request.export_non_empty_only:
-            sheets = [sheet for sheet in sheets if sheet.total_estimate > 0 or sheet.total_submitted > 0]
+            sheet_ids_with_entries = {
+                row[0]
+                for row in db.query(models.ConcentrationEntry.concentration_sheet_id)
+                .distinct()
+                .all()
+            }
+            sheets = [s for s in sheets if s.id in sheet_ids_with_entries]
         
         if not sheets:
             return schemas.PDFExportResponse(

@@ -153,6 +153,8 @@ export interface ConcentrationEntryExportRequest {
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;
   include_notes: boolean;
+  /** When exporting all sheets: false = all items, true = exclude sheets with empty concentration entries */
+  export_non_empty_only?: boolean;
 }
 
 export interface PDFExportResponse {

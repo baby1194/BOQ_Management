@@ -10,11 +10,32 @@ interface ConcentrationEntryExportModalProps {
   title: string;
   loading?: boolean;
   exportFormat: "pdf" | "excel";
+  /** When "all", show two buttons: export all items vs without empty items */
+  exportScope?: "single" | "all";
 }
+
+const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
+  "include_description",
+  "include_calculation_sheet_no",
+  "include_drawing_no",
+  "include_estimated_quantity",
+  "include_quantity_submitted",
+  "include_internal_quantity",
+  "include_approved_by_project_manager",
+  "include_notes",
+];
 
 const ConcentrationEntryExportModal: React.FC<
   ConcentrationEntryExportModalProps
-> = ({ isOpen, onClose, onExport, title, loading = false, exportFormat }) => {
+> = ({
+  isOpen,
+  onClose,
+  onExport,
+  title,
+  loading = false,
+  exportFormat,
+  exportScope = "single",
+}) => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [exportRequest, setExportRequest] =
@@ -33,7 +54,7 @@ const ConcentrationEntryExportModal: React.FC<
     });
 
   const handleCheckboxChange = (
-    field: keyof ConcentrationEntryExportRequest
+    field: keyof ConcentrationEntryExportRequest,
   ) => {
     setExportRequest((prev) => ({
       ...prev,
@@ -67,8 +88,16 @@ const ConcentrationEntryExportModal: React.FC<
     });
   };
 
-  const handleExport = () => {
-    onExport(exportRequest);
+  const hasAtLeastOneColumn = COLUMN_KEYS.some(
+    (key) => exportRequest[key] === true,
+  );
+
+  const handleExport = (exportNonEmptyOnly?: boolean) => {
+    const request: ConcentrationEntryExportRequest = { ...exportRequest };
+    if (exportScope === "all" && exportNonEmptyOnly !== undefined) {
+      request.export_non_empty_only = exportNonEmptyOnly;
+    }
+    onExport(request);
   };
 
   if (!isOpen) return null;
@@ -227,23 +256,54 @@ const ConcentrationEntryExportModal: React.FC<
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={handleExport}
-            disabled={loading || Object.values(exportRequest).every((v) => !v)}
-            className={`flex-1 px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-              exportFormat === "pdf"
-                ? "bg-red-600 hover:bg-red-700 focus:ring-red-500"
-                : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
-            }`}
-          >
-            {loading
-              ? t("common.exporting")
-              : `${t("common.export")} ${exportFormat.toUpperCase()}`}
-          </button>
+        <div className="flex gap-3 flex-wrap">
+          {exportScope === "all" ? (
+            <>
+              <button
+                onClick={() => handleExport(false)}
+                disabled={loading || !hasAtLeastOneColumn}
+                className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  exportFormat === "pdf"
+                    ? "bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                    : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                }`}
+              >
+                {loading
+                  ? t("common.exporting")
+                  : t("concentration.exportAllItems")}
+              </button>
+              <button
+                onClick={() => handleExport(true)}
+                disabled={loading || !hasAtLeastOneColumn}
+                className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  exportFormat === "pdf"
+                    ? "bg-red-500 hover:bg-red-600 focus:ring-red-500"
+                    : "bg-green-500 hover:bg-green-600 focus:ring-green-500"
+                }`}
+              >
+                {loading
+                  ? t("common.exporting")
+                  : t("concentration.exportWithoutEmptyItems")}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => handleExport()}
+              disabled={loading || !hasAtLeastOneColumn}
+              className={`flex-1 px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                exportFormat === "pdf"
+                  ? "bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                  : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+              }`}
+            >
+              {loading
+                ? t("common.exporting")
+                : `${t("common.export")} ${exportFormat.toUpperCase()}`}
+            </button>
+          )}
         </div>
 
-        {Object.values(exportRequest).every((v) => !v) && (
+        {!hasAtLeastOneColumn && (
           <p className="text-sm text-red-600 mt-2 text-center">
             {t("concentration.selectAtLeastOneColumn")}
           </p>

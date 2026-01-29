@@ -298,6 +298,9 @@ const ConcentrationSheets: React.FC = () => {
       }
       setError(null);
 
+      const exportNonEmptyOnly =
+        entryColumnRequest.export_non_empty_only ?? false;
+
       const response =
         format === "pdf"
           ? await exportApi.exportConcentrationSheets(
@@ -305,7 +308,7 @@ const ConcentrationSheets: React.FC = () => {
                 item_codes: [],
                 hide_columns: [],
                 export_all: true,
-                export_non_empty_only: false,
+                export_non_empty_only: exportNonEmptyOnly,
               },
               entryColumnRequest,
               isRTL ? "he" : "en",
@@ -315,7 +318,7 @@ const ConcentrationSheets: React.FC = () => {
                 item_codes: [],
                 hide_columns: [],
                 export_all: true,
-                export_non_empty_only: false,
+                export_non_empty_only: exportNonEmptyOnly,
               },
               entryColumnRequest,
             );
@@ -1394,6 +1397,7 @@ const ConcentrationSheets: React.FC = () => {
           exportingPDF || exportingExcel || exportingAllPDF || exportingAllExcel
         }
         exportFormat={pendingExportAction?.format || "pdf"}
+        exportScope={pendingExportAction?.type}
       />
     </div>
   );
