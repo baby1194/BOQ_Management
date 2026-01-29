@@ -33,7 +33,7 @@ const ConcentrationSheets: React.FC = () => {
   }, [error]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ConcentrationEntry | null>(
-    null
+    null,
   );
   const [showAddForm, setShowAddForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,14 +78,14 @@ const ConcentrationSheets: React.FC = () => {
   const showExportModal = (
     type: "single" | "all",
     format: "pdf" | "excel",
-    title: string
+    title: string,
   ) => {
     setPendingExportAction({ type, format, title });
     setShowEntryColumnModal(true);
   };
 
   const handleExportModalSubmit = async (
-    entryColumnRequest: ConcentrationEntryExportRequest
+    entryColumnRequest: ConcentrationEntryExportRequest,
   ) => {
     if (!pendingExportAction) return;
 
@@ -104,7 +104,7 @@ const ConcentrationSheets: React.FC = () => {
 
   const executeSingleSheetExport = async (
     format: "pdf" | "excel",
-    entryColumnRequest: ConcentrationEntryExportRequest
+    entryColumnRequest: ConcentrationEntryExportRequest,
   ) => {
     console.log("executeSingleSheetExport called with format:", format);
 
@@ -130,11 +130,11 @@ const ConcentrationSheets: React.FC = () => {
             ? await exportApi.exportSingleConcentrationSheetPDF(
                 selectedSheet.id,
                 entryColumnRequest,
-                isRTL ? "he" : "en"
+                isRTL ? "he" : "en",
               )
             : await exportApi.exportSingleConcentrationSheetExcel(
                 selectedSheet.id,
-                entryColumnRequest
+                entryColumnRequest,
               );
         console.log("API call completed, response received:", response);
       } catch (apiError: any) {
@@ -151,7 +151,7 @@ const ConcentrationSheets: React.FC = () => {
       console.log("Response.message:", response?.message);
       console.log(
         "Response keys:",
-        response ? Object.keys(response) : "response is null/undefined"
+        response ? Object.keys(response) : "response is null/undefined",
       );
 
       // Check for error first - be very explicit
@@ -166,7 +166,7 @@ const ConcentrationSheets: React.FC = () => {
         console.error(
           `Export failed - setting error: ${errorMessage}`,
           "Full response:",
-          response
+          response,
         );
         console.log("About to call setError with:", errorMessage);
 
@@ -180,7 +180,7 @@ const ConcentrationSheets: React.FC = () => {
         setTimeout(() => {
           console.log(
             "Error state after setError (delayed check):",
-            errorMessage
+            errorMessage,
           );
         }, 100);
 
@@ -214,7 +214,7 @@ const ConcentrationSheets: React.FC = () => {
           t("concentration.exportFailed") + " " + format.toUpperCase();
         console.error(
           `Export succeeded but no file path - setting error: ${errorMessage}`,
-          response
+          response,
         );
         setError(errorMessage);
       }
@@ -254,7 +254,7 @@ const ConcentrationSheets: React.FC = () => {
 
   const executeAllSheetsExport = async (
     format: "pdf" | "excel",
-    entryColumnRequest: ConcentrationEntryExportRequest
+    entryColumnRequest: ConcentrationEntryExportRequest,
   ) => {
     try {
       if (format === "pdf") {
@@ -274,7 +274,7 @@ const ConcentrationSheets: React.FC = () => {
                 export_non_empty_only: false,
               },
               entryColumnRequest,
-              isRTL ? "he" : "en"
+              isRTL ? "he" : "en",
             )
           : await exportApi.exportAllConcentrationSheetsExcel(
               {
@@ -283,7 +283,7 @@ const ConcentrationSheets: React.FC = () => {
                 export_all: true,
                 export_non_empty_only: false,
               },
-              entryColumnRequest
+              entryColumnRequest,
             );
 
       console.log("Bulk export response:", response);
@@ -296,7 +296,7 @@ const ConcentrationSheets: React.FC = () => {
         console.error(
           `Bulk export failed - setting error: ${errorMessage}`,
           "Full response:",
-          response
+          response,
         );
         console.log("About to call setError with:", errorMessage);
         setError(errorMessage);
@@ -325,7 +325,7 @@ const ConcentrationSheets: React.FC = () => {
           t("concentration.exportFailed") + " " + format.toUpperCase();
         console.error(
           `Bulk export succeeded but no file path - setting error: ${errorMessage}`,
-          response
+          response,
         );
         setError(errorMessage);
       }
@@ -369,7 +369,7 @@ const ConcentrationSheets: React.FC = () => {
     showExportModal(
       "single",
       "excel",
-      t("concentration.exportSingleSheetExcel")
+      t("concentration.exportSingleSheetExcel"),
     );
   };
 
@@ -392,7 +392,7 @@ const ConcentrationSheets: React.FC = () => {
       const sheetsWithBOQ = await concentrationApi.getAllWithBOQData(0, 10000);
       console.log(
         "Concentration sheets with BOQ data fetched:",
-        sheetsWithBOQ.length
+        sheetsWithBOQ.length,
       );
 
       setSheets(sheetsWithBOQ);
@@ -401,7 +401,7 @@ const ConcentrationSheets: React.FC = () => {
       const selectedItemId = searchParams.get("selectedItem");
       if (selectedItemId) {
         const targetSheet = sheetsWithBOQ.find(
-          (sheet) => sheet.boq_item_id === parseInt(selectedItemId)
+          (sheet) => sheet.boq_item_id === parseInt(selectedItemId),
         );
         if (targetSheet) {
           setSelectedSheet(targetSheet);
@@ -416,7 +416,7 @@ const ConcentrationSheets: React.FC = () => {
           // Save selected sheet ID to localStorage
           localStorage.setItem(
             "concentration-selected-sheet-id",
-            targetSheet.id.toString()
+            targetSheet.id.toString(),
           );
 
           return; // Don't set default selection
@@ -425,11 +425,11 @@ const ConcentrationSheets: React.FC = () => {
 
       // Restore previously selected sheet from localStorage
       const savedSheetId = localStorage.getItem(
-        "concentration-selected-sheet-id"
+        "concentration-selected-sheet-id",
       );
       if (savedSheetId) {
         const savedSheet = sheetsWithBOQ.find(
-          (sheet) => sheet.id === parseInt(savedSheetId)
+          (sheet) => sheet.id === parseInt(savedSheetId),
         );
         if (savedSheet) {
           setSelectedSheet(savedSheet);
@@ -480,7 +480,7 @@ const ConcentrationSheets: React.FC = () => {
     // Save selected sheet ID to localStorage
     localStorage.setItem(
       "concentration-selected-sheet-id",
-      sheet.id.toString()
+      sheet.id.toString(),
     );
   };
 
@@ -489,7 +489,7 @@ const ConcentrationSheets: React.FC = () => {
     entryData: Omit<
       ConcentrationEntry,
       "id" | "created_at" | "updated_at" | "concentration_sheet_id"
-    >
+    >,
   ) => {
     if (!selectedSheet) return;
 
@@ -513,17 +513,17 @@ const ConcentrationSheets: React.FC = () => {
   // Update existing entry
   const updateEntry = async (
     entryId: number,
-    entryData: Partial<ConcentrationEntry>
+    entryData: Partial<ConcentrationEntry>,
   ) => {
     try {
       setSaving(true);
       const updatedEntry = await concentrationApi.updateEntry(
         entryId,
-        entryData
+        entryData,
       );
 
       setEntries((prev) =>
-        prev.map((entry) => (entry.id === entryId ? updatedEntry : entry))
+        prev.map((entry) => (entry.id === entryId ? updatedEntry : entry)),
       );
       setEditingEntry(null);
       setError(null);
@@ -579,7 +579,7 @@ const ConcentrationSheets: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(
       "concentration-sheets-section-filter",
-      sectionNumberFilter
+      sectionNumberFilter,
     );
   }, [sectionNumberFilter]);
 
@@ -608,7 +608,7 @@ const ConcentrationSheets: React.FC = () => {
     const selectedItemId = searchParams.get("selectedItem");
     if (selectedItemId && sheets.length > 0) {
       const targetSheet = sheets.find(
-        (sheet) => sheet.boq_item_id === parseInt(selectedItemId)
+        (sheet) => sheet.boq_item_id === parseInt(selectedItemId),
       );
       if (targetSheet && targetSheet.id !== selectedSheet?.id) {
         setSelectedSheet(targetSheet);
@@ -903,7 +903,7 @@ const ConcentrationSheets: React.FC = () => {
                                 <div>
                                   {t("concentration.qtyLabel")}{" "}
                                   {formatNumber(
-                                    sheet.boq_item.latest_contract_quantity
+                                    sheet.boq_item.latest_contract_quantity,
                                   )}
                                   {sheet.boq_item.has_contract_updates && (
                                     <span
@@ -1017,7 +1017,7 @@ const ConcentrationSheets: React.FC = () => {
                       </label>
                       <p className="text-gray-900">
                         {formatNumber(
-                          selectedSheet.boq_item.latest_contract_quantity
+                          selectedSheet.boq_item.latest_contract_quantity,
                         )}{" "}
                         {selectedSheet.boq_item.unit}
                         {selectedSheet.boq_item.has_contract_updates && (
@@ -1080,14 +1080,14 @@ const ConcentrationSheets: React.FC = () => {
                           <div className="text-xs text-blue-600">
                             {t("concentration.original")}{" "}
                             {formatNumber(
-                              selectedSheet.boq_item.original_contract_quantity
+                              selectedSheet.boq_item.original_contract_quantity,
                             )}{" "}
                             {selectedSheet.boq_item.unit}
                           </div>
                           <div className="text-sm font-medium text-blue-800">
                             {t("concentration.current")}{" "}
                             {formatNumber(
-                              selectedSheet.boq_item.latest_contract_quantity
+                              selectedSheet.boq_item.latest_contract_quantity,
                             )}{" "}
                             {selectedSheet.boq_item.unit}
                           </div>
@@ -1220,7 +1220,7 @@ const ConcentrationSheets: React.FC = () => {
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {formatNumber(
-                                      entry.approved_by_project_manager
+                                      entry.approved_by_project_manager,
                                     )}
                                   </td>
                                   <td className="px-3 py-4 text-sm text-gray-500 max-w-xs">
@@ -1280,8 +1280,8 @@ const ConcentrationSheets: React.FC = () => {
                                     entries.reduce(
                                       (sum, entry) =>
                                         sum + entry.estimated_quantity,
-                                      0
-                                    )
+                                      0,
+                                    ),
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
@@ -1289,8 +1289,8 @@ const ConcentrationSheets: React.FC = () => {
                                     entries.reduce(
                                       (sum, entry) =>
                                         sum + entry.quantity_submitted,
-                                      0
-                                    )
+                                      0,
+                                    ),
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
@@ -1298,8 +1298,8 @@ const ConcentrationSheets: React.FC = () => {
                                     entries.reduce(
                                       (sum, entry) =>
                                         sum + entry.internal_quantity,
-                                      0
-                                    )
+                                      0,
+                                    ),
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
@@ -1307,8 +1307,8 @@ const ConcentrationSheets: React.FC = () => {
                                     entries.reduce(
                                       (sum, entry) =>
                                         sum + entry.approved_by_project_manager,
-                                      0
-                                    )
+                                      0,
+                                    ),
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
@@ -1357,7 +1357,7 @@ interface EntryFormProps {
     data: Omit<
       ConcentrationEntry,
       "id" | "created_at" | "updated_at" | "concentration_sheet_id"
-    >
+    >,
   ) => void;
   onCancel: () => void;
   saving: boolean;
@@ -1451,7 +1451,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             onChange={(e) =>
               handleChange(
                 "estimated_quantity",
-                parseFloat(e.target.value) || 0
+                parseFloat(e.target.value) || 0,
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1470,7 +1470,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             onChange={(e) =>
               handleChange(
                 "quantity_submitted",
-                parseFloat(e.target.value) || 0
+                parseFloat(e.target.value) || 0,
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1505,7 +1505,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             onChange={(e) =>
               handleChange(
                 "approved_by_project_manager",
-                parseFloat(e.target.value) || 0
+                parseFloat(e.target.value) || 0,
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1544,8 +1544,8 @@ const EntryForm: React.FC<EntryFormProps> = ({
           {saving
             ? t("boq.saving")
             : entry
-            ? t("auth.updateNotes")
-            : t("common.create")}
+              ? t("auth.updateNotes")
+              : t("common.create")}
         </button>
       </div>
     </form>

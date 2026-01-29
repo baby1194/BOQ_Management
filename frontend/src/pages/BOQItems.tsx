@@ -64,9 +64,18 @@ const BOQItems: React.FC = () => {
   const [editingValues, setEditingValues] = useState<Partial<BOQItem>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [navigatingToSheet, setNavigatingToSheet] = useState<number | null>(
-    null
+    null,
   );
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  /** Selected row in BOQ main table – stays highlighted after click (like Concentration Sheets sidebar). Persisted so it survives navigation. */
+  const [selectedBoqRowId, setSelectedBoqRowId] = useState<number | null>(
+    () => {
+      const saved = localStorage.getItem("boq-selected-row-id");
+      if (saved === null) return null;
+      const n = parseInt(saved, 10);
+      return Number.isNaN(n) ? null : n;
+    },
+  );
 
   // Panel collapse state - initialize from localStorage
   const [panelsCollapsed, setPanelsCollapsed] = useState(() => {
@@ -85,12 +94,12 @@ const BOQItems: React.FC = () => {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
   const [editingProjectInfo, setEditingProjectInfo] = useState(false);
   const [projectInfoDraft, setProjectInfoDraft] = useState<ProjectInfoUpdate>(
-    {}
+    {},
   );
   const [savingProjectInfo, setSavingProjectInfo] = useState(false);
   const [projectInfoError, setProjectInfoError] = useState<string | null>(null);
   const [projectInfoSuccess, setProjectInfoSuccess] = useState<string | null>(
-    null
+    null,
   );
 
   // Comprehensive filter system
@@ -223,14 +232,14 @@ const BOQItems: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(
       "boq-column-visibility",
-      JSON.stringify(columnVisibility)
+      JSON.stringify(columnVisibility),
     );
   }, [columnVisibility]);
 
   useEffect(() => {
     localStorage.setItem(
       "boq-panels-collapsed",
-      JSON.stringify(panelsCollapsed)
+      JSON.stringify(panelsCollapsed),
     );
   }, [panelsCollapsed]);
 
@@ -242,7 +251,7 @@ const BOQItems: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(
       "boq-dropdown-filters",
-      JSON.stringify(dropdownFilters)
+      JSON.stringify(dropdownFilters),
     );
   }, [dropdownFilters]);
 
@@ -253,6 +262,25 @@ const BOQItems: React.FC = () => {
   useEffect(() => {
     localStorage.setItem("boq-selected-subchapter", selectedSubchapter);
   }, [selectedSubchapter]);
+
+  useEffect(() => {
+    if (selectedBoqRowId === null) {
+      localStorage.removeItem("boq-selected-row-id");
+    } else {
+      localStorage.setItem("boq-selected-row-id", String(selectedBoqRowId));
+    }
+  }, [selectedBoqRowId]);
+
+  // Clear selection if the saved row id is no longer in the list (e.g. item deleted or data changed)
+  useEffect(() => {
+    if (
+      selectedBoqRowId !== null &&
+      items.length > 0 &&
+      !items.some((item) => item.id === selectedBoqRowId)
+    ) {
+      setSelectedBoqRowId(null);
+    }
+  }, [items, selectedBoqRowId]);
 
   // Column visibility functions
   const toggleColumnVisibility = (columnKey: keyof typeof columnVisibility) => {
@@ -308,7 +336,7 @@ const BOQItems: React.FC = () => {
     ContractQuantityUpdate[]
   >([]);
   const [boqItemUpdates, setBoqItemUpdates] = useState<BOQItemQuantityUpdate[]>(
-    []
+    [],
   );
   const [creatingUpdate, setCreatingUpdate] = useState(false);
 
@@ -371,7 +399,7 @@ const BOQItems: React.FC = () => {
       "itemId:",
       passwordItemId,
       "contractUpdateId:",
-      passwordContractUpdateId
+      passwordContractUpdateId,
     );
 
     try {
@@ -401,11 +429,11 @@ const BOQItems: React.FC = () => {
             console.log(
               "Calling handleDeleteContractUpdateAfterPassword with:",
               passwordItemId || 0,
-              passwordContractUpdateId
+              passwordContractUpdateId,
             );
             handleDeleteContractUpdateAfterPassword(
               passwordItemId || 0,
-              passwordContractUpdateId
+              passwordContractUpdateId,
             );
           } else {
             console.error("No contractUpdateId found for delete action");
@@ -416,7 +444,7 @@ const BOQItems: React.FC = () => {
       console.log("System password verification failed:", error);
       setPasswordError(
         error.response?.data?.detail ||
-          "Incorrect system password. Please try again."
+          "Incorrect system password. Please try again.",
       );
     }
   };
@@ -446,7 +474,7 @@ const BOQItems: React.FC = () => {
 
   const handleDeleteContractUpdateClick = (
     itemId: number,
-    contractUpdateId: number
+    contractUpdateId: number,
   ) => {
     setPasswordAction("delete");
     setPasswordItemId(itemId);
@@ -473,7 +501,7 @@ const BOQItems: React.FC = () => {
         total_submitted: 0,
         internal_total: 0,
         total_approved_by_project_manager: 0,
-      }
+      },
     );
   }, [items]);
 
@@ -497,7 +525,7 @@ const BOQItems: React.FC = () => {
   // Helper function to parse numeric filters with operators
   const parseNumericFilter = (
     filterValue: string,
-    itemValue: number
+    itemValue: number,
   ): boolean => {
     if (!filterValue.trim()) return true;
 
@@ -532,7 +560,8 @@ const BOQItems: React.FC = () => {
     const latestUpdate = contractUpdates
       .map((update) => {
         const boqUpdate = boqItemUpdates.find(
-          (u) => u.boq_item_id === item.id && u.contract_update_id === update.id
+          (u) =>
+            u.boq_item_id === item.id && u.contract_update_id === update.id,
         );
         return boqUpdate
           ? {
@@ -638,72 +667,72 @@ const BOQItems: React.FC = () => {
       // Numeric filters
       const matchesOriginalContractQuantity = parseNumericFilter(
         filters.original_contract_quantity,
-        item.original_contract_quantity || 0
+        item.original_contract_quantity || 0,
       );
 
       const matchesPrice = parseNumericFilter(filters.price, item.price || 0);
 
       const matchesTotalContractSum = parseNumericFilter(
         filters.total_contract_sum,
-        item.total_contract_sum || 0
+        item.total_contract_sum || 0,
       );
 
       const matchesEstimatedQuantity = parseNumericFilter(
         filters.estimated_quantity,
-        item.estimated_quantity || 0
+        item.estimated_quantity || 0,
       );
 
       const matchesQuantitySubmitted = parseNumericFilter(
         filters.quantity_submitted,
-        item.quantity_submitted || 0
+        item.quantity_submitted || 0,
       );
 
       const matchesInternalQuantity = parseNumericFilter(
         filters.internal_quantity,
-        item.internal_quantity || 0
+        item.internal_quantity || 0,
       );
 
       const matchesApprovedByProjectManager = parseNumericFilter(
         filters.approved_by_project_manager,
-        item.approved_by_project_manager || 0
+        item.approved_by_project_manager || 0,
       );
 
       const matchesTotalEstimate = parseNumericFilter(
         filters.total_estimate,
-        item.total_estimate || 0
+        item.total_estimate || 0,
       );
 
       const matchesTotalSubmitted = parseNumericFilter(
         filters.total_submitted,
-        item.total_submitted || 0
+        item.total_submitted || 0,
       );
 
       const matchesInternalTotal = parseNumericFilter(
         filters.internal_total,
-        item.internal_total || 0
+        item.internal_total || 0,
       );
 
       const matchesTotalApprovedByProjectManager = parseNumericFilter(
         filters.total_approved_by_project_manager,
-        item.total_approved_by_project_manager || 0
+        item.total_approved_by_project_manager || 0,
       );
 
       const quantityDecrease = calculateQuantityDecrease(item);
       const matchesQuantityDecrease = parseNumericFilter(
         filters.quantity_decrease,
-        quantityDecrease
+        quantityDecrease,
       );
 
       const quantityIncrease = calculateQuantityIncrease(item);
       const matchesQuantityIncrease = parseNumericFilter(
         filters.quantity_increase,
-        quantityIncrease
+        quantityIncrease,
       );
 
       // Contract update filters
       // console.log(Object.entries(filters.contract_updates || {}));
       const matchesContractUpdates = Object.entries(
-        filters.contract_updates || {}
+        filters.contract_updates || {},
       ).every(([updateId, update]) => {
         // Type assertion for contract update filter structure
         const updateFilter = update as { quantity: string; sum: string };
@@ -735,7 +764,7 @@ const BOQItems: React.FC = () => {
         const currentUpdate = boqItemUpdates.find(
           (u) =>
             u.boq_item_id === item.id &&
-            u.contract_update_id === parseInt(updateId)
+            u.contract_update_id === parseInt(updateId),
         );
 
         // Debug logging
@@ -763,7 +792,7 @@ const BOQItems: React.FC = () => {
           !updateFilter.quantity.trim() ||
           parseNumericFilter(
             updateFilter.quantity,
-            currentUpdate.updated_contract_quantity || 0
+            currentUpdate.updated_contract_quantity || 0,
           );
 
         // Check sum filter
@@ -771,7 +800,7 @@ const BOQItems: React.FC = () => {
           !updateFilter.sum.trim() ||
           parseNumericFilter(
             updateFilter.sum,
-            currentUpdate.updated_contract_sum || 0
+            currentUpdate.updated_contract_sum || 0,
           );
 
         // console.log(`Filter results for BOQ item ${item.id}:`, {
@@ -886,12 +915,14 @@ const BOQItems: React.FC = () => {
   const uniqueValues = useMemo(() => {
     const structureValues = [
       ...new Set(
-        allItems.map((item) => item.structure?.toString() || "").filter(Boolean)
+        allItems
+          .map((item) => item.structure?.toString() || "")
+          .filter(Boolean),
       ),
     ].sort();
     const systemValues = [
       ...new Set(
-        allItems.map((item) => item.system?.toString() || "").filter(Boolean)
+        allItems.map((item) => item.system?.toString() || "").filter(Boolean),
       ),
     ].sort();
     const unitValues = [
@@ -908,7 +939,7 @@ const BOQItems: React.FC = () => {
   // Dropdown filter handlers
   const handleDropdownFilterChange = (
     column: "structure" | "system" | "unit",
-    selectedValues: string[]
+    selectedValues: string[],
   ) => {
     setDropdownFilters((prev) => ({
       ...prev,
@@ -917,7 +948,7 @@ const BOQItems: React.FC = () => {
   };
 
   const handleClearDropdownFilter = (
-    column: "structure" | "system" | "unit"
+    column: "structure" | "system" | "unit",
   ) => {
     setDropdownFilters((prev) => ({
       ...prev,
@@ -943,12 +974,12 @@ const BOQItems: React.FC = () => {
   const getContractUpdateValue = (
     boqItemId: number,
     updateId: number,
-    field: "quantity" | "sum"
+    field: "quantity" | "sum",
   ) => {
     const update = boqItemUpdates.find(
       (update) =>
         update.boq_item_id === boqItemId &&
-        update.contract_update_id === updateId
+        update.contract_update_id === updateId,
     );
 
     if (field === "quantity") {
@@ -1029,8 +1060,8 @@ const BOQItems: React.FC = () => {
       // Update local state
       setItems((prevItems) =>
         prevItems.map((prevItem) =>
-          prevItem.id === item.id ? updatedItem : prevItem
-        )
+          prevItem.id === item.id ? updatedItem : prevItem,
+        ),
       );
 
       // Exit editing mode
@@ -1077,7 +1108,7 @@ const BOQItems: React.FC = () => {
       `Are you sure you want to delete this BOQ item?\n\n` +
         `Section: ${item.section_number}\n` +
         `Description: ${item.description}\n\n` +
-        `This will also delete all related concentration sheets and entries. This action cannot be undone.`
+        `This will also delete all related concentration sheets and entries. This action cannot be undone.`,
     );
 
     if (!confirmDelete) return;
@@ -1088,7 +1119,7 @@ const BOQItems: React.FC = () => {
 
       // Remove item from local state
       setItems((prevItems) =>
-        prevItems.filter((prevItem) => prevItem.id !== item.id)
+        prevItems.filter((prevItem) => prevItem.id !== item.id),
       );
 
       // Clear any editing state if this item was being edited
@@ -1118,7 +1149,7 @@ const BOQItems: React.FC = () => {
           searchQuery,
           "all", // general search across all fields
           0, // offset
-          10000 // large limit to get all results
+          10000, // large limit to get all results
         );
         console.log("Search API Response:", response);
         console.log("First item system field:", response.items[0]?.system);
@@ -1128,7 +1159,7 @@ const BOQItems: React.FC = () => {
         const response = await searchApi.getBySubchapter(
           selectedSubchapter,
           0, // offset
-          10000 // large limit to get all results
+          10000, // large limit to get all results
         );
         // console.log("Subchapter API Response:", response);
         // console.log("First item system field:", response[0]?.system);
@@ -1172,12 +1203,12 @@ const BOQItems: React.FC = () => {
         contract_no: response.contract_no || "",
         invoice_no_submitted_qty: response.invoice_no_submitted_qty || "",
         invoice_date_submitted_qty: formatDateToMonth(
-          response.invoice_date_submitted_qty || ""
+          response.invoice_date_submitted_qty || "",
         ),
         invoice_no_approved_signed_qty:
           response.invoice_no_approved_signed_qty || "",
         invoice_date_approved_signed_qty: formatDateToMonth(
-          response.invoice_date_approved_signed_qty || ""
+          response.invoice_date_approved_signed_qty || "",
         ),
       });
     } catch (err) {
@@ -1202,7 +1233,7 @@ const BOQItems: React.FC = () => {
         const allUpdates: BOQItemQuantityUpdate[] = [];
         for (const update of contractUpdates) {
           const response = await contractUpdatesApi.getBOQItemUpdates(
-            update.id
+            update.id,
           );
           allUpdates.push(...response);
         }
@@ -1224,7 +1255,7 @@ const BOQItems: React.FC = () => {
 
       setError(null);
       setProjectInfoSuccess(
-        "New contract quantity update created successfully!"
+        "New contract quantity update created successfully!",
       );
       setTimeout(() => setProjectInfoSuccess(null), 5000);
     } catch (err) {
@@ -1299,7 +1330,7 @@ const BOQItems: React.FC = () => {
             filteredItem[qtyKey] = getContractUpdateValue(
               item.id,
               update.id,
-              "quantity"
+              "quantity",
             );
           }
 
@@ -1307,7 +1338,7 @@ const BOQItems: React.FC = () => {
             filteredItem[sumKey] = getContractUpdateValue(
               item.id,
               update.id,
-              "sum"
+              "sum",
             );
           }
         });
@@ -1321,27 +1352,27 @@ const BOQItems: React.FC = () => {
         grandTotals = {
           total_contract_sum: filteredData.reduce(
             (sum, item) => sum + (item.total_contract_sum || 0),
-            0
+            0,
           ),
           total_estimate: filteredData.reduce(
             (sum, item) => sum + (item.total_estimate || 0),
-            0
+            0,
           ),
           total_submitted: filteredData.reduce(
             (sum, item) => sum + (item.total_submitted || 0),
-            0
+            0,
           ),
           internal_total: filteredData.reduce(
             (sum, item) => sum + (item.internal_total || 0),
-            0
+            0,
           ),
           total_approved_by_project_manager: filteredData.reduce(
             (sum, item) => sum + (item.total_approved_by_project_manager || 0),
-            0
+            0,
           ),
           approved_signed_total: filteredData.reduce(
             (sum, item) => sum + (item.approved_signed_total || 0),
-            0
+            0,
           ),
         };
 
@@ -1351,7 +1382,7 @@ const BOQItems: React.FC = () => {
           if (request[`include_${sumKey}`]) {
             grandTotals[sumKey] = filteredData.reduce(
               (sum, item) => sum + (item[sumKey] || 0),
-              0
+              0,
             );
           }
         });
@@ -1363,12 +1394,12 @@ const BOQItems: React.FC = () => {
           ? await exportApi.exportBOQItemsExcel(
               request,
               filteredData,
-              grandTotals
+              grandTotals,
             )
           : await exportApi.exportBOQItemsPDF(
               request,
               filteredData,
-              isRTL ? "he" : "en"
+              isRTL ? "he" : "en",
             );
 
       if (response.success && response.pdf_path) {
@@ -1389,7 +1420,7 @@ const BOQItems: React.FC = () => {
         // Show success message
         const formatName = format === "excel" ? "Excel" : "PDF";
         setProjectInfoSuccess(
-          `Successfully exported BOQ items as ${formatName}`
+          `Successfully exported BOQ items as ${formatName}`,
         );
         setTimeout(() => setProjectInfoSuccess(null), 5000);
         setShowExportModal(false);
@@ -1406,7 +1437,7 @@ const BOQItems: React.FC = () => {
   const handleUpdateContractQuantity = async (
     updateId: number,
     boqItemId: number,
-    newQuantity: number
+    newQuantity: number,
   ) => {
     try {
       await contractUpdatesApi.updateBOQItemQuantity(updateId, boqItemId, {
@@ -1419,8 +1450,8 @@ const BOQItems: React.FC = () => {
           update.contract_update_id === updateId &&
           update.boq_item_id === boqItemId
             ? { ...update, updated_contract_quantity: newQuantity }
-            : update
-        )
+            : update,
+        ),
       );
     } catch (err) {
       console.error("Error updating contract quantity:", err);
@@ -1430,7 +1461,7 @@ const BOQItems: React.FC = () => {
 
   const handleProjectInfoDraftChange = (
     field: keyof ProjectInfoUpdate,
-    value: string
+    value: string,
   ) => {
     setProjectInfoDraft((prev) => ({ ...prev, [field]: value }));
   };
@@ -1446,12 +1477,12 @@ const BOQItems: React.FC = () => {
         contract_no: projectInfo.contract_no || "",
         invoice_no_submitted_qty: projectInfo.invoice_no_submitted_qty || "",
         invoice_date_submitted_qty: formatDateToMonth(
-          projectInfo.invoice_date_submitted_qty || ""
+          projectInfo.invoice_date_submitted_qty || "",
         ),
         invoice_no_approved_signed_qty:
           projectInfo.invoice_no_approved_signed_qty || "",
         invoice_date_approved_signed_qty: formatDateToMonth(
-          projectInfo.invoice_date_approved_signed_qty || ""
+          projectInfo.invoice_date_approved_signed_qty || "",
         ),
       });
     }
@@ -1470,12 +1501,12 @@ const BOQItems: React.FC = () => {
       contract_no: projectInfo?.contract_no || "",
       invoice_no_submitted_qty: projectInfo?.invoice_no_submitted_qty || "",
       invoice_date_submitted_qty: formatDateToMonth(
-        projectInfo?.invoice_date_submitted_qty || ""
+        projectInfo?.invoice_date_submitted_qty || "",
       ),
       invoice_no_approved_signed_qty:
         projectInfo?.invoice_no_approved_signed_qty || "",
       invoice_date_approved_signed_qty: formatDateToMonth(
-        projectInfo?.invoice_date_approved_signed_qty || ""
+        projectInfo?.invoice_date_approved_signed_qty || "",
       ),
     });
     setProjectInfoError(null);
@@ -1504,7 +1535,7 @@ const BOQItems: React.FC = () => {
       setEditingProjectInfo(false);
       setError(null);
       setProjectInfoSuccess(
-        "Project information updated successfully! All concentration sheets have been updated. Note: You may need to refresh the Concentration Sheets page to see the changes."
+        "Project information updated successfully! All concentration sheets have been updated. Note: You may need to refresh the Concentration Sheets page to see the changes.",
       );
 
       // Clear success message after 5 seconds
@@ -1601,7 +1632,7 @@ const BOQItems: React.FC = () => {
       !scrollPositionRestoredRef.current
     ) {
       const savedScrollPosition = localStorage.getItem(
-        "boq-table-scroll-position"
+        "boq-table-scroll-position",
       );
 
       if (savedScrollPosition) {
@@ -1676,7 +1707,7 @@ const BOQItems: React.FC = () => {
   const handleContractUpdateFilterChange = (
     updateId: number,
     field: "quantity" | "sum",
-    value: string
+    value: string,
   ) => {
     console.log("Contract update filter change:", {
       updateId,
@@ -1765,7 +1796,7 @@ const BOQItems: React.FC = () => {
         setError(null);
         // Show success message
         alert(
-          `Successfully created ${response.created_count} concentration sheets!`
+          `Successfully created ${response.created_count} concentration sheets!`,
         );
       } else {
         setError(response.message || "Failed to create concentration sheets");
@@ -1845,7 +1876,7 @@ const BOQItems: React.FC = () => {
         "New BOQ item created successfully! Don't forget to create concentration sheets.",
         {
           duration: 8000,
-        }
+        },
       );
     } catch (err) {
       console.error("Error creating new BOQ item:", err);
@@ -1870,7 +1901,7 @@ const BOQItems: React.FC = () => {
 
   const handleDeleteContractUpdateAfterPassword = async (
     itemId: number,
-    contractUpdateId: number
+    contractUpdateId: number,
   ) => {
     try {
       console.log("Deleting contract update:", { itemId, contractUpdateId });
@@ -1881,7 +1912,7 @@ const BOQItems: React.FC = () => {
       // Remove the contract update from local state
       setContractUpdates((prev) => {
         const filtered = prev.filter(
-          (update) => update.id !== contractUpdateId
+          (update) => update.id !== contractUpdateId,
         );
         console.log("Updated contract updates:", filtered);
         return filtered;
@@ -1890,7 +1921,7 @@ const BOQItems: React.FC = () => {
       // Also remove any BOQ item updates associated with this contract update
       setBoqItemUpdates((prev) => {
         const filtered = prev.filter(
-          (update) => update.contract_update_id !== contractUpdateId
+          (update) => update.contract_update_id !== contractUpdateId,
         );
         console.log("Updated BOQ item updates:", filtered);
         return filtered;
@@ -2121,7 +2152,7 @@ const BOQItems: React.FC = () => {
                   onChange={(e) =>
                     handleProjectInfoDraftChange(
                       "project_name_hebrew",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2145,7 +2176,7 @@ const BOQItems: React.FC = () => {
                   onChange={(e) =>
                     handleProjectInfoDraftChange(
                       "main_contractor_name",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2169,7 +2200,7 @@ const BOQItems: React.FC = () => {
                   onChange={(e) =>
                     handleProjectInfoDraftChange(
                       "subcontractor_name",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2193,7 +2224,7 @@ const BOQItems: React.FC = () => {
                   onChange={(e) =>
                     handleProjectInfoDraftChange(
                       "developer_name",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2241,7 +2272,7 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleProjectInfoDraftChange(
                           "invoice_no_submitted_qty",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2266,7 +2297,7 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleProjectInfoDraftChange(
                           "invoice_date_submitted_qty",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2275,7 +2306,7 @@ const BOQItems: React.FC = () => {
                     <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
                       {projectInfo?.invoice_date_submitted_qty
                         ? formatDateMMYYYY(
-                            projectInfo.invoice_date_submitted_qty
+                            projectInfo.invoice_date_submitted_qty,
                           )
                         : t("boq.notSpecified")}
                     </div>
@@ -2299,7 +2330,7 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleProjectInfoDraftChange(
                           "invoice_no_approved_signed_qty",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2326,7 +2357,7 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleProjectInfoDraftChange(
                           "invoice_date_approved_signed_qty",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2335,7 +2366,7 @@ const BOQItems: React.FC = () => {
                     <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 min-h-[40px] flex items-center">
                       {projectInfo?.invoice_date_approved_signed_qty
                         ? formatDateMMYYYY(
-                            projectInfo.invoice_date_approved_signed_qty
+                            projectInfo.invoice_date_approved_signed_qty,
                           )
                         : t("boq.notSpecified")}
                     </div>
@@ -2433,7 +2464,7 @@ const BOQItems: React.FC = () => {
                 onChange={(e) =>
                   handleNewItemFormChange(
                     "structure",
-                    parseInt(e.target.value) || 0
+                    parseInt(e.target.value) || 0,
                   )
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2485,7 +2516,7 @@ const BOQItems: React.FC = () => {
                 onChange={(e) =>
                   handleNewItemFormChange(
                     "original_contract_quantity",
-                    parseFloat(e.target.value) || 0
+                    parseFloat(e.target.value) || 0,
                   )
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2505,7 +2536,7 @@ const BOQItems: React.FC = () => {
                 onChange={(e) =>
                   handleNewItemFormChange(
                     "price",
-                    parseFloat(e.target.value) || 0
+                    parseFloat(e.target.value) || 0,
                   )
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2526,7 +2557,7 @@ const BOQItems: React.FC = () => {
                 </span>
                 <span className="ml-2 font-medium text-gray-900">
                   {formatCurrency(
-                    newItemForm.original_contract_quantity * newItemForm.price
+                    newItemForm.original_contract_quantity * newItemForm.price,
                   )}
                 </span>
               </div>
@@ -2980,7 +3011,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "serial_number"
+                        "serial_number",
                       )}`}
                     />
                   </th>
@@ -2996,7 +3027,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "structure"
+                        "structure",
                       )}`}
                     />
                   </th>
@@ -3012,7 +3043,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "system"
+                        "system",
                       )}`}
                     />
                   </th>
@@ -3028,7 +3059,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "section_number"
+                        "section_number",
                       )}`}
                     />
                   </th>
@@ -3044,7 +3075,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "description"
+                        "description",
                       )}`}
                     />
                   </th>
@@ -3060,7 +3091,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "unit"
+                        "unit",
                       )}`}
                     />
                   </th>
@@ -3076,7 +3107,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "price"
+                        "price",
                       )}`}
                     />
                   </th>
@@ -3089,13 +3120,13 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleFilterChange(
                           "original_contract_quantity",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "original_contract_quantity"
+                        "original_contract_quantity",
                       )}`}
                     />
                   </th>
@@ -3111,7 +3142,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "total_contract_sum"
+                        "total_contract_sum",
                       )}`}
                     />
                   </th>
@@ -3133,7 +3164,7 @@ const BOQItems: React.FC = () => {
                           handleContractUpdateFilterChange(
                             update.id,
                             "quantity",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         onKeyDown={handleFilterKeyDown}
@@ -3166,7 +3197,7 @@ const BOQItems: React.FC = () => {
                           handleContractUpdateFilterChange(
                             update.id,
                             "sum",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         onKeyDown={handleFilterKeyDown}
@@ -3193,7 +3224,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "estimated_quantity"
+                        "estimated_quantity",
                       )}`}
                     />
                   </th>
@@ -3209,7 +3240,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "quantity_submitted"
+                        "quantity_submitted",
                       )}`}
                     />
                   </th>
@@ -3225,7 +3256,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "internal_quantity"
+                        "internal_quantity",
                       )}`}
                     />
                   </th>
@@ -3238,13 +3269,13 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleFilterChange(
                           "approved_by_project_manager",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "approved_by_project_manager"
+                        "approved_by_project_manager",
                       )}`}
                     />
                   </th>
@@ -3257,13 +3288,13 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleFilterChange(
                           "approved_signed_quantity",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "approved_signed_quantity"
+                        "approved_signed_quantity",
                       )}`}
                     />
                   </th>
@@ -3279,7 +3310,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "quantity_decrease"
+                        "quantity_decrease",
                       )}`}
                     />
                   </th>
@@ -3295,7 +3326,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "quantity_increase"
+                        "quantity_increase",
                       )}`}
                     />
                   </th>
@@ -3311,7 +3342,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "total_estimate"
+                        "total_estimate",
                       )}`}
                     />
                   </th>
@@ -3327,7 +3358,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "total_submitted"
+                        "total_submitted",
                       )}`}
                     />
                   </th>
@@ -3343,7 +3374,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "internal_total"
+                        "internal_total",
                       )}`}
                     />
                   </th>
@@ -3356,13 +3387,13 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleFilterChange(
                           "total_approved_by_project_manager",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "total_approved_by_project_manager"
+                        "total_approved_by_project_manager",
                       )}`}
                     />
                   </th>
@@ -3375,13 +3406,13 @@ const BOQItems: React.FC = () => {
                       onChange={(e) =>
                         handleFilterChange(
                           "approved_signed_total",
-                          e.target.value
+                          e.target.value,
                         )
                       }
                       onKeyDown={handleFilterKeyDown}
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "approved_signed_total"
+                        "approved_signed_total",
                       )}`}
                     />
                   </th>
@@ -3397,7 +3428,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "subsection"
+                        "subsection",
                       )}`}
                     />
                   </th>
@@ -3413,7 +3444,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "notes"
+                        "notes",
                       )}`}
                     />
                   </th>
@@ -3429,7 +3460,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "internal_field_1"
+                        "internal_field_1",
                       )}`}
                     />
                   </th>
@@ -3445,7 +3476,7 @@ const BOQItems: React.FC = () => {
                       onKeyDown={handleFilterKeyDown}
                       placeholder="Filter..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "internal_field_2"
+                        "internal_field_2",
                       )}`}
                     />
                   </th>
@@ -3493,11 +3524,17 @@ const BOQItems: React.FC = () => {
                       approved_signed_total: item.approved_signed_total,
                     };
 
+                const isSelected = selectedBoqRowId === item.id;
                 return (
                   <tr
                     key={item.id}
-                    className={`table-row-hover border-b border-gray-300 ${
-                      index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                    onClick={() => setSelectedBoqRowId(item.id)}
+                    className={`table-row-hover border-b border-gray-300 cursor-pointer ${
+                      isSelected
+                        ? "!bg-blue-200 !border-l-4 !border-l-blue-600"
+                        : index % 2 === 0
+                          ? "bg-white"
+                          : "bg-gray-50"
                     }`}
                   >
                     {columnVisibility.serial_number && (
@@ -3518,7 +3555,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "serial_number",
-                                parseInt(e.target.value) || null
+                                parseInt(e.target.value) || null,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -3548,7 +3585,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "structure",
-                                parseInt(e.target.value) || null
+                                parseInt(e.target.value) || null,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -3652,7 +3689,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "price",
-                                parseFloat(e.target.value) || 0
+                                parseFloat(e.target.value) || 0,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -3684,7 +3721,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "original_contract_quantity",
-                                parseFloat(e.target.value) || 0
+                                parseFloat(e.target.value) || 0,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -3701,7 +3738,7 @@ const BOQItems: React.FC = () => {
                         {formatCurrency(
                           isEditing
                             ? derivedValues.total_contract_sum
-                            : item.total_contract_sum
+                            : item.total_contract_sum,
                         )}
                       </td>
                     )}
@@ -3721,7 +3758,7 @@ const BOQItems: React.FC = () => {
                               value={getContractUpdateValue(
                                 item.id,
                                 update.id,
-                                "quantity"
+                                "quantity",
                               )}
                               onChange={(e) => {
                                 const newQuantity =
@@ -3729,7 +3766,7 @@ const BOQItems: React.FC = () => {
                                 handleUpdateContractQuantity(
                                   update.id,
                                   item.id,
-                                  newQuantity
+                                  newQuantity,
                                 );
                               }}
                               className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
@@ -3740,8 +3777,8 @@ const BOQItems: React.FC = () => {
                               getContractUpdateValue(
                                 item.id,
                                 update.id,
-                                "quantity"
-                              )
+                                "quantity",
+                              ),
                             )
                           )}
                         </td>
@@ -3757,7 +3794,7 @@ const BOQItems: React.FC = () => {
                           onDoubleClick={() => !isEditing && startEditing(item)}
                         >
                           {formatCurrency(
-                            getContractUpdateValue(item.id, update.id, "sum")
+                            getContractUpdateValue(item.id, update.id, "sum"),
                           )}
                         </td>
                       ) : null;
@@ -3814,7 +3851,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "approved_signed_quantity",
-                                parseFloat(e.target.value) || 0
+                                parseFloat(e.target.value) || 0,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -3841,7 +3878,7 @@ const BOQItems: React.FC = () => {
                         {formatCurrency(
                           isEditing
                             ? derivedValues.total_estimate
-                            : item.total_estimate
+                            : item.total_estimate,
                         )}
                       </td>
                     )}
@@ -3850,7 +3887,7 @@ const BOQItems: React.FC = () => {
                         {formatCurrency(
                           isEditing
                             ? derivedValues.total_submitted
-                            : item.total_submitted
+                            : item.total_submitted,
                         )}
                       </td>
                     )}
@@ -3859,7 +3896,7 @@ const BOQItems: React.FC = () => {
                         {formatCurrency(
                           isEditing
                             ? derivedValues.internal_total
-                            : item.internal_total
+                            : item.internal_total,
                         )}
                       </td>
                     )}
@@ -3868,7 +3905,7 @@ const BOQItems: React.FC = () => {
                         {formatCurrency(
                           isEditing
                             ? derivedValues.total_approved_by_project_manager
-                            : item.total_approved_by_project_manager
+                            : item.total_approved_by_project_manager,
                         )}
                       </td>
                     )}
@@ -3877,7 +3914,7 @@ const BOQItems: React.FC = () => {
                         {formatCurrency(
                           isEditing
                             ? derivedValues.approved_signed_total
-                            : item.approved_signed_total || 0
+                            : item.approved_signed_total || 0,
                         )}
                       </td>
                     )}
@@ -3931,7 +3968,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "internal_field_1",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -3961,7 +3998,7 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(
                                 "internal_field_2",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             onKeyDown={(e) => handleKeyPress(e, item)}
@@ -4003,7 +4040,7 @@ const BOQItems: React.FC = () => {
                               {t(
                                 navigatingToSheet === item.id
                                   ? "common.navigating"
-                                  : "concentration.viewSheet"
+                                  : "concentration.viewSheet",
                               )}
                             </button>
                             <button
@@ -4090,12 +4127,12 @@ const BOQItems: React.FC = () => {
                           const contractUpdate = boqItemUpdates.find(
                             (u) =>
                               u.boq_item_id === item.id &&
-                              u.contract_update_id === update.id
+                              u.contract_update_id === update.id,
                           );
                           return (
                             sum + (contractUpdate?.updated_contract_sum || 0)
                           );
-                        }, 0)
+                        }, 0),
                       )}
                     </td>
                   ) : null;
@@ -4158,8 +4195,8 @@ const BOQItems: React.FC = () => {
                     {formatCurrency(
                       items.reduce(
                         (sum, item) => sum + (item.approved_signed_total || 0),
-                        0
-                      )
+                        0,
+                      ),
                     )}
                   </td>
                 )}
@@ -4349,7 +4386,7 @@ const BOQItems: React.FC = () => {
                       checked={columnVisibility[qtyKey] || false}
                       onChange={() =>
                         toggleColumnVisibility(
-                          qtyKey as keyof typeof columnVisibility
+                          qtyKey as keyof typeof columnVisibility,
                         )
                       }
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -4384,7 +4421,7 @@ const BOQItems: React.FC = () => {
                       checked={columnVisibility[sumKey] || false}
                       onChange={() =>
                         toggleColumnVisibility(
-                          sumKey as keyof typeof columnVisibility
+                          sumKey as keyof typeof columnVisibility,
                         )
                       }
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
