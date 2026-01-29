@@ -17,6 +17,18 @@ import arabic_reshaper
 # Base directory for saving concentration sheet PDFs to item folders
 FATINA_BASE_DIR = Path("c:/Fatina")
 
+
+def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_no):
+    """Resolve calculation_sheet_no + drawing_no to CalculationSheet.file_name, or None."""
+    if not db_session or not calculation_sheet_no or not drawing_no:
+        return None
+    sheet = db_session.query(models.CalculationSheet).filter(
+        models.CalculationSheet.calculation_sheet_no == calculation_sheet_no,
+        models.CalculationSheet.drawing_no == drawing_no,
+    ).first()
+    return sheet.file_name if sheet else None
+
+
 def sanitize_folder_name(folder_name: str) -> str:
     """
     Sanitize folder name to avoid invalid characters for Windows
@@ -327,11 +339,15 @@ class PDFService:
         )
         
         # Convert data to Paragraph objects for better text rendering
+        from reportlab.platypus import Flowable
         paragraph_data = []
         for row_idx, row in enumerate(data):
             paragraph_row = []
             for col_idx, cell_value in enumerate(row):
-                if cell_value and self._detect_rtl(str(cell_value)):
+                # Keep existing flowables (e.g. link Paragraphs) as-is
+                if isinstance(cell_value, Flowable):
+                    paragraph_row.append(cell_value)
+                elif cell_value and self._detect_rtl(str(cell_value)):
                     # Use Hebrew text wrapping for proper RTL line ordering
                     # Use actual column width for accurate wrapping
                     col_width = column_widths[col_idx] if col_idx < len(column_widths) else 100
@@ -340,7 +356,7 @@ class PDFService:
                     paragraph_row.append(Paragraph(wrapped_text, hebrew_style))
                 else:
                     # Use English paragraph style for non-Hebrew text
-                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))    
+                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))
             paragraph_data.append(paragraph_row)
         
         # Create table with Paragraph objects and repeatRows if specified
@@ -1014,7 +1030,12 @@ class PDFService:
             if entries:
                 # Use the already defined translated_headers and header_indices from page size calculation
                 entries_data = [translated_headers]
-                
+                # Style for Calculation Sheet No link (relative path, same directory)
+                link_style = ParagraphStyle(
+                    'CalcSheetLink', parent=styles['Normal'], fontSize=12, spaceAfter=0, spaceBefore=0
+                )
+                calc_sheet_col = filtered_headers.index('Calculation Sheet No') if 'Calculation Sheet No' in filtered_headers else -1
+
                 for entry in entries:
                     all_entry_data = [
                         entry.description or '',
@@ -1028,6 +1049,18 @@ class PDFService:
                     ]
                     # Filter data based on selected columns
                     filtered_entry_data = [all_entry_data[i] for i in header_indices]
+                    # Add clickable link to Calculation Sheet No (relative path) when we have a matching file
+                    if calc_sheet_col >= 0 and db_session:
+                        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
+                        if file_name:
+                            display_text = entry.calculation_sheet_no or ''
+                            # Escape for XML in Paragraph
+                            display_escaped = (display_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                              .replace('"', '&quot;'))
+                            file_escaped = (file_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                            .replace('"', '&quot;'))
+                            link_markup = f'<a href="{file_escaped}" color="blue">{display_escaped}</a>'
+                            filtered_entry_data[calc_sheet_col] = Paragraph(link_markup, link_style)
                     entries_data.append(filtered_entry_data)
                 
                 # Add totals row with filtered columns
