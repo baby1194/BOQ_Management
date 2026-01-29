@@ -265,10 +265,13 @@ async def export_all_concentration_sheets_excel(
 @router.post("/concentration-sheet/{sheet_id}/excel", response_model=schemas.PDFExportResponse)
 async def export_single_concentration_sheet_excel(
     sheet_id: int,
+    request: dict = None,
     db: Session = Depends(get_db)
 ):
     """Export a single concentration sheet to Excel"""
     try:
+        # Get entry_columns (column selection) from request
+        entry_columns = request.get("entry_columns") if request else None
         # Get the concentration sheet with BOQ item and entries
         sheet = db.query(models.ConcentrationSheet).filter(
             models.ConcentrationSheet.id == sheet_id
@@ -291,7 +294,7 @@ async def export_single_concentration_sheet_excel(
         ).order_by(models.ConcentrationEntry.id).all()
         
         excel_service = ExcelService()
-        excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries)
+        excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries, entry_columns)
         # Copy related calculation sheets to the same destination folder
         if boq_item and boq_item.section_number:
             copy_calculation_sheets_to_item_folder(db, boq_item.section_number)

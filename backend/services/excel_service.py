@@ -269,8 +269,9 @@ class ExcelService:
             errors.append(error_msg)
             return items, errors 
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries):
-        """Export a single concentration sheet to Excel with specific format: 3 tables"""
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None):
+        """Export a single concentration sheet to Excel with specific format: 3 tables.
+        entry_columns: optional dict with include_* keys to filter which columns to include."""
         try:
             # Save to C:/Fatina/{section_number} directory
             section_number = str(boq_item.section_number) if boq_item else str(sheet.id)
@@ -282,6 +283,31 @@ class ExcelService:
             # Use section number as filename (no timestamp, overwrite existing)
             filename = f"{safe_section_number}.xlsx"
             filepath = base_dir / filename
+            
+            # Build entries column list from entry_columns (same logic as PDF)
+            all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
+                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+            if entry_columns:
+                filtered_headers = []
+                if entry_columns.get('include_description', True):
+                    filtered_headers.append('Description')
+                if entry_columns.get('include_calculation_sheet_no', True):
+                    filtered_headers.append('Calculation Sheet No')
+                if entry_columns.get('include_drawing_no', True):
+                    filtered_headers.append('Drawing No')
+                if entry_columns.get('include_estimated_quantity', True):
+                    filtered_headers.append('Estimated Quantity')
+                if entry_columns.get('include_quantity_submitted', True):
+                    filtered_headers.append('Quantity Submitted')
+                if entry_columns.get('include_internal_quantity', True):
+                    filtered_headers.append('Internal Quantity')
+                if entry_columns.get('include_approved_by_project_manager', True):
+                    filtered_headers.append('Approved by Project Manager')
+                if entry_columns.get('include_notes', True):
+                    filtered_headers.append('Notes')
+            else:
+                filtered_headers = all_headers
+            header_indices = [all_headers.index(h) for h in filtered_headers]
             
             # Create Excel writer
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
@@ -319,15 +345,12 @@ class ExcelService:
                 df_boq.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                 current_row += 3  # 2 rows + 1 spacing row
                 
-                # Third Table: Concentration Entries (following the order shown on concentration sheets page)
+                # Third Table: Concentration Entries (filtered by entry_columns)
                 if entries:
-                    # Column order as shown on concentration sheets page
-                    entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
-                                     'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
-                    
+                    entries_headers = filtered_headers
                     entries_data = [entries_headers]
                     for entry in entries:
-                        entries_data.append([
+                        all_row = [
                             entry.description or '',
                             entry.calculation_sheet_no or '',
                             entry.drawing_no or '',
@@ -336,24 +359,23 @@ class ExcelService:
                             f"{entry.internal_quantity:,.2f}",
                             f"{entry.approved_by_project_manager:,.2f}",
                             entry.notes or ''
-                        ])
+                        ]
+                        entries_data.append([all_row[i] for i in header_indices])
                     
-                    # Add totals row
+                    # Totals row (only for quantity columns that are included)
                     total_estimate = sum(entry.estimated_quantity for entry in entries)
                     total_submitted = sum(entry.quantity_submitted for entry in entries)
                     total_internal = sum(entry.internal_quantity for entry in entries)
                     total_approved = sum(entry.approved_by_project_manager for entry in entries)
-                    
-                    entries_data.append([
-                        'TOTALS',
-                        '',
-                        '',
+                    all_totals = [
+                        'TOTALS', '', '',
                         f"{total_estimate:,.2f}",
                         f"{total_submitted:,.2f}",
                         f"{total_internal:,.2f}",
                         f"{total_approved:,.2f}",
                         ''
-                    ])
+                    ]
+                    entries_data.append([all_totals[i] for i in header_indices])
                     
                     df_entries = pd.DataFrame(entries_data)
                     df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
