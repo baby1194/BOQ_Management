@@ -88,6 +88,7 @@ export interface ConcentrationSheetWithBOQData extends ConcentrationSheet {
 export interface ConcentrationEntry {
   id: number;
   concentration_sheet_id: number;
+  calculation_sheet_id?: number; // Foreign key to calculation sheet (for opening source file)
   section_number: string; // Section Number
   description?: string; // Manual Description
   calculation_sheet_no?: string; // Calculation Sheet No

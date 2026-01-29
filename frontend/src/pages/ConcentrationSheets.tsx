@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
-import { concentrationApi, exportApi } from "../services/api";
+import {
+  concentrationApi,
+  exportApi,
+  calculationSheetsApi,
+} from "../services/api";
 import {
   ConcentrationSheet,
   ConcentrationSheetWithBOQData,
@@ -100,6 +104,36 @@ const ConcentrationSheets: React.FC = () => {
     }
 
     setPendingExportAction(null);
+  };
+
+  const handleOpenCalculationSheet = async (
+    calculationSheetNo: string,
+    drawingNo: string,
+  ) => {
+    try {
+      // Find the calculation sheet by sheet number and drawing number
+      const allSheets = await calculationSheetsApi.getAll();
+      const sheet = allSheets.find(
+        (s) =>
+          s.calculation_sheet_no === calculationSheetNo &&
+          s.drawing_no === drawingNo,
+      );
+
+      if (!sheet) {
+        setError(
+          `Calculation sheet ${calculationSheetNo} / ${drawingNo} not found`,
+        );
+        return;
+      }
+
+      // Open the source file
+      await calculationSheetsApi.openSourceFile(sheet.id);
+    } catch (err: any) {
+      console.error("Error opening calculation sheet:", err);
+      setError(
+        err.response?.data?.detail || "Failed to open calculation sheet",
+      );
+    }
   };
 
   const executeSingleSheetExport = async (
@@ -1204,7 +1238,23 @@ const ConcentrationSheets: React.FC = () => {
                                     </div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {entry.calculation_sheet_no || "-"}
+                                    {entry.calculation_sheet_no &&
+                                    entry.drawing_no ? (
+                                      <button
+                                        onClick={() =>
+                                          handleOpenCalculationSheet(
+                                            entry.calculation_sheet_no!,
+                                            entry.drawing_no!,
+                                          )
+                                        }
+                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                        title="Open calculation sheet file"
+                                      >
+                                        {entry.calculation_sheet_no}
+                                      </button>
+                                    ) : (
+                                      entry.calculation_sheet_no || "-"
+                                    )}
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {entry.drawing_no || "-"}
