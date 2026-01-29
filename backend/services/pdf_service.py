@@ -2080,6 +2080,12 @@ class PDFService:
                 raw_headers = [h for h in all_possible_headers if h in items[0].keys()]
                 # Translate headers based on language
                 headers = [headers_translations.get(header, header) for header in raw_headers]
+                
+                # In Hebrew mode, reverse column order for RTL display
+                if language == "he":
+                    raw_headers = list(reversed(raw_headers))
+                    headers = list(reversed(headers))
+                
                 data = [headers]
                 
                 # Define columns that should have grand totals (same as Excel export)
@@ -2111,6 +2117,7 @@ class PDFService:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
                             row_data.append(str(value))
+                    # Column order is already reversed in raw_headers if Hebrew
                     data.append(row_data)
                     
                     # Calculate grand totals only for specified columns
@@ -2118,15 +2125,15 @@ class PDFService:
                         if key in total_columns and isinstance(item[key], (int, float)):
                             grand_totals[key] += item[key]
                 
-                # Add grand totals row
+                # Add grand totals row (columns already in correct order for language)
                 totals_row = []
                 for i, key in enumerate(raw_headers):
                     if i == 0:
-                        # First column shows "GRAND TOTAL"
+                        # First column (leftmost in Hebrew due to reversal) shows "GRAND TOTAL"
                         if language == "he":
                             totals_row.append("סה\"כ כולל")
                         else:
-                           totals_row.append("GRAND TOTAL")
+                            totals_row.append("GRAND TOTAL")
                     elif key in total_columns and isinstance(grand_totals[key], (int, float)):
                         # Only show totals for specified columns
                         totals_row.append(self._format_currency(grand_totals[key]))
@@ -2140,14 +2147,25 @@ class PDFService:
                     # Fallback to old method if column_widths not calculated
                     column_widths = self._calculate_column_widths(data, headers, 'A3', 8, 8)
                 
+                # In Hebrew mode, reverse column widths to match reversed column order
+                if language == "he" and column_widths:
+                    column_widths = list(reversed(column_widths))
+                
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1)
+                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1, language=language)
                     logger.info("Successfully created robust Hebrew table for BOQ items with repeatRows")
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
                     # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text
                     table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
+                    
+                    # Apply alignment based on language
+                    align_mode = 'RIGHT' if language == "he" else 'LEFT'
+                    table_style.extend([
+                        ('ALIGN', (0, 0), (-1, -1), align_mode),
+                    ])
+                    
                     # Create table with processed data (Hebrew text reversed) and repeatRows
                     table = Table(processed_data, colWidths=column_widths, repeatRows=1)
                     table.setStyle(TableStyle(table_style))
