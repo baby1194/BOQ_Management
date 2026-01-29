@@ -154,8 +154,9 @@ async def export_single_concentration_sheet(
 ):
     """Export a single concentration sheet to PDF"""
     try:
-        # Get language parameter (default to English)
+        # Get language and entry_columns (column selection) from request
         language = request.get("language", "en") if request else "en"
+        entry_columns = request.get("entry_columns") if request else None
         # Get the concentration sheet with BOQ item and entries
         sheet = db.query(models.ConcentrationSheet).filter(
             models.ConcentrationSheet.id == sheet_id
@@ -178,7 +179,7 @@ async def export_single_concentration_sheet(
         ).order_by(models.ConcentrationEntry.id).all()
         
         pdf_service = PDFService()
-        pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, None, language)
+        pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
         # Copy related calculation sheets to the same destination folder
         if boq_item and boq_item.section_number:
             copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
