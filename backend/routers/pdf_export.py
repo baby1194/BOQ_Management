@@ -993,6 +993,26 @@ async def export_boq_items_pdf(
                     filtered_item["total_approved_by_project_manager"] = item.total_approved_by_project_manager
                 if request.get("include_approved_signed_total"):
                     filtered_item["approved_signed_total"] = item.approved_signed_total
+                if request.get("include_total_decrease") or request.get("include_total_increase"):
+                    # Current contract qty = latest update quantity if any, else original
+                    current_qty = item.original_contract_quantity
+                    if contract_updates:
+                        for update in reversed(list(contract_updates)):  # latest first by index
+                            boq_up = db.query(models.BOQItemQuantityUpdate).filter(
+                                models.BOQItemQuantityUpdate.boq_item_id == item.id,
+                                models.BOQItemQuantityUpdate.contract_update_id == update.id
+                            ).first()
+                            if boq_up:
+                                current_qty = boq_up.updated_contract_quantity
+                                break
+                    est = item.estimated_quantity or 0
+                    qty_decrease = max(0.0, current_qty - est)
+                    qty_increase = max(0.0, est - current_qty)
+                    price = item.price or 0
+                    if request.get("include_total_decrease"):
+                        filtered_item["total_decrease"] = qty_decrease * price
+                    if request.get("include_total_increase"):
+                        filtered_item["total_increase"] = qty_increase * price
                 if request.get("include_subsection"):
                     filtered_item["subsection"] = item.subsection
                 if request.get("include_notes"):
@@ -1106,6 +1126,25 @@ async def export_boq_items_excel(
                     filtered_item["total_approved_by_project_manager"] = item.total_approved_by_project_manager
                 if request.get("include_approved_signed_total"):
                     filtered_item["approved_signed_total"] = item.approved_signed_total
+                if request.get("include_total_decrease") or request.get("include_total_increase"):
+                    current_qty = item.original_contract_quantity
+                    if contract_updates:
+                        for update in reversed(list(contract_updates)):
+                            boq_up = db.query(models.BOQItemQuantityUpdate).filter(
+                                models.BOQItemQuantityUpdate.boq_item_id == item.id,
+                                models.BOQItemQuantityUpdate.contract_update_id == update.id
+                            ).first()
+                            if boq_up:
+                                current_qty = boq_up.updated_contract_quantity
+                                break
+                    est = item.estimated_quantity or 0
+                    qty_decrease = max(0.0, current_qty - est)
+                    qty_increase = max(0.0, est - current_qty)
+                    price = item.price or 0
+                    if request.get("include_total_decrease"):
+                        filtered_item["total_decrease"] = qty_decrease * price
+                    if request.get("include_total_increase"):
+                        filtered_item["total_increase"] = qty_increase * price
                 if request.get("include_subsection"):
                     filtered_item["subsection"] = item.subsection
                 if request.get("include_notes"):

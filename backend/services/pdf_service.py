@@ -1963,6 +1963,8 @@ class PDFService:
                     'internal_total': 'סה"כ פנימי',
                     'total_approved_by_project_manager': 'סה"כ אושר על ידי מנהל פרויקט',
                     'approved_signed_total': 'סה"כ אושר וחתום',
+                    'total_decrease': 'סה"כ הקטנה',
+                    'total_increase': 'סה"כ הגדלה',
                     'subsection': 'תת סעיף',
                     'notes': 'הערות'
                 }
@@ -1987,6 +1989,8 @@ class PDFService:
                     'internal_total': 'Internal Total',
                     'total_approved_by_project_manager': 'Total Approved by Project Manager',
                     'approved_signed_total': 'Approved Signed Total',
+                    'total_decrease': 'Total Decrease',
+                    'total_increase': 'Total Increase',
                     'subsection': 'Subsection',
                     'notes': 'Notes'
                 }
@@ -2073,7 +2077,7 @@ class PDFService:
                     'estimated_quantity', 'quantity_submitted', 'internal_quantity',
                     'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
                     'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                    'approved_signed_total', 'subsection', 'notes'
+                    'approved_signed_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
                 ])
                 
                 # Only include headers that exist in the data
@@ -2095,7 +2099,9 @@ class PDFService:
                     'total_submitted',
                     'internal_total',
                     'total_approved_by_project_manager',
-                    'approved_signed_total'
+                    'approved_signed_total',
+                    'total_decrease',
+                    'total_increase'
                 }
                 # Add updated contract sum columns
                 for key in raw_headers:

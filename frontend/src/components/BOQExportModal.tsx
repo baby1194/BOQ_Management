@@ -25,6 +25,8 @@ interface BOQExportRequest {
   include_internal_total: boolean;
   include_total_approved_by_project_manager: boolean;
   include_approved_signed_total: boolean;
+  include_total_decrease: boolean;
+  include_total_increase: boolean;
   include_subsection: boolean;
   include_notes: boolean;
   // Dynamic contract update columns
@@ -73,6 +75,8 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_total: true,
       include_total_approved_by_project_manager: true,
       include_approved_signed_total: true,
+      include_total_decrease: true,
+      include_total_increase: true,
       include_subsection: true,
       include_notes: true,
     };
@@ -116,6 +120,8 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_total: true,
       include_total_approved_by_project_manager: true,
       include_approved_signed_total: true,
+      include_total_decrease: true,
+      include_total_increase: true,
       include_subsection: true,
       include_notes: true,
     };
@@ -152,6 +158,8 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_total: false,
       include_total_approved_by_project_manager: false,
       include_approved_signed_total: false,
+      include_total_decrease: false,
+      include_total_increase: false,
       include_subsection: false,
       include_notes: false,
     };
@@ -335,7 +343,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                   }
                   onChange={() =>
                     handleCheckboxChange(
-                      `include_updated_contract_quantity_${update.id}`
+                      `include_updated_contract_quantity_${update.id}`,
                     )
                   }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -361,7 +369,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                   }
                   onChange={() =>
                     handleCheckboxChange(
-                      `include_updated_contract_sum_${update.id}`
+                      `include_updated_contract_sum_${update.id}`,
                     )
                   }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -381,7 +389,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">{t("boq.estimatedQuantity")}</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.estimatedQuantity")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -393,7 +403,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">{t("boq.quantitySubmitted")}</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.quantitySubmitted")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -405,7 +417,9 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">{t("boq.internalQuantity")}</span>
+              <span className="text-sm text-gray-700">
+                {t("boq.internalQuantity")}
+              </span>
             </label>
 
             <label className="flex items-center space-x-2">
@@ -508,7 +522,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
                 }
                 onChange={() =>
                   handleCheckboxChange(
-                    "include_total_approved_by_project_manager"
+                    "include_total_approved_by_project_manager",
                   )
                 }
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -529,6 +543,30 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               />
               <span className="text-sm text-gray-700">
                 {t("boq.approvedSignedTotal")}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_total_decrease}
+                onChange={() => handleCheckboxChange("include_total_decrease")}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.totalDecrease")}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_total_increase}
+                onChange={() => handleCheckboxChange("include_total_increase")}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.totalIncrease")}
               </span>
             </label>
 

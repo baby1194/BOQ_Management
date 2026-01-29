@@ -1046,7 +1046,7 @@ class ExcelService:
                 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
                 'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
                 'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                'approved_signed_total', 'subsection', 'notes'
+                'approved_signed_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
             ])
             
             # Only include headers that exist in the data
@@ -1085,7 +1085,9 @@ class ExcelService:
                 'total_submitted',
                 'internal_total',
                 'total_approved',
-                'approved_signed_total'
+                'approved_signed_total',
+                'total_decrease',
+                'total_increase'
             }
             # Add updated contract sum columns
             for col in df.columns:

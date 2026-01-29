@@ -171,6 +171,8 @@
     "internalTotal": "Internal Total",
     "totalApproved": "Total Approved",
     "approvedSignedTotal": "Approved Signed Total",
+    "totalDecrease": "Total Decrease",
+    "totalIncrease": "Total Increase",
     "subchapter": "Subchapter",
     "totalUpdatedContractSum": "Total Updated Contract Sum",
     "structure": "Structure",

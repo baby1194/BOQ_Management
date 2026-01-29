@@ -172,6 +172,8 @@
     "internalTotal": "סה״כ פנימי",
     "totalApproved": "סה״כ מאושר",
     "approvedSignedTotal": "סה״כ מאושר וחתום",
+    "totalDecrease": "סה״כ הקטנה",
+    "totalIncrease": "סה״כ הגדלה",
     "subchapter": "תת-פרק",
     "totalUpdatedContractSum": "סה״כ חוזה מעודכן",
     "structure": "מבנה",
