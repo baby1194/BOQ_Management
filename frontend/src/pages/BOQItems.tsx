@@ -1137,38 +1137,28 @@ const BOQItems: React.FC = () => {
     }
   };
 
-  // Fetch BOQ items
-  const fetchItems = async () => {
+  // Fetch BOQ items. Optional overrides allow debounced effect to pass captured query/subchapter.
+  const fetchItems = async (
+    overrideQuery?: string,
+    overrideSubchapter?: string,
+  ) => {
+    const q = overrideQuery !== undefined ? overrideQuery : searchQuery;
+    const sub =
+      overrideSubchapter !== undefined
+        ? overrideSubchapter
+        : selectedSubchapter;
     try {
       setLoading(true);
       setError(null);
 
-      if (searchQuery.trim()) {
-        // Search functionality - fetch all matching results (searches across all fields)
-        const response = await searchApi.search(
-          searchQuery,
-          "all", // general search across all fields
-          0, // offset
-          10000, // large limit to get all results
-        );
-        console.log("Search API Response:", response);
-        console.log("First item system field:", response.items[0]?.system);
+      if (q.trim()) {
+        const response = await searchApi.search(q, "all", 0, 10000);
         setAllItems(response.items);
-      } else if (selectedSubchapter) {
-        // Filter by subchapter - fetch all results
-        const response = await searchApi.getBySubchapter(
-          selectedSubchapter,
-          0, // offset
-          10000, // large limit to get all results
-        );
-        // console.log("Subchapter API Response:", response);
-        // console.log("First item system field:", response[0]?.system);
+      } else if (sub) {
+        const response = await searchApi.getBySubchapter(sub, 0, 10000);
         setAllItems(response);
       } else {
-        // Get all items without pagination
-        const response = await boqApi.getAll(0, 10000); // large limit to get all results
-        // console.log("BOQ API Response:", response);
-        // console.log("First item system field:", response[0]?.system);
+        const response = await boqApi.getAll(0, 10000);
         setAllItems(response);
       }
     } catch (err) {
@@ -1583,8 +1573,23 @@ const BOQItems: React.FC = () => {
     }
   }, [contractUpdates]);
 
+  // Debounce search so typing doesn't trigger fetch on every keystroke (avoids focus loss and extra requests)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstSearchRun = useRef(true);
   useEffect(() => {
-    fetchItems();
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      fetchItems(searchQuery, selectedSubchapter);
+      return;
+    }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      searchDebounceRef.current = null;
+      fetchItems(searchQuery, selectedSubchapter);
+    }, 400);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
   }, [searchQuery, selectedSubchapter]);
 
   // Update items when filteredItems change

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, cast, String, func
+from sqlalchemy import or_, cast, String, func, select
 from typing import List, Optional
 import logging
 
@@ -65,37 +65,47 @@ async def search_boq_items(
             )
         else:
             # General search across all fields
-            # String fields
             search_pattern = f"%{q}%"
-            query = query.filter(
-                or_(
-                    # String/text fields (handle NULLs with coalesce)
-                    models.BOQItem.section_number.ilike(search_pattern),
-                    models.BOQItem.description.ilike(search_pattern),
-                    models.BOQItem.unit.ilike(search_pattern),
-                    func.coalesce(models.BOQItem.subsection, "").ilike(search_pattern),
-                    func.coalesce(models.BOQItem.notes, "").ilike(search_pattern),
-                    func.coalesce(models.BOQItem.system, "").ilike(search_pattern),
-                    func.coalesce(models.BOQItem.internal_field_1, "").ilike(search_pattern),
-                    func.coalesce(models.BOQItem.internal_field_2, "").ilike(search_pattern),
-                    # Numeric fields converted to string for searching (handle NULLs)
-                    cast(func.coalesce(models.BOQItem.serial_number, 0), String).ilike(search_pattern),
-                    cast(func.coalesce(models.BOQItem.structure, 0), String).ilike(search_pattern),
-                    cast(models.BOQItem.original_contract_quantity, String).ilike(search_pattern),
-                    cast(models.BOQItem.price, String).ilike(search_pattern),
-                    cast(models.BOQItem.total_contract_sum, String).ilike(search_pattern),
-                    cast(models.BOQItem.estimated_quantity, String).ilike(search_pattern),
-                    cast(models.BOQItem.quantity_submitted, String).ilike(search_pattern),
-                    cast(models.BOQItem.internal_quantity, String).ilike(search_pattern),
-                    cast(models.BOQItem.approved_by_project_manager, String).ilike(search_pattern),
-                    cast(models.BOQItem.total_estimate, String).ilike(search_pattern),
-                    cast(models.BOQItem.total_submitted, String).ilike(search_pattern),
-                    cast(models.BOQItem.internal_total, String).ilike(search_pattern),
-                    cast(models.BOQItem.total_approved_by_project_manager, String).ilike(search_pattern),
-                    cast(models.BOQItem.approved_signed_quantity, String).ilike(search_pattern),
-                    cast(models.BOQItem.approved_signed_total, String).ilike(search_pattern),
+            q_lower = q.strip().lower()
+            # Subquery: BOQ item ids that have at least one manual concentration entry
+            boq_ids_with_manual = (
+                select(models.ConcentrationSheet.boq_item_id)
+                .join(
+                    models.ConcentrationEntry,
+                    models.ConcentrationEntry.concentration_sheet_id == models.ConcentrationSheet.id,
                 )
+                .where(models.ConcentrationEntry.is_manual == True)
+                .distinct()
             )
+            conditions = [
+                models.BOQItem.section_number.ilike(search_pattern),
+                models.BOQItem.description.ilike(search_pattern),
+                models.BOQItem.unit.ilike(search_pattern),
+                func.coalesce(models.BOQItem.subsection, "").ilike(search_pattern),
+                func.coalesce(models.BOQItem.notes, "").ilike(search_pattern),
+                func.coalesce(models.BOQItem.system, "").ilike(search_pattern),
+                func.coalesce(models.BOQItem.internal_field_1, "").ilike(search_pattern),
+                func.coalesce(models.BOQItem.internal_field_2, "").ilike(search_pattern),
+                cast(func.coalesce(models.BOQItem.serial_number, 0), String).ilike(search_pattern),
+                cast(func.coalesce(models.BOQItem.structure, 0), String).ilike(search_pattern),
+                cast(models.BOQItem.original_contract_quantity, String).ilike(search_pattern),
+                cast(models.BOQItem.price, String).ilike(search_pattern),
+                cast(models.BOQItem.total_contract_sum, String).ilike(search_pattern),
+                cast(models.BOQItem.estimated_quantity, String).ilike(search_pattern),
+                cast(models.BOQItem.quantity_submitted, String).ilike(search_pattern),
+                cast(models.BOQItem.internal_quantity, String).ilike(search_pattern),
+                cast(models.BOQItem.approved_by_project_manager, String).ilike(search_pattern),
+                cast(models.BOQItem.total_estimate, String).ilike(search_pattern),
+                cast(models.BOQItem.total_submitted, String).ilike(search_pattern),
+                cast(models.BOQItem.internal_total, String).ilike(search_pattern),
+                cast(models.BOQItem.total_approved_by_project_manager, String).ilike(search_pattern),
+                cast(models.BOQItem.approved_signed_quantity, String).ilike(search_pattern),
+                cast(models.BOQItem.approved_signed_total, String).ilike(search_pattern),
+            ]
+            # When user searches "manual", include items that have manual concentration entries
+            if "manual" in q_lower:
+                conditions.append(models.BOQItem.id.in_(boq_ids_with_manual))
+            query = query.filter(or_(*conditions))
         
         # Get total count
         total_count = query.count()
