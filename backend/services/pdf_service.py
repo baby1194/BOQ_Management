@@ -829,15 +829,10 @@ class PDFService:
             # Create list of column indices to include
             header_indices = [all_headers.index(header) for header in filtered_headers]
             
-            # In Hebrew mode, we'll reverse the column order later when creating the table
-            
-            # Calculate optimal page size based on content using the same method as BOQ items
+            # Calculate optimal page size based on content
             page_size = None
             page_width = None
             concentration_column_widths = None
-            
-            # print("translated_headers", translated_headers)
-            # print("header_indices", header_indices)
 
             if entries:
                 # Prepare data for optimal page size calculation using translated headers
@@ -939,49 +934,46 @@ class PDFService:
             dummy_headers = ['Label', 'Value', 'Label', 'Value']
             combined_col_widths = self._calculate_column_widths(combined_data, dummy_headers, page_width, 12, 12)
             
-            # Create table with combined data
-            combined_table = Table(combined_data, colWidths=combined_col_widths)
+            # Don't use _create_hebrew_aware_table_style for combined table - build style from scratch
+            # Process data manually for Hebrew text
+            processed_combined_data = []
+            for row in combined_data:
+                processed_row = []
+                for col_idx, cell_value in enumerate(row):
+                    if cell_value and self._detect_rtl(str(cell_value)):
+                        # Reverse Hebrew text for PDF rendering
+                        col_width = combined_col_widths[col_idx] if col_idx < len(combined_col_widths) else 100
+                        wrapped_text = self._wrap_hebrew_text(str(cell_value), col_width)
+                        wrapped_text = wrapped_text.replace('<br/>', '\n')
+                        processed_row.append(wrapped_text)
+                    else:
+                        processed_row.append(cell_value)
+                processed_combined_data.append(processed_row)
             
-            # Use Hebrew-aware styling
-            combined_table_style, processed_combined_data = self._create_hebrew_aware_table_style(combined_data, [], combined_col_widths)
-            
-            # Customize the style based on language
-            # Override default header styling since we don't have headers
+            # Build table style from scratch with proper alignment
             align_mode = 'RIGHT' if language == "he" else 'LEFT'
             combined_table_style = [
-                ('ALIGN', (0, 0), (-1, -1), align_mode),  # All columns aligned based on language
+                ('ALIGN', (0, 0), (-1, -1), align_mode),  # All cells aligned based on language
                 ('FONTSIZE', (0, 0), (-1, -1), 12),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                 ('TOPPADDING', (0, 0), (-1, -1), 12),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for potential multi-line content
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for multi-line content
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                # # Style label columns (0 and 2) with gray background
-                # ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-                # ('BACKGROUND', (2, 0), (2, -1), colors.lightgrey),
-                # # Style value columns (1 and 3) with white background
-                # ('BACKGROUND', (1, 0), (1, -1), colors.white),
-                # ('BACKGROUND', (3, 0), (3, -1), colors.white),
             ]
             
-            # Add Hebrew font styling for individual cells from processed data
+            # Add Hebrew font for cells with Hebrew text or currency symbols
             for row_idx, row in enumerate(processed_combined_data):
                 for col_idx, cell_value in enumerate(row):
                     if cell_value and (self._detect_rtl(str(cell_value)) or self._is_currency_value(str(cell_value))):
-                        # Use Hebrew font for this cell (Hebrew text or currency symbols)
                         combined_table_style.append(('FONTNAME', (col_idx, row_idx), (col_idx, row_idx), self.hebrew_font))
-                        combined_table_style.append(('FONTSIZE', (col_idx, row_idx), (col_idx, row_idx), 12))
-                        if language == "he":
-                            combined_table_style.append(('ALIGN', (col_idx, row_idx), (col_idx, row_idx), 'RIGHT'))
             
-            # Create table with processed data (Hebrew text reversed)
+            # Create table with processed data
             combined_table = Table(processed_combined_data, colWidths=combined_col_widths)
             combined_table.setStyle(TableStyle(combined_table_style))
             
             # Position table left (English) or right (Hebrew) by wrapping in a container table
             table_width = sum(combined_col_widths)
             available_width = page_width - 108  # Subtract margins
-            print("available_width", available_width)
-            print("table_width", table_width)
             if language == "he":
                 # Hebrew: position table to the right
                 spacer_width = available_width - table_width
@@ -1067,7 +1059,6 @@ class PDFService:
                 else:
                     current_headers = translated_headers
                 
-                # Use pre-calculated column widths from page size calculation (same as BOQ items)
                 # Calculate column widths based on current (possibly reversed) data
                 column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12)
                 
@@ -1092,22 +1083,23 @@ class PDFService:
                     # Recreate style with white backgrounds instead of grey
                     align_mode = 'RIGHT' if language == "he" else 'LEFT'
                     override_style = TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background (was lightgrey)
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text (was white)
-                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # Default alignment based on language
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
+                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # All cells aligned based on language
                         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, 0), 12),
                         ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                         ('TOPPADDING', (0, 0), (-1, -1), 12),
                         ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows - white
-                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - light grey
                         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
                         ('GRID', (0, 0), (-1, -1), 1, colors.black),
                         ('VALIGN', (0, 0), (-1, -1), 'TOP')
                     ])
-                    # Center-align numerical columns for all rows
-                    for col_idx in numerical_column_indices:
-                        override_style.add('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER')
+                    # In English mode only, center-align numerical columns
+                    if language == "en":
+                        for col_idx in numerical_column_indices:
+                            override_style.add('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER')
                     entries_table.setStyle(override_style)
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
@@ -1141,9 +1133,10 @@ class PDFService:
                             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
                         ])
                     
-                    # Center-align numerical columns for all rows
-                    for col_idx in numerical_column_indices:
-                        entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
+                    # In English mode only, center-align numerical columns
+                    if language == "en":
+                        for col_idx in numerical_column_indices:
+                            entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
                     
                     # Create table with processed data (Hebrew text reversed)
                     entries_table = Table(processed_entries_data, colWidths=column_widths)
@@ -2217,29 +2210,37 @@ class PDFService:
                         cell_width = stringWidth(cell_value, data_font, data_font_size)
                     max_width = max(max_width, cell_width)
             
-            # Special handling for description columns
-            is_description_column = header.lower() == 'description'
-            
             # Check if this column contains Hebrew text
             contains_hebrew = any(
                 self._detect_rtl(str(row[col_idx])) if col_idx < len(row) and row[col_idx] is not None else False
                 for row in data
             )
             
-            if is_description_column:
-                # For description columns, give more generous width and padding
-                max_width = max_width * 1.5  # More padding for descriptions
-                min_width = 150  # Higher minimum width for descriptions
+            # Determine column type for appropriate width handling
+            header_lower = header.lower()
+            is_description_column = 'description' in header_lower or 'תיאור' in header
+            is_notes_column = 'notes' in header_lower or 'הערות' in header
+            is_numeric_column = any(keyword in header_lower for keyword in ['quantity', 'qty', 'price', 'sum', 'total', 'כמות', 'מחיר', 'סכום'])
+            
+            # Apply appropriate width multipliers based on column type
+            if is_description_column or is_notes_column:
+                # Text columns need more space
+                max_width = max_width * 1.5
+                min_width = 150
                 if contains_hebrew:
-                    max_width = max_width * 1.2  # Extra space for Hebrew descriptions
-                    min_width = 180  # Higher minimum for Hebrew descriptions
+                    max_width = max_width * 1.2
+                    min_width = 180
+            elif is_numeric_column:
+                # Numeric columns can be narrower
+                max_width = max_width * 1.15
+                min_width = 70
             else:
-                # Add padding (20% extra for better readability and cell spacing)
+                # Default columns (sheet numbers, drawing numbers, etc.)
                 max_width = max_width * 1.2
-                min_width = 60
+                min_width = 80
                 if contains_hebrew:
-                    max_width = max_width * 1.1  # Extra space for Hebrew text
-                    min_width = 80  # Higher minimum for Hebrew text
+                    max_width = max_width * 1.1
+                    min_width = 90
             
             max_width = max(min_width, max_width)
             column_max_widths.append(max_width)
@@ -2247,18 +2248,22 @@ class PDFService:
         # Calculate total width needed
         total_width = sum(column_max_widths)
         
-        # If total width exceeds available width, scale down proportionally
+        # If total width exceeds available width, scale down proportionally but preserve ratios
         if total_width > available_width:
             scale_factor = available_width / total_width
             column_max_widths = [width * scale_factor for width in column_max_widths]
             
-            # Ensure minimum width after scaling
-            min_final_width = 40
+            # Ensure minimum width after scaling (reduced to allow more columns)
+            min_final_width = 50
             column_max_widths = [max(min_final_width, width) for width in column_max_widths]
+            
+            # If we still exceed available width after minimums, scale again
+            if sum(column_max_widths) > available_width:
+                final_scale = available_width / sum(column_max_widths)
+                column_max_widths = [width * final_scale for width in column_max_widths]
         
         # Log the calculated widths for debugging
-        logger.info(f"Column widths calculated: {[f'{w:.1f}' for w in column_max_widths]}")
-        logger.info(f"Total width: {sum(column_max_widths):.1f}, Available width: {available_width:.1f}")
+        logger.info(f"Column widths: {[f'{w:.1f}' for w in column_max_widths]} (Total: {sum(column_max_widths):.1f}/{available_width:.1f})")
         
         return column_max_widths 
     
@@ -2269,6 +2274,7 @@ class PDFService:
         # Font settings for width calculation
         header_font = 'Helvetica-Bold'
         data_font = 'Helvetica'
+        hebrew_font = self.hebrew_font
         
         # Calculate maximum width needed for each column
         column_max_widths = []
@@ -2284,20 +2290,42 @@ class PDFService:
             for row in data:
                 if col_idx < len(row):
                     cell_value = str(row[col_idx]) if row[col_idx] is not None else ""
-                    cell_width = stringWidth(cell_value, data_font, font_size)
+                    # Use appropriate font for width calculation
+                    if self._detect_rtl(cell_value) or self._is_currency_value(cell_value):
+                        cell_width = stringWidth(cell_value, hebrew_font, font_size)
+                        cell_width = cell_width * 1.3  # Extra padding for Hebrew
+                    else:
+                        cell_width = stringWidth(cell_value, data_font, font_size)
                     max_width = max(max_width, cell_width)
             
-            # Special handling for description columns
-            is_description_column = header.lower() == 'description'
+            # Check if this column contains Hebrew text
+            contains_hebrew = any(
+                self._detect_rtl(str(row[col_idx])) if col_idx < len(row) and row[col_idx] is not None else False
+                for row in data
+            )
             
-            if is_description_column:
-                # For description columns, give more generous width and padding
-                max_width = max_width / 3 # More padding for descriptions
-                min_width = 100  # Higher minimum width for descriptions in optimal page size
-            else:
-                # Add padding (30% extra for better readability and cell spacing)
-                # max_width = max_width * 1
+            # Determine column type for appropriate width handling
+            header_lower = header.lower()
+            is_description_column = 'description' in header_lower or 'תיאור' in header
+            is_notes_column = 'notes' in header_lower or 'הערות' in header
+            is_numeric_column = any(keyword in header_lower for keyword in ['quantity', 'qty', 'price', 'sum', 'total', 'כמות', 'מחיר', 'סכום'])
+            
+            # Apply appropriate width multipliers based on column type (same logic as _calculate_column_widths)
+            if is_description_column or is_notes_column:
+                max_width = max_width * 1.5
                 min_width = 100
+                if contains_hebrew:
+                    max_width = max_width * 1.2
+                    min_width = 120
+            elif is_numeric_column:
+                max_width = max_width * 1.15
+                min_width = 70
+            else:
+                max_width = max_width * 1.2
+                min_width = 80
+                if contains_hebrew:
+                    max_width = max_width * 1.1
+                    min_width = 90
             
             max_width = max(min_width, max_width)
             column_max_widths.append(max_width)
