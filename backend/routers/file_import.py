@@ -145,19 +145,8 @@ def save_calculation_sheet_to_item_folders(
                 # Create folder if it doesn't exist
                 folder_path.mkdir(parents=True, exist_ok=True)
                 
-                # Copy the Excel file to the folder using the original filename
+                # Copy the Excel file to the folder using the original filename (overwrite if exists)
                 destination_file = folder_path / filename_to_use
-                
-                # Handle filename conflicts by adding a number suffix
-                original_destination = destination_file
-                counter = 1
-                while destination_file.exists():
-                    stem = original_destination.stem
-                    suffix = original_destination.suffix
-                    destination_file = folder_path / f"{stem}_{counter}{suffix}"
-                    counter += 1
-                
-                # Copy the file
                 shutil.copy2(source_file_path, destination_file)
                 files_saved += 1
                 logger.info(f"Saved calculation sheet to folder: {destination_file}")
@@ -173,6 +162,64 @@ def save_calculation_sheet_to_item_folders(
     except Exception as e:
         logger.error(f"Error in save_calculation_sheet_to_item_folders: {str(e)}")
         return 0
+
+
+def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> int:
+    """
+    Copy all calculation sheet files related to the given section_number to the item folder.
+    Used when exporting concentration sheets so the destination folder has both the
+    concentration sheet and its calculation sheets.
+
+    Args:
+        db: Database session
+        section_number: BOQ item section number (folder name)
+
+    Returns:
+        Number of calculation sheet files copied
+    """
+    if not section_number or not str(section_number).strip():
+        return 0
+    try:
+        section_number = str(section_number).strip()
+        FATINA_BASE_DIR.mkdir(parents=True, exist_ok=True)
+        folder_name = sanitize_folder_name(section_number)
+        folder_path = FATINA_BASE_DIR / folder_name
+        folder_path.mkdir(parents=True, exist_ok=True)
+
+        # Find calculation sheet IDs that have at least one entry with this section_number
+        sheet_ids = (
+            db.query(models.CalculationEntry.calculation_sheet_id)
+            .filter(models.CalculationEntry.section_number == section_number)
+            .distinct()
+            .all()
+        )
+        sheet_ids = [sid[0] for sid in sheet_ids]
+        if not sheet_ids:
+            return 0
+
+        sheets = db.query(models.CalculationSheet).filter(
+            models.CalculationSheet.id.in_(sheet_ids),
+            models.CalculationSheet.source_file_path.isnot(None),
+        ).all()
+
+        copied = 0
+        for sheet in sheets:
+            src = Path(sheet.source_file_path) if isinstance(sheet.source_file_path, str) else sheet.source_file_path
+            if not src.exists():
+                logger.warning(f"Calculation sheet source not found: {src}")
+                continue
+            dest = folder_path / (sheet.file_name or src.name)
+            try:
+                shutil.copy2(src, dest)
+                copied += 1
+                logger.info(f"Copied calculation sheet to folder: {dest}")
+            except (PermissionError, OSError) as e:
+                logger.error(f"Error copying calculation sheet to {folder_path}: {e}")
+        return copied
+    except Exception as e:
+        logger.error(f"Error in copy_calculation_sheets_to_item_folder: {e}")
+        return 0
+
 
 @router.post("/upload/", response_model=schemas.ImportResponse)
 async def upload_file(

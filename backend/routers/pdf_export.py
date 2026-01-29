@@ -11,6 +11,7 @@ from models import models
 from schemas import schemas
 from services.pdf_service import PDFService
 from services.excel_service import ExcelService
+from routers.file_import import copy_calculation_sheets_to_item_folder
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -69,6 +70,8 @@ async def export_concentration_sheets(
             try:
                 pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
                 pdf_paths.append(pdf_path)
+                # Copy related calculation sheets to the same destination folder
+                copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
             except Exception as e:
                 error_message = str(e)
                 if "destination file is in use" in error_message:
@@ -176,7 +179,10 @@ async def export_single_concentration_sheet(
         
         pdf_service = PDFService()
         pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, None, language)
-        
+        # Copy related calculation sheets to the same destination folder
+        if boq_item and boq_item.section_number:
+            copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
+
         # Return the filename for download
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
         return schemas.PDFExportResponse(
@@ -234,7 +240,12 @@ async def export_all_concentration_sheets_excel(
         
         # Generate Excel files - saved to C:/Fatina/{section_number}/ directories
         excel_path = excel_service.export_all_concentration_sheets(sheets, db)
-        
+        # Copy calculation sheets to each item's destination folder
+        for sheet in sheets:
+            boq_item = db.query(models.BOQItem).filter(models.BOQItem.id == sheet.boq_item_id).first()
+            if boq_item and boq_item.section_number:
+                copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
+
         # Files are saved server-side to C:/Fatina/{section_number}/, no download needed
         return schemas.PDFExportResponse(
             success=True,
@@ -280,7 +291,10 @@ async def export_single_concentration_sheet_excel(
         
         excel_service = ExcelService()
         excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries)
-        
+        # Copy related calculation sheets to the same destination folder
+        if boq_item and boq_item.section_number:
+            copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
+
         # File is saved to C:/Fatina/{section_number}/, no download path needed
         section_number = boq_item.section_number if boq_item else sheet.id
         return schemas.PDFExportResponse(
