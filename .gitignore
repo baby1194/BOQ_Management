@@ -169,3 +169,5 @@ frontend/dist/
 start_backend.bat
 start_frontend.bat
 BOQ.bat
+
+backend/output.csv
