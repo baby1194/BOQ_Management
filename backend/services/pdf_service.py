@@ -371,7 +371,7 @@ class PDFService:
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
             ('ALIGN', (0, 0), (-1, -1), align_mode),  # Alignment based on language
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),  # Same font size as other tables
+            ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as other tables - all cells
             ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table for all rows
             ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table for all rows
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
@@ -933,22 +933,23 @@ class PDFService:
             max_rows = max(len(left_column_data), len(right_column_data))
             
             # Create combined data structure
-            # In Hebrew mode: value should be on left, label on right (reversed from English)
+            # In Hebrew mode: completely invert the order for RTL (right to left)
             combined_data = []
             for i in range(max_rows):
                 left_row = left_column_data[i] if i < len(left_column_data) else ['', '']
                 right_row = right_column_data[i] if i < len(right_column_data) else ['', '']
                 if language == "he":
-                    # Hebrew: [value, label, value, label]
-                    combined_data.append([left_row[1], left_row[0], right_row[1], right_row[0]])
+                    # Hebrew RTL: Complete inversion [right_value, right_label, left_value, left_label]
+                    # This is exact reverse of English order
+                    combined_data.append([right_row[1], right_row[0], left_row[1], left_row[0]])
                 else:
-                    # English: [label, value, label, value]
+                    # English LTR: [left_label, left_value, right_label, right_value]
                     combined_data.append([left_row[0], left_row[1], right_row[0], right_row[1]])
             
             # Calculate column widths using the proper method
             # Create dummy headers for width calculation (4 columns: left_label, left_value, right_label, right_value)
             dummy_headers = ['Label', 'Value', 'Label', 'Value']
-            combined_col_widths = self._calculate_column_widths(combined_data, dummy_headers, page_width, 12, 12)
+            combined_col_widths = self._calculate_column_widths(combined_data, dummy_headers, page_width, 12, 12, language)
             
             # Don't use _create_hebrew_aware_table_style for combined table - build style from scratch
             # Process data manually for Hebrew text
@@ -1093,7 +1094,7 @@ class PDFService:
                     current_headers = translated_headers
                 
                 # Calculate column widths based on current (possibly reversed) data
-                column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12)
+                column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12, language)
                 
                 # Identify numerical columns (columns that contain quantities)
                 # Use the actual translated headers to identify numerical columns
@@ -1120,7 +1121,7 @@ class PDFService:
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
                         ('ALIGN', (0, 0), (-1, -1), align_mode),  # All cells aligned based on language
                         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, 0), 12),
+                        ('FONTSIZE', (0, 0), (-1, -1), 12),  # All cells - consistent font size across all pages
                         ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                         ('TOPPADDING', (0, 0), (-1, -1), 12),
                         ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows - white
@@ -2220,7 +2221,7 @@ class PDFService:
             logger.error(f"Error generating BOQ items PDF: {str(e)}")
             raise
 
-    def _calculate_column_widths(self, data, headers, page_size_or_width='A3', header_font_size=8, data_font_size=8):
+    def _calculate_column_widths(self, data, headers, page_size_or_width='A3', header_font_size=8, data_font_size=8, language="en"):
         """Calculate optimal column widths based on actual content length"""
         from reportlab.pdfbase.pdfmetrics import stringWidth
         
@@ -2238,6 +2239,73 @@ class PDFService:
         # Use 0.75 inch margin on each side (54 points each) for better readability
         margin = 54 * 2  # 1.5 inches total margin
         available_width = page_width - margin
+        
+        # Special case: Item Information combined table (4 columns: Label, Value, Label, Value)
+        # Use fixed percentage widths: 15%, 50%, 15%, 20%
+        if len(headers) == 4 and headers == ['Label', 'Value', 'Label', 'Value']:
+            if language == "he":
+                column_widths = [
+                    available_width * 0.15,  # right_value
+                    available_width * 0.15,  # right_label
+                    available_width * 0.40,  # left_value
+                    available_width * 0.1   # left_label
+                ]
+            else:
+                column_widths = [
+                    available_width * 0.1,  # left_label
+                    available_width * 0.4,  # left_value
+                    available_width * 0.15,  # right_label
+                    available_width * 0.15   # right_value
+                ]
+            logger.info(f"Using fixed percentage widths for item information table ({language}): {[f'{w:.1f}' for w in column_widths]} (Total: {sum(column_widths):.1f}/{available_width:.1f})")
+            return column_widths
+        
+        # Special case: Concentration Sheet Entries table
+        # Define fixed percentage widths for each known column type
+        concentration_entry_columns = {
+            'Description:': 0.29,  # English translation with colon
+            'תיאור:': 0.29,  # Hebrew translation
+            'Calc. Sheet No': 0.08,  # English translation
+            'מס\' דף חישוב': 0.08,  # Hebrew translation
+            'Drawing No': 0.06,  # English
+            'מס\' שרטוט': 0.06,  # Hebrew translation
+            'Est. Quantity': 0.08,  # English translation
+            'כמות משוערת': 0.08,  # Hebrew translation
+            'Qty Submitted': 0.08,  # English translation
+            'כמות מוגשת': 0.08,  # Hebrew translation
+            'Internal Qty': 0.08,  # English translation
+            'כמות פנימית': 0.08,  # Hebrew translation
+            'Approved Qty': 0.08,  # English translation
+            'כמות מאושרת': 0.08,  # Hebrew translation
+            'Notes': 0.25,  # English
+            'הערות': 0.25  # Hebrew translation
+        }
+        
+        # Check if this looks like a concentration entries table
+        is_concentration_table = any(header in concentration_entry_columns for header in headers)
+        
+        if is_concentration_table:
+            # Map each header to its fixed percentage width
+            column_widths = []
+            total_percentage = 0
+            
+            for header in headers:
+                if header in concentration_entry_columns:
+                    percentage = concentration_entry_columns[header]
+                    column_widths.append(available_width * percentage)
+                    total_percentage += percentage
+                else:
+                    # Fallback for unknown columns (shouldn't happen)
+                    column_widths.append(available_width * 0.08)
+                    total_percentage += 0.08
+            
+            # Normalize widths if total doesn't equal 100% (due to filtered columns)
+            if total_percentage > 0 and abs(total_percentage - 1.0) > 0.01:
+                scale_factor = 1.0 / total_percentage
+                column_widths = [width * scale_factor for width in column_widths]
+            
+            logger.info(f"Using fixed percentage widths for concentration entries table ({language}): {[f'{w:.1f}' for w in column_widths]} (Total: {sum(column_widths):.1f}/{available_width:.1f})")
+            return column_widths
         
         # Font settings for width calculation
         header_font = 'Helvetica-Bold'
@@ -2262,7 +2330,7 @@ class PDFService:
                     if self._detect_rtl(cell_value) or self._is_currency_value(cell_value):
                         cell_width = stringWidth(cell_value, hebrew_font, data_font_size)
                         # Add extra padding for Hebrew text as it often needs more space
-                        cell_width = cell_width * 1.3
+                        cell_width = cell_width * 1.6
                     else:
                         cell_width = stringWidth(cell_value, data_font, data_font_size)
                     max_width = max(max_width, cell_width)
