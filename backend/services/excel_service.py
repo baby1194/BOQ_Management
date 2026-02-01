@@ -21,14 +21,17 @@ def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_n
 
 
 def _add_calculation_sheet_hyperlinks(worksheet, entries, start_row_1based, col_index_0based, db_session, skip_totals_row=True):
-    """Add file hyperlinks to the Calculation Sheet No column. Uses relative path (filename only) so it works on any PC when the Excel and files are in the same directory."""
+    """Add file hyperlinks to the Calculation Sheet No column. Uses relative path (filename only) so it works on any PC when the Excel and files are in the same directory.
+    
+    Note: 'entries' should contain only the data entries (without totals row).
+    'skip_totals_row' is ignored as it's no longer needed - we process all entries in the list.
+    """
     from openpyxl.styles import Font
     from openpyxl.styles.colors import BLUE
     link_font = Font(color=BLUE, underline="single")
-    num_data_rows = len(entries)
-    if skip_totals_row:
-        num_data_rows -= 1  # last row is totals
-    for i in range(num_data_rows):
+    
+    # Process all entries - the entries list doesn't include the totals row
+    for i in range(len(entries)):
         entry = entries[i]
         file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
         if not file_name:
