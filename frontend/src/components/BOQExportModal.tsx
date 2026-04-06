@@ -18,6 +18,7 @@ interface BOQExportRequest {
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;
   include_approved_signed_quantity: boolean;
+  include_partially_submitted_quantity: boolean;
   include_quantity_decrease: boolean;
   include_quantity_increase: boolean;
   include_total_estimate: boolean;
@@ -25,6 +26,7 @@ interface BOQExportRequest {
   include_internal_total: boolean;
   include_total_approved_by_project_manager: boolean;
   include_approved_signed_total: boolean;
+  include_partial_submitted_total: boolean;
   include_total_decrease: boolean;
   include_total_increase: boolean;
   include_subsection: boolean;
@@ -68,6 +70,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_quantity: true,
       include_approved_by_project_manager: true,
       include_approved_signed_quantity: true,
+      include_partially_submitted_quantity: true,
       include_quantity_decrease: true,
       include_quantity_increase: true,
       include_total_estimate: true,
@@ -75,6 +78,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_total: true,
       include_total_approved_by_project_manager: true,
       include_approved_signed_total: true,
+      include_partial_submitted_total: true,
       include_total_decrease: true,
       include_total_increase: true,
       include_subsection: true,
@@ -113,6 +117,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_quantity: true,
       include_approved_by_project_manager: true,
       include_approved_signed_quantity: true,
+      include_partially_submitted_quantity: true,
       include_quantity_decrease: true,
       include_quantity_increase: true,
       include_total_estimate: true,
@@ -120,6 +125,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_total: true,
       include_total_approved_by_project_manager: true,
       include_approved_signed_total: true,
+      include_partial_submitted_total: true,
       include_total_decrease: true,
       include_total_increase: true,
       include_subsection: true,
@@ -151,6 +157,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_quantity: false,
       include_approved_by_project_manager: false,
       include_approved_signed_quantity: false,
+      include_partially_submitted_quantity: false,
       include_quantity_decrease: false,
       include_quantity_increase: false,
       include_total_estimate: false,
@@ -158,6 +165,7 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
       include_internal_total: false,
       include_total_approved_by_project_manager: false,
       include_approved_signed_total: false,
+      include_partial_submitted_total: false,
       include_total_decrease: false,
       include_total_increase: false,
       include_subsection: false,
@@ -453,6 +461,20 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
+                checked={exportRequest.include_partially_submitted_quantity}
+                onChange={() =>
+                  handleCheckboxChange("include_partially_submitted_quantity")
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.partiallySubmittedQuantity")}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
                 checked={exportRequest.include_quantity_decrease}
                 onChange={() =>
                   handleCheckboxChange("include_quantity_decrease")
@@ -543,6 +565,20 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
               />
               <span className="text-sm text-gray-700">
                 {t("boq.approvedSignedTotal")}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_partial_submitted_total}
+                onChange={() =>
+                  handleCheckboxChange("include_partial_submitted_total")
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.partialSubmittedTotal")}
               </span>
             </label>
 

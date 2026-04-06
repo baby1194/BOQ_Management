@@ -775,7 +775,7 @@ class ExcelService:
             for col in df.columns:
                 if df[col].dtype in ['float64', 'int64']:
                     original_numeric_data[col] = df[col].copy()
-                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total', 'partial_submitted_total'] or col.startswith('total_updated_contract_sum_'):
                     # Force conversion to numeric for known total columns
                     try:
                         numeric_series = pd.to_numeric(df[col], errors='coerce')
@@ -908,7 +908,7 @@ class ExcelService:
             for col in df.columns:
                 if df[col].dtype in ['float64', 'int64']:
                     original_numeric_data[col] = df[col].copy()
-                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total', 'partial_submitted_total'] or col.startswith('total_updated_contract_sum_'):
                     # Force conversion to numeric for known total columns
                     try:
                         numeric_series = pd.to_numeric(df[col], errors='coerce')
@@ -1041,7 +1041,7 @@ class ExcelService:
             for col in df.columns:
                 if df[col].dtype in ['float64', 'int64']:
                     original_numeric_data[col] = df[col].copy()
-                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
+                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total', 'partial_submitted_total'] or col.startswith('total_updated_contract_sum_'):
                     # Force conversion to numeric for known total columns
                     try:
                         numeric_series = pd.to_numeric(df[col], errors='coerce')
@@ -1184,9 +1184,10 @@ class ExcelService:
             
             all_possible_headers.extend([
                 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
-                'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
+                'approved_by_project_manager', 'approved_signed_quantity',
+                'partially_submitted_quantity', 'total_estimate',
                 'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                'approved_signed_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
+                'approved_signed_total', 'partial_submitted_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
             ])
             
             # Only include headers that exist in the data
@@ -1212,6 +1213,7 @@ class ExcelService:
                 'internal_total',
                 'total_approved',
                 'approved_signed_total',
+                'partial_submitted_total',
                 'total_decrease',
                 'total_increase'
             }

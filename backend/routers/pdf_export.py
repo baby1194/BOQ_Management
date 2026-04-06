@@ -995,6 +995,10 @@ async def export_boq_items_pdf(
                     filtered_item["approved_by_project_manager"] = item.approved_by_project_manager
                 if request.get("include_approved_signed_quantity"):
                     filtered_item["approved_signed_quantity"] = item.approved_signed_quantity
+                if request.get("include_partially_submitted_quantity"):
+                    q_sub = item.quantity_submitted or 0
+                    q_app = item.approved_signed_quantity or 0
+                    filtered_item["partially_submitted_quantity"] = q_sub - q_app
                 if request.get("include_total_estimate"):
                     filtered_item["total_estimate"] = item.total_estimate
                 if request.get("include_total_submitted"):
@@ -1005,6 +1009,11 @@ async def export_boq_items_pdf(
                     filtered_item["total_approved_by_project_manager"] = item.total_approved_by_project_manager
                 if request.get("include_approved_signed_total"):
                     filtered_item["approved_signed_total"] = item.approved_signed_total
+                if request.get("include_partial_submitted_total"):
+                    q_sub = item.quantity_submitted or 0
+                    q_app = item.approved_signed_quantity or 0
+                    price = item.price or 0
+                    filtered_item["partial_submitted_total"] = (q_sub - q_app) * price
                 if request.get("include_total_decrease") or request.get("include_total_increase"):
                     # Current contract qty = latest update quantity if any, else original
                     current_qty = item.original_contract_quantity
@@ -1128,6 +1137,10 @@ async def export_boq_items_excel(
                     filtered_item["approved_by_project_manager"] = item.approved_by_project_manager
                 if request.get("include_approved_signed_quantity"):
                     filtered_item["approved_signed_quantity"] = item.approved_signed_quantity
+                if request.get("include_partially_submitted_quantity"):
+                    q_sub = item.quantity_submitted or 0
+                    q_app = item.approved_signed_quantity or 0
+                    filtered_item["partially_submitted_quantity"] = q_sub - q_app
                 if request.get("include_total_estimate"):
                     filtered_item["total_estimate"] = item.total_estimate
                 if request.get("include_total_submitted"):
@@ -1138,6 +1151,11 @@ async def export_boq_items_excel(
                     filtered_item["total_approved_by_project_manager"] = item.total_approved_by_project_manager
                 if request.get("include_approved_signed_total"):
                     filtered_item["approved_signed_total"] = item.approved_signed_total
+                if request.get("include_partial_submitted_total"):
+                    q_sub = item.quantity_submitted or 0
+                    q_app = item.approved_signed_quantity or 0
+                    price = item.price or 0
+                    filtered_item["partial_submitted_total"] = (q_sub - q_app) * price
                 if request.get("include_total_decrease") or request.get("include_total_increase"):
                     current_qty = item.original_contract_quantity
                     if contract_updates:

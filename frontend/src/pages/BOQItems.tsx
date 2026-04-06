@@ -130,7 +130,9 @@ const BOQItems: React.FC = () => {
       internal_total: "",
       total_approved_by_project_manager: "",
       approved_signed_quantity: "",
+      partially_submitted_quantity: "",
       approved_signed_total: "",
+      partial_submitted_total: "",
       total_decrease: "",
       total_increase: "",
       quantity_decrease: "",
@@ -196,6 +198,7 @@ const BOQItems: React.FC = () => {
       internal_quantity: true,
       approved_by_project_manager: true,
       approved_signed_quantity: true,
+      partially_submitted_quantity: true,
       quantity_decrease: true,
       quantity_increase: true,
       total_estimate: true,
@@ -203,6 +206,7 @@ const BOQItems: React.FC = () => {
       internal_total: true,
       total_approved_by_project_manager: true,
       approved_signed_total: true,
+      partial_submitted_total: true,
       total_decrease: true,
       total_increase: true,
       subsection: true,
@@ -310,6 +314,7 @@ const BOQItems: React.FC = () => {
       internal_quantity: true,
       approved_by_project_manager: true,
       approved_signed_quantity: true,
+      partially_submitted_quantity: true,
       quantity_decrease: true,
       quantity_increase: true,
       total_estimate: true,
@@ -317,6 +322,7 @@ const BOQItems: React.FC = () => {
       internal_total: true,
       total_approved_by_project_manager: true,
       approved_signed_total: true,
+      partial_submitted_total: true,
       total_decrease: true,
       total_increase: true,
       subsection: true,
@@ -533,6 +539,26 @@ const BOQItems: React.FC = () => {
   const calculateTotalIncrease = (item: BOQItem): number =>
     calculateQuantityIncrease(item) * (item.price || 0);
 
+  const calculatePartiallySubmittedQuantity = (
+    item: BOQItem,
+    updates: Partial<BOQItem> = {},
+  ): number => {
+    const merged = { ...item, ...updates };
+    return (
+      (merged.quantity_submitted || 0) - (merged.approved_signed_quantity || 0)
+    );
+  };
+
+  const calculatePartialSubmittedTotal = (
+    item: BOQItem,
+    updates: Partial<BOQItem> = {},
+  ): number => {
+    const merged = { ...item, ...updates };
+    return (
+      calculatePartiallySubmittedQuantity(item, updates) * (merged.price || 0)
+    );
+  };
+
   // Calculate totals for all items
   const totals = useMemo(() => {
     return items.reduce(
@@ -547,6 +573,8 @@ const BOQItems: React.FC = () => {
           (item.total_approved_by_project_manager || 0),
         total_decrease: acc.total_decrease + calculateTotalDecrease(item),
         total_increase: acc.total_increase + calculateTotalIncrease(item),
+        partial_submitted_total:
+          acc.partial_submitted_total + calculatePartialSubmittedTotal(item),
       }),
       {
         total_contract_sum: 0,
@@ -556,6 +584,7 @@ const BOQItems: React.FC = () => {
         total_approved_by_project_manager: 0,
         total_decrease: 0,
         total_increase: 0,
+        partial_submitted_total: 0,
       },
     );
   }, [items]);
@@ -728,6 +757,28 @@ const BOQItems: React.FC = () => {
         item.total_approved_by_project_manager || 0,
       );
 
+      const matchesApprovedSignedQuantity = parseNumericFilter(
+        filters.approved_signed_quantity,
+        item.approved_signed_quantity || 0,
+      );
+
+      const matchesApprovedSignedTotal = parseNumericFilter(
+        filters.approved_signed_total,
+        item.approved_signed_total || 0,
+      );
+
+      const partiallySubmittedQty = calculatePartiallySubmittedQuantity(item);
+      const matchesPartiallySubmittedQuantity = parseNumericFilter(
+        filters.partially_submitted_quantity,
+        partiallySubmittedQty,
+      );
+
+      const partialSubmittedTotalVal = calculatePartialSubmittedTotal(item);
+      const matchesPartialSubmittedTotal = parseNumericFilter(
+        filters.partial_submitted_total,
+        partialSubmittedTotalVal,
+      );
+
       const quantityDecrease = calculateQuantityDecrease(item);
       const matchesQuantityDecrease = parseNumericFilter(
         filters.quantity_decrease,
@@ -859,6 +910,10 @@ const BOQItems: React.FC = () => {
         matchesTotalSubmitted &&
         matchesInternalTotal &&
         matchesTotalApprovedByProjectManager &&
+        matchesApprovedSignedQuantity &&
+        matchesApprovedSignedTotal &&
+        matchesPartiallySubmittedQuantity &&
+        matchesPartialSubmittedTotal &&
         matchesQuantityDecrease &&
         matchesQuantityIncrease &&
         matchesTotalDecrease &&
@@ -1316,6 +1371,9 @@ const BOQItems: React.FC = () => {
             item.approved_by_project_manager;
         if (request.include_approved_signed_quantity)
           filteredItem.approved_signed_quantity = item.approved_signed_quantity;
+        if (request.include_partially_submitted_quantity)
+          filteredItem.partially_submitted_quantity =
+            calculatePartiallySubmittedQuantity(item);
         if (request.include_quantity_decrease)
           filteredItem.quantity_decrease = calculateQuantityDecrease(item);
         if (request.include_quantity_increase)
@@ -1331,6 +1389,9 @@ const BOQItems: React.FC = () => {
             item.total_approved_by_project_manager;
         if (request.include_approved_signed_total)
           filteredItem.approved_signed_total = item.approved_signed_total;
+        if (request.include_partial_submitted_total)
+          filteredItem.partial_submitted_total =
+            calculatePartialSubmittedTotal(item);
         if (request.include_total_decrease)
           filteredItem.total_decrease = calculateTotalDecrease(item);
         if (request.include_total_increase)
@@ -1392,6 +1453,12 @@ const BOQItems: React.FC = () => {
             (sum, item) => sum + (item.approved_signed_total || 0),
             0,
           ),
+          partial_submitted_total: request.include_partial_submitted_total
+            ? filteredData.reduce(
+                (sum, item) => sum + (item.partial_submitted_total || 0),
+                0,
+              )
+            : undefined,
           total_decrease: request.include_total_decrease
             ? filteredData.reduce(
                 (sum, item) => sum + (item.total_decrease || 0),
@@ -1822,7 +1889,9 @@ const BOQItems: React.FC = () => {
       internal_total: "",
       total_approved_by_project_manager: "",
       approved_signed_quantity: "",
+      partially_submitted_quantity: "",
       approved_signed_total: "",
+      partial_submitted_total: "",
       total_decrease: "",
       total_increase: "",
       quantity_decrease: "",
@@ -2983,6 +3052,11 @@ const BOQItems: React.FC = () => {
                     {t("boq.approvedSignedQuantity")}
                   </th>
                 )}
+                {columnVisibility.partially_submitted_quantity && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
+                    {t("boq.partiallySubmittedQuantity")}
+                  </th>
+                )}
                 {columnVisibility.quantity_decrease && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-orange-100">
                     {t("boq.quantityDecrease")}
@@ -3016,6 +3090,11 @@ const BOQItems: React.FC = () => {
                 {columnVisibility.approved_signed_total && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
                     {t("boq.approvedSignedTotal")}
+                  </th>
+                )}
+                {columnVisibility.partial_submitted_total && (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px] bg-green-200">
+                    {t("boq.partialSubmittedTotal")}
                   </th>
                 )}
                 {columnVisibility.total_decrease && (
@@ -3356,6 +3435,25 @@ const BOQItems: React.FC = () => {
                     />
                   </th>
                 )}
+                {columnVisibility.partially_submitted_quantity && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.partially_submitted_quantity}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "partially_submitted_quantity",
+                          e.target.value,
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">100, <50, =25..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "partially_submitted_quantity",
+                      )}`}
+                    />
+                  </th>
+                )}
                 {columnVisibility.quantity_decrease && (
                   <th className="px-2 py-2 border-r border-gray-300">
                     <input
@@ -3470,6 +3568,25 @@ const BOQItems: React.FC = () => {
                       placeholder=">1000, <500, =250..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
                         "approved_signed_total",
+                      )}`}
+                    />
+                  </th>
+                )}
+                {columnVisibility.partial_submitted_total && (
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={filters.partial_submitted_total}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "partial_submitted_total",
+                          e.target.value,
+                        )
+                      }
+                      onKeyDown={handleFilterKeyDown}
+                      placeholder=">1000, <500, =250..."
+                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "partial_submitted_total",
                       )}`}
                     />
                   </th>
@@ -3952,6 +4069,19 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
+                    {columnVisibility.partially_submitted_quantity && (
+                      <td
+                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100"
+                        title="Read-only field"
+                      >
+                        {formatNumber(
+                          calculatePartiallySubmittedQuantity(
+                            item,
+                            isEditing ? currentValues : {},
+                          ),
+                        )}
+                      </td>
+                    )}
                     {columnVisibility.quantity_decrease && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-orange-50">
                         {formatNumber(calculateQuantityDecrease(item))}
@@ -4004,6 +4134,16 @@ const BOQItems: React.FC = () => {
                           isEditing
                             ? derivedValues.approved_signed_total
                             : item.approved_signed_total || 0,
+                        )}
+                      </td>
+                    )}
+                    {columnVisibility.partial_submitted_total && (
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-200">
+                        {formatCurrency(
+                          calculatePartialSubmittedTotal(
+                            item,
+                            isEditing ? currentValues : {},
+                          ),
                         )}
                       </td>
                     )}
@@ -4256,6 +4396,10 @@ const BOQItems: React.FC = () => {
                 {columnVisibility.approved_signed_quantity && (
                   <td className="px-3 py-4 bg-green-100"></td>
                 )}
+                {/* Partially Submitted Quantity - No total */}
+                {columnVisibility.partially_submitted_quantity && (
+                  <td className="px-3 py-4 bg-green-100"></td>
+                )}
                 {/* Quantity Decrease - No total */}
                 {columnVisibility.quantity_decrease && (
                   <td className="px-3 py-4 bg-orange-50"></td>
@@ -4297,6 +4441,12 @@ const BOQItems: React.FC = () => {
                         0,
                       ),
                     )}
+                  </td>
+                )}
+                {/* Partial Submitted Total - WITH TOTAL */}
+                {columnVisibility.partial_submitted_total && (
+                  <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 bg-green-200">
+                    {formatCurrency(totals.partial_submitted_total)}
                   </td>
                 )}
                 {/* Total Decrease - WITH TOTAL */}
@@ -4623,6 +4773,20 @@ const BOQItems: React.FC = () => {
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
+                  checked={columnVisibility.partially_submitted_quantity}
+                  onChange={() =>
+                    toggleColumnVisibility("partially_submitted_quantity")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  {t("boq.partiallySubmittedQuantity")}
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
                   checked={columnVisibility.quantity_decrease}
                   onChange={() => toggleColumnVisibility("quantity_decrease")}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -4705,6 +4869,20 @@ const BOQItems: React.FC = () => {
                 />
                 <span className="text-sm text-gray-700">
                   {t("boq.approvedSignedTotal")}
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.partial_submitted_total}
+                  onChange={() =>
+                    toggleColumnVisibility("partial_submitted_total")
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  {t("boq.partialSubmittedTotal")}
                 </span>
               </label>
 

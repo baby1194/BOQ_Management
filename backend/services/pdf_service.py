@@ -1992,11 +1992,13 @@ class PDFService:
                     'internal_quantity': 'כמות פנימית',
                     'approved_by_project_manager': 'אושר על ידי מנהל פרויקט',
                     'approved_signed_quantity': 'כמות אושרה וחתומה',
+                    'partially_submitted_quantity': 'כמות מוגש חלקי',
                     'total_estimate': 'הערכה כוללת',
                     'total_submitted': 'סה"כ הוגש',
                     'internal_total': 'סה"כ פנימי',
                     'total_approved_by_project_manager': 'סה"כ אושר על ידי מנהל פרויקט',
                     'approved_signed_total': 'סה"כ אושר וחתום',
+                    'partial_submitted_total': 'סה"כ מוגש חלקי',
                     'total_decrease': 'סה"כ הקטנה',
                     'total_increase': 'סה"כ הגדלה',
                     'subsection': 'תת סעיף',
@@ -2018,11 +2020,13 @@ class PDFService:
                     'internal_quantity': 'Internal Quantity',
                     'approved_by_project_manager': 'Approved by Project Manager',
                     'approved_signed_quantity': 'Approved Signed Quantity',
+                    'partially_submitted_quantity': 'Partially Submitted Quantity',
                     'total_estimate': 'Total Estimate',
                     'total_submitted': 'Total Submitted',
                     'internal_total': 'Internal Total',
                     'total_approved_by_project_manager': 'Total Approved by Project Manager',
                     'approved_signed_total': 'Approved Signed Total',
+                    'partial_submitted_total': 'Partial Submitted Total',
                     'total_decrease': 'Total Decrease',
                     'total_increase': 'Total Increase',
                     'subsection': 'Subsection',
@@ -2051,9 +2055,10 @@ class PDFService:
                 
                 all_possible_headers.extend([
                     'total_contract_sum', 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
-                    'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
+                    'approved_by_project_manager', 'approved_signed_quantity',
+                    'partially_submitted_quantity', 'total_estimate',
                     'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                    'approved_signed_total', 'subsection', 'notes'
+                    'approved_signed_total', 'partial_submitted_total', 'subsection', 'notes'
                 ])
                 
                 # Only include headers that exist in the data
@@ -2066,7 +2071,7 @@ class PDFService:
                     for key in headers:
                         value = item[key]
                         if isinstance(value, (int, float)):
-                            if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
+                            if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
                                 row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
@@ -2109,9 +2114,10 @@ class PDFService:
                 
                 all_possible_headers.extend([
                     'estimated_quantity', 'quantity_submitted', 'internal_quantity',
-                    'approved_by_project_manager', 'approved_signed_quantity', 'total_estimate',
+                    'approved_by_project_manager', 'approved_signed_quantity',
+                    'partially_submitted_quantity', 'total_estimate',
                     'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                    'approved_signed_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
+                    'approved_signed_total', 'partial_submitted_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
                 ])
                 
                 # Only include headers that exist in the data
@@ -2134,6 +2140,7 @@ class PDFService:
                     'internal_total',
                     'total_approved_by_project_manager',
                     'approved_signed_total',
+                    'partial_submitted_total',
                     'total_decrease',
                     'total_increase'
                 }
@@ -2151,7 +2158,7 @@ class PDFService:
                         value = item[key]
                         if isinstance(value, (int, float)):
                             # Only apply ₪ formatting to price and sum/total columns, not quantity columns
-                            if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and 'quantity' not in key.lower():
+                            if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
                                 row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))

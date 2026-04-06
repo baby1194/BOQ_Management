@@ -165,6 +165,8 @@
     "internalQuantity": "כמות פנימית",
     "approvedQuantity": "כמות מאושרת",
     "approvedSignedQuantity": "כמות מאושרת וחתומה",
+    "partiallySubmittedQuantity": "כמות מוגש חלקי",
+    "partialSubmittedTotal": "סה\"כ מוגש חלקי",
     "quantityDecrease": "הקטנות",
     "quantityIncrease": "הגדלות",
     "totalEstimate": "סה״כ משוער",

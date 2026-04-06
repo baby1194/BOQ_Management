@@ -19,6 +19,10 @@ export interface BOQItem {
   total_approved_by_project_manager: number;
   approved_signed_quantity: number;
   approved_signed_total: number;
+  /** quantity_submitted - approved_signed_quantity (computed) */
+  partially_submitted_quantity?: number;
+  /** partially_submitted_quantity * price (computed) */
+  partial_submitted_total?: number;
   total_decrease?: number; // quantity_decrease * price (computed)
   total_increase?: number; // quantity_increase * price (computed)
   notes?: string;

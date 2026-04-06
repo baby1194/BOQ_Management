@@ -164,6 +164,8 @@
     "internalQuantity": "Internal Quantity",
     "approvedQuantity": "Approved Quantity",
     "approvedSignedQuantity": "Approved Signed Quantity",
+    "partiallySubmittedQuantity": "Partially Submitted Quantity",
+    "partialSubmittedTotal": "Partial Submitted Total",
     "quantityDecrease": "Quantity Decrease",
     "quantityIncrease": "Quantity Increase",
     "totalEstimate": "Total Estimate",
