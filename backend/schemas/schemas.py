@@ -215,6 +215,7 @@ class PDFExportRequest(BaseModel):
     hide_columns: List[str] = []
     export_all: bool = False
     export_non_empty_only: bool = True
+    export_non_zero_psq_only: bool = False
     entry_columns: Optional[ConcentrationEntryExportRequest] = None
 
 class PDFExportResponse(BaseModel):

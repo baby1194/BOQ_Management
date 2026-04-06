@@ -10,7 +10,7 @@ interface ConcentrationEntryExportModalProps {
   title: string;
   loading?: boolean;
   exportFormat: "pdf" | "excel";
-  /** When "all", show two buttons: export all items vs without empty items */
+  /** When "all", show export modes: all items, without empty sheets, non-zero PSQ rows only */
   exportScope?: "single" | "all";
 }
 
@@ -92,10 +92,13 @@ const ConcentrationEntryExportModal: React.FC<
     (key) => exportRequest[key] === true,
   );
 
-  const handleExport = (exportNonEmptyOnly?: boolean) => {
+  type AllSheetsMode = "all_items" | "non_empty" | "non_zero_psq";
+
+  const handleExport = (mode?: AllSheetsMode) => {
     const request: ConcentrationEntryExportRequest = { ...exportRequest };
-    if (exportScope === "all" && exportNonEmptyOnly !== undefined) {
-      request.export_non_empty_only = exportNonEmptyOnly;
+    if (exportScope === "all" && mode !== undefined) {
+      request.export_non_empty_only = mode === "non_empty";
+      request.export_non_zero_psq_only = mode === "non_zero_psq";
     }
     onExport(request);
   };
@@ -260,7 +263,7 @@ const ConcentrationEntryExportModal: React.FC<
           {exportScope === "all" ? (
             <>
               <button
-                onClick={() => handleExport(false)}
+                onClick={() => handleExport("all_items")}
                 disabled={loading || !hasAtLeastOneColumn}
                 className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   exportFormat === "pdf"
@@ -273,7 +276,7 @@ const ConcentrationEntryExportModal: React.FC<
                   : t("concentration.exportAllItems")}
               </button>
               <button
-                onClick={() => handleExport(true)}
+                onClick={() => handleExport("non_empty")}
                 disabled={loading || !hasAtLeastOneColumn}
                 className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   exportFormat === "pdf"
@@ -284,6 +287,19 @@ const ConcentrationEntryExportModal: React.FC<
                 {loading
                   ? t("common.exporting")
                   : t("concentration.exportWithoutEmptyItems")}
+              </button>
+              <button
+                onClick={() => handleExport("non_zero_psq")}
+                disabled={loading || !hasAtLeastOneColumn}
+                className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  exportFormat === "pdf"
+                    ? "bg-red-400 hover:bg-red-500 focus:ring-red-400"
+                    : "bg-green-400 hover:bg-green-500 focus:ring-green-400"
+                }`}
+              >
+                {loading
+                  ? t("common.exporting")
+                  : t("concentration.exportNonZeroPsqItems")}
               </button>
             </>
           ) : (

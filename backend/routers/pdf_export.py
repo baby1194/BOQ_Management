@@ -16,6 +16,11 @@ from routers.file_import import copy_calculation_sheets_to_item_folder
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+def _concentration_entry_psq(entry) -> float:
+    """Partially submitted quantity for a concentration row (same idea as BOQ PSQ)."""
+    return float(entry.quantity_submitted or 0) - float(entry.approved_by_project_manager or 0)
+
 @router.post("/concentration-sheets", response_model=schemas.PDFExportResponse)
 async def export_concentration_sheets(
     request: dict,
@@ -47,7 +52,22 @@ async def export_concentration_sheets(
                 .all()
             }
             sheets = [s for s in sheets if s.id in sheet_ids_with_entries]
-        
+
+        export_non_zero_psq_only = request.get("export_non_zero_psq_only", False)
+        if export_non_zero_psq_only:
+            from sqlalchemy import func
+
+            q_sub = func.coalesce(models.ConcentrationEntry.quantity_submitted, 0)
+            q_app = func.coalesce(models.ConcentrationEntry.approved_by_project_manager, 0)
+            sheet_ids_with_psq = {
+                row[0]
+                for row in db.query(models.ConcentrationEntry.concentration_sheet_id)
+                .filter(q_sub > q_app)
+                .distinct()
+                .all()
+            }
+            sheets = [s for s in sheets if s.id in sheet_ids_with_psq]
+
         if not sheets:
             return schemas.PDFExportResponse(
                 success=False,
@@ -71,7 +91,9 @@ async def export_concentration_sheets(
             entries = db.query(models.ConcentrationEntry).filter(
                 models.ConcentrationEntry.concentration_sheet_id == sheet.id
             ).order_by(models.ConcentrationEntry.id).all()
-            
+            if export_non_zero_psq_only:
+                entries = [e for e in entries if _concentration_entry_psq(e) > 0]
+
             # Generate individual PDF for this sheet with entry columns configuration and language
             try:
                 pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
@@ -243,7 +265,21 @@ async def export_all_concentration_sheets_excel(
                 .all()
             }
             sheets = [s for s in sheets if s.id in sheet_ids_with_entries]
-        
+
+        if request.export_non_zero_psq_only:
+            from sqlalchemy import func
+
+            q_sub = func.coalesce(models.ConcentrationEntry.quantity_submitted, 0)
+            q_app = func.coalesce(models.ConcentrationEntry.approved_by_project_manager, 0)
+            sheet_ids_with_psq = {
+                row[0]
+                for row in db.query(models.ConcentrationEntry.concentration_sheet_id)
+                .filter(q_sub > q_app)
+                .distinct()
+                .all()
+            }
+            sheets = [s for s in sheets if s.id in sheet_ids_with_psq]
+
         if not sheets:
             return schemas.PDFExportResponse(
                 success=False,
@@ -252,7 +288,9 @@ async def export_all_concentration_sheets_excel(
             )
         
         # Generate Excel files - saved to C:/Fatina/{section_number}/ directories
-        excel_path = excel_service.export_all_concentration_sheets(sheets, db)
+        excel_path = excel_service.export_all_concentration_sheets(
+            sheets, db, filter_non_zero_psq_only=request.export_non_zero_psq_only
+        )
         # Copy calculation sheets to each item's destination folder
         for sheet in sheets:
             boq_item = db.query(models.BOQItem).filter(models.BOQItem.id == sheet.boq_item_id).first()

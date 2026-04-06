@@ -273,6 +273,7 @@
     "exportAllSheetsExcel": "ייצא כל הדפים - Excel",
     "exportAllItems": "ייצא את כל הפריטים",
     "exportWithoutEmptyItems": "ייצא ללא פריטים ריקים",
+    "exportNonZeroPsqItems": "ייצוא פריטים עם כמות מוגש חלקי > 0",
     "noSheetSelected": "לא נבחר דף ריכוז לייצוא",
     "failedToFetchSheets": "נכשל בטעינת דפי הריכוז",
     "subtitle": "נהל דפי ריכוז עבור פריטי BOQ",

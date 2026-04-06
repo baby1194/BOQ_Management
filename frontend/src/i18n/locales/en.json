@@ -272,6 +272,7 @@
     "exportAllSheetsExcel": "Export All Sheets - Excel",
     "exportAllItems": "Export all items",
     "exportWithoutEmptyItems": "Export without empty items",
+    "exportNonZeroPsqItems": "Export non-zero PSQ items",
     "noSheetSelected": "No concentration sheet selected for export",
     "failedToFetchSheets": "Failed to fetch concentration sheets",
     "subtitle": "Manage concentration sheets for BOQ items",

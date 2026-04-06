@@ -555,7 +555,9 @@ class ExcelService:
             logger.error(f"Error generating concentration sheet Excel: {str(e)}")
             raise
 
-    def export_all_concentration_sheets(self, sheets, db_session):
+    def export_all_concentration_sheets(
+        self, sheets, db_session, filter_non_zero_psq_only: bool = False
+    ):
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
             exported_paths = []
@@ -574,7 +576,15 @@ class ExcelService:
                 entries = db_session.query(models.ConcentrationEntry).filter(
                     models.ConcentrationEntry.concentration_sheet_id == sheet.id
                 ).order_by(models.ConcentrationEntry.id).all()
-                
+                if filter_non_zero_psq_only:
+                    entries = [
+                        e
+                        for e in entries
+                        if float(e.quantity_submitted or 0)
+                        - float(e.approved_by_project_manager or 0)
+                        > 0
+                    ]
+
                 # Save to C:/Fatina/{section_number} directory
                 section_number = str(boq_item.section_number)
                 # Sanitize section number for use in file path (remove invalid characters)

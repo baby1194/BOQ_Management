@@ -146,6 +146,8 @@ export interface PDFExportRequest {
   hide_columns: string[];
   export_all: boolean;
   export_non_empty_only: boolean;
+  /** Bulk concentration export: only rows where PSQ = qty submitted − approved > 0 */
+  export_non_zero_psq_only?: boolean;
 }
 
 export interface ConcentrationEntryExportRequest {
@@ -159,6 +161,8 @@ export interface ConcentrationEntryExportRequest {
   include_notes: boolean;
   /** When exporting all sheets: false = all items, true = exclude sheets with empty concentration entries */
   export_non_empty_only?: boolean;
+  /** When exporting all sheets: only concentration rows with partially submitted quantity > 0 */
+  export_non_zero_psq_only?: boolean;
 }
 
 export interface PDFExportResponse {

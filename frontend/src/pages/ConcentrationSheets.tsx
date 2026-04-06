@@ -300,6 +300,8 @@ const ConcentrationSheets: React.FC = () => {
 
       const exportNonEmptyOnly =
         entryColumnRequest.export_non_empty_only ?? false;
+      const exportNonZeroPsqOnly =
+        entryColumnRequest.export_non_zero_psq_only ?? false;
 
       const response =
         format === "pdf"
@@ -309,6 +311,7 @@ const ConcentrationSheets: React.FC = () => {
                 hide_columns: [],
                 export_all: true,
                 export_non_empty_only: exportNonEmptyOnly,
+                export_non_zero_psq_only: exportNonZeroPsqOnly,
               },
               entryColumnRequest,
               isRTL ? "he" : "en",
@@ -319,6 +322,7 @@ const ConcentrationSheets: React.FC = () => {
                 hide_columns: [],
                 export_all: true,
                 export_non_empty_only: exportNonEmptyOnly,
+                export_non_zero_psq_only: exportNonZeroPsqOnly,
               },
               entryColumnRequest,
             );
