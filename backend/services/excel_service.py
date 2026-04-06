@@ -8,6 +8,53 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# BOQ export: columns that must stay as text in Excel (not coerced to numeric).
+_BOQ_TEXT_COLUMNS = frozenset({
+    "section_number",
+    "description",
+    "unit",
+    "system",
+    "subsection",
+    "notes",
+})
+
+# Concentration sheet entries table: columns stored as numeric cells with Excel formatting.
+_CONCENTRATION_QTY_HEADERS = frozenset({
+    "Estimated Quantity",
+    "Quantity Submitted",
+    "Internal Quantity",
+    "Approved by Project Manager",
+})
+
+
+def _boq_excel_number_format(column_name: str) -> str:
+    """Excel number_format: match prior rules (currency for price/sums, else quantity-style)."""
+    c = column_name.lower()
+    if ("total" in c or "sum" in c or "price" in c) and "quantity" not in c:
+        return '"₪"#,##0.00'
+    if c in ("serial_number", "structure"):
+        return "0"
+    return "#,##0.00"
+
+
+def _apply_boq_sheet_number_formats(worksheet, column_names):
+    """Apply numeric formats to data + totals rows; leaves text columns unchanged."""
+    import math
+
+    for col_idx, col_name in enumerate(column_names, start=1):
+        if col_name in _BOQ_TEXT_COLUMNS:
+            continue
+        fmt = _boq_excel_number_format(col_name)
+        for row in range(2, worksheet.max_row + 1):
+            cell = worksheet.cell(row=row, column=col_idx)
+            v = cell.value
+            if v is None or v == "":
+                continue
+            if isinstance(v, float) and math.isnan(v):
+                continue
+            if isinstance(v, (int, float)):
+                cell.number_format = fmt
+
 
 def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_no):
     """Resolve calculation_sheet_no + drawing_no to CalculationSheet.file_name, or None."""
@@ -370,16 +417,18 @@ class ExcelService:
                 boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
                 boq_values = [
                     boq_item.section_number,
-                    f"{boq_item.original_contract_quantity:,.2f}",
+                    float(boq_item.original_contract_quantity or 0),
                     boq_item.unit,
-                    f"{boq_item.price:,.2f}",
+                    float(boq_item.price or 0),
                     boq_item.description or ''
                 ]
                 
                 boq_data = [boq_headers, boq_values]
                 df_boq = pd.DataFrame(boq_data)
+                boq_block_start_1based = current_row + 1
                 df_boq.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                 current_row += 3  # 2 rows + 1 spacing row
+                boq_data_row_1based = boq_block_start_1based + 1
                 
                 # Third Table: Concentration Entries (filtered by entry_columns)
                 if entries:
@@ -390,10 +439,10 @@ class ExcelService:
                             entry.description or '',
                             entry.calculation_sheet_no or '',
                             entry.drawing_no or '',
-                            f"{entry.estimated_quantity:,.2f}",
-                            f"{entry.quantity_submitted:,.2f}",
-                            f"{entry.internal_quantity:,.2f}",
-                            f"{entry.approved_by_project_manager:,.2f}",
+                            float(entry.estimated_quantity or 0),
+                            float(entry.quantity_submitted or 0),
+                            float(entry.internal_quantity or 0),
+                            float(entry.approved_by_project_manager or 0),
                             entry.notes or ''
                         ]
                         entries_data.append([all_row[i] for i in header_indices])
@@ -405,15 +454,16 @@ class ExcelService:
                     total_approved = sum(entry.approved_by_project_manager for entry in entries)
                     all_totals = [
                         'TOTALS', '', '',
-                        f"{total_estimate:,.2f}",
-                        f"{total_submitted:,.2f}",
-                        f"{total_internal:,.2f}",
-                        f"{total_approved:,.2f}",
+                        float(total_estimate),
+                        float(total_submitted),
+                        float(total_internal),
+                        float(total_approved),
                         ''
                     ]
                     entries_data.append([all_totals[i] for i in header_indices])
                     
                     df_entries = pd.DataFrame(entries_data)
+                    entries_block_header_1based = current_row + 1
                     df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                     
                     # Add hyperlinks to Calculation Sheet No column (relative path, same directory)
@@ -483,7 +533,20 @@ class ExcelService:
                     for cell in worksheet[totals_row]:
                         cell.font = Font(bold=True)
                         cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
-                
+
+                worksheet.cell(row=boq_data_row_1based, column=2).number_format = "#,##0.00"
+                worksheet.cell(row=boq_data_row_1based, column=4).number_format = '"₪"#,##0.00'
+                if entries:
+                    for col_i, h in enumerate(filtered_headers, start=1):
+                        if h not in _CONCENTRATION_QTY_HEADERS:
+                            continue
+                        for r in range(
+                            entries_block_header_1based + 1,
+                            entries_block_header_1based + len(entries_data),
+                        ):
+                            cell = worksheet.cell(row=r, column=col_i)
+                            if isinstance(cell.value, (int, float)):
+                                cell.number_format = "#,##0.00"
             
             logger.info(f"Generated concentration sheet Excel with single sheet RTL layout: {filepath}")
             return str(filepath)
@@ -547,16 +610,18 @@ class ExcelService:
                     boq_headers = ['Section No', 'Contract Quantity', 'Unit', 'Price', 'Description']
                     boq_values = [
                         boq_item.section_number,
-                        f"{boq_item.original_contract_quantity:,.2f}",
+                        float(boq_item.original_contract_quantity or 0),
                         boq_item.unit,
-                        f"{boq_item.price:,.2f}",
+                        float(boq_item.price or 0),
                         boq_item.description or ''
                     ]
                     
                     boq_data = [boq_headers, boq_values]
                     df_boq = pd.DataFrame(boq_data)
+                    boq_block_start_1based = current_row + 1
                     df_boq.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                     current_row += 3  # 2 rows + 1 spacing row
+                    boq_data_row_1based = boq_block_start_1based + 1
                     
                     # Third Table: Concentration Entries (following the order shown on concentration sheets page)
                     if entries:
@@ -570,10 +635,10 @@ class ExcelService:
                                 entry.description or '',
                                 entry.calculation_sheet_no or '',
                                 entry.drawing_no or '',
-                                f"{entry.estimated_quantity:,.2f}",
-                                f"{entry.quantity_submitted:,.2f}",
-                                f"{entry.internal_quantity:,.2f}",
-                                f"{entry.approved_by_project_manager:,.2f}",
+                                float(entry.estimated_quantity or 0),
+                                float(entry.quantity_submitted or 0),
+                                float(entry.internal_quantity or 0),
+                                float(entry.approved_by_project_manager or 0),
                                 entry.notes or ''
                             ])
                         
@@ -587,14 +652,15 @@ class ExcelService:
                             'TOTALS',
                             '',
                             '',
-                            f"{total_estimate:,.2f}",
-                            f"{total_submitted:,.2f}",
-                            f"{total_internal:,.2f}",
-                            f"{total_approved:,.2f}",
+                            float(total_estimate),
+                            float(total_submitted),
+                            float(total_internal),
+                            float(total_approved),
                             ''
                         ])
                         
                         df_entries = pd.DataFrame(entries_data)
+                        entries_block_header_1based = current_row + 1
                         df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                         
                         # Add hyperlinks to Calculation Sheet No column (relative path, same directory)
@@ -662,6 +728,20 @@ class ExcelService:
                         for cell in worksheet[totals_row]:
                             cell.font = Font(bold=True)
                             cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
+
+                    worksheet.cell(row=boq_data_row_1based, column=2).number_format = "#,##0.00"
+                    worksheet.cell(row=boq_data_row_1based, column=4).number_format = '"₪"#,##0.00'
+                    if entries:
+                        for col_i, h in enumerate(entries_headers, start=1):
+                            if h not in _CONCENTRATION_QTY_HEADERS:
+                                continue
+                            for r in range(
+                                entries_block_header_1based + 1,
+                                entries_block_header_1based + len(entries_data),
+                            ):
+                                cell = worksheet.cell(row=r, column=col_i)
+                                if isinstance(cell.value, (int, float)):
+                                    cell.number_format = "#,##0.00"
                 
                 exported_paths.append(str(filepath))
                 logger.info(f"Generated concentration sheet Excel: {filepath}")
@@ -1114,30 +1194,16 @@ class ExcelService:
             
             # Create DataFrame with ordered columns
             df = pd.DataFrame(items)[ordered_headers]
-            
-            # Create a copy of original numeric data for totals calculation
+
+            # Coerce numeric columns so JSON strings from the frontend become real numbers in Excel
             original_numeric_data = {}
             for col in df.columns:
-                if df[col].dtype in ['float64', 'int64']:
-                    original_numeric_data[col] = df[col].copy()
-                elif col in ['total_contract_sum', 'total_estimate', 'total_submitted', 'internal_total', 'total_approved', 'approved_signed_total'] or col.startswith('total_updated_contract_sum_'):
-                    # Force conversion to numeric for known total columns
-                    try:
-                        numeric_series = pd.to_numeric(df[col], errors='coerce')
-                        original_numeric_data[col] = numeric_series.fillna(0)
-                    except:
-                        pass
-            
-            # Format only price and sum/total columns (not quantity columns)
-            for col in df.columns:
-                if col in df.columns and df[col].dtype in ['float64', 'int64']:
-                    # Only apply $ formatting to price and sum/total columns, not quantity columns
-                    if ('total' in col.lower() or 'sum' in col.lower() or 'price' in col.lower()) and 'quantity' not in col.lower():
-                        df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
-                    else:
-                        # Format quantity columns without $ symbol
-                        df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) and x != int(x) else str(int(x)) if pd.notna(x) and isinstance(x, (int, float)) else "0")
-            
+                if col in _BOQ_TEXT_COLUMNS:
+                    continue
+                numeric_series = pd.to_numeric(df[col], errors="coerce")
+                df[col] = numeric_series
+                original_numeric_data[col] = numeric_series.fillna(0).copy()
+
             # Define columns that should have grand totals
             total_columns = {
                 'total_contract_sum',
@@ -1153,22 +1219,21 @@ class ExcelService:
             for col in df.columns:
                 if col.startswith('updated_contract_sum_'):
                     total_columns.add(col)
-            
-            # Calculate grand totals row using original numeric data - only for specified columns
+
+            # Calculate grand totals row (numeric cells; display via Excel number_format)
             totals_row = {}
             for col in df.columns:
                 if col == 'section_number':
                     totals_row[col] = "GRAND TOTAL"
                 elif col in total_columns and col in original_numeric_data:
-                    # Use provided grand totals if available, otherwise calculate from original numeric data
                     if grand_totals and col in grand_totals:
                         total_value = grand_totals[col]
                     else:
-                        # Calculate totals from original numeric data
-                        total_value = sum([val for val in original_numeric_data[col] if pd.notna(val)])
-                    
-                    # Apply currency formatting for all total columns
-                    totals_row[col] = f"₪{total_value:,.2f}" if isinstance(total_value, (int, float)) else "₪0.00"
+                        total_value = float(original_numeric_data[col].sum())
+                    try:
+                        totals_row[col] = float(total_value) if pd.notna(total_value) else 0.0
+                    except (TypeError, ValueError):
+                        totals_row[col] = 0.0
                 else:
                     totals_row[col] = ""
             
@@ -1218,6 +1283,8 @@ class ExcelService:
                     cell.font = totals_font
                     cell.fill = totals_fill
                     cell.alignment = totals_alignment
+
+                _apply_boq_sheet_number_formats(worksheet, list(df_final.columns))
             
             logger.info(f"Generated BOQ items Excel: {filepath}")
             return str(filepath)
