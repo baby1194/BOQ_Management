@@ -94,6 +94,7 @@ class ConcentrationEntry(Base):
     
     # Notes
     notes = Column(Text, nullable=True)
+    supervisor_notes = Column(Text, nullable=True)
     
     # Track whether entry was created manually (True) or auto-generated from calculation sheets (False)
     is_manual = Column(Boolean, default=True, nullable=False)

@@ -23,6 +23,7 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_internal_quantity",
   "include_approved_by_project_manager",
   "include_notes",
+  "include_supervisor_notes",
 ];
 
 const ConcentrationEntryExportModal: React.FC<
@@ -49,6 +50,7 @@ const ConcentrationEntryExportModal: React.FC<
         include_internal_quantity: true,
         include_approved_by_project_manager: true,
         include_notes: true,
+        include_supervisor_notes: true,
       };
       return baseRequest;
     });
@@ -72,6 +74,7 @@ const ConcentrationEntryExportModal: React.FC<
       include_internal_quantity: true,
       include_approved_by_project_manager: true,
       include_notes: true,
+      include_supervisor_notes: true,
     });
   };
 
@@ -85,6 +88,7 @@ const ConcentrationEntryExportModal: React.FC<
       include_internal_quantity: false,
       include_approved_by_project_manager: false,
       include_notes: false,
+      include_supervisor_notes: false,
     });
   };
 
@@ -255,6 +259,21 @@ const ConcentrationEntryExportModal: React.FC<
                 disabled={loading}
               />
               <span className="text-sm">{t("boq.notes")}</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_supervisor_notes}
+                onChange={() =>
+                  handleCheckboxChange("include_supervisor_notes")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">
+                {t("concentration.supervisorNotes")}
+              </span>
             </label>
           </div>
         </div>

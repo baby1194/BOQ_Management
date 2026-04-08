@@ -257,6 +257,7 @@
     "internalQuantity": "Internal Quantity",
     "approvedByProjectManager": "Approved by Project Manager",
     "notes": "Notes",
+    "supervisorNotes": "Supervisor Notes",
     "totalEstimate": "Total Estimate",
     "totalSubmitted": "Total Submitted",
     "totalInternal": "Total Internal",

@@ -1211,10 +1211,11 @@ const ConcentrationSheets: React.FC = () => {
                     <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
                       <h4 className="text-md font-medium text-gray-900 mb-4">
                         {editingEntry
-                          ? t("auth.editEntryNotes")
+                          ? t("concentration.editEntry")
                           : t("auth.addNewEntry")}
                       </h4>
                       <EntryForm
+                        key={editingEntry?.id ?? (showAddForm ? "add" : "none")}
                         entry={editingEntry}
                         boqItem={selectedSheet.boq_item}
                         onSave={
@@ -1263,6 +1264,9 @@ const ConcentrationSheets: React.FC = () => {
                                 {t("boq.notes")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {t("concentration.supervisorNotes")}
+                              </th>
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.actions")}
                               </th>
                             </tr>
@@ -1271,7 +1275,7 @@ const ConcentrationSheets: React.FC = () => {
                             {entries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={9}
+                                  colSpan={10}
                                   className={`px-3 py-8 text-gray-500 ${
                                     isRTL ? "text-right" : "text-center"
                                   }`}
@@ -1337,6 +1341,14 @@ const ConcentrationSheets: React.FC = () => {
                                       {entry.notes || "-"}
                                     </div>
                                   </td>
+                                  <td className="px-3 py-4 text-sm text-gray-500 max-w-xs">
+                                    <div
+                                      className="truncate"
+                                      title={entry.supervisor_notes || ""}
+                                    >
+                                      {entry.supervisor_notes || "-"}
+                                    </div>
+                                  </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {entry.is_manual ? (
                                       <div
@@ -1378,7 +1390,7 @@ const ConcentrationSheets: React.FC = () => {
                                         disabled={saving}
                                         className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                       >
-                                        {t("concentration.editNotes")}
+                                        {t("common.edit")}
                                       </button>
                                     )}
                                   </td>
@@ -1433,6 +1445,9 @@ const ConcentrationSheets: React.FC = () => {
                                       0,
                                     ),
                                   )}
+                                </td>
+                                <td className="px-3 py-3 text-sm text-gray-500">
+                                  -
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
@@ -1507,6 +1522,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
   saving,
 }) => {
   const { t } = useTranslation();
+  const fieldsLockedForAuto = !!entry && !entry.is_manual;
   const [formData, setFormData] = useState({
     section_number: entry?.section_number || boqItem?.section_number || "",
     description: entry?.description || "",
@@ -1517,6 +1533,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
     internal_quantity: entry?.internal_quantity || 0,
     approved_by_project_manager: entry?.approved_by_project_manager || 0,
     notes: entry?.notes || "",
+    supervisor_notes: entry?.supervisor_notes || "",
     is_manual: entry?.is_manual ?? true, // Default to true for manual entries
   });
 
@@ -1544,7 +1561,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             value={formData.description}
             onChange={(e) => handleChange("description", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving || fieldsLockedForAuto}
           />
         </div>
 
@@ -1559,7 +1576,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               handleChange("calculation_sheet_no", e.target.value)
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving || fieldsLockedForAuto}
           />
         </div>
 
@@ -1572,7 +1589,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             value={formData.drawing_no}
             onChange={(e) => handleChange("drawing_no", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving || fieldsLockedForAuto}
           />
         </div>
 
@@ -1591,7 +1608,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving || fieldsLockedForAuto}
           />
         </div>
 
@@ -1610,7 +1627,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving || fieldsLockedForAuto}
           />
         </div>
 
@@ -1626,7 +1643,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               handleChange("internal_quantity", parseFloat(e.target.value) || 0)
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving}
           />
         </div>
 
@@ -1645,7 +1662,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || (!!entry && !entry.is_manual)}
+            disabled={saving}
           />
         </div>
 
@@ -1656,6 +1673,21 @@ const EntryForm: React.FC<EntryFormProps> = ({
           <textarea
             value={formData.notes}
             onChange={(e) => handleChange("notes", e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={saving}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t("concentration.supervisorNotes")}
+          </label>
+          <textarea
+            value={formData.supervisor_notes}
+            onChange={(e) =>
+              handleChange("supervisor_notes", e.target.value)
+            }
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={saving}
@@ -1680,7 +1712,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
           {saving
             ? t("boq.saving")
             : entry
-              ? t("auth.updateNotes")
+              ? t("common.update")
               : t("common.create")}
         </button>
       </div>

@@ -763,7 +763,8 @@ class PDFService:
                     'Quantity Submitted': 'כמות מוגשת',
                     'Internal Quantity': 'כמות פנימית',
                     'Approved by Project Manager': 'כמות מאושרת',
-                    'Notes': 'הערות'
+                    'Notes': 'הערות',
+                    'Supervisor Notes': 'הערות מפקח',
                 }
                 project_headers_translations = {
                     'Contract No': 'מספר החוזה',
@@ -792,7 +793,8 @@ class PDFService:
                     'Quantity Submitted': 'Qty Submitted',
                     'Internal Quantity': 'Internal Qty',
                     'Approved by Project Manager': 'Approved Qty',
-                    'Notes': 'Notes'
+                    'Notes': 'Notes',
+                    'Supervisor Notes': 'Supervisor Notes',
                 }
                 project_headers_translations = {
                     'Contract No': 'Contract No',
@@ -813,8 +815,9 @@ class PDFService:
                 totals_text = "TOTALS"
             
             # Apply column filtering based on entry_columns if provided (define early for use throughout method)
-            all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
-                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+            all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
+                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes',
+                           'Supervisor Notes']
             
             # Filter headers and their indices based on entry_columns configuration
             filtered_headers = []
@@ -835,6 +838,8 @@ class PDFService:
                     filtered_headers.append('Approved by Project Manager')
                 if entry_columns.get('include_notes', True):
                     filtered_headers.append('Notes')
+                if entry_columns.get('include_supervisor_notes', True):
+                    filtered_headers.append('Supervisor Notes')
             else:
                 # If no filtering specified, include all columns
                 filtered_headers = all_headers
@@ -862,7 +867,8 @@ class PDFService:
                         f"{entry.quantity_submitted:,.2f}",
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
-                        entry.notes or ''
+                        entry.notes or '',
+                        getattr(entry, 'supervisor_notes', None) or '',
                     ]
                     # Filter data based on selected columns
                     filtered_entry_data = [all_entry_data[i] for i in header_indices]
@@ -1046,7 +1052,8 @@ class PDFService:
                         f"{entry.quantity_submitted:,.2f}",
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
-                        entry.notes or ''
+                        entry.notes or '',
+                        getattr(entry, 'supervisor_notes', None) or '',
                     ]
                     # Filter data based on selected columns
                     filtered_entry_data = [all_entry_data[i] for i in header_indices]
@@ -1079,7 +1086,8 @@ class PDFService:
                     f"{total_submitted:,.2f}",
                     f"{total_internal:,.2f}",
                     f"{total_approved:,.2f}",
-                    ''
+                    '',
+                    '',
                 ]
                 filtered_totals_row = [all_totals_row[i] for i in header_indices]
                 entries_data.append(filtered_totals_row)
@@ -2284,8 +2292,10 @@ class PDFService:
             'כמות פנימית': 0.08,  # Hebrew translation
             'Approved Qty': 0.08,  # English translation
             'כמות מאושרת': 0.08,  # Hebrew translation
-            'Notes': 0.25,  # English
-            'הערות': 0.25  # Hebrew translation
+            'Notes': 0.14,  # English
+            'הערות': 0.14,  # Hebrew translation
+            'Supervisor Notes': 0.11,
+            'הערות מפקח': 0.11,
         }
         
         # Check if this looks like a concentration entries table

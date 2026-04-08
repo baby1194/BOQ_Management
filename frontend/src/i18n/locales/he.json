@@ -258,6 +258,7 @@
     "internalQuantity": "כמות פנימית",
     "approvedByProjectManager": "אושר על ידי מנהל הפרויקט",
     "notes": "הערות",
+    "supervisorNotes": "הערות מפקח",
     "totalEstimate": "סה\"כ הערכה",
     "totalSubmitted": "סה\"כ הוגש",
     "totalInternal": "סה\"כ פנימי",

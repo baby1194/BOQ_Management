@@ -104,6 +104,7 @@ export interface ConcentrationEntry {
   internal_quantity: number; // Internal Quantity
   approved_by_project_manager: number; // Approved by Project Manager
   notes?: string; // Notes
+  supervisor_notes?: string;
   is_manual: boolean; // True if manually created, false if auto-generated
   created_at: string;
   updated_at?: string;
@@ -165,6 +166,7 @@ export interface ConcentrationEntryExportRequest {
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;
   include_notes: boolean;
+  include_supervisor_notes: boolean;
   /** When exporting all sheets: false = all items, true = exclude sheets with empty concentration entries */
   export_non_empty_only?: boolean;
   /** When exporting all sheets: only concentration rows with partially submitted quantity > 0 */

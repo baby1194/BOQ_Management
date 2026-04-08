@@ -118,6 +118,7 @@ class ConcentrationEntryBase(BaseModel):
     internal_quantity: float = Field(0.0, ge=0)
     approved_by_project_manager: float = Field(0.0, ge=0)
     notes: Optional[str] = None
+    supervisor_notes: Optional[str] = None
     is_manual: bool = Field(True, description="True if entry was created manually, False if auto-generated from calculation sheets")
 
 class ConcentrationEntryCreate(ConcentrationEntryBase):
@@ -133,6 +134,7 @@ class ConcentrationEntryUpdate(BaseModel):
     internal_quantity: Optional[float] = Field(None, ge=0)
     approved_by_project_manager: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
+    supervisor_notes: Optional[str] = None
 
 class ConcentrationEntry(ConcentrationEntryBase):
     id: int
@@ -161,6 +163,7 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_internal_quantity: bool = True
     include_approved_by_project_manager: bool = True
     include_notes: bool = True
+    include_supervisor_notes: bool = True
 
 # Search Schemas
 class SearchRequest(BaseModel):

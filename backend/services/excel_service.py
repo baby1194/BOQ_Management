@@ -369,7 +369,8 @@ class ExcelService:
             
             # Build entries column list from entry_columns (same logic as PDF)
             all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
-                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes',
+                           'Supervisor Notes']
             if entry_columns:
                 filtered_headers = []
                 if entry_columns.get('include_description', True):
@@ -388,6 +389,8 @@ class ExcelService:
                     filtered_headers.append('Approved by Project Manager')
                 if entry_columns.get('include_notes', True):
                     filtered_headers.append('Notes')
+                if entry_columns.get('include_supervisor_notes', True):
+                    filtered_headers.append('Supervisor Notes')
             else:
                 filtered_headers = all_headers
             header_indices = [all_headers.index(h) for h in filtered_headers]
@@ -443,7 +446,8 @@ class ExcelService:
                             float(entry.quantity_submitted or 0),
                             float(entry.internal_quantity or 0),
                             float(entry.approved_by_project_manager or 0),
-                            entry.notes or ''
+                            entry.notes or '',
+                            getattr(entry, 'supervisor_notes', None) or '',
                         ]
                         entries_data.append([all_row[i] for i in header_indices])
                     
@@ -458,7 +462,8 @@ class ExcelService:
                         float(total_submitted),
                         float(total_internal),
                         float(total_approved),
-                        ''
+                        '',
+                        '',
                     ]
                     entries_data.append([all_totals[i] for i in header_indices])
                     

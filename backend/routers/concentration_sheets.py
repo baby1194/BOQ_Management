@@ -330,6 +330,7 @@ async def create_concentration_entry(
             internal_quantity=entry.internal_quantity,
             approved_by_project_manager=entry.approved_by_project_manager,
             notes=entry.notes,
+            supervisor_notes=entry.supervisor_notes,
             is_manual=True  # Mark as manually created
         )
         
@@ -370,7 +371,18 @@ async def update_concentration_entry(
         
         # Update fields if provided
         update_data = entry_update.dict(exclude_unset=True)
-        
+
+        if not db_entry.is_manual:
+            allowed_for_auto = {
+                "notes",
+                "supervisor_notes",
+                "internal_quantity",
+                "approved_by_project_manager",
+            }
+            update_data = {
+                k: v for k, v in update_data.items() if k in allowed_for_auto
+            }
+
         for field, value in update_data.items():
             setattr(db_entry, field, value)
         
@@ -541,6 +553,7 @@ async def copy_concentration_entry_to_boq_items(
                 internal_quantity=db_entry.internal_quantity,
                 approved_by_project_manager=db_entry.approved_by_project_manager,
                 notes=db_entry.notes,
+                supervisor_notes=db_entry.supervisor_notes,
                 is_manual=True,
             )
             db.add(clone)
