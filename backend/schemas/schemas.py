@@ -201,6 +201,7 @@ class SummaryResponse(BaseModel):
 class ImportRequest(BaseModel):
     folder_path: str = Field(..., min_length=1)
     recursive: bool = True
+    system_password: str = Field(..., min_length=1)
 
 class ImportResponse(BaseModel):
     success: bool

@@ -23,25 +23,33 @@ const FileImport: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingFolder, setIsDraggingFolder] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
+  const [boqSystemPassword, setBoqSystemPassword] = useState("");
   const [calculationImportResult, setCalculationImportResult] =
     useState<CalculationImportResponse | null>(null);
   const queryClient = useQueryClient();
 
-  const importMutation = useMutation(importApi.importBOQ, {
-    onSuccess: (data) => {
-      setImportResult(data);
-      toast.success(t("import.boqImportTitle") + " " + t("common.success"));
-      // Refresh the dashboard data
-      queryClient.invalidateQueries("boq-items");
-      queryClient.invalidateQueries("summary");
-    },
-    onError: (error: any) => {
-      toast.error(
-        error.response?.data?.detail ||
-          t("import.title") + " " + t("common.error")
-      );
-    },
-  });
+  const importMutation = useMutation(
+    ({ file, systemPassword }: { file: File; systemPassword: string }) =>
+      importApi.importBOQ(file, systemPassword),
+    {
+      onSuccess: (data) => {
+        setImportResult(data);
+        toast.success(t("import.boqImportTitle") + " " + t("common.success"));
+        queryClient.invalidateQueries("boq-items");
+        queryClient.invalidateQueries("summary");
+      },
+      onError: (error: any) => {
+        if (error.response?.status === 403) {
+          toast.error(t("boq.passwordIncorrect"));
+          return;
+        }
+        toast.error(
+          error.response?.data?.detail ||
+            t("import.title") + " " + t("common.error")
+        );
+      },
+    }
+  );
 
   const calculationImportMutation = useMutation(
     importApi.importCalculationSheets,
@@ -76,6 +84,7 @@ const FileImport: React.FC = () => {
     ) {
       setSelectedFile(file);
       setImportResult(null);
+      setBoqSystemPassword("");
     } else {
       toast.error(t("import.selectValidExcel"));
     }
@@ -154,9 +163,13 @@ const FileImport: React.FC = () => {
   };
 
   const handleImport = () => {
-    if (selectedFile) {
-      importMutation.mutate(selectedFile);
+    if (!selectedFile) return;
+    const pwd = boqSystemPassword.trim();
+    if (!pwd) {
+      toast.error(t("import.systemPasswordRequiredForBOQ"));
+      return;
     }
+    importMutation.mutate({ file: selectedFile, systemPassword: pwd });
   };
 
   const handleCalculationImport = () => {
@@ -172,6 +185,7 @@ const FileImport: React.FC = () => {
   const clearFile = () => {
     setSelectedFile(null);
     setImportResult(null);
+    setBoqSystemPassword("");
   };
 
   const clearFolder = () => {
@@ -235,7 +249,28 @@ const FileImport: React.FC = () => {
                       {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
-                  <div className="flex items-center justify-center space-x-2">
+                  <div className="w-full max-w-sm mx-auto space-y-3">
+                    <div className="text-start">
+                      <label
+                        htmlFor="boq-system-password"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        {t("auth.systemPassword")}
+                      </label>
+                      <input
+                        id="boq-system-password"
+                        type="password"
+                        autoComplete="off"
+                        value={boqSystemPassword}
+                        onChange={(e) => setBoqSystemPassword(e.target.value)}
+                        placeholder={t("boq.enterSystemPassword")}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {t("import.systemPasswordForBOQUpload")}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center space-x-2">
                     <button
                       onClick={handleImport}
                       disabled={importMutation.isLoading}
@@ -266,6 +301,7 @@ const FileImport: React.FC = () => {
                       <X className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
                       {t("import.clear")}
                     </button>
+                    </div>
                   </div>
                 </div>
               ) : (

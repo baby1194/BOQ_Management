@@ -217,8 +217,8 @@ async def verify_system_password_endpoint(
             return {"verified": True}
         else:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid system password. Please check your system password in the profile page."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid system password. Please check your system password in the profile page.",
             )
     except Exception as e:
         raise HTTPException(

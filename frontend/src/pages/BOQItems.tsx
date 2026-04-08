@@ -454,10 +454,15 @@ const BOQItems: React.FC = () => {
       }
     } catch (error: any) {
       console.log("System password verification failed:", error);
-      setPasswordError(
-        error.response?.data?.detail ||
-          "Incorrect system password. Please try again.",
-      );
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+      if (status === 403) {
+        setPasswordError(t("boq.passwordIncorrect"));
+      } else {
+        setPasswordError(
+          typeof detail === "string" ? detail : t("common.error"),
+        );
+      }
     }
   };
 
@@ -2763,7 +2768,7 @@ const BOQItems: React.FC = () => {
                   }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={t("auth.enterSystemPassword")}
+                placeholder={t("boq.enterSystemPassword")}
                 autoFocus
               />
               {passwordError && (

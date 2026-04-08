@@ -1,6 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, Request, status
 from sqlalchemy.orm import Session
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pydantic import BaseModel
 import pandas as pd
 import os
@@ -13,6 +13,7 @@ from database.database import get_db
 from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
+from services.auth_service import get_current_user_from_cookie, verify_password
 
 router = APIRouter(prefix="/file-import", tags=["file-import"])
 
@@ -221,14 +222,36 @@ def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> 
         return 0
 
 
+async def _require_valid_system_password(request: Request, db: Session, system_password: Optional[str]) -> None:
+    if not system_password or not str(system_password).strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="System password is required",
+        )
+    current_user = await get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    if not verify_password(system_password, current_user.system_password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid system password. Please check your system password in the profile page.",
+        )
+
+
 @router.post("/upload/", response_model=schemas.ImportResponse)
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    system_password: str = Form(...),
+    db: Session = Depends(get_db),
 ):
     """
     Upload and import a single Excel file
     """
+    await _require_valid_system_password(request, db, system_password)
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Only Excel files are supported")
     
@@ -325,12 +348,14 @@ async def upload_file(
 
 @router.post("/import-folder/", response_model=schemas.ImportResponse)
 async def import_folder(
+    http_request: Request,
     request: schemas.ImportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Import all Excel files from a folder
     """
+    await _require_valid_system_password(http_request, db, request.system_password)
     folder_path = Path(request.folder_path)
     
     if not folder_path.exists():

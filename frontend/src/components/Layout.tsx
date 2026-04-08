@@ -223,7 +223,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <Settings
                       className={`w-4 h-4 ${isRTL ? "ml-3" : "mr-3"}`}
                     />
-                    {t("auth.profile")}
+                    {t("navigation.profile")}
                   </Link>
                   <button
                     onClick={handleSignOut}

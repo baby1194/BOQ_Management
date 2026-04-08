@@ -311,9 +311,10 @@ export const searchApi = {
 
 // Import API
 export const importApi = {
-  importBOQ: (file: File) => {
+  importBOQ: (file: File, systemPassword: string) => {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("system_password", systemPassword);
     return api
       .post<ImportResponse>("/file-import/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -321,10 +322,11 @@ export const importApi = {
       .then((res) => res.data);
   },
 
-  importCalculationFiles: (folderPath: string, recursive = true) => {
+  importCalculationFiles: (folderPath: string, systemPassword: string, recursive = true) => {
     const request = {
       folder_path: folderPath,
       recursive: recursive,
+      system_password: systemPassword,
     };
     return api
       .post<ImportResponse>("/file-import/import-folder/", request)
