@@ -6,6 +6,7 @@ import {
   concentrationApi,
   exportApi,
   calculationSheetsApi,
+  boqApi,
 } from "../services/api";
 import {
   ConcentrationSheet,
@@ -13,10 +14,12 @@ import {
   ConcentrationEntry,
   ConcentrationEntryExportRequest,
   BOQItemWithLatestContractUpdate,
+  BOQItem,
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
 import { Search, X } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
+import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
 
 const ConcentrationSheets: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -58,6 +61,12 @@ const ConcentrationSheets: React.FC = () => {
     format: "pdf" | "excel";
     title: string;
   } | null>(null);
+
+  const [populateEntrySource, setPopulateEntrySource] =
+    useState<ConcentrationEntry | null>(null);
+  const [populateBoqItems, setPopulateBoqItems] = useState<BOQItem[]>([]);
+  const [populateListLoading, setPopulateListLoading] = useState(false);
+  const [populateSubmitting, setPopulateSubmitting] = useState(false);
 
   // Project info state - will be loaded from selected sheet
   const [projectInfo, setProjectInfo] = useState({
@@ -596,6 +605,46 @@ const ConcentrationSheets: React.FC = () => {
   const startEditing = (entry: ConcentrationEntry) => {
     setEditingEntry(entry);
     setShowAddForm(false);
+  };
+
+  const openPopulateModal = async (entry: ConcentrationEntry) => {
+    setPopulateEntrySource(entry);
+    setPopulateListLoading(true);
+    setPopulateBoqItems([]);
+    try {
+      const items = await boqApi.getAll(0, 10000);
+      setPopulateBoqItems(items);
+    } catch (err) {
+      console.error("Error loading BOQ items for populate:", err);
+      setError(t("concentration.populateLoadBoqFailed"));
+      setPopulateEntrySource(null);
+    } finally {
+      setPopulateListLoading(false);
+    }
+  };
+
+  const handlePopulateConfirm = async (boqItemIds: number[]) => {
+    if (!populateEntrySource) return;
+    try {
+      setPopulateSubmitting(true);
+      setError(null);
+      await concentrationApi.copyEntryToBoqItems(populateEntrySource.id, {
+        boq_item_ids: boqItemIds,
+      });
+      setPopulateEntrySource(null);
+    } catch (err: any) {
+      console.error("Error copying concentration entry:", err);
+      const detail = err.response?.data?.detail;
+      let msg: string = t("concentration.populateFailed");
+      if (typeof detail === "string") msg = detail;
+      else if (Array.isArray(detail) && detail[0]?.msg)
+        msg = detail.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ");
+      else if (err.response?.data?.message)
+        msg = String(err.response.data.message);
+      setError(msg);
+    } finally {
+      setPopulateSubmitting(false);
+    }
   };
 
   // Cancel editing
@@ -1290,17 +1339,34 @@ const ConcentrationSheets: React.FC = () => {
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {entry.is_manual ? (
-                                      <div className="flex space-x-2">
+                                      <div
+                                        className={`flex flex-wrap gap-2 ${
+                                          isRTL ? "flex-row-reverse" : ""
+                                        }`}
+                                      >
                                         <button
                                           onClick={() => startEditing(entry)}
-                                          disabled={saving}
+                                          disabled={saving || populateSubmitting}
                                           className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                         >
                                           {t("common.edit")}
                                         </button>
                                         <button
+                                          type="button"
+                                          onClick={() => openPopulateModal(entry)}
+                                          disabled={
+                                            saving ||
+                                            populateSubmitting ||
+                                            populateListLoading ||
+                                            populateEntrySource !== null
+                                          }
+                                          className="text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
+                                        >
+                                          {t("concentration.populate")}
+                                        </button>
+                                        <button
                                           onClick={() => deleteEntry(entry.id)}
-                                          disabled={saving}
+                                          disabled={saving || populateSubmitting}
                                           className="text-red-600 hover:text-red-800 disabled:opacity-50"
                                         >
                                           {t("common.delete")}
@@ -1402,6 +1468,18 @@ const ConcentrationSheets: React.FC = () => {
         }
         exportFormat={pendingExportAction?.format || "pdf"}
         exportScope={pendingExportAction?.type}
+      />
+
+      <PopulateConcentrationEntryModal
+        isOpen={populateEntrySource !== null}
+        onClose={() => {
+          if (!populateSubmitting) setPopulateEntrySource(null);
+        }}
+        onConfirm={handlePopulateConfirm}
+        boqItems={populateBoqItems}
+        currentBoqItemId={selectedSheet?.boq_item_id ?? 0}
+        listLoading={populateListLoading}
+        submitLoading={populateSubmitting}
       />
     </div>
   );

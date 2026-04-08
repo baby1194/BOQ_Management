@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
-from typing import List
+from typing import List, Optional, Set
 import logging
 
 from database.database import get_db
@@ -378,7 +378,11 @@ async def update_concentration_entry(
         db.refresh(db_entry)
         
         # Update BOQ Item totals
-        await _update_boq_item_totals(db_entry.concentration_sheet_id, db)
+        src_sheet = db.query(models.ConcentrationSheet).filter(
+            models.ConcentrationSheet.id == db_entry.concentration_sheet_id
+        ).first()
+        if src_sheet:
+            await _update_boq_item_totals(src_sheet.boq_item_id, db)
         
         logger.info(f"Updated concentration entry: {db_entry.section_number}")
         return db_entry
@@ -405,13 +409,18 @@ async def delete_concentration_entry(entry_id: int, db: Session = Depends(get_db
             )
         
         concentration_sheet_id = db_entry.concentration_sheet_id
+        entry_section = db_entry.section_number
         db.delete(db_entry)
         db.commit()
         
         # Update BOQ Item totals
-        await _update_boq_item_totals(concentration_sheet_id, db)
+        del_sheet = db.query(models.ConcentrationSheet).filter(
+            models.ConcentrationSheet.id == concentration_sheet_id
+        ).first()
+        if del_sheet:
+            await _update_boq_item_totals(del_sheet.boq_item_id, db)
         
-        logger.info(f"Deleted concentration entry: {db_entry.section_number}")
+        logger.info(f"Deleted concentration entry: {entry_section}")
         
     except HTTPException:
         raise
@@ -422,6 +431,145 @@ async def delete_concentration_entry(entry_id: int, db: Session = Depends(get_db
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
+
+def _get_or_create_concentration_sheet_for_boq(
+    boq_item_id: int, db: Session
+) -> Optional[models.ConcentrationSheet]:
+    sheet = (
+        db.query(models.ConcentrationSheet)
+        .filter(models.ConcentrationSheet.boq_item_id == boq_item_id)
+        .first()
+    )
+    if sheet:
+        return sheet
+    boq_item = (
+        db.query(models.BOQItem).filter(models.BOQItem.id == boq_item_id).first()
+    )
+    if not boq_item:
+        return None
+    sheet = models.ConcentrationSheet(
+        boq_item_id=boq_item_id,
+        sheet_name=f"Concentration Sheet - {boq_item.section_number}",
+    )
+    db.add(sheet)
+    db.flush()
+    return sheet
+
+
+@router.post(
+    "/entries/{entry_id}/copy-to-boq-items",
+    response_model=schemas.CopyConcentrationEntryToBOQItemsResponse,
+)
+async def copy_concentration_entry_to_boq_items(
+    entry_id: int,
+    body: schemas.CopyConcentrationEntryToBOQItemsRequest,
+    db: Session = Depends(get_db),
+):
+    """Copy a manual concentration entry's field values onto other BOQ items (new row per target sheet)."""
+    try:
+        db_entry = (
+            db.query(models.ConcentrationEntry)
+            .filter(models.ConcentrationEntry.id == entry_id)
+            .first()
+        )
+        if not db_entry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Concentration entry not found",
+            )
+        if not db_entry.is_manual:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only manually added entries can be copied to other BOQ items",
+            )
+
+        src_sheet = (
+            db.query(models.ConcentrationSheet)
+            .filter(
+                models.ConcentrationSheet.id == db_entry.concentration_sheet_id
+            )
+            .first()
+        )
+        if not src_sheet:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Concentration sheet not found for this entry",
+            )
+
+        source_boq_id = src_sheet.boq_item_id
+        unique_ids: List[int] = []
+        seen: Set[int] = set()
+        for bid in body.boq_item_ids:
+            if bid not in seen:
+                seen.add(bid)
+                unique_ids.append(bid)
+
+        target_boq_ids: List[int] = [
+            bid for bid in unique_ids if bid != source_boq_id
+        ]
+        if not target_boq_ids:
+            return schemas.CopyConcentrationEntryToBOQItemsResponse(
+                success=True,
+                message="No target BOQ items selected (current item excluded).",
+                entries_created=0,
+            )
+
+        created = 0
+        updated_boq_ids: Set[int] = set()
+        for boq_item_id in target_boq_ids:
+            boq_item = (
+                db.query(models.BOQItem)
+                .filter(models.BOQItem.id == boq_item_id)
+                .first()
+            )
+            if not boq_item:
+                continue
+            target_sheet = _get_or_create_concentration_sheet_for_boq(
+                boq_item_id, db
+            )
+            if not target_sheet:
+                continue
+            clone = models.ConcentrationEntry(
+                concentration_sheet_id=target_sheet.id,
+                section_number=boq_item.section_number,
+                description=db_entry.description,
+                calculation_sheet_no=db_entry.calculation_sheet_no,
+                drawing_no=db_entry.drawing_no,
+                estimated_quantity=db_entry.estimated_quantity,
+                quantity_submitted=db_entry.quantity_submitted,
+                internal_quantity=db_entry.internal_quantity,
+                approved_by_project_manager=db_entry.approved_by_project_manager,
+                notes=db_entry.notes,
+                is_manual=True,
+            )
+            db.add(clone)
+            created += 1
+            updated_boq_ids.add(boq_item_id)
+
+        db.commit()
+
+        for bid in updated_boq_ids:
+            await _update_boq_item_totals(bid, db)
+
+        return schemas.CopyConcentrationEntryToBOQItemsResponse(
+            success=True,
+            message=f"Created {created} concentration entr{'y' if created == 1 else 'ies'} on selected BOQ items.",
+            entries_created=created,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"Error copying concentration entry {entry_id} to BOQ items: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
 
 async def _update_boq_item_totals(boq_item_id: int, db: Session):
     """Helper function to update BOQ Item totals based on concentration entries"""

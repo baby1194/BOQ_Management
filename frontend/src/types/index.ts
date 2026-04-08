@@ -109,6 +109,12 @@ export interface ConcentrationEntry {
   updated_at?: string;
 }
 
+export interface CopyConcentrationEntryToBOQItemsResponse {
+  success: boolean;
+  message: string;
+  entries_created: number;
+}
+
 export interface SearchResponse {
   items: BOQItem[];
   total_count: number;

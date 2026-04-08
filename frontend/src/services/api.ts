@@ -6,6 +6,7 @@ import {
   ConcentrationSheet,
   ConcentrationSheetWithBOQData,
   ConcentrationEntry,
+  CopyConcentrationEntryToBOQItemsResponse,
   SearchResponse,
   SummaryResponse,
   ImportResponse,
@@ -166,6 +167,17 @@ export const concentrationApi = {
 
   deleteEntry: (entryId: number) =>
     api.delete(`/concentration/entries/${entryId}`).then((res) => res.data),
+
+  copyEntryToBoqItems: (
+    entryId: number,
+    body: { boq_item_ids: number[] }
+  ) =>
+    api
+      .post<CopyConcentrationEntryToBOQItemsResponse>(
+        `/concentration/entries/${entryId}/copy-to-boq-items`,
+        body
+      )
+      .then((res) => res.data),
 };
 
 // Calculation Sheets API

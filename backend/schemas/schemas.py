@@ -143,6 +143,14 @@ class ConcentrationEntry(ConcentrationEntryBase):
     class Config:
         from_attributes = True
 
+class CopyConcentrationEntryToBOQItemsRequest(BaseModel):
+    boq_item_ids: List[int] = Field(..., min_length=1)
+
+class CopyConcentrationEntryToBOQItemsResponse(BaseModel):
+    success: bool
+    message: str
+    entries_created: int
+
 # Concentration Entry Export Request Schema
 class ConcentrationEntryExportRequest(BaseModel):
     include_description: bool = True
