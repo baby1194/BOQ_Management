@@ -7,6 +7,9 @@ class BOQItem(Base):
     __tablename__ = "boq_items"
     
     id = Column(Integer, primary_key=True, index=True)
+
+    # Table row order in the BOQ UI (drag-and-drop); independent of serial_number
+    display_order = Column(Integer, nullable=False, default=0, index=True)
     
     # Original BOQ.xlsx columns
     serial_number = Column(Integer, nullable=True)

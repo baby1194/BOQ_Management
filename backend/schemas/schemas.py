@@ -27,6 +27,7 @@ class BOQItemBase(BaseModel):
     internal_field_1: Optional[str] = Field(None, max_length=255)
     internal_field_2: Optional[str] = Field(None, max_length=255)
     subsection: Optional[str] = Field(None, max_length=50)
+    display_order: int = Field(0, ge=0)
 
 class BOQItemCreate(BaseModel):
     # Only include the essential fields for creation
@@ -63,6 +64,10 @@ class BOQItemUpdate(BaseModel):
     internal_field_1: Optional[str] = Field(None, max_length=255)
     internal_field_2: Optional[str] = Field(None, max_length=255)
     subsection: Optional[str] = Field(None, max_length=50)
+    display_order: Optional[int] = Field(None, ge=0)
+
+class BOQReorderRequest(BaseModel):
+    ordered_ids: List[int] = Field(..., min_length=1)
 
 class BOQItem(BOQItemBase):
     id: int

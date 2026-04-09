@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 import logging
 
@@ -28,11 +29,8 @@ def add_manual_entries_flag(items: List[models.BOQItem], db: Session) -> List[di
             ).count()
             has_manual = manual_entry_count > 0
         
-        # Create a dict representation and add the has_manual_entries field
-        item_dict = {
-            **item.__dict__,
-            "has_manual_entries": has_manual
-        }
+        raw = {k: v for k, v in item.__dict__.items() if k != "_sa_instance_state"}
+        item_dict = {**raw, "has_manual_entries": has_manual}
         items_with_flag.append(item_dict)
     
     return items_with_flag
@@ -45,7 +43,13 @@ async def get_boq_items(
 ):
     """Get all BOQ items with pagination"""
     try:
-        items = db.query(models.BOQItem).offset(skip).limit(limit).all()
+        items = (
+            db.query(models.BOQItem)
+            .order_by(models.BOQItem.display_order.asc(), models.BOQItem.id.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         return add_manual_entries_flag(items, db)
     except Exception as e:
         logger.error(f"Error fetching BOQ items: {str(e)}")
@@ -53,6 +57,38 @@ async def get_boq_items(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
+
+@router.post("/reorder")
+async def reorder_boq_items(
+    body: schemas.BOQReorderRequest,
+    db: Session = Depends(get_db),
+):
+    """Persist BOQ table row order (full list of item ids in display order)."""
+    try:
+        ordered_ids = body.ordered_ids
+        all_rows = db.query(models.BOQItem).all()
+        all_ids = {row.id for row in all_rows}
+        if len(ordered_ids) != len(all_ids) or set(ordered_ids) != all_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ordered_ids must contain every BOQ item id exactly once",
+            )
+        id_to_item = {row.id: row for row in all_rows}
+        for idx, item_id in enumerate(ordered_ids):
+            id_to_item[item_id].display_order = idx
+        db.commit()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error reordering BOQ items: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
 
 @router.get("/{item_id}", response_model=schemas.BOQItem)
 async def get_boq_item(item_id: int, db: Session = Depends(get_db)):
@@ -88,8 +124,12 @@ async def create_boq_item(item: schemas.BOQItemCreate, db: Session = Depends(get
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Section number already exists"
             )
-        
+
+        max_order = db.query(func.max(models.BOQItem.display_order)).scalar()
+        next_order = (max_order if max_order is not None else -1) + 1
+
         db_item = models.BOQItem(
+            display_order=next_order,
             # serial_number will be set to id after creation
             structure=item.structure,
             system=item.system,
@@ -276,7 +316,9 @@ async def create_bulk_boq_items(
     """Create multiple BOQ items at once"""
     try:
         created_items = []
-        
+        max_order = db.query(func.max(models.BOQItem.display_order)).scalar()
+        next_order = (max_order if max_order is not None else -1)
+
         for item in items:
             # Check if section number already exists
             existing_item = db.query(models.BOQItem).filter(
@@ -286,8 +328,10 @@ async def create_bulk_boq_items(
             if existing_item:
                 logger.warning(f"Skipping duplicate section number: {item.section_number}")
                 continue
-            
+
+            next_order += 1
             db_item = models.BOQItem(
+                display_order=next_order,
                 # serial_number will be set to id after creation
                 structure=item.structure,
                 system=item.system,

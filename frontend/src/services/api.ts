@@ -93,6 +93,11 @@ export const boqApi = {
 
   createBulk: (items: BOQItemCreate[]) =>
     api.post<BOQItem[]>("/boq/bulk", items).then((res) => res.data),
+
+  reorder: (orderedIds: number[]) =>
+    api
+      .post<{ ok: boolean }>("/boq/reorder", { ordered_ids: orderedIds })
+      .then((res) => res.data),
 };
 
 // Concentration Sheets API

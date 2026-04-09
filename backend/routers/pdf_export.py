@@ -978,7 +978,14 @@ async def export_boq_items_pdf(
             filtered_items = request["data"]
         else:
             # Fallback: fetch from database and apply filtering
-            items = db.query(models.BOQItem).all()
+            items = (
+                db.query(models.BOQItem)
+                .order_by(
+                    models.BOQItem.display_order.asc(),
+                    models.BOQItem.id.asc(),
+                )
+                .all()
+            )
             contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
             
             filtered_items = []
@@ -1120,7 +1127,14 @@ async def export_boq_items_excel(
             filtered_items = request["data"]
         else:
             # Fallback: fetch from database and apply filtering
-            items = db.query(models.BOQItem).all()
+            items = (
+                db.query(models.BOQItem)
+                .order_by(
+                    models.BOQItem.display_order.asc(),
+                    models.BOQItem.id.asc(),
+                )
+                .all()
+            )
             contract_updates = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index).all()
             
             filtered_items = []

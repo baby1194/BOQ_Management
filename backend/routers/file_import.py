@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 import pandas as pd
@@ -229,7 +230,9 @@ async def upload_file(
         # Import items to database
         imported_count = 0
         skipped_count = 0
-        
+        max_order = db.query(func.max(models.BOQItem.display_order)).scalar()
+        next_display_order = (max_order if max_order is not None else -1)
+
         for item_data in items:
             # print("_________________", item_data)
             try:
@@ -243,8 +246,11 @@ async def upload_file(
                     skipped_count += 1
                     logger.info(f"Skipping existing BOQ item: {item_data['section_number']}")
                 else:
+                    next_display_order += 1
+                    row = dict(item_data)
+                    row["display_order"] = next_display_order
                     # Create new item - serial_number will be automatically set to id by the event listener
-                    new_item = models.BOQItem(**item_data)
+                    new_item = models.BOQItem(**row)
                     db.add(new_item)
                     imported_count += 1
                     
@@ -327,7 +333,9 @@ async def import_folder(
     excel_service = ExcelService()
     total_items_updated = 0
     all_errors = []
-    
+    max_order = db.query(func.max(models.BOQItem.display_order)).scalar()
+    next_display_order = max_order if max_order is not None else -1
+
     for file_path in excel_files:
         try:
             logger.info(f"Processing file: {file_path}")
@@ -340,7 +348,7 @@ async def import_folder(
                 # Import items to database
                 imported_count = 0
                 skipped_count = 0
-                
+
                 for item_data in items:
                     try:
                         # Check if item already exists by section_number
@@ -353,8 +361,11 @@ async def import_folder(
                             skipped_count += 1
                             logger.info(f"Skipping existing BOQ item: {item_data['section_number']} from file {file_path.name}")
                         else:
+                            next_display_order += 1
+                            row = dict(item_data)
+                            row["display_order"] = next_display_order
                             # Create new item - serial_number will be automatically set to id by the event listener
-                            new_item = models.BOQItem(**item_data)
+                            new_item = models.BOQItem(**row)
                             db.add(new_item)
                             imported_count += 1
                             

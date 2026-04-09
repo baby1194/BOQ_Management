@@ -29,11 +29,8 @@ def add_manual_entries_flag(items: List[models.BOQItem], db: Session) -> List[di
             ).count()
             has_manual = manual_entry_count > 0
         
-        # Create a dict representation and add the has_manual_entries field
-        item_dict = {
-            **item.__dict__,
-            "has_manual_entries": has_manual
-        }
+        raw = {k: v for k, v in item.__dict__.items() if k != "_sa_instance_state"}
+        item_dict = {**raw, "has_manual_entries": has_manual}
         items_with_flag.append(item_dict)
     
     return items_with_flag
@@ -110,8 +107,16 @@ async def search_boq_items(
         # Get total count
         total_count = query.count()
         
-        # Apply pagination
-        items = query.offset(skip).limit(limit).all()
+        # Apply pagination (stable BOQ display order)
+        items = (
+            query.order_by(
+                models.BOQItem.display_order.asc(),
+                models.BOQItem.id.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         
         # Add has_manual_entries flag to items
         items_with_flag = add_manual_entries_flag(items, db)
@@ -140,9 +145,17 @@ async def get_items_by_subchapter(
 ):
     """Get BOQ items by sub-chapter"""
     try:
-        items = db.query(models.BOQItem).filter(
-            models.BOQItem.subsection == sub_chapter
-        ).offset(skip).limit(limit).all()
+        items = (
+            db.query(models.BOQItem)
+            .filter(models.BOQItem.subsection == sub_chapter)
+            .order_by(
+                models.BOQItem.display_order.asc(),
+                models.BOQItem.id.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         
         # Add has_manual_entries flag to items
         items_with_flag = add_manual_entries_flag(items, db)
@@ -221,8 +234,16 @@ async def filter_boq_items(
         if max_quantity is not None:
             query = query.filter(models.BOQItem.original_contract_quantity <= max_quantity)
         
-        # Apply pagination
-        items = query.offset(skip).limit(limit).all()
+        # Apply pagination (stable BOQ display order)
+        items = (
+            query.order_by(
+                models.BOQItem.display_order.asc(),
+                models.BOQItem.id.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         
         # Add has_manual_entries flag to items
         items_with_flag = add_manual_entries_flag(items, db)

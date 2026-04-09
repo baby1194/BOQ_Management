@@ -22,6 +22,7 @@ import {
 import { formatCurrency, formatNumber } from "../utils/format";
 import BOQExportModal from "../components/BOQExportModal";
 import FilterDropdown from "../components/FilterDropdown";
+import { GripVertical } from "lucide-react";
 
 /**
  * Format date as mm/yyyy
@@ -41,6 +42,32 @@ const formatDateToMonth = (dateString: string): string => {
   const year = date.getFullYear();
   return `${year}-${month}`;
 };
+
+function sortBoqItemsByDisplayOrder(items: BOQItem[]): BOQItem[] {
+  return [...items].sort((a, b) => {
+    const ao = a.display_order ?? a.id;
+    const bo = b.display_order ?? b.id;
+    if (ao !== bo) return ao - bo;
+    return a.id - b.id;
+  });
+}
+
+/** Keep global order for rows not in the current (filtered) view; reorder visible rows to V_new. */
+function mergeVisibleReorderIntoGlobal(
+  globalOrderIds: number[],
+  visibleIds: number[],
+  V_new: number[],
+): number[] {
+  const visibleSet = new Set(visibleIds);
+  const firstVis = globalOrderIds.findIndex((id) => visibleSet.has(id));
+  if (firstVis === -1) return globalOrderIds;
+  const stripped = globalOrderIds.filter((id) => !visibleSet.has(id));
+  let insertPos = 0;
+  for (let i = 0; i < firstVis; i++) {
+    if (!visibleSet.has(globalOrderIds[i])) insertPos++;
+  }
+  return [...stripped.slice(0, insertPos), ...V_new, ...stripped.slice(insertPos)];
+}
 
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
@@ -67,6 +94,11 @@ const BOQItems: React.FC = () => {
     null,
   );
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [boqDragRowId, setBoqDragRowId] = useState<number | null>(null);
+  const [boqDropHighlightId, setBoqDropHighlightId] = useState<number | null>(
+    null,
+  );
+  const [boqReorderSaving, setBoqReorderSaving] = useState(false);
   /** Selected row in BOQ main table – stays highlighted after click (like Concentration Sheets sidebar). Persisted so it survives navigation. */
   const [selectedBoqRowId, setSelectedBoqRowId] = useState<number | null>(
     () => {
@@ -928,24 +960,22 @@ const BOQItems: React.FC = () => {
     });
   };
 
+  const itemsSortedByDisplayOrder = useMemo(
+    () => sortBoqItemsByDisplayOrder(allItems),
+    [allItems],
+  );
+
   // Get filtered items
   const filteredItems = useMemo(() => {
-    // console.log("Applying filters:", {
-    //   filters,
-    //   allItemsCount: allItems.length,
-    //   boqItemUpdatesCount: boqItemUpdates.length,
-    //   contractUpdatesCount: contractUpdates.length,
-    // });
-
-    const filtered = applyFilters(allItems);
-
-    // console.log("Filter results:", {
-    //   originalCount: allItems.length,
-    //   filteredCount: filtered.length,
-    // });
-
+    const filtered = applyFilters(itemsSortedByDisplayOrder);
     return filtered;
-  }, [allItems, filters, dropdownFilters, boqItemUpdates, contractUpdates]);
+  }, [
+    itemsSortedByDisplayOrder,
+    filters,
+    dropdownFilters,
+    boqItemUpdates,
+    contractUpdates,
+  ]);
 
   // Count active filters
   const activeFiltersCount = useMemo(() => {
@@ -1218,6 +1248,88 @@ const BOQItems: React.FC = () => {
       setError("Failed to delete BOQ item. Please try again.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleBoqDragStart = (e: React.DragEvent, itemId: number) => {
+    e.stopPropagation();
+    setBoqDragRowId(itemId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(itemId));
+  };
+
+  const handleBoqDragEnd = () => {
+    setBoqDragRowId(null);
+    setBoqDropHighlightId(null);
+  };
+
+  const handleBoqRowDragOver = (e: React.DragEvent, item: BOQItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    setBoqDropHighlightId(item.id);
+  };
+
+  const handleBoqRowDrop = async (e: React.DragEvent, targetItem: BOQItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const raw = e.dataTransfer.getData("text/plain");
+    const dragId = parseInt(raw, 10);
+    if (Number.isNaN(dragId)) {
+      handleBoqDragEnd();
+      return;
+    }
+
+    const visibleIds = items.map((i) => i.id);
+    if (!visibleIds.includes(dragId)) {
+      handleBoqDragEnd();
+      return;
+    }
+
+    const rect = (e.currentTarget as HTMLTableRowElement).getBoundingClientRect();
+    const placeAfter = e.clientY >= rect.top + rect.height / 2;
+
+    let V_new = visibleIds.filter((id) => id !== dragId);
+    const tIdx = V_new.indexOf(targetItem.id);
+    if (tIdx === -1) {
+      handleBoqDragEnd();
+      return;
+    }
+    const insertIdx = placeAfter ? tIdx + 1 : tIdx;
+    V_new.splice(insertIdx, 0, dragId);
+
+    if (V_new.every((id, i) => id === visibleIds[i])) {
+      handleBoqDragEnd();
+      return;
+    }
+
+    const globalOrderIds = sortBoqItemsByDisplayOrder(allItems).map((i) => i.id);
+    const newGlobal = mergeVisibleReorderIntoGlobal(
+      globalOrderIds,
+      visibleIds,
+      V_new,
+    );
+
+    try {
+      setBoqReorderSaving(true);
+      await boqApi.reorder(newGlobal);
+      setAllItems((prev) => {
+        const map = new Map(prev.map((i) => [i.id, i]));
+        const next: BOQItem[] = [];
+        for (let idx = 0; idx < newGlobal.length; idx++) {
+          const id = newGlobal[idx];
+          const it = map.get(id);
+          if (it) next.push({ ...it, display_order: idx });
+        }
+        return next.length === newGlobal.length ? next : prev;
+      });
+      toast.success(t("boq.reorderSaved"));
+    } catch (err) {
+      console.error(err);
+      toast.error(t("boq.reorderFailed"));
+    } finally {
+      setBoqReorderSaving(false);
+      handleBoqDragEnd();
     }
   };
 
@@ -2917,6 +3029,12 @@ const BOQItems: React.FC = () => {
             <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm border-t-2">
               {/* Column Headers Row */}
               <tr className="border-b border-gray-300 bg-gray-50">
+                <th
+                  className="px-1 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-10 min-w-[2.5rem]"
+                  title={t("boq.dragToReorder")}
+                >
+                  {t("boq.move")}
+                </th>
                 {columnVisibility.serial_number && (
                   <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
                     {t("boq.serialNumber")}
@@ -3141,6 +3259,10 @@ const BOQItems: React.FC = () => {
 
               {/* Filter Inputs Row */}
               <tr className="border-b border-gray-300 bg-gray-100">
+                <th
+                  className="px-2 py-2 border-r border-gray-300 w-10 min-w-[2.5rem] bg-gray-100"
+                  aria-hidden
+                />
                 {columnVisibility.serial_number && (
                   <th className="px-2 py-2 border-r border-gray-300">
                     <input
@@ -3740,14 +3862,39 @@ const BOQItems: React.FC = () => {
                   <tr
                     key={item.id}
                     onClick={() => setSelectedBoqRowId(item.id)}
+                    onDragOver={(ev) => handleBoqRowDragOver(ev, item)}
+                    onDrop={(ev) => handleBoqRowDrop(ev, item)}
                     className={`table-row-hover border-b border-gray-300 cursor-pointer ${
                       isSelected
                         ? "!bg-blue-200 !border-l-4 !border-l-blue-600"
                         : index % 2 === 0
                           ? "bg-white"
                           : "bg-gray-50"
-                    }`}
+                    } ${
+                      boqDragRowId != null &&
+                      boqDropHighlightId === item.id &&
+                      boqDragRowId !== item.id
+                        ? "ring-2 ring-blue-400 ring-inset"
+                        : ""
+                    } ${boqDragRowId === item.id ? "opacity-60" : ""}`}
                   >
+                    <td
+                      className="px-1 py-2 border-r border-gray-300 align-middle"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        draggable={!isEditing && !boqReorderSaving}
+                        onDragStart={(ev) => handleBoqDragStart(ev, item.id)}
+                        onDragEnd={handleBoqDragEnd}
+                        disabled={boqReorderSaving}
+                        className="p-1 rounded text-gray-500 hover:bg-gray-200 cursor-grab active:cursor-grabbing disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        title={t("boq.dragToReorder")}
+                        aria-label={t("boq.dragToReorder")}
+                      >
+                        <GripVertical className="w-4 h-4" />
+                      </button>
+                    </td>
                     {columnVisibility.serial_number && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
@@ -4309,6 +4456,7 @@ const BOQItems: React.FC = () => {
             {/* Frozen Footer with Totals */}
             <tfoot className="sticky bottom-0 z-10 bg-gray-100 border-t-2 border-gray-300 shadow-sm">
               <tr>
+                <td className="px-1 py-4 bg-gray-50 border-r border-gray-300 w-10" />
                 {/* Serial Number - No total */}
                 {columnVisibility.serial_number && (
                   <td className="px-3 py-4 bg-gray-50"></td>
