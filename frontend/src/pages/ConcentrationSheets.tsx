@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -17,9 +17,42 @@ import {
   BOQItem,
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
-import { Search, X } from "lucide-react";
+import { Search, X, ExternalLink } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
+
+/** Draft state for inline row editing (mirrors EntryForm fields). */
+type ConcentrationEntryEditDraft = {
+  section_number: string;
+  description: string;
+  calculation_sheet_no: string;
+  drawing_no: string;
+  estimated_quantity: number;
+  quantity_submitted: number;
+  internal_quantity: number;
+  approved_by_project_manager: number;
+  notes: string;
+  supervisor_notes: string;
+  is_manual: boolean;
+};
+
+function concentrationEntryToEditDraft(
+  entry: ConcentrationEntry,
+): ConcentrationEntryEditDraft {
+  return {
+    section_number: entry.section_number || "",
+    description: entry.description || "",
+    calculation_sheet_no: entry.calculation_sheet_no || "",
+    drawing_no: entry.drawing_no || "",
+    estimated_quantity: entry.estimated_quantity ?? 0,
+    quantity_submitted: entry.quantity_submitted ?? 0,
+    internal_quantity: entry.internal_quantity ?? 0,
+    approved_by_project_manager: entry.approved_by_project_manager ?? 0,
+    notes: entry.notes || "",
+    supervisor_notes: entry.supervisor_notes || "",
+    is_manual: entry.is_manual,
+  };
+}
 
 const ConcentrationSheets: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -40,6 +73,9 @@ const ConcentrationSheets: React.FC = () => {
   }, [error]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ConcentrationEntry | null>(
+    null,
+  );
+  const [editDraft, setEditDraft] = useState<ConcentrationEntryEditDraft | null>(
     null,
   );
   const [showAddForm, setShowAddForm] = useState(false);
@@ -524,6 +560,7 @@ const ConcentrationSheets: React.FC = () => {
   const handleSheetSelect = (sheet: ConcentrationSheetWithBOQData) => {
     setSelectedSheet(sheet);
     setEditingEntry(null);
+    setEditDraft(null);
     setShowAddForm(false);
     loadProjectInfoFromSheet(sheet);
     fetchEntries(sheet.id);
@@ -576,6 +613,7 @@ const ConcentrationSheets: React.FC = () => {
         prev.map((entry) => (entry.id === entryId ? updatedEntry : entry)),
       );
       setEditingEntry(null);
+      setEditDraft(null);
       setError(null);
     } catch (err) {
       console.error("Error updating entry:", err);
@@ -592,6 +630,10 @@ const ConcentrationSheets: React.FC = () => {
       await concentrationApi.deleteEntry(entryId);
 
       setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+      if (editingEntry?.id === entryId) {
+        setEditingEntry(null);
+        setEditDraft(null);
+      }
       setError(null);
     } catch (err) {
       console.error("Error deleting entry:", err);
@@ -604,7 +646,79 @@ const ConcentrationSheets: React.FC = () => {
   // Start editing entry
   const startEditing = (entry: ConcentrationEntry) => {
     setEditingEntry(entry);
+    setEditDraft(concentrationEntryToEditDraft(entry));
     setShowAddForm(false);
+  };
+
+  const cancelInlineEdit = useCallback(() => {
+    setEditingEntry(null);
+    setEditDraft(null);
+  }, []);
+
+  const saveInlineEdit = async () => {
+    if (!editingEntry || !editDraft) return;
+    if (editDraft.is_manual) {
+      await updateEntry(editingEntry.id, {
+        section_number: editDraft.section_number,
+        description: editDraft.description,
+        calculation_sheet_no: editDraft.calculation_sheet_no,
+        drawing_no: editDraft.drawing_no,
+        estimated_quantity: editDraft.estimated_quantity,
+        quantity_submitted: editDraft.quantity_submitted,
+        internal_quantity: editDraft.internal_quantity,
+        approved_by_project_manager: editDraft.approved_by_project_manager,
+        notes: editDraft.notes,
+        supervisor_notes: editDraft.supervisor_notes,
+        is_manual: true,
+      });
+    } else {
+      await updateEntry(editingEntry.id, {
+        internal_quantity: editDraft.internal_quantity,
+        approved_by_project_manager: editDraft.approved_by_project_manager,
+        notes: editDraft.notes,
+        supervisor_notes: editDraft.supervisor_notes,
+      });
+    }
+  };
+
+  const saveInlineEditRef = useRef(saveInlineEdit);
+  saveInlineEditRef.current = saveInlineEdit;
+
+  useEffect(() => {
+    if (!editingEntry) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (saving) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelInlineEdit();
+        return;
+      }
+      if (e.key !== "Enter") return;
+
+      const target = e.target as HTMLElement;
+      if (target.tagName === "TEXTAREA") {
+        if (!e.ctrlKey && !e.metaKey) return;
+      }
+
+      e.preventDefault();
+      void saveInlineEditRef.current();
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [editingEntry, cancelInlineEdit, saving]);
+
+  const handleRowDoubleClick = (
+    entry: ConcentrationEntry,
+    e: React.MouseEvent<HTMLTableRowElement>,
+  ) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select")) return;
+    if (saving || populateSubmitting) return;
+    if (editingEntry?.id === entry.id) return;
+    startEditing(entry);
   };
 
   const openPopulateModal = async (entry: ConcentrationEntry) => {
@@ -645,12 +759,6 @@ const ConcentrationSheets: React.FC = () => {
     } finally {
       setPopulateSubmitting(false);
     }
-  };
-
-  // Cancel editing
-  const cancelEditing = () => {
-    setEditingEntry(null);
-    setShowAddForm(false);
   };
 
   // Filter sheets based on section number
@@ -1198,7 +1306,11 @@ const ConcentrationSheets: React.FC = () => {
                       {t("concentration.concentrationEntries")}
                     </h3>
                     <button
-                      onClick={() => setShowAddForm(true)}
+                      onClick={() => {
+                        setEditingEntry(null);
+                        setEditDraft(null);
+                        setShowAddForm(true);
+                      }}
                       disabled={saving}
                       className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     >
@@ -1206,24 +1318,18 @@ const ConcentrationSheets: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Add/Edit Form */}
-                  {(showAddForm || editingEntry) && (
+                  {/* Add new entry form (edit is inline in the table) */}
+                  {showAddForm && (
                     <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
                       <h4 className="text-md font-medium text-gray-900 mb-4">
-                        {editingEntry
-                          ? t("concentration.editEntry")
-                          : t("auth.addNewEntry")}
+                        {t("auth.addNewEntry")}
                       </h4>
                       <EntryForm
-                        key={editingEntry?.id ?? (showAddForm ? "add" : "none")}
-                        entry={editingEntry}
+                        key="add-entry"
+                        entry={null}
                         boqItem={selectedSheet.boq_item}
-                        onSave={
-                          editingEntry
-                            ? (data) => updateEntry(editingEntry.id, data)
-                            : createEntry
-                        }
-                        onCancel={cancelEditing}
+                        onSave={createEntry}
+                        onCancel={() => setShowAddForm(false)}
                         saving={saving}
                       />
                     </div>
@@ -1287,115 +1393,388 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                               </tr>
                             ) : (
-                              entries.map((entry) => (
-                                <tr key={entry.id} className="table-row-hover">
-                                  <td className="px-3 py-4 text-sm text-gray-900 max-w-xs">
-                                    <div
-                                      className="truncate"
-                                      title={entry.description || ""}
-                                    >
-                                      {entry.description || "-"}
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {entry.calculation_sheet_no &&
-                                    entry.drawing_no ? (
-                                      <button
-                                        onClick={() =>
-                                          handleOpenCalculationSheet(
-                                            entry.calculation_sheet_no!,
-                                            entry.drawing_no!,
-                                          )
-                                        }
-                                        className="text-blue-600 hover:text-blue-800 hover:underline"
-                                        title="Open calculation sheet file"
-                                      >
-                                        {entry.calculation_sheet_no}
-                                      </button>
-                                    ) : (
-                                      entry.calculation_sheet_no || "-"
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {entry.drawing_no || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {formatNumber(entry.estimated_quantity)}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {formatNumber(entry.quantity_submitted)}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {formatNumber(entry.internal_quantity)}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {formatNumber(
-                                      entry.approved_by_project_manager,
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-4 text-sm text-gray-500 max-w-xs">
-                                    <div
-                                      className="truncate"
-                                      title={entry.notes || ""}
-                                    >
-                                      {entry.notes || "-"}
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-4 text-sm text-gray-500 max-w-xs">
-                                    <div
-                                      className="truncate"
-                                      title={entry.supervisor_notes || ""}
-                                    >
-                                      {entry.supervisor_notes || "-"}
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {entry.is_manual ? (
-                                      <div
-                                        className={`flex flex-wrap gap-2 ${
-                                          isRTL ? "flex-row-reverse" : ""
-                                        }`}
-                                      >
+                              entries.map((entry) => {
+                                const isEditingRow =
+                                  editingEntry !== null &&
+                                  editDraft !== null &&
+                                  editingEntry.id === entry.id;
+                                const manualEditable =
+                                  isEditingRow && editDraft.is_manual;
+
+                                return (
+                                  <tr
+                                    key={entry.id}
+                                    onDoubleClick={(e) =>
+                                      handleRowDoubleClick(entry, e)
+                                    }
+                                    title={t("concentration.doubleClickToEdit")}
+                                    className={`table-row-hover ${
+                                      isEditingRow ? "bg-blue-50/80" : ""
+                                    }`}
+                                  >
+                                    <td className="px-3 py-2 text-sm text-gray-900 max-w-[14rem] align-top">
+                                      {manualEditable ? (
+                                        <input
+                                          type="text"
+                                          value={editDraft.description}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    description: e.target.value,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        <div
+                                          className="truncate py-1"
+                                          title={entry.description || ""}
+                                        >
+                                          {entry.description || "-"}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top min-w-[7rem]">
+                                      {manualEditable ? (
+                                        <div className="flex items-start gap-1">
+                                          <input
+                                            type="text"
+                                            value={
+                                              editDraft.calculation_sheet_no
+                                            }
+                                            onChange={(e) =>
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      calculation_sheet_no:
+                                                        e.target.value,
+                                                    }
+                                                  : null,
+                                              )
+                                            }
+                                            className="min-w-0 flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                          {editDraft.calculation_sheet_no &&
+                                          editDraft.drawing_no ? (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleOpenCalculationSheet(
+                                                  editDraft.calculation_sheet_no,
+                                                  editDraft.drawing_no,
+                                                )
+                                              }
+                                              onDoubleClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                              className="shrink-0 p-1 text-blue-600 hover:text-blue-800 rounded"
+                                              title="Open calculation sheet file"
+                                              aria-label="Open calculation sheet file"
+                                            >
+                                              <ExternalLink className="h-4 w-4" />
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      ) : entry.calculation_sheet_no &&
+                                        entry.drawing_no ? (
                                         <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleOpenCalculationSheet(
+                                              entry.calculation_sheet_no!,
+                                              entry.drawing_no!,
+                                            )
+                                          }
+                                          onDoubleClick={(e) =>
+                                            e.stopPropagation()
+                                          }
+                                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                                          title="Open calculation sheet file"
+                                        >
+                                          {entry.calculation_sheet_no}
+                                        </button>
+                                      ) : (
+                                        entry.calculation_sheet_no || "-"
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {manualEditable ? (
+                                        <input
+                                          type="text"
+                                          value={editDraft.drawing_no}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    drawing_no: e.target.value,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          className="w-full min-w-[5rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        entry.drawing_no || "-"
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {manualEditable ? (
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={editDraft.estimated_quantity}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    estimated_quantity:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        formatNumber(entry.estimated_quantity)
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {manualEditable ? (
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={editDraft.quantity_submitted}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    quantity_submitted:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        formatNumber(entry.quantity_submitted)
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {isEditingRow ? (
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={editDraft.internal_quantity}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    internal_quantity:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        formatNumber(entry.internal_quantity)
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {isEditingRow ? (
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={
+                                            editDraft.approved_by_project_manager
+                                          }
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    approved_by_project_manager:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        formatNumber(
+                                          entry.approved_by_project_manager,
+                                        )
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
+                                      {isEditingRow ? (
+                                        <textarea
+                                          value={editDraft.notes}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    notes: e.target.value,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          rows={2}
+                                          className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        <div
+                                          className="truncate py-1"
+                                          title={entry.notes || ""}
+                                        >
+                                          {entry.notes || "-"}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
+                                      {isEditingRow ? (
+                                        <textarea
+                                          value={editDraft.supervisor_notes}
+                                          onChange={(e) =>
+                                            setEditDraft((d) =>
+                                              d
+                                                ? {
+                                                    ...d,
+                                                    supervisor_notes:
+                                                      e.target.value,
+                                                  }
+                                                : null,
+                                            )
+                                          }
+                                          rows={2}
+                                          className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                                          disabled={saving}
+                                        />
+                                      ) : (
+                                        <div
+                                          className="truncate py-1"
+                                          title={entry.supervisor_notes || ""}
+                                        >
+                                          {entry.supervisor_notes || "-"}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {isEditingRow ? (
+                                        <div
+                                          className={`flex flex-wrap gap-2 ${
+                                            isRTL ? "flex-row-reverse" : ""
+                                          }`}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => saveInlineEdit()}
+                                            disabled={saving}
+                                            className="text-blue-700 font-medium hover:text-blue-900 disabled:opacity-50"
+                                          >
+                                            {saving
+                                              ? t("boq.saving")
+                                              : t("common.update")}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={cancelInlineEdit}
+                                            disabled={saving}
+                                            className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                          >
+                                            {t("common.cancel")}
+                                          </button>
+                                        </div>
+                                      ) : entry.is_manual ? (
+                                        <div
+                                          className={`flex flex-wrap gap-2 ${
+                                            isRTL ? "flex-row-reverse" : ""
+                                          }`}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              startEditing(entry)
+                                            }
+                                            disabled={
+                                              saving || populateSubmitting
+                                            }
+                                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                          >
+                                            {t("common.edit")}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              openPopulateModal(entry)
+                                            }
+                                            disabled={
+                                              saving ||
+                                              populateSubmitting ||
+                                              populateListLoading ||
+                                              populateEntrySource !== null
+                                            }
+                                            className="text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
+                                          >
+                                            {t("concentration.populate")}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              deleteEntry(entry.id)
+                                            }
+                                            disabled={
+                                              saving || populateSubmitting
+                                            }
+                                            className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                          >
+                                            {t("common.delete")}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
                                           onClick={() => startEditing(entry)}
-                                          disabled={saving || populateSubmitting}
+                                          disabled={saving}
                                           className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                         >
                                           {t("common.edit")}
                                         </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => openPopulateModal(entry)}
-                                          disabled={
-                                            saving ||
-                                            populateSubmitting ||
-                                            populateListLoading ||
-                                            populateEntrySource !== null
-                                          }
-                                          className="text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
-                                        >
-                                          {t("concentration.populate")}
-                                        </button>
-                                        <button
-                                          onClick={() => deleteEntry(entry.id)}
-                                          disabled={saving || populateSubmitting}
-                                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                        >
-                                          {t("common.delete")}
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={() => startEditing(entry)}
-                                        disabled={saving}
-                                        className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                                      >
-                                        {t("common.edit")}
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })
                             )}
 
                             {/* Totals Row */}

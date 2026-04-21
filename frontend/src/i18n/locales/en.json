@@ -318,6 +318,7 @@
     "actions": "Actions",
     "noEntriesFound": "No entries found",
     "addEntriesToSheet": "Add entries to this concentration sheet",
+    "doubleClickToEdit": "Double-click row to edit",
     "totals": "TOTALS",
     "editNotes": "Edit Notes",
     "populate": "Populate",
