@@ -599,6 +599,7 @@
     "internalTotal": "Internal Total",
     "totalApproved": "Total Approved",
     "approvedSignedTotal": "Approved Signed Total",
+    "totalPartiallySubmitted": "Total Partially Submitted",
     "totalUpdatedContractSum": "Total Updated Contract Sum",
     "actions": "Actions",
     "edit": "Edit",

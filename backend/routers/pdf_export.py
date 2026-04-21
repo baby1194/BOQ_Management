@@ -466,6 +466,8 @@ async def export_structures_summary(
                 filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
             if request.include_approved_signed_total:
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_partial_submitted_total:
+                filtered_summary["partial_submitted_total"] = summary.get("partial_submitted_total") if isinstance(summary, dict) else summary.partial_submitted_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
@@ -566,6 +568,8 @@ async def export_systems_summary(
                 filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
             if request.include_approved_signed_total:
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_partial_submitted_total:
+                filtered_summary["partial_submitted_total"] = summary.get("partial_submitted_total") if isinstance(summary, dict) else summary.partial_submitted_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
@@ -659,6 +663,8 @@ async def export_subsections_summary(
                 filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
             if request.include_approved_signed_total:
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_partial_submitted_total:
+                filtered_summary["partial_submitted_total"] = summary.get("partial_submitted_total") if isinstance(summary, dict) else summary.partial_submitted_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
@@ -749,6 +755,8 @@ async def export_structures_summary_excel(
                 filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
             if request.include_approved_signed_total:
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_partial_submitted_total:
+                filtered_summary["partial_submitted_total"] = summary.get("partial_submitted_total") if isinstance(summary, dict) else summary.partial_submitted_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
@@ -839,6 +847,8 @@ async def export_systems_summary_excel(
                 filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
             if request.include_approved_signed_total:
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_partial_submitted_total:
+                filtered_summary["partial_submitted_total"] = summary.get("partial_submitted_total") if isinstance(summary, dict) else summary.partial_submitted_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             
@@ -929,6 +939,8 @@ async def export_subsections_summary_excel(
                 filtered_summary["total_approved"] = summary.get("total_approved") if isinstance(summary, dict) else summary.total_approved
             if request.include_approved_signed_total:
                 filtered_summary["approved_signed_total"] = summary.get("approved_signed_total") if isinstance(summary, dict) else summary.approved_signed_total
+            if request.include_partial_submitted_total:
+                filtered_summary["partial_submitted_total"] = summary.get("partial_submitted_total") if isinstance(summary, dict) else summary.partial_submitted_total
             if request.include_item_count:
                 filtered_summary["item_count"] = summary.get("item_count") if isinstance(summary, dict) else summary.item_count
             

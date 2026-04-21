@@ -44,6 +44,7 @@ const SummaryOfSubsections: React.FC = () => {
       internal_total: true,
       total_approved_by_project_manager: true,
       approved_signed_total: true,
+      partial_submitted_total: true,
     };
 
     const saved = localStorage.getItem("subsections-column-visibility");
@@ -89,6 +90,7 @@ const SummaryOfSubsections: React.FC = () => {
       internal_total: true,
       total_approved_by_project_manager: true,
       approved_signed_total: true,
+      partial_submitted_total: true,
     };
 
     // Add contract update columns to reset
@@ -218,6 +220,9 @@ const SummaryOfSubsections: React.FC = () => {
           filteredSummary.total_approved = summary.total_approved;
         if (request.include_approved_signed_total)
           filteredSummary.approved_signed_total = summary.approved_signed_total;
+        if (request.include_partial_submitted_total)
+          filteredSummary.partial_submitted_total =
+            summary.partial_submitted_total;
         if (request.include_item_count)
           filteredSummary.item_count = summary.item_count;
         if (request.include_contract_updates)
@@ -301,6 +306,8 @@ const SummaryOfSubsections: React.FC = () => {
         totalApproved: acc.totalApproved + summary.total_approved,
         approvedSignedTotal:
           acc.approvedSignedTotal + summary.approved_signed_total,
+        partialSubmittedTotal:
+          acc.partialSubmittedTotal + summary.partial_submitted_total,
       };
 
       // Add contract update sums
@@ -324,6 +331,7 @@ const SummaryOfSubsections: React.FC = () => {
       internalTotal: 0,
       totalApproved: 0,
       approvedSignedTotal: 0,
+      partialSubmittedTotal: 0,
     }
   );
 
@@ -505,6 +513,13 @@ const SummaryOfSubsections: React.FC = () => {
                     {t("summary.approvedSignedTotal")}
                   </th>
                 )}
+                {columnVisibility.partial_submitted_total && (
+                  <th
+                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider`}
+                  >
+                    {t("summary.totalPartiallySubmitted")}
+                  </th>
+                )}
                 <th
                   className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider`}
                 >
@@ -632,6 +647,11 @@ const SummaryOfSubsections: React.FC = () => {
                       {formatCurrency(summary.approved_signed_total)}
                     </td>
                   )}
+                  {columnVisibility.partial_submitted_total && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(summary.partial_submitted_total)}
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {summary.item_count}
                   </td>
@@ -699,6 +719,11 @@ const SummaryOfSubsections: React.FC = () => {
                 {columnVisibility.approved_signed_total && (
                   <td className="px-6 py-4 text-sm font-bold text-gray-900">
                     {formatCurrency(grandTotals.approvedSignedTotal)}
+                  </td>
+                )}
+                {columnVisibility.partial_submitted_total && (
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                    {formatCurrency(grandTotals.partialSubmittedTotal)}
                   </td>
                 )}
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">

@@ -56,6 +56,7 @@ async def get_structure_summaries(db: Session = Depends(get_db)):
                     "internal_total": 0.0,
                     "total_approved": 0.0,
                     "approved_signed_total": 0.0,
+                    "partial_submitted_total": 0.0,
                     "item_count": 0
                 }
             
@@ -66,6 +67,9 @@ async def get_structure_summaries(db: Session = Depends(get_db)):
             totals["internal_total"] += float(item.internal_total or 0)
             totals["total_approved"] += float(item.total_approved_by_project_manager or 0)
             totals["approved_signed_total"] += float(item.approved_signed_total or 0)
+            q_sub = float(item.quantity_submitted or 0)
+            q_app = float(item.approved_signed_quantity or 0)
+            totals["partial_submitted_total"] += (q_sub - q_app) * float(item.price or 0)
             totals["item_count"] += 1
             
             # Add contract update sums for this item

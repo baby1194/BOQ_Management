@@ -1409,6 +1409,7 @@ class PDFService:
                     'internal_total': 'סה"כ פנימי',
                     'total_approved': 'סה"כ מאושר',
                     'approved_signed_total': 'סה"כ מאושר חתום',
+                    'partial_submitted_total': 'סה"כ מוגש חלקי',
                     'item_count': 'מספר פריטים'
                 }
                 grand_total_text = "סה\"כ כללי"
@@ -1423,6 +1424,7 @@ class PDFService:
                     'internal_total': 'Internal Total',
                     'total_approved': 'Total Approved',
                     'approved_signed_total': 'Approved Signed Total',
+                    'partial_submitted_total': 'Total Partially Submitted',
                     'item_count': 'Item Count'
                 }
                 grand_total_text = "GRAND TOTAL"
@@ -1608,6 +1610,7 @@ class PDFService:
                     'internal_total': 'סה"כ פנימי',
                     'total_approved': 'סה"כ מאושר',
                     'approved_signed_total': 'סה"כ מאושר חתום',
+                    'partial_submitted_total': 'סה"כ מוגש חלקי',
                     'item_count': 'מספר פריטים'
                 }
                 grand_total_text = "סה\"כ כללי"
@@ -1622,6 +1625,7 @@ class PDFService:
                     'internal_total': 'Internal Total',
                     'total_approved': 'Total Approved',
                     'approved_signed_total': 'Approved Signed Total',
+                    'partial_submitted_total': 'Total Partially Submitted',
                     'item_count': 'Item Count'
                 }
                 grand_total_text = "GRAND TOTAL"
@@ -1807,6 +1811,7 @@ class PDFService:
                     'internal_total': 'סה"כ פנימי',
                     'total_approved': 'סה"כ מאושר',
                     'approved_signed_total': 'סה"כ מאושר חתום',
+                    'partial_submitted_total': 'סה"כ מוגש חלקי',
                     'item_count': 'מספר פריטים'
                 }
                 grand_total_text = "סה\"כ כללי"
@@ -1821,6 +1826,7 @@ class PDFService:
                     'internal_total': 'Internal Total',
                     'total_approved': 'Total Approved',
                     'approved_signed_total': 'Approved Signed Total',
+                    'partial_submitted_total': 'Total Partially Submitted',
                     'item_count': 'Item Count'
                 }
                 grand_total_text = "GRAND TOTAL"

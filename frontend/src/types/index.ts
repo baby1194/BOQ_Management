@@ -314,6 +314,7 @@ export interface SubsectionSummary {
   internal_total: number;
   total_approved: number;
   approved_signed_total: number;
+  partial_submitted_total: number;
   item_count: number;
 }
 
@@ -327,6 +328,7 @@ export interface SystemSummary {
   internal_total: number;
   total_approved: number;
   approved_signed_total: number;
+  partial_submitted_total: number;
   item_count: number;
 }
 
@@ -340,6 +342,7 @@ export interface StructureSummary {
   internal_total: number;
   total_approved: number;
   approved_signed_total: number;
+  partial_submitted_total: number;
   item_count: number;
 }
 
@@ -354,6 +357,7 @@ export interface SummaryExportRequest {
   include_internal_total: boolean;
   include_total_approved: boolean;
   include_approved_signed_total: boolean;
+  include_partial_submitted_total: boolean;
   include_item_count: boolean;
   include_contract_updates: boolean;
 }

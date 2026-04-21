@@ -801,7 +801,7 @@ class ExcelService:
             # Format only price and sum/total columns (not quantity columns)
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
-                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
+                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and not str(col).endswith('_quantity'):
                         df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
             
             # Define columns that should have grand totals (same as BOQ items export)
@@ -811,7 +811,8 @@ class ExcelService:
                 'total_submitted',
                 'internal_total',
                 'total_approved',
-                'approved_signed_total'
+                'approved_signed_total',
+                'partial_submitted_total',
             }
             # Add updated contract sum columns
             for col in df.columns:
@@ -934,7 +935,7 @@ class ExcelService:
             # Format only price and sum/total columns (not quantity columns)
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
-                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
+                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and not str(col).endswith('_quantity'):
                         df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
             
             # Define columns that should have grand totals (same as BOQ items export)
@@ -944,7 +945,8 @@ class ExcelService:
                 'total_submitted',
                 'internal_total',
                 'total_approved',
-                'approved_signed_total'
+                'approved_signed_total',
+                'partial_submitted_total',
             }
             # Add updated contract sum columns
             for col in df.columns:
@@ -1067,7 +1069,7 @@ class ExcelService:
             # Format only price and sum/total columns (not quantity columns)
             for col in df.columns:
                 if col in df.columns and df[col].dtype in ['float64', 'int64']:
-                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and 'quantity' not in col.lower():
+                    if ('total' in col.lower() or 'estimate' in col.lower() or 'submitted' in col.lower() or 'approved' in col.lower()) and not str(col).endswith('_quantity'):
                         df[col] = df[col].apply(lambda x: f"₪{x:,.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "₪0.00")
             
             # Define columns that should have grand totals (same as BOQ items export)
@@ -1077,7 +1079,8 @@ class ExcelService:
                 'total_submitted',
                 'internal_total',
                 'total_approved',
-                'approved_signed_total'
+                'approved_signed_total',
+                'partial_submitted_total',
             }
             # Add updated contract sum columns
             for col in df.columns:

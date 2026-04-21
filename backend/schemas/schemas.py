@@ -470,6 +470,7 @@ class SubsectionSummary(BaseModel):
     internal_total: float
     total_approved: float
     approved_signed_total: float
+    partial_submitted_total: float
     item_count: int
 
 class SystemSummary(BaseModel):
@@ -482,6 +483,7 @@ class SystemSummary(BaseModel):
     internal_total: float
     total_approved: float
     approved_signed_total: float
+    partial_submitted_total: float
     item_count: int
 
 class StructureSummary(BaseModel):
@@ -494,6 +496,7 @@ class StructureSummary(BaseModel):
     internal_total: float
     total_approved: float
     approved_signed_total: float
+    partial_submitted_total: float
     item_count: int
 
 class SubsectionDescriptionUpdate(BaseModel):
@@ -516,6 +519,7 @@ class SummaryExportRequest(BaseModel):
     include_internal_total: bool = True
     include_total_approved: bool = True
     include_approved_signed_total: bool = True
+    include_partial_submitted_total: bool = True
     include_item_count: bool = True
     # Dynamic contract update columns
     include_contract_updates: bool = True  # Include all contract update columns

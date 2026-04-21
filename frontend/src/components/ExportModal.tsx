@@ -31,6 +31,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
         include_internal_total: true,
         include_total_approved: true,
         include_approved_signed_total: true,
+        include_partial_submitted_total: true,
         include_item_count: true,
         include_contract_updates: true,
       };
@@ -57,6 +58,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
       include_internal_total: true,
       include_total_approved: true,
       include_approved_signed_total: true,
+      include_partial_submitted_total: true,
       include_item_count: true,
       include_contract_updates: true,
     });
@@ -74,6 +76,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
       include_internal_total: false,
       include_total_approved: false,
       include_approved_signed_total: false,
+      include_partial_submitted_total: false,
       include_item_count: false,
       include_contract_updates: false,
     });
@@ -286,6 +289,19 @@ const ExportModal: React.FC<ExportModalProps> = ({
                 disabled={loading}
               />
               <span className="text-sm">Approved Signed Total</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_partial_submitted_total}
+                onChange={() =>
+                  handleCheckboxChange("include_partial_submitted_total")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">Total Partially Submitted</span>
             </label>
 
             <label className="flex items-center">

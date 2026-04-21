@@ -111,6 +111,7 @@ const formatColumnName = (key: string, t: (key: string) => string): string => {
     internal_total: t("boq.internalTotal"),
     total_approved_by_project_manager: t("boq.totalApproved"),
     approved_signed_total: t("boq.approvedSignedTotal"),
+    partial_submitted_total: t("summary.totalPartiallySubmitted"),
 
     // Contract update columns (dynamic)
     total_updated_contract_sum: t("boq.totalUpdatedContractSum"),

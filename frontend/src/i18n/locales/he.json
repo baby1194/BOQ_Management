@@ -600,6 +600,7 @@
     "internalTotal": "סה\"כ פנימי",
     "totalApproved": "סה\"כ מאושר",
     "approvedSignedTotal": "סה\"כ מאושר וחתום",
+    "totalPartiallySubmitted": "סה\"כ מוגש חלקי",
     "totalUpdatedContractSum": "סה\"כ סה״כ חוזה מעודכן",
     "actions": "פעולות",
     "edit": "ערוך",
