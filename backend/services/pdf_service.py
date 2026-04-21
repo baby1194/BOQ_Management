@@ -13,9 +13,7 @@ from datetime import datetime
 from models import models
 from bidi.algorithm import get_display
 import arabic_reshaper
-
-# Base directory for saving concentration sheet PDFs to item folders
-FATINA_BASE_DIR = Path("c:/Fatina")
+from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name, calculation_file_uri
 
 
 def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_no):
@@ -28,12 +26,6 @@ def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_n
     ).first()
     return sheet.file_name if sheet else None
 
-
-def sanitize_folder_name(folder_name: str) -> str:
-    """
-    Sanitize folder name to avoid invalid characters for Windows
-    """
-    return folder_name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
 
 logger = logging.getLogger(__name__)
 
@@ -729,16 +721,23 @@ class PDFService:
     def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en"):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
+            if db_session and boq_item and boq_item.section_number:
+                from routers.file_import import copy_calculation_sheets_to_item_folder
+
+                copy_calculation_sheets_to_item_folder(
+                    db_session, str(boq_item.section_number).strip()
+                )
+
             # Use section number in filename if available, otherwise use sheet ID
+            folder_name = None
             if boq_item and boq_item.section_number:
-                filename = f"{boq_item.section_number}.pdf"
+                folder_name = sanitize_folder_name(str(boq_item.section_number))
+                filename = f"{folder_name}.pdf"
             else:
                 filename = f"{sheet.id}.pdf"
-            
-            # Save to item folder under c:/Fatina/{section_number}/
-            if boq_item and boq_item.section_number:
-                # Sanitize section number for folder name
-                folder_name = sanitize_folder_name(str(boq_item.section_number))
+
+            # Save to item folder under C:/Fatina/{section_number}/
+            if folder_name is not None:
                 item_folder = FATINA_BASE_DIR / folder_name
                 # Create folder if it doesn't exist
                 item_folder.mkdir(parents=True, exist_ok=True)
@@ -1037,7 +1036,7 @@ class PDFService:
             if entries:
                 # Use the already defined translated_headers and header_indices from page size calculation
                 entries_data = [translated_headers]
-                # Style for Calculation Sheet No link (relative path, same directory)
+                # Style for Calculation Sheet No link (absolute file URI under C:/Fatina)
                 link_style = ParagraphStyle(
                     'CalcSheetLink', parent=styles['Normal'], fontSize=12, spaceAfter=0, spaceBefore=0
                 )
@@ -1057,15 +1056,18 @@ class PDFService:
                     ]
                     # Filter data based on selected columns
                     filtered_entry_data = [all_entry_data[i] for i in header_indices]
-                    # Add clickable link to Calculation Sheet No (relative path) when we have a matching file
-                    if calc_sheet_col >= 0 and db_session:
+                    # Add clickable link to Calculation Sheet No (file:///C:/Fatina/...) when we have a matching file
+                    if calc_sheet_col >= 0 and db_session and boq_item and boq_item.section_number:
                         file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
                         if file_name:
                             display_text = entry.calculation_sheet_no or ''
                             # Escape for XML in Paragraph
                             display_escaped = (display_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                                               .replace('"', '&quot;'))
-                            file_escaped = (file_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                            href_uri = calculation_file_uri(
+                                str(boq_item.section_number).strip(), file_name
+                            )
+                            file_escaped = (href_uri.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                                             .replace('"', '&quot;'))
                             link_markup = f'<a href="{file_escaped}" color="blue">{display_escaped}</a>'
                             filtered_entry_data[calc_sheet_col] = Paragraph(link_markup, link_style)

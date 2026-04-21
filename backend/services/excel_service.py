@@ -6,6 +6,8 @@ from datetime import datetime
 from models import models
 import os
 
+from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name, calculation_file_uri
+
 logger = logging.getLogger(__name__)
 
 # BOQ export: columns that must stay as text in Excel (not coerced to numeric).
@@ -67,26 +69,28 @@ def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_n
     return sheet.file_name if sheet else None
 
 
-def _add_calculation_sheet_hyperlinks(worksheet, entries, start_row_1based, col_index_0based, db_session, skip_totals_row=True):
-    """Add file hyperlinks to the Calculation Sheet No column. Uses relative path (filename only) so it works on any PC when the Excel and files are in the same directory.
-    
-    Note: 'entries' should contain only the data entries (without totals row).
-    'skip_totals_row' is ignored as it's no longer needed - we process all entries in the list.
-    """
+def _add_calculation_sheet_hyperlinks(
+    worksheet,
+    entries,
+    start_row_1based,
+    col_index_0based,
+    db_session,
+    section_number: str,
+    skip_totals_row=True,
+):
+    """Add file hyperlinks to Calculation Sheet No pointing at C:/Fatina/{section}/... on disk."""
     from openpyxl.styles import Font
     from openpyxl.styles.colors import BLUE
     link_font = Font(color=BLUE, underline="single")
-    
-    # Process all entries - the entries list doesn't include the totals row
+
     for i in range(len(entries)):
         entry = entries[i]
         file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
         if not file_name:
             continue
-        # Use relative path (filename only) so the link works on any PC when files are in the same directory
         row_1based = start_row_1based + 1 + i  # header at start_row_1based, first data at start_row_1based+1
         cell = worksheet.cell(row=row_1based, column=col_index_0based + 1)
-        cell.hyperlink = file_name
+        cell.hyperlink = calculation_file_uri(section_number, file_name)
         cell.font = link_font
 
 
@@ -354,17 +358,24 @@ class ExcelService:
     def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None, db_session=None):
         """Export a single concentration sheet to Excel with specific format: 3 tables.
         entry_columns: optional dict with include_* keys to filter which columns to include.
-        db_session: optional DB session to resolve Calculation Sheet No -> file link in same directory."""
+        db_session: optional DB session to resolve Calculation Sheet No -> file link under C:/Fatina."""
         try:
-            # Save to C:/Fatina/{section_number} directory
-            section_number = str(boq_item.section_number) if boq_item else str(sheet.id)
-            # Sanitize section number for use in file path (remove invalid characters)
-            safe_section_number = "".join(c for c in section_number if c.isalnum() or c in ('-', '_', '.'))
-            base_dir = Path("C:/Fatina") / safe_section_number
+            link_section = (
+                str(boq_item.section_number).strip()
+                if boq_item and boq_item.section_number
+                else None
+            )
+            if db_session and link_section:
+                from routers.file_import import copy_calculation_sheets_to_item_folder
+
+                copy_calculation_sheets_to_item_folder(db_session, link_section)
+
+            folder_key = link_section if link_section else str(sheet.id)
+            folder_name = sanitize_folder_name(folder_key)
+            base_dir = FATINA_BASE_DIR / folder_name
             base_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Use section number as filename (no timestamp, overwrite existing)
-            filename = f"{safe_section_number}.xlsx"
+
+            filename = f"{folder_name}.xlsx"
             filepath = base_dir / filename
             
             # Build entries column list from entry_columns (same logic as PDF)
@@ -471,16 +482,18 @@ class ExcelService:
                     entries_block_header_1based = current_row + 1
                     df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                     
-                    # Add hyperlinks to Calculation Sheet No column (relative path, same directory)
-                    if db_session and "Calculation Sheet No" in filtered_headers:
+                    # Add hyperlinks to Calculation Sheet No (absolute file URI under C:/Fatina)
+                    if db_session and link_section and "Calculation Sheet No" in filtered_headers:
                         calc_sheet_col_idx = filtered_headers.index("Calculation Sheet No")
                         workbook = writer.book
                         worksheet = workbook[sheet_name]
                         _add_calculation_sheet_hyperlinks(
-                            worksheet, entries,
+                            worksheet,
+                            entries,
                             start_row_1based=current_row + 1,
                             col_index_0based=calc_sheet_col_idx,
                             db_session=db_session,
+                            section_number=link_section,
                             skip_totals_row=True,
                         )
                 
@@ -566,7 +579,8 @@ class ExcelService:
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
             exported_paths = []
-            
+            from routers.file_import import copy_calculation_sheets_to_item_folder
+
             # Create individual Excel files for each concentration sheet
             for sheet in sheets:
                 # Get the associated BOQ item
@@ -576,7 +590,10 @@ class ExcelService:
                 
                 if not boq_item:
                     continue
-                
+
+                link_section = str(boq_item.section_number).strip()
+                copy_calculation_sheets_to_item_folder(db_session, link_section)
+
                 # Get all entries for this concentration sheet
                 entries = db_session.query(models.ConcentrationEntry).filter(
                     models.ConcentrationEntry.concentration_sheet_id == sheet.id
@@ -590,15 +607,11 @@ class ExcelService:
                         > 0
                     ]
 
-                # Save to C:/Fatina/{section_number} directory
-                section_number = str(boq_item.section_number)
-                # Sanitize section number for use in file path (remove invalid characters)
-                safe_section_number = "".join(c for c in section_number if c.isalnum() or c in ('-', '_', '.'))
-                base_dir = Path("C:/Fatina") / safe_section_number
+                folder_name = sanitize_folder_name(link_section)
+                base_dir = FATINA_BASE_DIR / folder_name
                 base_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Use section number as filename (no timestamp, overwrite existing)
-                filename = f"{safe_section_number}.xlsx"
+
+                filename = f"{folder_name}.xlsx"
                 filepath = base_dir / filename
                 
                 # Create Excel writer for this sheet
@@ -678,14 +691,16 @@ class ExcelService:
                         entries_block_header_1based = current_row + 1
                         df_entries.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=current_row)
                         
-                        # Add hyperlinks to Calculation Sheet No column (relative path, same directory)
+                        # Add hyperlinks to Calculation Sheet No (absolute file URI under C:/Fatina)
                         workbook = writer.book
                         worksheet = workbook[sheet_name]
                         _add_calculation_sheet_hyperlinks(
-                            worksheet, entries,
+                            worksheet,
+                            entries,
                             start_row_1based=current_row + 1,
                             col_index_0based=1,  # Calculation Sheet No is 2nd column
                             db_session=db_session,
+                            section_number=link_section,
                             skip_totals_row=True,
                         )
                     

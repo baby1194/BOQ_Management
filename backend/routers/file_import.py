@@ -15,6 +15,7 @@ from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
 from services.auth_service import get_current_user_from_cookie, verify_password
+from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name
 
 router = APIRouter(prefix="/file-import", tags=["file-import"])
 
@@ -27,15 +28,6 @@ class CreateConcentrationSheetsResponse(BaseModel):
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Base directory for creating folders
-FATINA_BASE_DIR = Path("C:/FATINA")
-
-def sanitize_folder_name(folder_name: str) -> str:
-    """
-    Sanitize folder name to avoid invalid characters for Windows
-    """
-    return folder_name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
 
 def save_calculation_sheet_to_item_folders(
     source_file_path: Path,

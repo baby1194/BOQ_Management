@@ -11,7 +11,7 @@ from models import models
 from schemas import schemas
 from services.pdf_service import PDFService
 from services.excel_service import ExcelService
-from routers.file_import import copy_calculation_sheets_to_item_folder
+from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,7 +76,7 @@ async def export_concentration_sheets(
             )
         
         # Generate individual PDF files for each concentration sheet
-        pdf_paths = []
+        export_records = []  # (pdf_path, section_number) — preserves order when sheets are skipped
         failed_sheets = []
         for sheet in sheets:
             # Get the associated BOQ item
@@ -97,9 +97,7 @@ async def export_concentration_sheets(
             # Generate individual PDF for this sheet with entry columns configuration and language
             try:
                 pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
-                pdf_paths.append(pdf_path)
-                # Copy related calculation sheets to the same destination folder
-                copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
+                export_records.append((pdf_path, str(boq_item.section_number).strip()))
             except Exception as e:
                 error_message = str(e)
                 if "destination file is in use" in error_message:
@@ -115,46 +113,42 @@ async def export_concentration_sheets(
             return schemas.PDFExportResponse(
                 success=False,
                 message=f"Export failed for the following sheets because the destination files are in use. Please close the files and try again: {failed_list}",
-                sheets_exported=len(pdf_paths)
+                sheets_exported=len(export_records)
             )
         
-        if not pdf_paths:
+        if not export_records:
             return schemas.PDFExportResponse(
                 success=False,
                 message="No concentration sheets were exported. All files may be in use.",
                 sheets_exported=0
             )
         
-        # Create a zip file containing all individual PDF files
+        # Zip layout: Fatina/{sanitized_section}/... — extract to C:/ so paths align with file:/// links
         import zipfile
-        import tempfile
-        from pathlib import Path
         
-        # Create a temporary zip file
         zip_filename = f"all_concentration_sheets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         zip_path = Path("exports") / zip_filename
-        zip_path.parent.mkdir(exist_ok=True)
+        zip_path.parent.mkdir(parents=True, exist_ok=True)
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for i, pdf_path in enumerate(pdf_paths):
-                sheet = sheets[i]
-                boq_item = db.query(models.BOQItem).filter(
-                    models.BOQItem.id == sheet.boq_item_id
-                ).first()
-                
-                if boq_item:
-                    # Create filename with section number
-                    pdf_filename = f"{boq_item.section_number}.pdf"
-                    # Add PDF to zip with section number in filename
-                    zipf.write(pdf_path, pdf_filename)
+            for pdf_path, section_number in export_records:
+                folder = sanitize_folder_name(section_number)
+                item_dir = FATINA_BASE_DIR / folder
+                if item_dir.is_dir():
+                    for f in sorted(item_dir.iterdir(), key=lambda p: p.name.lower()):
+                        if f.is_file():
+                            arcname = Path("Fatina") / folder / f.name
+                            zipf.write(f, str(arcname).replace("\\", "/"))
+                else:
+                    arcname = Path("Fatina") / folder / Path(pdf_path).name
+                    zipf.write(pdf_path, str(arcname).replace("\\", "/"))
         
-        # Return the filename for download using the download endpoint
         filename = zip_path.name
         return schemas.PDFExportResponse(
             success=True,
-            message=f"Successfully exported {len(pdf_paths)} concentration sheets as individual PDF files in zip",
+            message=f"Successfully exported {len(export_records)} concentration sheets as individual PDF files in zip",
             pdf_path=f"/export/download/{filename}",
-            sheets_exported=len(pdf_paths)
+            sheets_exported=len(export_records)
         )
         
     except Exception as e:
@@ -208,9 +202,6 @@ async def export_single_concentration_sheet(
         
         pdf_service = PDFService()
         pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
-        # Copy related calculation sheets to the same destination folder
-        if boq_item and boq_item.section_number:
-            copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
 
         # Return the filename for download
         filename = pdf_path.split('/')[-1] if '/' in pdf_path else pdf_path.split('\\')[-1]
@@ -291,11 +282,6 @@ async def export_all_concentration_sheets_excel(
         excel_path = excel_service.export_all_concentration_sheets(
             sheets, db, filter_non_zero_psq_only=request.export_non_zero_psq_only
         )
-        # Copy calculation sheets to each item's destination folder
-        for sheet in sheets:
-            boq_item = db.query(models.BOQItem).filter(models.BOQItem.id == sheet.boq_item_id).first()
-            if boq_item and boq_item.section_number:
-                copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
 
         # Files are saved server-side to C:/Fatina/{section_number}/, no download needed
         return schemas.PDFExportResponse(
@@ -345,9 +331,6 @@ async def export_single_concentration_sheet_excel(
         
         excel_service = ExcelService()
         excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries, entry_columns, db_session=db)
-        # Copy related calculation sheets to the same destination folder
-        if boq_item and boq_item.section_number:
-            copy_calculation_sheets_to_item_folder(db, boq_item.section_number)
 
         # File is saved to C:/Fatina/{section_number}/, no download path needed
         section_number = boq_item.section_number if boq_item else sheet.id
