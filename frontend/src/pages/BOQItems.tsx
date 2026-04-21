@@ -69,6 +69,20 @@ function mergeVisibleReorderIntoGlobal(
   return [...stripped.slice(0, insertPos), ...V_new, ...stripped.slice(insertPos)];
 }
 
+/** Column key for BOQ inline edit focus and Enter-to-advance (same column, next row). */
+type BoqEditingColumnKey =
+  | "serial_number"
+  | "structure"
+  | "system"
+  | "description"
+  | "price"
+  | "original_contract_quantity"
+  | "approved_signed_quantity"
+  | "notes"
+  | "internal_field_1"
+  | "internal_field_2"
+  | `contractQty:${number}`;
+
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -89,6 +103,9 @@ const BOQItems: React.FC = () => {
   const [subchapters, setSubchapters] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingValues, setEditingValues] = useState<Partial<BOQItem>>({});
+  /** Which cell input to focus when entering edit or after Enter advances to the next row. */
+  const [editingFocusColumn, setEditingFocusColumn] =
+    useState<BoqEditingColumnKey | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [navigatingToSheet, setNavigatingToSheet] = useState<number | null>(
     null,
@@ -1143,19 +1160,24 @@ const BOQItems: React.FC = () => {
   // Start editing an item
   // We start with empty editingValues so that users can clear fields completely
   // and type new values from scratch without interference from original values
-  const startEditing = (item: BOQItem) => {
+  const startEditing = (item: BOQItem, column: BoqEditingColumnKey) => {
     setEditingId(item.id);
     setEditingValues({});
+    setEditingFocusColumn(column);
   };
 
   // Cancel editing
   const cancelEditing = () => {
     setEditingId(null);
     setEditingValues({});
+    setEditingFocusColumn(null);
   };
 
   // Save changes to database
-  const saveChanges = async (item: BOQItem) => {
+  const saveChanges = async (
+    item: BOQItem,
+    options?: { advanceToColumn?: BoqEditingColumnKey },
+  ) => {
     try {
       setSavingId(item.id);
 
@@ -1178,9 +1200,25 @@ const BOQItems: React.FC = () => {
         ),
       );
 
-      // Exit editing mode
-      setEditingId(null);
-      setEditingValues({});
+      const advanceCol = options?.advanceToColumn;
+      if (advanceCol) {
+        const idx = items.findIndex((i) => i.id === item.id);
+        const next =
+          idx >= 0 && idx < items.length - 1 ? items[idx + 1] : null;
+        if (next) {
+          setEditingId(next.id);
+          setEditingValues({});
+          setEditingFocusColumn(advanceCol);
+        } else {
+          setEditingId(null);
+          setEditingValues({});
+          setEditingFocusColumn(null);
+        }
+      } else {
+        setEditingId(null);
+        setEditingValues({});
+        setEditingFocusColumn(null);
+      }
     } catch (err) {
       console.error("Error saving changes:", err);
       setError("Failed to save changes");
@@ -1197,13 +1235,56 @@ const BOQItems: React.FC = () => {
     }));
   };
 
-  // Handle key press for saving on Enter
-  const handleKeyPress = (e: React.KeyboardEvent, item: BOQItem) => {
-    if (e.key === "Enter") {
-      saveChanges(item);
-    } else if (e.key === "Escape") {
+  // Focus the active column input after opening a row or moving down with Enter
+  useEffect(() => {
+    if (editingId == null || editingFocusColumn == null) return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector(
+        `input[data-boq-item-id="${editingId}"][data-boq-edit-column="${editingFocusColumn}"]`,
+      ) as HTMLInputElement | null;
+      el?.focus();
+      if (
+        el &&
+        (el.type === "text" || el.type === "number") &&
+        typeof el.select === "function"
+      ) {
+        el.select();
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [editingId, editingFocusColumn]);
+
+  /** Enter: save and move to same column on next row (or exit if last row). Esc: unchanged. Contract qty saves per keystroke — Enter only advances. */
+  const handleEditColumnKeyDown = (
+    e: React.KeyboardEvent,
+    item: BOQItem,
+    column: BoqEditingColumnKey,
+  ) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
       cancelEditing();
+      return;
     }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+
+    if (String(column).startsWith("contractQty:")) {
+      const idx = items.findIndex((i) => i.id === item.id);
+      const next =
+        idx >= 0 && idx < items.length - 1 ? items[idx + 1] : null;
+      if (next) {
+        setEditingId(next.id);
+        setEditingValues({});
+        setEditingFocusColumn(column);
+      } else {
+        setEditingId(null);
+        setEditingValues({});
+        setEditingFocusColumn(null);
+      }
+      return;
+    }
+
+    void saveChanges(item, { advanceToColumn: column });
   };
 
   // Navigate to concentration sheet for specific item
@@ -1240,6 +1321,7 @@ const BOQItems: React.FC = () => {
       if (editingId === item.id) {
         setEditingId(null);
         setEditingValues({});
+        setEditingFocusColumn(null);
       }
 
       console.log(`Successfully deleted BOQ item: ${item.section_number}`);
@@ -3898,12 +3980,16 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.serial_number && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "serial_number")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="number"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="serial_number"
                             value={
                               currentValues.serial_number !== undefined &&
                               currentValues.serial_number !== null
@@ -3916,7 +4002,9 @@ const BOQItems: React.FC = () => {
                                 parseInt(e.target.value) || null,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(e, item, "serial_number")
+                            }
                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -3928,12 +4016,16 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.structure && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "structure")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="number"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="structure"
                             value={
                               currentValues.structure !== undefined &&
                               currentValues.structure !== null
@@ -3946,7 +4038,9 @@ const BOQItems: React.FC = () => {
                                 parseInt(e.target.value) || null,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(e, item, "structure")
+                            }
                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -3958,12 +4052,16 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.system && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "system")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="text"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="system"
                             value={
                               currentValues.system !== undefined &&
                               currentValues.system !== null
@@ -3973,7 +4071,9 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange("system", e.target.value)
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(e, item, "system")
+                            }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4000,11 +4100,15 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.description && (
                       <td
                         className="px-3 py-4 text-sm text-gray-900 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "description")
+                        }
                       >
                         {isEditing ? (
                           <input
                             type="text"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="description"
                             value={
                               currentValues.description !== undefined &&
                               currentValues.description !== null
@@ -4014,7 +4118,9 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange("description", e.target.value)
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(e, item, "description")
+                            }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4031,13 +4137,17 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.price && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "price")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="number"
                             step="0.01"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="price"
                             value={
                               currentValues.price !== undefined &&
                               currentValues.price !== null
@@ -4050,7 +4160,9 @@ const BOQItems: React.FC = () => {
                                 parseFloat(e.target.value) || 0,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(e, item, "price")
+                            }
                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4062,13 +4174,18 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.original_contract_quantity && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing &&
+                          startEditing(item, "original_contract_quantity")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="number"
                             step="0.01"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="original_contract_quantity"
                             value={
                               currentValues.original_contract_quantity !==
                                 undefined &&
@@ -4082,7 +4199,13 @@ const BOQItems: React.FC = () => {
                                 parseFloat(e.target.value) || 0,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(
+                                e,
+                                item,
+                                "original_contract_quantity",
+                              )
+                            }
                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4103,16 +4226,22 @@ const BOQItems: React.FC = () => {
                     {/* Dynamic Contract Update Quantity Columns */}
                     {contractUpdates.map((update) => {
                       const qtyKey = `updated_contract_quantity_${update.id}`;
+                      const contractQtyCol =
+                        `contractQty:${update.id}` as BoqEditingColumnKey;
                       return columnVisibility[qtyKey] ? (
                         <td
                           key={update.id}
                           className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                          onDoubleClick={() => !isEditing && startEditing(item)}
+                          onDoubleClick={() =>
+                            !isEditing && startEditing(item, contractQtyCol)
+                          }
                         >
                           {isEditing ? (
                             <input
                               type="number"
                               step="0.01"
+                              data-boq-item-id={item.id}
+                              data-boq-edit-column={contractQtyCol}
                               value={getContractUpdateValue(
                                 item.id,
                                 update.id,
@@ -4127,6 +4256,13 @@ const BOQItems: React.FC = () => {
                                   newQuantity,
                                 );
                               }}
+                              onKeyDown={(e) =>
+                                handleEditColumnKeyDown(
+                                  e,
+                                  item,
+                                  contractQtyCol,
+                                )
+                              }
                               className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                               disabled={isSaving}
                             />
@@ -4145,11 +4281,15 @@ const BOQItems: React.FC = () => {
                     {/* Dynamic Contract Update Sum Columns */}
                     {contractUpdates.map((update) => {
                       const sumKey = `updated_contract_sum_${update.id}`;
+                      const contractQtyCol =
+                        `contractQty:${update.id}` as BoqEditingColumnKey;
                       return columnVisibility[sumKey] ? (
                         <td
                           key={update.id}
                           className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
-                          onDoubleClick={() => !isEditing && startEditing(item)}
+                          onDoubleClick={() =>
+                            !isEditing && startEditing(item, contractQtyCol)
+                          }
                         >
                           {formatCurrency(
                             getContractUpdateValue(item.id, update.id, "sum"),
@@ -4192,13 +4332,18 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.approved_signed_quantity && (
                       <td
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100 cursor-pointer hover:bg-green-200 transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing &&
+                          startEditing(item, "approved_signed_quantity")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="number"
                             step="0.01"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="approved_signed_quantity"
                             value={
                               currentValues.approved_signed_quantity !==
                                 undefined &&
@@ -4212,7 +4357,13 @@ const BOQItems: React.FC = () => {
                                 parseFloat(e.target.value) || 0,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(
+                                e,
+                                item,
+                                "approved_signed_quantity",
+                              )
+                            }
                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4318,11 +4469,15 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.notes && (
                       <td
                         className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "notes")
+                        }
                       >
                         {isEditing ? (
                           <input
                             type="text"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="notes"
                             value={
                               currentValues.notes !== undefined &&
                               currentValues.notes !== null
@@ -4332,7 +4487,9 @@ const BOQItems: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange("notes", e.target.value)
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(e, item, "notes")
+                            }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4344,12 +4501,16 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.internal_field_1 && (
                       <td
                         className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "internal_field_1")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="text"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="internal_field_1"
                             value={
                               currentValues.internal_field_1 !== undefined &&
                               currentValues.internal_field_1 !== null
@@ -4362,7 +4523,13 @@ const BOQItems: React.FC = () => {
                                 e.target.value,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(
+                                e,
+                                item,
+                                "internal_field_1",
+                              )
+                            }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
@@ -4374,12 +4541,16 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.internal_field_2 && (
                       <td
                         className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
-                        onDoubleClick={() => !isEditing && startEditing(item)}
+                        onDoubleClick={() =>
+                          !isEditing && startEditing(item, "internal_field_2")
+                        }
                         title="Double-click to edit"
                       >
                         {isEditing ? (
                           <input
                             type="text"
+                            data-boq-item-id={item.id}
+                            data-boq-edit-column="internal_field_2"
                             value={
                               currentValues.internal_field_2 !== undefined &&
                               currentValues.internal_field_2 !== null
@@ -4392,7 +4563,13 @@ const BOQItems: React.FC = () => {
                                 e.target.value,
                               )
                             }
-                            onKeyDown={(e) => handleKeyPress(e, item)}
+                            onKeyDown={(e) =>
+                              handleEditColumnKeyDown(
+                                e,
+                                item,
+                                "internal_field_2",
+                              )
+                            }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                             disabled={isSaving}
                           />
