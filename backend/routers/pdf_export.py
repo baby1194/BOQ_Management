@@ -11,7 +11,7 @@ from models import models
 from schemas import schemas
 from services.pdf_service import PDFService
 from services.excel_service import ExcelService
-from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name
+from fatina_paths import FATINA_BASE_DIR, get_downloads_dir, sanitize_folder_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -135,8 +135,9 @@ async def export_concentration_sheets(
         import zipfile
         
         zip_filename = f"all_concentration_sheets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        zip_path = pdf_service.exports_dir / zip_filename
-        zip_path.parent.mkdir(parents=True, exist_ok=True)
+        downloads_dir = get_downloads_dir()
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = downloads_dir / zip_filename
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for pdf_path, section_number in export_records:
@@ -151,11 +152,13 @@ async def export_concentration_sheets(
                     arcname = Path("Fatina") / folder / Path(pdf_path).name
                     zipf.write(pdf_path, str(arcname).replace("\\", "/"))
         
-        filename = zip_path.name
         return schemas.PDFExportResponse(
             success=True,
-            message=f"Successfully exported {len(export_records)} concentration sheets as individual PDF files in zip",
-            pdf_path=f"/export/download/{filename}",
+            message=(
+                f"Successfully exported {len(export_records)} concentration sheets as individual PDF files. "
+                f"Zip saved to {zip_path}"
+            ),
+            pdf_path=None,
             sheets_exported=len(export_records)
         )
         

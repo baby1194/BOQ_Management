@@ -391,31 +391,11 @@ const ConcentrationSheets: React.FC = () => {
         return;
       }
 
-      // For Excel exports, files are saved server-side to C:/Fatina/{section_number}/
-      // For PDF exports, download the zip file
-      if (format === "excel") {
-        // Excel files are saved server-side, just show success message
-        // The response.message already contains the success message
-        console.log("Excel files saved server-side:", response.message);
-      } else if (response.pdf_path) {
-        // PDF export - download the zip file
-        const link = document.createElement("a");
-        link.href = `/api${response.pdf_path}`;
-        link.download = `all_concentration_sheets_individual.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        // Success but no pdf_path for PDF - this shouldn't happen but handle it
-        const errorMessage =
-          response?.message ||
-          t("concentration.exportFailed") + " " + format.toUpperCase();
-        console.error(
-          `Bulk export succeeded but no file path - setting error: ${errorMessage}`,
-          response,
-        );
-        setError(errorMessage);
-      }
+      // Bulk exports are saved server-side (Excel -> C:/Fatina, PDF zip -> Downloads)
+      console.log(
+        `${format.toUpperCase()} files saved server-side:`,
+        response.message,
+      );
     } catch (err: any) {
       console.error(`Error exporting all ${format}s:`, err);
       // Extract error message from axios error response

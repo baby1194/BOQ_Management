@@ -2,9 +2,25 @@
 Single source of truth for concentration/calculation exports under C:/Fatina.
 Used by file_import, pdf_service, excel_service, and bulk export zip layout.
 """
+import os
 from pathlib import Path
 
 FATINA_BASE_DIR = Path("C:/Fatina")
+
+
+def get_downloads_dir() -> Path:
+    """Resolve the current user's Downloads folder (Windows-first)."""
+    home = Path.home()
+    downloads = home / "Downloads"
+    if downloads.is_dir():
+        return downloads
+    userprofile = os.environ.get("USERPROFILE")
+    if userprofile:
+        candidate = Path(userprofile) / "Downloads"
+        if candidate.is_dir():
+            return candidate
+    downloads.mkdir(parents=True, exist_ok=True)
+    return downloads
 
 
 def sanitize_folder_name(folder_name: str) -> str:

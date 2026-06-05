@@ -27,6 +27,14 @@ def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_n
     return sheet.file_name if sheet else None
 
 
+def _notes_for_pdf_export(entry) -> str:
+    """Omit auto-generated system notes from PDF output; keep user-entered notes."""
+    notes = entry.notes or ""
+    if "Auto-populated" in notes or "Auto-updated" in notes:
+        return ""
+    return notes
+
+
 logger = logging.getLogger(__name__)
 
 class PDFService:
@@ -866,7 +874,7 @@ class PDFService:
                         f"{entry.quantity_submitted:,.2f}",
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
-                        entry.notes or '',
+                        _notes_for_pdf_export(entry),
                         getattr(entry, 'supervisor_notes', None) or '',
                     ]
                     # Filter data based on selected columns
@@ -1051,7 +1059,7 @@ class PDFService:
                         f"{entry.quantity_submitted:,.2f}",
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
-                        entry.notes or '',
+                        _notes_for_pdf_export(entry),
                         getattr(entry, 'supervisor_notes', None) or '',
                     ]
                     # Filter data based on selected columns
