@@ -31,8 +31,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { isRTL, language } = useLanguage();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { projects, activeProject, switchProject, isLoading: projectsLoading } =
-    useProject();
+  const {
+    projects,
+    activeProject,
+    activeProjectId,
+    switchProject,
+    isLoading: projectsLoading,
+  } = useProject();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -315,7 +320,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Menu className="h-5 w-5" />
           </button>
         )}
-        <main className="p-8">{children}</main>
+        <main className="p-8" key={activeProjectId ?? "none"}>
+          {children}
+        </main>
       </div>
 
       <NewProjectModal
