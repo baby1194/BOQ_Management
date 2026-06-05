@@ -212,6 +212,7 @@
     "createConcentrationSheets": "Create Concentration Sheets",
     "columnSettings": "⚙️ Column Settings",
     "exportTable": "📊 Export Table",
+    "exportTableTitle": "Export BOQ Items Table",
     "saving": "Saving...",
     "saveChanges": "Save Changes",
     "cancel": "Cancel",

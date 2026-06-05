@@ -1695,6 +1695,7 @@ const BOQItems: React.FC = () => {
               request,
               filteredData,
               grandTotals,
+              isRTL ? "he" : "en",
             )
           : await exportApi.exportBOQItemsPDF(
               request,
@@ -5308,7 +5309,7 @@ const BOQItems: React.FC = () => {
         onClose={() => setShowExportModal(false)}
         onExport={handleExport}
         loading={exporting}
-        title="Export BOQ Items Table"
+        title={t("boq.exportTableTitle")}
         contractUpdates={contractUpdates}
       />
     </div>

@@ -569,12 +569,18 @@ export const exportApi = {
       .then((res) => res.data),
 
   // BOQ Items export endpoints
-  exportBOQItemsExcel: (request: any, data?: any[], grandTotals?: any) =>
+  exportBOQItemsExcel: (
+    request: any,
+    data?: any[],
+    grandTotals?: any,
+    language?: string,
+  ) =>
     api
       .post<PDFExportResponse>("/export/boq-items/excel", {
         ...request,
         data,
         grand_totals: grandTotals,
+        language: language || "en",
       })
       .then((res) => res.data),
 

@@ -39,6 +39,81 @@ def _boq_excel_number_format(column_name: str) -> str:
     return "#,##0.00"
 
 
+_BOQ_HEADER_TRANSLATIONS = {
+    "en": {
+        "serial_number": "Serial Number",
+        "structure": "Structure",
+        "system": "System",
+        "section_number": "Section Number",
+        "description": "Description",
+        "unit": "Unit",
+        "price": "Price",
+        "original_contract_quantity": "Original Contract Quantity",
+        "total_contract_sum": "Total Contract Sum",
+        "estimated_quantity": "Estimated Quantity",
+        "quantity_submitted": "Quantity Submitted",
+        "internal_quantity": "Internal Quantity",
+        "approved_by_project_manager": "Approved by Project Manager",
+        "approved_signed_quantity": "Approved Signed Quantity",
+        "partially_submitted_quantity": "Partially Submitted Quantity",
+        "total_estimate": "Total Estimate",
+        "total_submitted": "Total Submitted",
+        "internal_total": "Internal Total",
+        "total_approved_by_project_manager": "Total Approved by Project Manager",
+        "approved_signed_total": "Approved Signed Total",
+        "partial_submitted_total": "Partial Submitted Total",
+        "total_decrease": "Total Decrease",
+        "total_increase": "Total Increase",
+        "subsection": "Subsection",
+        "notes": "Notes",
+    },
+    "he": {
+        "serial_number": "מספר סידורי",
+        "structure": "מבנה",
+        "system": "מערכת",
+        "section_number": "מספר סעיף",
+        "description": "תיאור",
+        "unit": "יחידה",
+        "price": "מחיר",
+        "original_contract_quantity": "כמות חוזה מקורית",
+        "total_contract_sum": "סכום חוזה כולל",
+        "estimated_quantity": "כמות משוערת",
+        "quantity_submitted": "כמות שהוגשה",
+        "internal_quantity": "כמות פנימית",
+        "approved_by_project_manager": "אושר על ידי מנהל פרויקט",
+        "approved_signed_quantity": "כמות אושרה וחתומה",
+        "partially_submitted_quantity": "כמות מוגש חלקי",
+        "total_estimate": "הערכה כוללת",
+        "total_submitted": 'סה"כ הוגש',
+        "internal_total": 'סה"כ פנימי',
+        "total_approved_by_project_manager": 'סה"כ אושר על ידי מנהל פרויקט',
+        "approved_signed_total": 'סה"כ אושר וחתום',
+        "partial_submitted_total": 'סה"כ מוגש חלקי',
+        "total_decrease": 'סה"כ הקטנה',
+        "total_increase": 'סה"כ הגדלה',
+        "subsection": "תת סעיף",
+        "notes": "הערות",
+    },
+}
+
+
+def _boq_header_label(key, language="en", contract_updates_by_id=None):
+    """Resolve a BOQ export column key to a display label for Excel headers."""
+    if key.startswith("updated_contract_quantity_"):
+        update_id = int(key.rsplit("_", 1)[-1])
+        update = (contract_updates_by_id or {}).get(update_id)
+        if update:
+            return update.update_name
+    if key.startswith("updated_contract_sum_"):
+        update_id = int(key.rsplit("_", 1)[-1])
+        update = (contract_updates_by_id or {}).get(update_id)
+        if update:
+            return update.update_name.replace("Qty", "Sum")
+
+    lang = "he" if language == "he" else "en"
+    return _BOQ_HEADER_TRANSLATIONS[lang].get(key, key)
+
+
 def _apply_boq_sheet_number_formats(worksheet, column_names):
     """Apply numeric formats to data + totals rows; leaves text columns unchanged."""
     import math
@@ -1189,8 +1264,8 @@ class ExcelService:
             logger.error(f"Error generating subsections summary Excel: {str(e)}")
             raise
 
-    def export_boq_items(self, items, grand_totals=None):
-        """Export BOQ items to Excel with optional grand totals"""
+    def export_boq_items(self, items, grand_totals=None, language="en", contract_updates=None):
+        """Export BOQ items to Excel with optional grand totals and language support"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"boq_items_{timestamp}.xlsx"
@@ -1255,11 +1330,24 @@ class ExcelService:
                 if col.startswith('updated_contract_sum_'):
                     total_columns.add(col)
 
+            contract_updates_by_id = (
+                {update.id: update for update in contract_updates}
+                if contract_updates
+                else {}
+            )
+            display_headers = [
+                _boq_header_label(h, language, contract_updates_by_id)
+                for h in ordered_headers
+            ]
+            df.columns = display_headers
+            grand_total_label = 'סה"כ כולל' if language == "he" else "GRAND TOTAL"
+            first_col = ordered_headers[0] if ordered_headers else None
+
             # Calculate grand totals row (numeric cells; display via Excel number_format)
             totals_row = {}
-            for col in df.columns:
-                if col == 'section_number':
-                    totals_row[col] = "GRAND TOTAL"
+            for col in ordered_headers:
+                if col == first_col:
+                    totals_row[col] = grand_total_label
                 elif col in total_columns and col in original_numeric_data:
                     if grand_totals and col in grand_totals:
                         total_value = grand_totals[col]
@@ -1273,15 +1361,18 @@ class ExcelService:
                     totals_row[col] = ""
             
             df_totals = pd.DataFrame([totals_row])
+            df_totals.columns = display_headers
             df_final = pd.concat([df, df_totals], ignore_index=True)
-            
+
+            sheet_name = "פריטי BOQ" if language == "he" else "BOQ Items"
+
             # Export to Excel
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
-                df_final.to_excel(writer, sheet_name='BOQ Items', index=False)
+                df_final.to_excel(writer, sheet_name=sheet_name, index=False)
                 
                 # Apply formatting
                 workbook = writer.book
-                worksheet = writer.sheets['BOQ Items']
+                worksheet = writer.sheets[sheet_name]
                 
                 # Auto-adjust column widths
                 for column in worksheet.columns:
@@ -1319,7 +1410,7 @@ class ExcelService:
                     cell.fill = totals_fill
                     cell.alignment = totals_alignment
 
-                _apply_boq_sheet_number_formats(worksheet, list(df_final.columns))
+                _apply_boq_sheet_number_formats(worksheet, ordered_headers)
             
             logger.info(f"Generated BOQ items Excel: {filepath}")
             return str(filepath)

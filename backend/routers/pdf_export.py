@@ -1241,8 +1241,20 @@ async def export_boq_items_excel(
                 if filtered_item:
                     filtered_items.append(filtered_item)
         
+        language = request.get("language", "en")
+        contract_updates = (
+            db.query(models.ContractQuantityUpdate)
+            .order_by(models.ContractQuantityUpdate.update_index)
+            .all()
+        )
+
         # Generate Excel
-        excel_path = excel_service.export_boq_items(filtered_items, grand_totals)
+        excel_path = excel_service.export_boq_items(
+            filtered_items,
+            grand_totals,
+            language,
+            contract_updates,
+        )
         
         # Return the filename for download using the download endpoint
         filename = excel_path.split('/')[-1] if '/' in excel_path else excel_path.split('\\')[-1]
