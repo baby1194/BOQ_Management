@@ -1,3 +1,5 @@
+import { getProjectItem, setProjectItem } from "./localStorage";
+
 /** localStorage keys for export / print column selections */
 export const EXPORT_PREFS_KEYS = {
   boq: "boq-export-columns",
@@ -14,7 +16,7 @@ export function loadExportColumnPrefs<T extends object>(
   buildDefaults: () => T,
 ): T {
   const defaults = buildDefaults();
-  const saved = localStorage.getItem(storageKey);
+  const saved = getProjectItem(storageKey);
   if (!saved) {
     return defaults;
   }
@@ -41,7 +43,7 @@ export function saveExportColumnPrefs<T extends object>(
   storageKey: string,
   prefs: T,
 ): void {
-  localStorage.setItem(storageKey, JSON.stringify(prefs));
+  setProjectItem(storageKey, JSON.stringify(prefs));
 }
 
 /** Add keys for newly created contract-update columns without resetting existing choices */

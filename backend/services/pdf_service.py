@@ -30,9 +30,9 @@ def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_n
 logger = logging.getLogger(__name__)
 
 class PDFService:
-    def __init__(self):
-        self.exports_dir = Path("exports")
-        self.exports_dir.mkdir(exist_ok=True)
+    def __init__(self, exports_dir: Path = None):
+        self.exports_dir = exports_dir or Path("exports")
+        self.exports_dir.mkdir(parents=True, exist_ok=True)
         self._register_fonts()
     
     def _register_fonts(self):

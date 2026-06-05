@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { useQuery } from "react-query";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -33,29 +32,81 @@ import {
   Settings,
 } from "lucide-react";
 import { formatCurrency } from "../utils/format";
+import { useProject } from "../contexts/ProjectContext";
+import { getActiveProjectId } from "../utils/localStorage";
+import { setActiveProjectIdForApi } from "../services/api";
+import {
+  BOQItem,
+  ConcentrationSheet,
+  CalculationSheet,
+  SummaryResponse,
+} from "../types";
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [selectedPeriod, setSelectedPeriod] = useState("all");
+  const { activeProjectId, projects } = useProject();
 
-  // Fetch all necessary data
-  const { data: boqItems, isLoading: boqLoading } = useQuery("boq-items", () =>
-    boqApi.getAll()
-  );
-  const { data: summary, isLoading: summaryLoading } = useQuery("summary", () =>
-    searchApi.getSummary()
-  );
-  const { data: concentrationSheets, isLoading: concentrationLoading } =
-    useQuery("concentration-sheets", () => concentrationApi.getAll());
-  const { data: calculationSheets, isLoading: calculationLoading } = useQuery(
-    "calculation-sheets",
-    () => calculationSheetsApi.getAll()
-  );
+  const projectId =
+    getActiveProjectId() ?? activeProjectId ?? projects[0]?.id ?? null;
 
-  const isLoading =
-    boqLoading || summaryLoading || concentrationLoading || calculationLoading;
+  const [boqItems, setBoqItems] = useState<BOQItem[] | null>(null);
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [concentrationSheets, setConcentrationSheets] = useState<
+    ConcentrationSheet[] | null
+  >(null);
+  const [calculationSheets, setCalculationSheets] = useState<
+    CalculationSheet[] | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!projectId) {
+      setIsLoading(false);
+      return;
+    }
+
+    setActiveProjectIdForApi(projectId);
+
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+
+    Promise.all([
+      boqApi.getAll(),
+      searchApi.getSummary(),
+      concentrationApi.getAll(),
+      calculationSheetsApi.getAll(),
+    ])
+      .then(([boq, summaryData, concentration, calculation]) => {
+        if (cancelled) return;
+        setBoqItems(boq);
+        setSummary(summaryData);
+        setConcentrationSheets(concentration);
+        setCalculationSheets(calculation);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Dashboard load failed:", error);
+        setLoadError(
+          error?.response?.data?.detail ||
+            error?.message ||
+            "Failed to load dashboard"
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   // Calculate comprehensive statistics
   const calculateStats = () => {
@@ -268,6 +319,22 @@ const Dashboard: React.FC = () => {
       action: () => navigate("/calculation-sheets"),
     },
   ];
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center text-red-600">
+          <p className="text-lg font-medium">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

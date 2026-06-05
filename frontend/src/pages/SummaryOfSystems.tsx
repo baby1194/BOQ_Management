@@ -10,6 +10,7 @@ import {
 import { formatCurrency } from "../utils/format";
 import ExportModal from "../components/ExportModal";
 import ColumnSettingsModal from "../components/ColumnSettingsModal";
+import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 const SummaryOfSystems: React.FC = () => {
   const { t } = useTranslation();
@@ -45,7 +46,7 @@ const SummaryOfSystems: React.FC = () => {
       partial_submitted_total: true,
     };
 
-    const saved = localStorage.getItem("systems-column-visibility");
+    const saved = getProjectItem("systems-column-visibility");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -62,7 +63,7 @@ const SummaryOfSystems: React.FC = () => {
 
   // Save column visibility preferences to localStorage
   useEffect(() => {
-    localStorage.setItem(
+    setProjectItem(
       "systems-column-visibility",
       JSON.stringify(columnVisibility)
     );

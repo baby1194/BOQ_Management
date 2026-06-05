@@ -36,15 +36,73 @@ import {
   Token,
   AuthStatus,
   SignupAllowed,
+  WorkspaceProject,
+  WorkspaceProjectCreate,
 } from "../types";
-import { clearAppLocalStorage } from "../utils/localStorage";
+import {
+  clearAppLocalStorage,
+  getActiveProjectId,
+} from "../utils/localStorage";
+
+let activeProjectId: string | null = getActiveProjectId();
+
+/** FastAPI collection routes use a trailing slash; avoid 307 redirects through the dev proxy. */
+function withTrailingSlash(url: string): string {
+  const qIndex = url.indexOf("?");
+  const path = qIndex === -1 ? url : url.slice(0, qIndex);
+  const query = qIndex === -1 ? "" : url.slice(qIndex);
+  const collectionRoots = [
+    "/boq",
+    "/concentration",
+    "/calculation-sheets",
+    "/contract-updates",
+    "/project-info",
+    "/search",
+  ];
+  if (collectionRoots.includes(path)) {
+    return `${path}/${query}`;
+  }
+  return url;
+}
+
+export function setActiveProjectIdForApi(id: string | null) {
+  activeProjectId = id;
+}
 
 const api = axios.create({
   baseURL: "/api",
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true, // This ensures cookies are sent with all requests
+  withCredentials: true,
+  timeout: 120000,
+});
+
+function appendProjectIdToUrl(url: string, projectId: string): string {
+  if (url.includes("project_id=")) {
+    return url;
+  }
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}project_id=${encodeURIComponent(projectId)}`;
+}
+
+api.interceptors.request.use((config) => {
+  if (config.url) {
+    config.url = withTrailingSlash(config.url);
+  }
+  const projectId = activeProjectId ?? getActiveProjectId();
+  if (projectId) {
+    activeProjectId = projectId;
+    const url = config.url || "";
+    const isAuth = url.startsWith("/auth");
+    const isProjects = url.startsWith("/projects");
+    if (!isAuth && !isProjects) {
+      // Use query param (reliable through Vite proxy); keep header as fallback
+      config.url = appendProjectIdToUrl(url, projectId);
+      config.headers["X-Project-Id"] = projectId;
+    }
+  }
+  return config;
 });
 
 // Add response interceptor to handle 401 errors (unauthorized/expired sessions)
@@ -692,6 +750,13 @@ export const authApi = {
         }
       )
       .then((res) => res.data),
+};
+
+export const projectsApi = {
+  list: () => api.get<WorkspaceProject[]>("/projects").then((res) => res.data),
+
+  create: (data: WorkspaceProjectCreate) =>
+    api.post<WorkspaceProject>("/projects", data).then((res) => res.data),
 };
 
 export default api;

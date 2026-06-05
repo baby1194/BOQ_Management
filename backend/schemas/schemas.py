@@ -566,3 +566,17 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+# Workspace project schemas (multi-project support)
+class ProjectBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class Project(ProjectBase):
+    id: str
+    created_at: str
+
+    class Config:
+        from_attributes = True

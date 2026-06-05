@@ -12,6 +12,7 @@ import {
   Filter,
   FolderOpen,
 } from "lucide-react";
+import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
@@ -26,15 +27,15 @@ const CalculationSheets: React.FC = () => {
   const [entriesLoading, setEntriesLoading] = useState(false);
   // Initialize filters from localStorage
   const [searchQuery, setSearchQuery] = useState(() => {
-    const saved = localStorage.getItem("calculation-sheets-search-query");
+    const saved = getProjectItem("calculation-sheets-search-query");
     return saved !== null ? saved : "";
   });
   const [filterSheetNo, setFilterSheetNo] = useState(() => {
-    const saved = localStorage.getItem("calculation-sheets-filter-sheet-no");
+    const saved = getProjectItem("calculation-sheets-filter-sheet-no");
     return saved !== null ? saved : "";
   });
   const [filterDrawingNo, setFilterDrawingNo] = useState(() => {
-    const saved = localStorage.getItem("calculation-sheets-filter-drawing-no");
+    const saved = getProjectItem("calculation-sheets-filter-drawing-no");
     return saved !== null ? saved : "";
   });
   const [deletingSheet, setDeletingSheet] = useState(false);
@@ -62,7 +63,7 @@ const CalculationSheets: React.FC = () => {
       setSheets(response);
 
       // Restore previously selected sheet from localStorage
-      const savedSheetId = localStorage.getItem(
+      const savedSheetId = getProjectItem(
         "calculation-selected-sheet-id"
       );
       if (savedSheetId && response.length > 0) {
@@ -115,7 +116,7 @@ const CalculationSheets: React.FC = () => {
     setEditingComment(false);
     fetchEntries(sheet.id);
     // Save selected sheet ID to localStorage
-    localStorage.setItem("calculation-selected-sheet-id", sheet.id.toString());
+    setProjectItem("calculation-selected-sheet-id", sheet.id.toString());
   };
 
   // Handle comment update
@@ -533,15 +534,15 @@ const CalculationSheets: React.FC = () => {
 
   // Save filter values to localStorage
   useEffect(() => {
-    localStorage.setItem("calculation-sheets-search-query", searchQuery);
+    setProjectItem("calculation-sheets-search-query", searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
-    localStorage.setItem("calculation-sheets-filter-sheet-no", filterSheetNo);
+    setProjectItem("calculation-sheets-filter-sheet-no", filterSheetNo);
   }, [filterSheetNo]);
 
   useEffect(() => {
-    localStorage.setItem(
+    setProjectItem(
       "calculation-sheets-filter-drawing-no",
       filterDrawingNo
     );

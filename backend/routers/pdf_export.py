@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-from database.database import get_db
+from database.database import get_db, get_project_id, get_project_export_dir
 from models import models
 from schemas import schemas
 from services.pdf_service import PDFService
@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_pdf_service(project_id: str = Depends(get_project_id)) -> PDFService:
+    return PDFService(exports_dir=get_project_export_dir(project_id))
+
+
+def get_excel_service(project_id: str = Depends(get_project_id)) -> ExcelService:
+    return ExcelService(exports_dir=get_project_export_dir(project_id))
+
+
 def _concentration_entry_psq(entry) -> float:
     """Partially submitted quantity for a concentration row (same idea as BOQ PSQ)."""
     return float(entry.quantity_submitted or 0) - float(entry.approved_by_project_manager or 0)
@@ -24,11 +32,11 @@ def _concentration_entry_psq(entry) -> float:
 @router.post("/concentration-sheets", response_model=schemas.PDFExportResponse)
 async def export_concentration_sheets(
     request: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
 ):
     """Export concentration sheets to individual PDF files"""
     try:
-        pdf_service = PDFService()
         
         # Get entry columns configuration if provided
         entry_columns = request.get("entry_columns", None)
@@ -127,7 +135,7 @@ async def export_concentration_sheets(
         import zipfile
         
         zip_filename = f"all_concentration_sheets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        zip_path = Path("exports") / zip_filename
+        zip_path = pdf_service.exports_dir / zip_filename
         zip_path.parent.mkdir(parents=True, exist_ok=True)
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -172,7 +180,8 @@ async def export_concentration_sheets(
 async def export_single_concentration_sheet(
     sheet_id: int,
     request: dict = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
 ):
     """Export a single concentration sheet to PDF"""
     try:
@@ -200,7 +209,6 @@ async def export_single_concentration_sheet(
             models.ConcentrationEntry.concentration_sheet_id == sheet_id
         ).order_by(models.ConcentrationEntry.id).all()
         
-        pdf_service = PDFService()
         pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
 
         # Return the filename for download
@@ -234,11 +242,11 @@ async def export_single_concentration_sheet(
 @router.post("/concentration-sheets/excel", response_model=schemas.PDFExportResponse)
 async def export_all_concentration_sheets_excel(
     request: schemas.PDFExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
 ):
     """Export all concentration sheets to Excel with separate sheets"""
     try:
-        excel_service = ExcelService()
         
         # Get concentration sheets to export
         if request.export_all:
@@ -302,7 +310,8 @@ async def export_all_concentration_sheets_excel(
 async def export_single_concentration_sheet_excel(
     sheet_id: int,
     request: dict = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
 ):
     """Export a single concentration sheet to Excel"""
     try:
@@ -329,7 +338,6 @@ async def export_single_concentration_sheet_excel(
             models.ConcentrationEntry.concentration_sheet_id == sheet_id
         ).order_by(models.ConcentrationEntry.id).all()
         
-        excel_service = ExcelService()
         excel_path = excel_service.export_single_concentration_sheet(sheet, boq_item, entries, entry_columns, db_session=db)
 
         # File is saved to C:/Fatina/{section_number}/, no download path needed
@@ -351,10 +359,13 @@ async def export_single_concentration_sheet_excel(
         )
 
 @router.post("/summary", response_model=schemas.PDFExportResponse)
-async def export_summary(request: dict = None, db: Session = Depends(get_db)):
+async def export_summary(
+    request: dict = None,
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
+):
     """Export summary report to PDF"""
     try:
-        pdf_service = PDFService()
         
         # Get language parameter (default to English)
         language = request.get("language", "en") if request else "en"
@@ -393,11 +404,11 @@ async def export_summary(request: dict = None, db: Session = Depends(get_db)):
 @router.post("/structures-summary", response_model=schemas.PDFExportResponse)
 async def export_structures_summary(
     request: schemas.SummaryExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
 ):
     """Export structures summary to PDF"""
     try:
-        pdf_service = PDFService()
         
         # Get language parameter (default to English)
         language = getattr(request, 'language', 'en')
@@ -495,11 +506,11 @@ async def export_structures_summary(
 @router.post("/systems-summary", response_model=schemas.PDFExportResponse)
 async def export_systems_summary(
     request: schemas.SummaryExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
 ):
     """Export systems summary to PDF"""
     try:
-        pdf_service = PDFService()
         
         # Get language parameter (default to English)
         language = getattr(request, 'language', 'en')
@@ -590,11 +601,11 @@ async def export_systems_summary(
 @router.post("/subsections-summary", response_model=schemas.PDFExportResponse)
 async def export_subsections_summary(
     request: schemas.SummaryExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
 ):
     """Export subsections summary to PDF"""
     try:
-        pdf_service = PDFService()
         
         # Get language parameter (default to English)
         language = getattr(request, 'language', 'en')
@@ -685,11 +696,11 @@ async def export_subsections_summary(
 @router.post("/structures-summary/excel", response_model=schemas.PDFExportResponse)
 async def export_structures_summary_excel(
     request: schemas.SummaryExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
 ):
     """Export structures summary to Excel"""
     try:
-        excel_service = ExcelService()
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if request.data:
@@ -777,11 +788,11 @@ async def export_structures_summary_excel(
 @router.post("/systems-summary/excel", response_model=schemas.PDFExportResponse)
 async def export_systems_summary_excel(
     request: schemas.SummaryExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
 ):
     """Export systems summary to Excel"""
     try:
-        excel_service = ExcelService()
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if request.data:
@@ -869,11 +880,11 @@ async def export_systems_summary_excel(
 @router.post("/subsections-summary/excel", response_model=schemas.PDFExportResponse)
 async def export_subsections_summary_excel(
     request: schemas.SummaryExportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
 ):
     """Export subsections summary to Excel"""
     try:
-        excel_service = ExcelService()
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if request.data:
@@ -961,11 +972,11 @@ async def export_subsections_summary_excel(
 @router.post("/boq-items/pdf", response_model=schemas.PDFExportResponse)
 async def export_boq_items_pdf(
     request: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
 ):
     """Export BOQ items to PDF"""
     try:
-        pdf_service = PDFService()
         
         # Use the data passed from frontend if available, otherwise fetch from database
         if "data" in request and request["data"]:
@@ -1107,11 +1118,11 @@ async def export_boq_items_pdf(
 @router.post("/boq-items/excel", response_model=schemas.PDFExportResponse)
 async def export_boq_items_excel(
     request: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
 ):
     """Export BOQ items to Excel"""
     try:
-        excel_service = ExcelService()
         
         # Get grand totals if provided
         grand_totals = request.get("grand_totals", None)
@@ -1250,10 +1261,13 @@ async def export_boq_items_excel(
         )
 
 @router.get("/download/{filename}")
-async def download_file(filename: str):
+async def download_file(
+    filename: str,
+    project_id: str = Depends(get_project_id),
+):
     """Download a generated file (PDF or Excel)"""
     try:
-        exports_dir = Path("exports")
+        exports_dir = get_project_export_dir(project_id)
         file_path = exports_dir / filename
         
         if not file_path.exists():
@@ -1289,10 +1303,10 @@ async def download_file(filename: str):
         )
 
 @router.get("/list", response_model=List[str])
-async def list_pdfs():
+async def list_pdfs(project_id: str = Depends(get_project_id)):
     """List all available PDF files"""
     try:
-        exports_dir = Path("exports")
+        exports_dir = get_project_export_dir(project_id)
         if not exports_dir.exists():
             return []
         
@@ -1307,10 +1321,13 @@ async def list_pdfs():
         )
 
 @router.delete("/cleanup")
-async def cleanup_pdfs(days: int = 7):
+async def cleanup_pdfs(
+    days: int = 7,
+    project_id: str = Depends(get_project_id),
+):
     """Clean up old PDF files"""
     try:
-        exports_dir = Path("exports")
+        exports_dir = get_project_export_dir(project_id)
         if not exports_dir.exists():
             return {"message": "No exports directory found"}
         

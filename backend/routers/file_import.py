@@ -10,7 +10,7 @@ import logging
 import tempfile
 import shutil
 
-from database.database import get_db
+from database.database import get_db, get_system_db, get_project_id, get_project_upload_dir, get_project_export_dir
 from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
@@ -169,13 +169,17 @@ def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> 
         return 0
 
 
-async def _require_valid_system_password(request: Request, db: Session, system_password: Optional[str]) -> None:
+async def _require_valid_system_password(
+    request: Request,
+    system_password: Optional[str],
+    system_db: Session,
+) -> None:
     if not system_password or not str(system_password).strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="System password is required",
         )
-    current_user = await get_current_user_from_cookie(request, db)
+    current_user = await get_current_user_from_cookie(request, system_db)
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -194,18 +198,19 @@ async def upload_file(
     file: UploadFile = File(...),
     system_password: str = Form(...),
     db: Session = Depends(get_db),
+    system_db: Session = Depends(get_system_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Upload and import a single Excel file
     """
-    await _require_valid_system_password(request, db, system_password)
+    await _require_valid_system_password(request, system_password, system_db)
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Only Excel files are supported")
     
     try:
         # Save uploaded file
-        upload_dir = Path("uploads")
-        upload_dir.mkdir(exist_ok=True)
+        upload_dir = get_project_upload_dir(project_id)
         file_path = upload_dir / file.filename
         
         with open(file_path, "wb") as buffer:
@@ -213,7 +218,7 @@ async def upload_file(
             buffer.write(content)
         
         # Process the file
-        excel_service = ExcelService()
+        excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
         items, errors = excel_service.process_excel_file(file_path)
         
         if not items:
@@ -300,11 +305,13 @@ async def import_folder(
     http_request: Request,
     request: schemas.ImportRequest,
     db: Session = Depends(get_db),
+    system_db: Session = Depends(get_system_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Import all Excel files from a folder
     """
-    await _require_valid_system_password(http_request, db, request.system_password)
+    await _require_valid_system_password(http_request, request.system_password, system_db)
     folder_path = Path(request.folder_path)
     
     if not folder_path.exists():
@@ -322,7 +329,7 @@ async def import_folder(
     if not excel_files:
         raise HTTPException(status_code=400, detail="No Excel files found in folder")
     
-    excel_service = ExcelService()
+    excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
     total_items_updated = 0
     all_errors = []
     max_order = db.query(func.max(models.BOQItem.display_order)).scalar()
@@ -482,7 +489,8 @@ async def create_concentration_sheets_for_all_items(db: Session = Depends(get_db
 @router.post("/import-calculation-sheets-from-folder/", response_model=schemas.CalculationImportResponse)
 async def import_calculation_sheets_from_folder(
     request: schemas.ImportRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Import calculation sheet Excel files from a folder path
@@ -506,7 +514,7 @@ async def import_calculation_sheets_from_folder(
     if not excel_files:
         raise HTTPException(status_code=400, detail="No Excel files found in folder")
     
-    excel_service = ExcelService()
+    excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
     total_sheets_imported = 0
     total_entries_imported = 0
     all_errors = []
@@ -599,7 +607,8 @@ async def import_calculation_sheets_from_folder(
 @router.post("/import-calculation-sheets/", response_model=schemas.CalculationImportResponse)
 async def import_calculation_sheets(
     files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Import multiple calculation sheet Excel files (uploaded via form)
@@ -609,11 +618,8 @@ async def import_calculation_sheets(
         raise HTTPException(status_code=400, detail="No files provided")
     
     try:
-        # Create uploads directory if it doesn't exist
-        upload_dir = Path("uploads")
-        upload_dir.mkdir(exist_ok=True)
-        
-        excel_service = ExcelService()
+        upload_dir = get_project_upload_dir(project_id)
+        excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
         total_sheets_imported = 0
         total_entries_imported = 0
         all_errors = []

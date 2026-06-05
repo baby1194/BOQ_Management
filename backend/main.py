@@ -7,25 +7,31 @@ import os
 import logging
 from pathlib import Path
 
-from database.database import engine, get_db
-from models import models
-from routers import boq, concentration_sheets, file_import, pdf_export, search, calculation_sheets, project_info, contract_updates, subsections, systems, structures, auth
-from services.excel_service import ExcelService
-from services.pdf_service import PDFService
+from database.database import init_system_database, init_project_database
+from database import project_registry
+from routers import boq, concentration_sheets, file_import, pdf_export, search, calculation_sheets, project_info, contract_updates, subsections, systems, structures, auth, projects
 
-# Create database tables
-models.Base.metadata.create_all(bind=engine)
+# Initialize project registry and databases
+project_registry.migrate_legacy_db()
+init_system_database()
+for _project in project_registry.list_projects():
+    init_project_database(_project["id"])
 
 app = FastAPI(
     title="BOQ Management System",
     description="A modern web application for managing Bill of Quantities",
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False,
 )
 
-# CORS middleware
+# CORS middleware (explicit origins required when using credentials)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,6 +70,7 @@ app.include_router(subsections.router, prefix="/api/subsections", tags=["Subsect
 app.include_router(systems.router, prefix="/api/systems", tags=["Systems"])
 app.include_router(structures.router, prefix="/api/structures", tags=["Structures"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 
 @app.get("/")
 async def root():

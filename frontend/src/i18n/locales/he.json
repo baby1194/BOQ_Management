@@ -47,6 +47,16 @@
     "itemCount": "מספר פריטים",
     "navigating": "מנווט..."
   },
+  "projects": {
+    "currentProject": "פרויקט",
+    "newProject": "פרויקט חדש",
+    "name": "שם פרויקט",
+    "namePlaceholder": "הזן שם פרויקט",
+    "created": "הפרויקט נוצר בהצלחה",
+    "createFailed": "יצירת הפרויקט נכשלה",
+    "noProjects": "אין פרויקטים",
+    "loading": "טוען פרויקט..."
+  },
   "navigation": {
     "dashboard": "לוח בקרה",
     "boqItems": "פריטי BOQ",

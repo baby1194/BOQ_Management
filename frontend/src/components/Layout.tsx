@@ -11,11 +11,15 @@ import {
   LogOut,
   Menu,
   X,
+  Plus,
+  FolderKanban,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useProject } from "../contexts/ProjectContext";
 import LanguageSwitcher from "./LanguageSwitcher";
+import NewProjectModal from "./NewProjectModal";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -27,8 +31,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { isRTL, language } = useLanguage();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { projects, activeProject, switchProject, isLoading: projectsLoading } =
+    useProject();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSignOut = async () => {
@@ -148,8 +155,51 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
+        {/* Project selector */}
+        {isAuthenticated && (
+          <div className="px-4 py-4 border-b border-gray-200">
+            <label
+              htmlFor="project-select"
+              className={`flex items-center text-xs font-medium text-gray-500 mb-2 ${
+                isRTL ? "flex-row-reverse" : ""
+              }`}
+            >
+              <FolderKanban className={`h-3.5 w-3.5 ${isRTL ? "ml-1.5" : "mr-1.5"}`} />
+              {t("projects.currentProject")}
+            </label>
+            <select
+              id="project-select"
+              value={activeProject?.id ?? ""}
+              onChange={(e) => switchProject(e.target.value)}
+              disabled={projectsLoading || projects.length === 0}
+              className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
+              {projects.length === 0 ? (
+                <option value="">{t("projects.noProjects")}</option>
+              ) : (
+                projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))
+              )}
+            </select>
+            <button
+              onClick={() => setShowNewProjectModal(true)}
+              className={`mt-2 w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors ${
+                isRTL ? "flex-row-reverse" : ""
+              }`}
+            >
+              <Plus className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+              {t("projects.newProject")}
+            </button>
+          </div>
+        )}
+
         {/* Navigation */}
-        <nav className="flex-1 mt-8 px-4">
+        <nav className="flex-1 mt-4 px-4">
           <ul className="space-y-2">
             {navigation.map((item) => {
               const Icon = item.icon;
@@ -267,6 +317,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         )}
         <main className="p-8">{children}</main>
       </div>
+
+      <NewProjectModal
+        isOpen={showNewProjectModal}
+        onClose={() => setShowNewProjectModal(false)}
+      />
     </div>
   );
 };

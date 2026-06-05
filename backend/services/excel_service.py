@@ -95,10 +95,10 @@ def _add_calculation_sheet_hyperlinks(
 
 
 class ExcelService:
-    def __init__(self):
+    def __init__(self, exports_dir: Path = None):
         self.supported_extensions = ['.xlsx', '.xls']
-        self.exports_dir = Path("exports")
-        self.exports_dir.mkdir(exist_ok=True)
+        self.exports_dir = exports_dir or Path("exports")
+        self.exports_dir.mkdir(parents=True, exist_ok=True)
     
     def read_boq_file(self, file_path: str) -> List[Dict]:
         """Read BOQ items from Excel file"""

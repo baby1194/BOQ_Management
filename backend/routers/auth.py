@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import Optional
 
-from database.database import get_db
+from database.database import get_system_db
 from models import models
 from schemas import schemas
 from services.auth_service import (
@@ -23,7 +23,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 @router.post("/signup", response_model=schemas.UserResponse)
-async def signup(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+async def signup(user_data: schemas.UserCreate, db: Session = Depends(get_system_db)):
     """Sign up a new user (only allowed if no user exists)"""
     # Check if any user already exists
     if check_user_exists(db):
@@ -64,7 +64,7 @@ async def signup(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     )
 
 @router.post("/signin", response_model=schemas.Token)
-async def signin(user_credentials: schemas.UserLogin, response: Response, db: Session = Depends(get_db)):
+async def signin(user_credentials: schemas.UserLogin, response: Response, db: Session = Depends(get_system_db)):
     """Sign in user and return access token"""
     user = authenticate_user(db, user_credentials.username, user_credentials.password)
     if not user:
@@ -105,7 +105,7 @@ async def signout(response: Response):
 @router.get("/me", response_model=schemas.UserResponse)
 async def get_current_user_info(
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_system_db)
 ):
     """Get current user information"""
     user = await get_current_user_from_cookie(request, db)
@@ -125,7 +125,7 @@ async def get_current_user_info(
     )
 
 @router.get("/check-auth")
-async def check_auth_status(request: Request, db: Session = Depends(get_db)):
+async def check_auth_status(request: Request, db: Session = Depends(get_system_db)):
     """Check if user is authenticated (used by frontend)"""
     user = await get_current_user_from_cookie(request, db)
     if user:
@@ -140,7 +140,7 @@ async def check_auth_status(request: Request, db: Session = Depends(get_db)):
     return {"authenticated": False}
 
 @router.get("/check-signup-allowed")
-async def check_signup_allowed(db: Session = Depends(get_db)):
+async def check_signup_allowed(db: Session = Depends(get_system_db)):
     """Check if signup is allowed (no user exists yet)"""
     return {"signup_allowed": not check_user_exists(db)}
 
@@ -148,7 +148,7 @@ async def check_signup_allowed(db: Session = Depends(get_db)):
 async def update_profile(
     user_update: schemas.UserUpdate,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_system_db)
 ):
     """Update user profile (password and system password)"""
     # Get current user from cookie
@@ -192,7 +192,7 @@ async def update_profile(
 async def verify_system_password_endpoint(
     request_data: dict,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_system_db)
 ):
     """Verify the system password for BOQ operations"""
     # Get current user from cookie

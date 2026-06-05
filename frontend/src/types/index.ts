@@ -1,3 +1,13 @@
+export interface WorkspaceProject {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface WorkspaceProjectCreate {
+  name: string;
+}
+
 export interface BOQItem {
   id: number;
   serial_number?: number; // Integer

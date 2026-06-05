@@ -13,26 +13,46 @@ router = APIRouter()
 
 def add_manual_entries_flag(items: List[models.BOQItem], db: Session) -> List[dict]:
     """Helper function to add has_manual_entries flag to BOQ items"""
+    if not items:
+        return []
+
+    item_ids = [item.id for item in items]
+    sheets = (
+        db.query(models.ConcentrationSheet)
+        .filter(models.ConcentrationSheet.boq_item_id.in_(item_ids))
+        .all()
+    )
+    sheet_by_boq_id = {sheet.boq_item_id: sheet.id for sheet in sheets}
+    sheet_ids = list(sheet_by_boq_id.values())
+
+    manual_sheet_ids: set = set()
+    if sheet_ids:
+        manual_sheet_ids = {
+            row[0]
+            for row in db.query(models.ConcentrationEntry.concentration_sheet_id)
+            .filter(
+                models.ConcentrationEntry.concentration_sheet_id.in_(sheet_ids),
+                models.ConcentrationEntry.is_manual == True,
+            )
+            .distinct()
+            .all()
+        }
+
+    boq_ids_with_manual = {
+        boq_id
+        for boq_id, sheet_id in sheet_by_boq_id.items()
+        if sheet_id in manual_sheet_ids
+    }
+
     items_with_flag = []
     for item in items:
-        # Check if this BOQ item has a concentration sheet with manual entries
-        concentration_sheet = db.query(models.ConcentrationSheet).filter(
-            models.ConcentrationSheet.boq_item_id == item.id
-        ).first()
-        
-        has_manual = False
-        if concentration_sheet:
-            # Check if there are any manual entries for this concentration sheet
-            manual_entry_count = db.query(models.ConcentrationEntry).filter(
-                models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id,
-                models.ConcentrationEntry.is_manual == True
-            ).count()
-            has_manual = manual_entry_count > 0
-        
         raw = {k: v for k, v in item.__dict__.items() if k != "_sa_instance_state"}
-        item_dict = {**raw, "has_manual_entries": has_manual}
+        item_dict = {
+            **raw,
+            "has_manual_entries": item.id in boq_ids_with_manual,
+        }
         items_with_flag.append(item_dict)
-    
+
     return items_with_flag
 
 @router.get("/", response_model=List[schemas.BOQItem])

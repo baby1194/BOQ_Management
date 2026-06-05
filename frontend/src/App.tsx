@@ -13,6 +13,7 @@ import SummaryOfStructures from "./pages/SummaryOfStructures";
 import SignIn from "./pages/SignIn";
 import Profile from "./pages/Profile";
 import { useAuth } from "./contexts/AuthContext";
+import { ProjectProvider } from "./contexts/ProjectContext";
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -41,32 +42,37 @@ function App() {
         path="/*"
         element={
           <ProtectedRoute>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/boq" element={<BOQItems />} />
-                <Route
-                  path="/concentration"
-                  element={<ConcentrationSheets />}
-                />
-                <Route
-                  path="/calculation-sheets"
-                  element={<CalculationSheets />}
-                />
-                <Route path="/import" element={<FileImport />} />
-                <Route
-                  path="/summary-subsections"
-                  element={<SummaryOfSubsections />}
-                />
-                <Route path="/summary-systems" element={<SummaryOfSystems />} />
-                <Route
-                  path="/summary-structures"
-                  element={<SummaryOfStructures />}
-                />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Layout>
+            <ProjectProvider>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/boq" element={<BOQItems />} />
+                  <Route
+                    path="/concentration"
+                    element={<ConcentrationSheets />}
+                  />
+                  <Route
+                    path="/calculation-sheets"
+                    element={<CalculationSheets />}
+                  />
+                  <Route path="/import" element={<FileImport />} />
+                  <Route
+                    path="/summary-subsections"
+                    element={<SummaryOfSubsections />}
+                  />
+                  <Route
+                    path="/summary-systems"
+                    element={<SummaryOfSystems />}
+                  />
+                  <Route
+                    path="/summary-structures"
+                    element={<SummaryOfStructures />}
+                  />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Layout>
+            </ProjectProvider>
           </ProtectedRoute>
         }
       />

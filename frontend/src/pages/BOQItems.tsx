@@ -23,6 +23,11 @@ import { formatCurrency, formatNumber } from "../utils/format";
 import BOQExportModal from "../components/BOQExportModal";
 import FilterDropdown from "../components/FilterDropdown";
 import { GripVertical } from "lucide-react";
+import {
+  getProjectItem,
+  setProjectItem,
+  removeProjectItem,
+} from "../utils/localStorage";
 
 /**
  * Format date as mm/yyyy
@@ -93,11 +98,11 @@ const BOQItems: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Initialize state from localStorage using lazy initialization
   const [searchQuery, setSearchQuery] = useState(() => {
-    const saved = localStorage.getItem("boq-search-query");
+    const saved = getProjectItem("boq-search-query");
     return saved !== null ? saved : "";
   });
   const [selectedSubchapter, setSelectedSubchapter] = useState<string>(() => {
-    const saved = localStorage.getItem("boq-selected-subchapter");
+    const saved = getProjectItem("boq-selected-subchapter");
     return saved !== null ? saved : "";
   });
   const [subchapters, setSubchapters] = useState<string[]>([]);
@@ -119,7 +124,7 @@ const BOQItems: React.FC = () => {
   /** Selected row in BOQ main table – stays highlighted after click (like Concentration Sheets sidebar). Persisted so it survives navigation. */
   const [selectedBoqRowId, setSelectedBoqRowId] = useState<number | null>(
     () => {
-      const saved = localStorage.getItem("boq-selected-row-id");
+      const saved = getProjectItem("boq-selected-row-id");
       if (saved === null) return null;
       const n = parseInt(saved, 10);
       return Number.isNaN(n) ? null : n;
@@ -128,7 +133,7 @@ const BOQItems: React.FC = () => {
 
   // Panel collapse state - initialize from localStorage
   const [panelsCollapsed, setPanelsCollapsed] = useState(() => {
-    const saved = localStorage.getItem("boq-panels-collapsed");
+    const saved = getProjectItem("boq-panels-collapsed");
     if (saved !== null) {
       try {
         return JSON.parse(saved);
@@ -191,7 +196,7 @@ const BOQItems: React.FC = () => {
       contract_updates: {} as Record<number, { quantity: string; sum: string }>,
     };
 
-    const saved = localStorage.getItem("boq-filters");
+    const saved = getProjectItem("boq-filters");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -211,7 +216,7 @@ const BOQItems: React.FC = () => {
       unit: [] as string[],
     };
 
-    const saved = localStorage.getItem("boq-dropdown-filters");
+    const saved = getProjectItem("boq-dropdown-filters");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -265,7 +270,7 @@ const BOQItems: React.FC = () => {
       actions: true,
     };
 
-    const saved = localStorage.getItem("boq-column-visibility");
+    const saved = getProjectItem("boq-column-visibility");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -287,43 +292,43 @@ const BOQItems: React.FC = () => {
 
   // Save all display settings to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem(
+    setProjectItem(
       "boq-column-visibility",
       JSON.stringify(columnVisibility),
     );
   }, [columnVisibility]);
 
   useEffect(() => {
-    localStorage.setItem(
+    setProjectItem(
       "boq-panels-collapsed",
       JSON.stringify(panelsCollapsed),
     );
   }, [panelsCollapsed]);
 
   useEffect(() => {
-    localStorage.setItem("boq-filters", JSON.stringify(filters));
+    setProjectItem("boq-filters", JSON.stringify(filters));
   }, [filters]);
 
   useEffect(() => {
-    localStorage.setItem(
+    setProjectItem(
       "boq-dropdown-filters",
       JSON.stringify(dropdownFilters),
     );
   }, [dropdownFilters]);
 
   useEffect(() => {
-    localStorage.setItem("boq-search-query", searchQuery);
+    setProjectItem("boq-search-query", searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
-    localStorage.setItem("boq-selected-subchapter", selectedSubchapter);
+    setProjectItem("boq-selected-subchapter", selectedSubchapter);
   }, [selectedSubchapter]);
 
   useEffect(() => {
     if (selectedBoqRowId === null) {
-      localStorage.removeItem("boq-selected-row-id");
+      removeProjectItem("boq-selected-row-id");
     } else {
-      localStorage.setItem("boq-selected-row-id", String(selectedBoqRowId));
+      setProjectItem("boq-selected-row-id", String(selectedBoqRowId));
     }
   }, [selectedBoqRowId]);
 
@@ -1908,7 +1913,7 @@ const BOQItems: React.FC = () => {
       const scrollPercentage =
         maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
 
-      localStorage.setItem("boq-table-scroll-position", scrollTop.toString());
+      setProjectItem("boq-table-scroll-position", scrollTop.toString());
     };
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
@@ -1931,7 +1936,7 @@ const BOQItems: React.FC = () => {
       tableScrollContainerRef.current &&
       !scrollPositionRestoredRef.current
     ) {
-      const savedScrollPosition = localStorage.getItem(
+      const savedScrollPosition = getProjectItem(
         "boq-table-scroll-position",
       );
 

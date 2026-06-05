@@ -20,6 +20,7 @@ import { formatCurrency, formatNumber } from "../utils/format";
 import { Search, X, ExternalLink } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
+import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 /** Draft state for inline row editing (mirrors EntryForm fields). */
 type ConcentrationEntryEditDraft = {
@@ -88,7 +89,7 @@ const ConcentrationSheets: React.FC = () => {
   const [navigatedFromBOQ, setNavigatedFromBOQ] = useState(false);
   // Initialize filter from localStorage
   const [sectionNumberFilter, setSectionNumberFilter] = useState(() => {
-    const saved = localStorage.getItem("concentration-sheets-section-filter");
+    const saved = getProjectItem("concentration-sheets-section-filter");
     return saved !== null ? saved : "";
   });
   const [showEntryColumnModal, setShowEntryColumnModal] = useState(false);
@@ -500,7 +501,7 @@ const ConcentrationSheets: React.FC = () => {
           setTimeout(() => setShowNavigationMessage(false), 3000);
 
           // Save selected sheet ID to localStorage
-          localStorage.setItem(
+          setProjectItem(
             "concentration-selected-sheet-id",
             targetSheet.id.toString(),
           );
@@ -510,7 +511,7 @@ const ConcentrationSheets: React.FC = () => {
       }
 
       // Restore previously selected sheet from localStorage
-      const savedSheetId = localStorage.getItem(
+      const savedSheetId = getProjectItem(
         "concentration-selected-sheet-id",
       );
       if (savedSheetId) {
@@ -565,7 +566,7 @@ const ConcentrationSheets: React.FC = () => {
     loadProjectInfoFromSheet(sheet);
     fetchEntries(sheet.id);
     // Save selected sheet ID to localStorage
-    localStorage.setItem(
+    setProjectItem(
       "concentration-selected-sheet-id",
       sheet.id.toString(),
     );
@@ -775,7 +776,7 @@ const ConcentrationSheets: React.FC = () => {
 
   // Save section number filter to localStorage
   useEffect(() => {
-    localStorage.setItem(
+    setProjectItem(
       "concentration-sheets-section-filter",
       sectionNumberFilter,
     );
