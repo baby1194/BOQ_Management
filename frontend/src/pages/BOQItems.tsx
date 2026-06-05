@@ -301,8 +301,7 @@ const BOQItems: React.FC = () => {
   }, [panelsCollapsed]);
 
   useEffect(() => {
-    const { contract_updates, ...staticFilters } = filters;
-    localStorage.setItem("boq-filters", JSON.stringify(staticFilters));
+    localStorage.setItem("boq-filters", JSON.stringify(filters));
   }, [filters]);
 
   useEffect(() => {
@@ -1855,27 +1854,17 @@ const BOQItems: React.FC = () => {
     if (contractUpdates.length > 0) {
       fetchBOQItemUpdates();
 
-      // Initialize contract update filters
-      const newContractUpdateFilters: Record<
-        number,
-        { quantity: string; sum: string }
-      > = {};
-      contractUpdates.forEach((update) => {
-        newContractUpdateFilters[update.id] = { quantity: "", sum: "" };
+      // Merge contract update filters (preserve saved values for existing updates)
+      setFilters((prev) => {
+        const merged: Record<number, { quantity: string; sum: string }> = {};
+        contractUpdates.forEach((update) => {
+          merged[update.id] = prev.contract_updates?.[update.id] ?? {
+            quantity: "",
+            sum: "",
+          };
+        });
+        return { ...prev, contract_updates: merged };
       });
-
-      // console.log("Initializing contract update filters:", {
-      //   contractUpdates: contractUpdates.map((u) => ({
-      //     id: u.id,
-      //     name: u.update_name,
-      //   })),
-      //   newFilters: newContractUpdateFilters,
-      // });
-
-      setFilters((prev) => ({
-        ...prev,
-        contract_updates: newContractUpdateFilters,
-      }));
     }
   }, [contractUpdates]);
 

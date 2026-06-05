@@ -1,7 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ContractQuantityUpdate } from "../types";
+import {
+  EXPORT_PREFS_KEYS,
+  loadExportColumnPrefs,
+  mergeMissingBooleanKeys,
+  saveExportColumnPrefs,
+} from "../utils/exportPreferences";
 
 interface BOQExportRequest {
   include_serial_number: boolean;
@@ -44,6 +50,47 @@ interface BOQExportModalProps {
   contractUpdates?: ContractQuantityUpdate[];
 }
 
+const buildDefaultBOQExportRequest = (
+  contractUpdates: ContractQuantityUpdate[] = [],
+): BOQExportRequest => {
+  const baseRequest: BOQExportRequest = {
+    include_serial_number: true,
+    include_structure: true,
+    include_system: true,
+    include_section_number: true,
+    include_description: true,
+    include_unit: true,
+    include_original_contract_quantity: true,
+    include_price: true,
+    include_total_contract_sum: true,
+    include_estimated_quantity: true,
+    include_quantity_submitted: true,
+    include_internal_quantity: true,
+    include_approved_by_project_manager: true,
+    include_approved_signed_quantity: true,
+    include_partially_submitted_quantity: true,
+    include_quantity_decrease: true,
+    include_quantity_increase: true,
+    include_total_estimate: true,
+    include_total_submitted: true,
+    include_internal_total: true,
+    include_total_approved_by_project_manager: true,
+    include_approved_signed_total: true,
+    include_partial_submitted_total: true,
+    include_total_decrease: true,
+    include_total_increase: true,
+    include_subsection: true,
+    include_notes: true,
+  };
+
+  contractUpdates.forEach((update) => {
+    baseRequest[`include_updated_contract_quantity_${update.id}`] = true;
+    baseRequest[`include_updated_contract_sum_${update.id}`] = true;
+  });
+
+  return baseRequest;
+};
+
 const BOQExportModal: React.FC<BOQExportModalProps> = ({
   isOpen,
   onClose,
@@ -54,45 +101,27 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
-  const [exportRequest, setExportRequest] = useState<BOQExportRequest>(() => {
-    const baseRequest = {
-      include_serial_number: true,
-      include_structure: true,
-      include_system: true,
-      include_section_number: true,
-      include_description: true,
-      include_unit: true,
-      include_original_contract_quantity: true,
-      include_price: true,
-      include_total_contract_sum: true,
-      include_estimated_quantity: true,
-      include_quantity_submitted: true,
-      include_internal_quantity: true,
-      include_approved_by_project_manager: true,
-      include_approved_signed_quantity: true,
-      include_partially_submitted_quantity: true,
-      include_quantity_decrease: true,
-      include_quantity_increase: true,
-      include_total_estimate: true,
-      include_total_submitted: true,
-      include_internal_total: true,
-      include_total_approved_by_project_manager: true,
-      include_approved_signed_total: true,
-      include_partial_submitted_total: true,
-      include_total_decrease: true,
-      include_total_increase: true,
-      include_subsection: true,
-      include_notes: true,
-    };
+  const [exportRequest, setExportRequest] = useState<BOQExportRequest>(() =>
+    loadExportColumnPrefs<BOQExportRequest>(EXPORT_PREFS_KEYS.boq, () =>
+      buildDefaultBOQExportRequest(contractUpdates),
+    ),
+  );
 
-    // Add contract update columns
-    contractUpdates.forEach((update) => {
-      baseRequest[`include_updated_contract_quantity_${update.id}`] = true;
-      baseRequest[`include_updated_contract_sum_${update.id}`] = true;
-    });
+  useEffect(() => {
+    if (contractUpdates.length === 0) return;
+    const dynamicKeys = contractUpdates.flatMap((update) => [
+      `include_updated_contract_quantity_${update.id}`,
+      `include_updated_contract_sum_${update.id}`,
+    ]);
+    setExportRequest(
+      (prev) =>
+        mergeMissingBooleanKeys(prev, dynamicKeys, true) as BOQExportRequest,
+    );
+  }, [contractUpdates]);
 
-    return baseRequest;
-  });
+  useEffect(() => {
+    saveExportColumnPrefs(EXPORT_PREFS_KEYS.boq, exportRequest);
+  }, [exportRequest]);
 
   const handleCheckboxChange = (field: keyof BOQExportRequest) => {
     setExportRequest((prev) => ({
@@ -102,83 +131,15 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
   };
 
   const handleSelectAll = () => {
-    const baseRequest = {
-      include_serial_number: true,
-      include_structure: true,
-      include_system: true,
-      include_section_number: true,
-      include_description: true,
-      include_unit: true,
-      include_original_contract_quantity: true,
-      include_price: true,
-      include_total_contract_sum: true,
-      include_estimated_quantity: true,
-      include_quantity_submitted: true,
-      include_internal_quantity: true,
-      include_approved_by_project_manager: true,
-      include_approved_signed_quantity: true,
-      include_partially_submitted_quantity: true,
-      include_quantity_decrease: true,
-      include_quantity_increase: true,
-      include_total_estimate: true,
-      include_total_submitted: true,
-      include_internal_total: true,
-      include_total_approved_by_project_manager: true,
-      include_approved_signed_total: true,
-      include_partial_submitted_total: true,
-      include_total_decrease: true,
-      include_total_increase: true,
-      include_subsection: true,
-      include_notes: true,
-    };
-
-    // Add contract update columns
-    contractUpdates.forEach((update) => {
-      baseRequest[`include_updated_contract_quantity_${update.id}`] = true;
-      baseRequest[`include_updated_contract_sum_${update.id}`] = true;
-    });
-
-    setExportRequest(baseRequest);
+    setExportRequest(buildDefaultBOQExportRequest(contractUpdates));
   };
 
   const handleDeselectAll = () => {
-    const baseRequest = {
-      include_serial_number: false,
-      include_structure: false,
-      include_system: false,
-      include_section_number: false,
-      include_description: false,
-      include_unit: false,
-      include_original_contract_quantity: false,
-      include_price: false,
-      include_total_contract_sum: false,
-      include_estimated_quantity: false,
-      include_quantity_submitted: false,
-      include_internal_quantity: false,
-      include_approved_by_project_manager: false,
-      include_approved_signed_quantity: false,
-      include_partially_submitted_quantity: false,
-      include_quantity_decrease: false,
-      include_quantity_increase: false,
-      include_total_estimate: false,
-      include_total_submitted: false,
-      include_internal_total: false,
-      include_total_approved_by_project_manager: false,
-      include_approved_signed_total: false,
-      include_partial_submitted_total: false,
-      include_total_decrease: false,
-      include_total_increase: false,
-      include_subsection: false,
-      include_notes: false,
-    };
-
-    // Add contract update columns
-    contractUpdates.forEach((update) => {
-      baseRequest[`include_updated_contract_quantity_${update.id}`] = false;
-      baseRequest[`include_updated_contract_sum_${update.id}`] = false;
+    const allOff = buildDefaultBOQExportRequest(contractUpdates);
+    Object.keys(allOff).forEach((key) => {
+      allOff[key] = false;
     });
-
-    setExportRequest(baseRequest);
+    setExportRequest(allOff);
   };
 
   if (!isOpen) return null;

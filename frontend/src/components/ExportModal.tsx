@@ -1,5 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SummaryExportRequest, ContractQuantityUpdate } from "../types";
+import {
+  EXPORT_PREFS_KEYS,
+  loadExportColumnPrefs,
+  saveExportColumnPrefs,
+} from "../utils/exportPreferences";
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -10,6 +15,22 @@ interface ExportModalProps {
   contractUpdates?: ContractQuantityUpdate[];
 }
 
+const buildDefaultSummaryExportRequest = (): SummaryExportRequest => ({
+  include_structure: true,
+  include_description: true,
+  include_total_decreases: true,
+  include_total_increases: true,
+  include_total_contract_sum: true,
+  include_total_estimate: true,
+  include_total_submitted: true,
+  include_internal_total: true,
+  include_total_approved: true,
+  include_approved_signed_total: true,
+  include_partial_submitted_total: true,
+  include_item_count: true,
+  include_contract_updates: true,
+});
+
 const ExportModal: React.FC<ExportModalProps> = ({
   isOpen,
   onClose,
@@ -18,26 +39,16 @@ const ExportModal: React.FC<ExportModalProps> = ({
   loading = false,
   contractUpdates = [],
 }) => {
-  const [exportRequest, setExportRequest] = useState<SummaryExportRequest>(
-    () => {
-      const baseRequest = {
-        include_structure: true,
-        include_description: true,
-        include_total_decreases: true,
-        include_total_increases: true,
-        include_total_contract_sum: true,
-        include_total_estimate: true,
-        include_total_submitted: true,
-        include_internal_total: true,
-        include_total_approved: true,
-        include_approved_signed_total: true,
-        include_partial_submitted_total: true,
-        include_item_count: true,
-        include_contract_updates: true,
-      };
-      return baseRequest;
-    }
+  const [exportRequest, setExportRequest] = useState<SummaryExportRequest>(() =>
+    loadExportColumnPrefs<SummaryExportRequest>(
+      EXPORT_PREFS_KEYS.summary,
+      buildDefaultSummaryExportRequest,
+    ),
   );
+
+  useEffect(() => {
+    saveExportColumnPrefs(EXPORT_PREFS_KEYS.summary, exportRequest);
+  }, [exportRequest]);
 
   const handleCheckboxChange = (field: keyof SummaryExportRequest) => {
     setExportRequest((prev) => ({
@@ -47,39 +58,15 @@ const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handleSelectAll = () => {
-    setExportRequest({
-      include_structure: true,
-      include_description: true,
-      include_total_decreases: true,
-      include_total_increases: true,
-      include_total_contract_sum: true,
-      include_total_estimate: true,
-      include_total_submitted: true,
-      include_internal_total: true,
-      include_total_approved: true,
-      include_approved_signed_total: true,
-      include_partial_submitted_total: true,
-      include_item_count: true,
-      include_contract_updates: true,
-    });
+    setExportRequest(buildDefaultSummaryExportRequest());
   };
 
   const handleDeselectAll = () => {
-    setExportRequest({
-      include_structure: false,
-      include_description: false,
-      include_total_decreases: false,
-      include_total_increases: false,
-      include_total_contract_sum: false,
-      include_total_estimate: false,
-      include_total_submitted: false,
-      include_internal_total: false,
-      include_total_approved: false,
-      include_approved_signed_total: false,
-      include_partial_submitted_total: false,
-      include_item_count: false,
-      include_contract_updates: false,
+    const allOff = buildDefaultSummaryExportRequest();
+    (Object.keys(allOff) as (keyof SummaryExportRequest)[]).forEach((key) => {
+      allOff[key] = false;
     });
+    setExportRequest(allOff);
   };
 
   const handleExport = (format: "pdf" | "excel") => {

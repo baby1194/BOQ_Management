@@ -1,7 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ConcentrationEntryExportRequest } from "../types";
+import {
+  EXPORT_PREFS_KEYS,
+  loadExportColumnPrefs,
+  saveExportColumnPrefs,
+} from "../utils/exportPreferences";
 
 interface ConcentrationEntryExportModalProps {
   isOpen: boolean;
@@ -26,6 +31,19 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_supervisor_notes",
 ];
 
+const buildDefaultConcentrationEntryExportRequest =
+  (): ConcentrationEntryExportRequest => ({
+    include_description: true,
+    include_calculation_sheet_no: true,
+    include_drawing_no: true,
+    include_estimated_quantity: true,
+    include_quantity_submitted: true,
+    include_internal_quantity: true,
+    include_approved_by_project_manager: true,
+    include_notes: true,
+    include_supervisor_notes: true,
+  });
+
 const ConcentrationEntryExportModal: React.FC<
   ConcentrationEntryExportModalProps
 > = ({
@@ -40,20 +58,20 @@ const ConcentrationEntryExportModal: React.FC<
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [exportRequest, setExportRequest] =
-    useState<ConcentrationEntryExportRequest>(() => {
-      const baseRequest = {
-        include_description: true,
-        include_calculation_sheet_no: true,
-        include_drawing_no: true,
-        include_estimated_quantity: true,
-        include_quantity_submitted: true,
-        include_internal_quantity: true,
-        include_approved_by_project_manager: true,
-        include_notes: true,
-        include_supervisor_notes: true,
-      };
-      return baseRequest;
+    useState<ConcentrationEntryExportRequest>(() =>
+      loadExportColumnPrefs<ConcentrationEntryExportRequest>(
+        EXPORT_PREFS_KEYS.concentrationEntry,
+        buildDefaultConcentrationEntryExportRequest,
+      ),
+    );
+
+  useEffect(() => {
+    const columnPrefs: Record<string, boolean> = {};
+    COLUMN_KEYS.forEach((key) => {
+      columnPrefs[key] = exportRequest[key] === true;
     });
+    saveExportColumnPrefs(EXPORT_PREFS_KEYS.concentrationEntry, columnPrefs);
+  }, [exportRequest]);
 
   const handleCheckboxChange = (
     field: keyof ConcentrationEntryExportRequest,
@@ -65,31 +83,15 @@ const ConcentrationEntryExportModal: React.FC<
   };
 
   const handleSelectAll = () => {
-    setExportRequest({
-      include_description: true,
-      include_calculation_sheet_no: true,
-      include_drawing_no: true,
-      include_estimated_quantity: true,
-      include_quantity_submitted: true,
-      include_internal_quantity: true,
-      include_approved_by_project_manager: true,
-      include_notes: true,
-      include_supervisor_notes: true,
-    });
+    setExportRequest(buildDefaultConcentrationEntryExportRequest());
   };
 
   const handleDeselectAll = () => {
-    setExportRequest({
-      include_description: false,
-      include_calculation_sheet_no: false,
-      include_drawing_no: false,
-      include_estimated_quantity: false,
-      include_quantity_submitted: false,
-      include_internal_quantity: false,
-      include_approved_by_project_manager: false,
-      include_notes: false,
-      include_supervisor_notes: false,
+    const allOff = buildDefaultConcentrationEntryExportRequest();
+    COLUMN_KEYS.forEach((key) => {
+      allOff[key] = false;
     });
+    setExportRequest(allOff);
   };
 
   const hasAtLeastOneColumn = COLUMN_KEYS.some(

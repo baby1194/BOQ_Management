@@ -24,7 +24,8 @@ export const clearAppLocalStorage = () => {
   // Concentration Sheets filters
   localStorage.removeItem("concentration-sheets-section-filter");
 
-  // Note: We intentionally keep "language" as it's a user preference
-  // that should persist across sessions
+  // Note: We intentionally keep "language" and export column preferences
+  // (boq-export-columns, summary-export-columns, concentration-entry-export-columns)
+  // so print/export settings persist across sessions and sign-out.
 };
 
