@@ -119,6 +119,7 @@ class ConcentrationEntryBase(BaseModel):
     calculation_sheet_no: Optional[str] = Field(None, max_length=100)
     drawing_no: Optional[str] = Field(None, max_length=100)
     estimated_quantity: float = Field(0.0, ge=0)
+    submission_percentage: float = Field(100.0, ge=0, le=100)
     quantity_submitted: float = Field(0.0, ge=0)
     internal_quantity: float = Field(0.0, ge=0)
     approved_by_project_manager: float = Field(0.0, ge=0)
@@ -135,6 +136,7 @@ class ConcentrationEntryUpdate(BaseModel):
     calculation_sheet_no: Optional[str] = Field(None, max_length=100)
     drawing_no: Optional[str] = Field(None, max_length=100)
     estimated_quantity: Optional[float] = Field(None, ge=0)
+    submission_percentage: Optional[float] = Field(None, ge=0, le=100)
     quantity_submitted: Optional[float] = Field(None, ge=0)
     internal_quantity: Optional[float] = Field(None, ge=0)
     approved_by_project_manager: Optional[float] = Field(None, ge=0)
@@ -164,6 +166,7 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_calculation_sheet_no: bool = True
     include_drawing_no: bool = True
     include_estimated_quantity: bool = True
+    include_submission_percentage: bool = True
     include_quantity_submitted: bool = True
     include_internal_quantity: bool = True
     include_approved_by_project_manager: bool = True

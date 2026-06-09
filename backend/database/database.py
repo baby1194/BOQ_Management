@@ -96,11 +96,44 @@ def init_system_database() -> None:
     models.User.__table__.create(bind=engine, checkfirst=True)
 
 
+def _ensure_submission_percentage_column(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(concentration_entries)"))
+        ]
+        if "submission_percentage" in columns:
+            return
+
+        conn.execute(
+            text(
+                "ALTER TABLE concentration_entries "
+                "ADD COLUMN submission_percentage REAL DEFAULT 100.0"
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE concentration_entries
+                SET submission_percentage = CASE
+                    WHEN estimated_quantity > 0
+                    THEN (quantity_submitted / estimated_quantity) * 100.0
+                    ELSE 100.0
+                END
+                """
+            )
+        )
+        conn.commit()
+
+
 def init_project_database(project_id: str) -> None:
     from models import models
 
     engine = get_project_engine(project_id)
     models.Base.metadata.create_all(bind=engine)
+    _ensure_submission_percentage_column(engine)
 
 
 def get_project_upload_dir(project_id: str) -> Path:

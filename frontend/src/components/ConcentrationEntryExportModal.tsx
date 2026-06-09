@@ -24,6 +24,7 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_calculation_sheet_no",
   "include_drawing_no",
   "include_estimated_quantity",
+  "include_submission_percentage",
   "include_quantity_submitted",
   "include_internal_quantity",
   "include_approved_by_project_manager",
@@ -37,6 +38,7 @@ const buildDefaultConcentrationEntryExportRequest =
     include_calculation_sheet_no: true,
     include_drawing_no: true,
     include_estimated_quantity: true,
+    include_submission_percentage: true,
     include_quantity_submitted: true,
     include_internal_quantity: true,
     include_approved_by_project_manager: true,
@@ -211,6 +213,21 @@ const ConcentrationEntryExportModal: React.FC<
                 disabled={loading}
               />
               <span className="text-sm">{t("boq.estimatedQuantity")}</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_submission_percentage}
+                onChange={() =>
+                  handleCheckboxChange("include_submission_percentage")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">
+                {t("concentration.submissionPercentage")}
+              </span>
             </label>
 
             <label className="flex items-center">

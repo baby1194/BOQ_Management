@@ -6,6 +6,7 @@ from database.database import get_db
 from models import models
 from schemas import schemas
 from services.sync_service import SyncService
+from utils.concentration_utils import compute_quantity_submitted
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -479,7 +480,12 @@ async def populate_concentration_entries(
                 # Only update if it's an auto-generated entry, don't override manual entries
                 if not existing_concentration_entry.is_manual:
                     existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
-                    existing_concentration_entry.quantity_submitted = calc_entry.quantity_submitted
+                    if existing_concentration_entry.submission_percentage is None:
+                        existing_concentration_entry.submission_percentage = 100.0
+                    existing_concentration_entry.quantity_submitted = compute_quantity_submitted(
+                        existing_concentration_entry.estimated_quantity,
+                        existing_concentration_entry.submission_percentage,
+                    )
                     existing_concentration_entry.description = calculation_sheet.description
                     existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
                     entries_created += 1  # Count as updated
@@ -495,7 +501,10 @@ async def populate_concentration_entries(
                     calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                     drawing_no=calculation_sheet.drawing_no,
                     estimated_quantity=calc_entry.estimated_quantity,
-                    quantity_submitted=calc_entry.quantity_submitted,
+                    submission_percentage=100.0,
+                    quantity_submitted=compute_quantity_submitted(
+                        calc_entry.estimated_quantity, 100.0
+                    ),
                     internal_quantity=0.0,
                     approved_by_project_manager=0.0,
                     notes=calc_entry.notes or f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
@@ -662,7 +671,10 @@ async def populate_all_calculation_entries(
                         calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                         drawing_no=calculation_sheet.drawing_no,
                         estimated_quantity=calc_entry.estimated_quantity,
-                        quantity_submitted=calc_entry.quantity_submitted,
+                        submission_percentage=100.0,
+                        quantity_submitted=compute_quantity_submitted(
+                            calc_entry.estimated_quantity, 100.0
+                        ),
                         internal_quantity=0.0,
                         approved_by_project_manager=0.0,
                         notes=calc_entry.notes or f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",

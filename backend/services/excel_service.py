@@ -455,8 +455,8 @@ class ExcelService:
             
             # Build entries column list from entry_columns (same logic as PDF)
             all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
-                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes',
-                           'Supervisor Notes']
+                           'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
+                           'Approved by Project Manager', 'Notes', 'Supervisor Notes']
             if entry_columns:
                 filtered_headers = []
                 if entry_columns.get('include_description', True):
@@ -467,6 +467,8 @@ class ExcelService:
                     filtered_headers.append('Drawing No')
                 if entry_columns.get('include_estimated_quantity', True):
                     filtered_headers.append('Estimated Quantity')
+                if entry_columns.get('include_submission_percentage', True):
+                    filtered_headers.append('Submission Percentage')
                 if entry_columns.get('include_quantity_submitted', True):
                     filtered_headers.append('Quantity Submitted')
                 if entry_columns.get('include_internal_quantity', True):
@@ -529,6 +531,7 @@ class ExcelService:
                             entry.calculation_sheet_no or '',
                             entry.drawing_no or '',
                             float(entry.estimated_quantity or 0),
+                            float(getattr(entry, 'submission_percentage', 100.0) or 100.0),
                             float(entry.quantity_submitted or 0),
                             float(entry.internal_quantity or 0),
                             float(entry.approved_by_project_manager or 0),
@@ -545,6 +548,7 @@ class ExcelService:
                     all_totals = [
                         'TOTALS', '', '',
                         float(total_estimate),
+                        '',
                         float(total_submitted),
                         float(total_internal),
                         float(total_approved),
@@ -729,8 +733,9 @@ class ExcelService:
                     # Third Table: Concentration Entries (following the order shown on concentration sheets page)
                     if entries:
                         # Column order as shown on concentration sheets page
-                        entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
-                                         'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
+                        entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
+                                         'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
+                                         'Approved by Project Manager', 'Notes']
                         
                         entries_data = [entries_headers]
                         for entry in entries:
@@ -739,6 +744,7 @@ class ExcelService:
                                 entry.calculation_sheet_no or '',
                                 entry.drawing_no or '',
                                 float(entry.estimated_quantity or 0),
+                                float(getattr(entry, 'submission_percentage', 100.0) or 100.0),
                                 float(entry.quantity_submitted or 0),
                                 float(entry.internal_quantity or 0),
                                 float(entry.approved_by_project_manager or 0),
@@ -756,6 +762,7 @@ class ExcelService:
                             '',
                             '',
                             float(total_estimate),
+                            '',
                             float(total_submitted),
                             float(total_internal),
                             float(total_approved),

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 import logging
 from models import models
+from utils.concentration_utils import compute_quantity_submitted
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +208,12 @@ class SyncService:
             if concentration_entry:
                 # Update the concentration entry with new values
                 concentration_entry.estimated_quantity = calculation_entry.estimated_quantity
-                concentration_entry.quantity_submitted = calculation_entry.quantity_submitted
+                if concentration_entry.submission_percentage is None:
+                    concentration_entry.submission_percentage = 100.0
+                concentration_entry.quantity_submitted = compute_quantity_submitted(
+                    concentration_entry.estimated_quantity,
+                    concentration_entry.submission_percentage,
+                )
                 entries_updated = 1
                 
                 # Update BOQ item totals
@@ -320,7 +326,12 @@ class SyncService:
                         if concentration_entry:
                             # Update the existing concentration entry
                             concentration_entry.estimated_quantity = calc_entry.estimated_quantity
-                            concentration_entry.quantity_submitted = calc_entry.quantity_submitted
+                            if concentration_entry.submission_percentage is None:
+                                concentration_entry.submission_percentage = 100.0
+                            concentration_entry.quantity_submitted = compute_quantity_submitted(
+                                concentration_entry.estimated_quantity,
+                                concentration_entry.submission_percentage,
+                            )
                             total_entries_updated += 1
                             logger.info(f"Updated existing concentration entry for section {calc_entry.section_number}")
                         else:
@@ -343,7 +354,10 @@ class SyncService:
                                         calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                                         drawing_no=calculation_sheet.drawing_no,
                                         estimated_quantity=calc_entry.estimated_quantity,
-                                        quantity_submitted=calc_entry.quantity_submitted,
+                                        submission_percentage=100.0,
+                                        quantity_submitted=compute_quantity_submitted(
+                                            calc_entry.estimated_quantity, 100.0
+                                        ),
                                         internal_quantity=0.0,
                                         approved_by_project_manager=0.0,
                                         notes=f"Auto-synced from calculation sheet {calculation_sheet.calculation_sheet_no}"

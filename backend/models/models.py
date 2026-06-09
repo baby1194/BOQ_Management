@@ -91,6 +91,7 @@ class ConcentrationEntry(Base):
     
     # Values
     estimated_quantity = Column(Float, default=0.0)
+    submission_percentage = Column(Float, default=100.0)
     quantity_submitted = Column(Float, default=0.0)
     internal_quantity = Column(Float, default=0.0)
     approved_by_project_manager = Column(Float, default=0.0)

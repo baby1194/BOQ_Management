@@ -112,7 +112,8 @@ export interface ConcentrationEntry {
   calculation_sheet_no?: string; // Calculation Sheet No
   drawing_no?: string; // Drawing No
   estimated_quantity: number; // Estimated Quantity
-  quantity_submitted: number; // Quantity Submitted
+  submission_percentage: number; // Submission percentage (default 100%)
+  quantity_submitted: number; // Quantity Submitted (derived from estimated × percentage)
   internal_quantity: number; // Internal Quantity
   approved_by_project_manager: number; // Approved by Project Manager
   notes?: string; // Notes
@@ -174,6 +175,7 @@ export interface ConcentrationEntryExportRequest {
   include_calculation_sheet_no: boolean;
   include_drawing_no: boolean;
   include_estimated_quantity: boolean;
+  include_submission_percentage: boolean;
   include_quantity_submitted: boolean;
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;

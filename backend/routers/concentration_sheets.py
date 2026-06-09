@@ -7,9 +7,17 @@ import logging
 from database.database import get_db
 from models import models
 from schemas import schemas
+from utils.concentration_utils import compute_quantity_submitted
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _sync_quantity_submitted(entry: models.ConcentrationEntry) -> None:
+    entry.quantity_submitted = compute_quantity_submitted(
+        entry.estimated_quantity,
+        entry.submission_percentage if entry.submission_percentage is not None else 100.0,
+    )
 
 @router.get("/", response_model=List[schemas.ConcentrationSheet])
 async def get_concentration_sheets(
@@ -326,14 +334,15 @@ async def create_concentration_entry(
             calculation_sheet_no=entry.calculation_sheet_no,
             drawing_no=entry.drawing_no,
             estimated_quantity=entry.estimated_quantity,
-            quantity_submitted=entry.quantity_submitted,
+            submission_percentage=entry.submission_percentage,
             internal_quantity=entry.internal_quantity,
             approved_by_project_manager=entry.approved_by_project_manager,
             notes=entry.notes,
             supervisor_notes=entry.supervisor_notes,
             is_manual=True  # Mark as manually created
         )
-        
+        _sync_quantity_submitted(db_entry)
+
         db.add(db_entry)
         db.commit()
         db.refresh(db_entry)
@@ -371,6 +380,7 @@ async def update_concentration_entry(
         
         # Update fields if provided
         update_data = entry_update.dict(exclude_unset=True)
+        update_data.pop("quantity_submitted", None)
 
         if not db_entry.is_manual:
             allowed_for_auto = {
@@ -378,6 +388,7 @@ async def update_concentration_entry(
                 "supervisor_notes",
                 "internal_quantity",
                 "approved_by_project_manager",
+                "submission_percentage",
             }
             update_data = {
                 k: v for k, v in update_data.items() if k in allowed_for_auto
@@ -385,6 +396,9 @@ async def update_concentration_entry(
 
         for field, value in update_data.items():
             setattr(db_entry, field, value)
+
+        if db_entry.is_manual or "submission_percentage" in update_data:
+            _sync_quantity_submitted(db_entry)
         
         db.commit()
         db.refresh(db_entry)
@@ -549,6 +563,7 @@ async def copy_concentration_entry_to_boq_items(
                 calculation_sheet_no=db_entry.calculation_sheet_no,
                 drawing_no=db_entry.drawing_no,
                 estimated_quantity=db_entry.estimated_quantity,
+                submission_percentage=db_entry.submission_percentage,
                 quantity_submitted=db_entry.quantity_submitted,
                 internal_quantity=db_entry.internal_quantity,
                 approved_by_project_manager=db_entry.approved_by_project_manager,

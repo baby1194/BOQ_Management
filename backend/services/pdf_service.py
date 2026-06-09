@@ -767,6 +767,7 @@ class PDFService:
                     'Calculation Sheet No': 'מס\' דף חישוב',
                     'Drawing No': 'מס\' שרטוט',
                     'Estimated Quantity': 'כמות משוערת',
+                    'Submission Percentage': 'אחוז הגשה',
                     'Quantity Submitted': 'כמות מוגשת',
                     'Internal Quantity': 'כמות פנימית',
                     'Approved by Project Manager': 'כמות מאושרת',
@@ -797,6 +798,7 @@ class PDFService:
                     'Calculation Sheet No': 'Calc. Sheet No',
                     'Drawing No': 'Drawing No',
                     'Estimated Quantity': 'Est. Quantity',
+                    'Submission Percentage': 'Percentage',
                     'Quantity Submitted': 'Qty Submitted',
                     'Internal Quantity': 'Internal Qty',
                     'Approved by Project Manager': 'Approved Qty',
@@ -823,8 +825,8 @@ class PDFService:
             
             # Apply column filtering based on entry_columns if provided (define early for use throughout method)
             all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
-                           'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes',
-                           'Supervisor Notes']
+                           'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
+                           'Approved by Project Manager', 'Notes', 'Supervisor Notes']
             
             # Filter headers and their indices based on entry_columns configuration
             filtered_headers = []
@@ -837,6 +839,8 @@ class PDFService:
                     filtered_headers.append('Drawing No')
                 if entry_columns.get('include_estimated_quantity', True):
                     filtered_headers.append('Estimated Quantity')
+                if entry_columns.get('include_submission_percentage', True):
+                    filtered_headers.append('Submission Percentage')
                 if entry_columns.get('include_quantity_submitted', True):
                     filtered_headers.append('Quantity Submitted')
                 if entry_columns.get('include_internal_quantity', True):
@@ -871,6 +875,7 @@ class PDFService:
                         entry.calculation_sheet_no or '',
                         entry.drawing_no or '',
                         f"{entry.estimated_quantity:,.2f}",
+                        f"{getattr(entry, 'submission_percentage', 100.0) or 100.0:,.1f}%",
                         f"{entry.quantity_submitted:,.2f}",
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
@@ -1056,6 +1061,7 @@ class PDFService:
                         entry.calculation_sheet_no or '',
                         entry.drawing_no or '',
                         f"{entry.estimated_quantity:,.2f}",
+                        f"{getattr(entry, 'submission_percentage', 100.0) or 100.0:,.1f}%",
                         f"{entry.quantity_submitted:,.2f}",
                         f"{entry.internal_quantity:,.2f}",
                         f"{entry.approved_by_project_manager:,.2f}",
@@ -1093,6 +1099,7 @@ class PDFService:
                     '',
                     '',
                     f"{total_estimate:,.2f}",
+                    '',
                     f"{total_submitted:,.2f}",
                     f"{total_internal:,.2f}",
                     f"{total_approved:,.2f}",
@@ -2300,10 +2307,12 @@ class PDFService:
             'מס\' דף חישוב': 0.08,  # Hebrew translation
             'Drawing No': 0.06,  # English
             'מס\' שרטוט': 0.06,  # Hebrew translation
-            'Est. Quantity': 0.08,  # English translation
-            'כמות משוערת': 0.08,  # Hebrew translation
-            'Qty Submitted': 0.08,  # English translation
-            'כמות מוגשת': 0.08,  # Hebrew translation
+            'Est. Quantity': 0.07,  # English translation
+            'כמות משוערת': 0.07,  # Hebrew translation
+            'Percentage': 0.06,  # English translation
+            'אחוז הגשה': 0.06,  # Hebrew translation
+            'Qty Submitted': 0.07,  # English translation
+            'כמות מוגשת': 0.07,  # Hebrew translation
             'Internal Qty': 0.08,  # English translation
             'כמות פנימית': 0.08,  # Hebrew translation
             'Approved Qty': 0.08,  # English translation

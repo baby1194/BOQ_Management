@@ -29,6 +29,7 @@ type ConcentrationEntryEditDraft = {
   calculation_sheet_no: string;
   drawing_no: string;
   estimated_quantity: number;
+  submission_percentage: number;
   quantity_submitted: number;
   internal_quantity: number;
   approved_by_project_manager: number;
@@ -37,16 +38,29 @@ type ConcentrationEntryEditDraft = {
   is_manual: boolean;
 };
 
+function computeQuantitySubmitted(
+  estimatedQuantity: number,
+  submissionPercentage: number,
+): number {
+  return estimatedQuantity * (submissionPercentage / 100);
+}
+
 function concentrationEntryToEditDraft(
   entry: ConcentrationEntry,
 ): ConcentrationEntryEditDraft {
+  const submissionPercentage = entry.submission_percentage ?? 100;
+  const estimatedQuantity = entry.estimated_quantity ?? 0;
   return {
     section_number: entry.section_number || "",
     description: entry.description || "",
     calculation_sheet_no: entry.calculation_sheet_no || "",
     drawing_no: entry.drawing_no || "",
-    estimated_quantity: entry.estimated_quantity ?? 0,
-    quantity_submitted: entry.quantity_submitted ?? 0,
+    estimated_quantity: estimatedQuantity,
+    submission_percentage: submissionPercentage,
+    quantity_submitted: computeQuantitySubmitted(
+      estimatedQuantity,
+      submissionPercentage,
+    ),
     internal_quantity: entry.internal_quantity ?? 0,
     approved_by_project_manager: entry.approved_by_project_manager ?? 0,
     notes: entry.notes || "",
@@ -645,7 +659,7 @@ const ConcentrationSheets: React.FC = () => {
         calculation_sheet_no: editDraft.calculation_sheet_no,
         drawing_no: editDraft.drawing_no,
         estimated_quantity: editDraft.estimated_quantity,
-        quantity_submitted: editDraft.quantity_submitted,
+        submission_percentage: editDraft.submission_percentage,
         internal_quantity: editDraft.internal_quantity,
         approved_by_project_manager: editDraft.approved_by_project_manager,
         notes: editDraft.notes,
@@ -654,6 +668,7 @@ const ConcentrationSheets: React.FC = () => {
       });
     } else {
       await updateEntry(editingEntry.id, {
+        submission_percentage: editDraft.submission_percentage,
         internal_quantity: editDraft.internal_quantity,
         approved_by_project_manager: editDraft.approved_by_project_manager,
         notes: editDraft.notes,
@@ -1339,6 +1354,9 @@ const ConcentrationSheets: React.FC = () => {
                                 {t("concentration.estQuantity")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {t("concentration.submissionPercentage")}
+                              </th>
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.qtySubmitted")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1362,7 +1380,7 @@ const ConcentrationSheets: React.FC = () => {
                             {entries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={10}
+                                  colSpan={11}
                                   className={`px-3 py-8 text-gray-500 ${
                                     isRTL ? "text-right" : "text-center"
                                   }`}
@@ -1513,19 +1531,23 @@ const ConcentrationSheets: React.FC = () => {
                                           type="number"
                                           step="0.01"
                                           value={editDraft.estimated_quantity}
-                                          onChange={(e) =>
+                                          onChange={(e) => {
+                                            const estimated =
+                                              parseFloat(e.target.value) || 0;
                                             setEditDraft((d) =>
                                               d
                                                 ? {
                                                     ...d,
-                                                    estimated_quantity:
-                                                      parseFloat(
-                                                        e.target.value,
-                                                      ) || 0,
+                                                    estimated_quantity: estimated,
+                                                    quantity_submitted:
+                                                      computeQuantitySubmitted(
+                                                        estimated,
+                                                        d.submission_percentage,
+                                                      ),
                                                   }
                                                 : null,
-                                            )
-                                          }
+                                            );
+                                          }}
                                           className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                           disabled={saving}
                                         />
@@ -1534,29 +1556,51 @@ const ConcentrationSheets: React.FC = () => {
                                       )}
                                     </td>
                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {manualEditable ? (
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={editDraft.quantity_submitted}
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    quantity_submitted:
-                                                      parseFloat(
-                                                        e.target.value,
-                                                      ) || 0,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          disabled={saving}
-                                        />
+                                      {isEditingRow ? (
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            min="0"
+                                            max="100"
+                                            value={editDraft.submission_percentage}
+                                            onChange={(e) => {
+                                              const percentage = Math.min(
+                                                100,
+                                                Math.max(
+                                                  0,
+                                                  parseFloat(e.target.value) || 0,
+                                                ),
+                                              );
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      submission_percentage:
+                                                        percentage,
+                                                      quantity_submitted:
+                                                        computeQuantitySubmitted(
+                                                          d.estimated_quantity,
+                                                          percentage,
+                                                        ),
+                                                    }
+                                                  : null,
+                                              );
+                                            }}
+                                            className="w-full max-w-[5rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                          <span>%</span>
+                                        </div>
                                       ) : (
-                                        formatNumber(entry.quantity_submitted)
+                                        `${formatNumber(entry.submission_percentage ?? 100)}%`
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      {formatNumber(
+                                        isEditingRow
+                                          ? editDraft.quantity_submitted
+                                          : entry.quantity_submitted,
                                       )}
                                     </td>
                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
@@ -1779,6 +1823,9 @@ const ConcentrationSheets: React.FC = () => {
                                     ),
                                   )}
                                 </td>
+                                <td className="px-3 py-3 text-sm text-gray-500">
+                                  -
+                                </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
                                     entries.reduce(
@@ -1889,7 +1936,11 @@ const EntryForm: React.FC<EntryFormProps> = ({
     calculation_sheet_no: entry?.calculation_sheet_no || "",
     drawing_no: entry?.drawing_no || "",
     estimated_quantity: entry?.estimated_quantity || 0,
-    quantity_submitted: entry?.quantity_submitted || 0,
+    submission_percentage: entry?.submission_percentage ?? 100,
+    quantity_submitted: computeQuantitySubmitted(
+      entry?.estimated_quantity || 0,
+      entry?.submission_percentage ?? 100,
+    ),
     internal_quantity: entry?.internal_quantity || 0,
     approved_by_project_manager: entry?.approved_by_project_manager || 0,
     notes: entry?.notes || "",
@@ -1903,10 +1954,21 @@ const EntryForm: React.FC<EntryFormProps> = ({
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [field]: value,
+      };
+      if (field === "estimated_quantity" || field === "submission_percentage") {
+        next.quantity_submitted = computeQuantitySubmitted(
+          field === "estimated_quantity" ? value : prev.estimated_quantity,
+          field === "submission_percentage"
+            ? value
+            : prev.submission_percentage,
+        );
+      }
+      return next;
+    });
   };
 
   return (
@@ -1974,20 +2036,41 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t("concentration.submissionPercentage")}
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={formData.submission_percentage}
+              onChange={(e) =>
+                handleChange(
+                  "submission_percentage",
+                  Math.min(
+                    100,
+                    Math.max(0, parseFloat(e.target.value) || 0),
+                  ),
+                )
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={saving}
+            />
+            <span className="text-sm text-gray-500">%</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             {t("auth.quantitySubmitted")}
           </label>
           <input
             type="number"
             step="0.01"
             value={formData.quantity_submitted}
-            onChange={(e) =>
-              handleChange(
-                "quantity_submitted",
-                parseFloat(e.target.value) || 0,
-              )
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={saving || fieldsLockedForAuto}
+            readOnly
+            className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700"
           />
         </div>
 
