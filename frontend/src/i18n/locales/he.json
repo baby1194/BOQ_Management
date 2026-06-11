@@ -400,7 +400,7 @@
     "systemPasswordForBOQUpload": "הזן את סיסמת המערכת שמשמשת לפעולות פריטי BOQ (יצירה, עדכון, מחיקה).",
     "systemPasswordRequiredForBOQ": "אנא הזן את סיסמת המערכת כדי לייבא BOQ.",
     "calculationSheetsSection": "ייבוא דפי חישוב",
-    "calculationSheetsDescription": "העלה תיקייה המכילה קבצי Excel לדפי חישוב. המערכת תחלץ נתוני חישוב מכל דף.",
+    "calculationSheetsDescription": "העלה תיקייה המכילה קבצי Excel לדפי חישוב. המערכת תחלץ נתוני חישוב מכל דף ותשמור עותקים תחת C:/Fatina לפתיחה מאוחר יותר.",
     "calculationSheetsImported": "דפי החישוב יובאו בהצלחה!",
     "populationReminder": "אל תשכח למלא את דפי החישוב ברשומות ריכוז!",
     "boqImportTitle": "ייבוא קובץ BOQ",

@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, R
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Dict, Optional
+import json
 from pydantic import BaseModel
 import pandas as pd
 import os
@@ -15,7 +16,13 @@ from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
 from services.auth_service import get_current_user_from_cookie, verify_password
-from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name
+from fatina_paths import (
+    FATINA_BASE_DIR,
+    sanitize_folder_name,
+    is_upload_copy_path,
+    primary_fatina_source_path,
+    resolve_original_source_path,
+)
 
 router = APIRouter(prefix="/file-import", tags=["file-import"])
 
@@ -607,12 +614,15 @@ async def import_calculation_sheets_from_folder(
 @router.post("/import-calculation-sheets/", response_model=schemas.CalculationImportResponse)
 async def import_calculation_sheets(
     files: List[UploadFile] = File(...),
+    source_folder_path: Optional[str] = Form(None),
+    file_relative_paths: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
 ):
     """
-    Import multiple calculation sheet Excel files (uploaded via form)
-    Files are saved to the uploads directory and the path is automatically saved as source_file_path
+    Import multiple calculation sheet Excel files (uploaded via form).
+    Files are processed from a temporary uploads copy. When source_folder_path is provided,
+    source_file_path stores the matching original file on disk instead of the upload copy.
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
@@ -623,6 +633,12 @@ async def import_calculation_sheets(
         total_sheets_imported = 0
         total_entries_imported = 0
         all_errors = []
+        relative_paths_map: Dict[str, str] = {}
+        if file_relative_paths:
+            try:
+                relative_paths_map = json.loads(file_relative_paths)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid file_relative_paths JSON")
         
         for file in files:
             if not file.filename.endswith(('.xlsx', '.xls')):
@@ -646,8 +662,12 @@ async def import_calculation_sheets(
                     content = await file.read()
                     buffer.write(content)
                 
-                # Get the absolute path to save as source_file_path
-                source_file_path = str(file_path.absolute())
+                source_file_path = resolve_original_source_path(
+                    file.filename,
+                    file_path,
+                    source_folder_path=source_folder_path,
+                    relative_path=relative_paths_map.get(file.filename),
+                )
                 
                 # Process the calculation sheet
                 sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
@@ -665,7 +685,13 @@ async def import_calculation_sheets(
                     # Update the existing sheet with new data
                     existing_sheet.file_name = file.filename
                     existing_sheet.description = sheet_data['description']
-                    existing_sheet.source_file_path = source_file_path  # Save the upload directory path
+                    keep_existing_source = (
+                        existing_sheet.source_file_path
+                        and not is_upload_copy_path(existing_sheet.source_file_path, upload_dir)
+                        and Path(existing_sheet.source_file_path).is_file()
+                    )
+                    if not keep_existing_source:
+                        existing_sheet.source_file_path = source_file_path
                     
                     # Delete existing calculation entries for this sheet
                     db.query(models.CalculationEntry).filter(
@@ -710,6 +736,17 @@ async def import_calculation_sheets(
                     db,
                     original_filename=file.filename
                 )
+
+                # Browsers cannot send absolute disk paths on upload; use the C:/Fatina copy instead of uploads.
+                section_numbers = {
+                    str(entry_data['section_number']).strip()
+                    for entry_data in sheet_data['entries']
+                    if entry_data.get('section_number') and str(entry_data['section_number']).strip()
+                }
+                fatina_source = primary_fatina_source_path(file.filename, section_numbers)
+                if fatina_source and is_upload_copy_path(source_file_path, upload_dir):
+                    source_file_path = fatina_source
+                    current_sheet.source_file_path = fatina_source
                 
                 # Count as imported (whether new or updated)
                 total_sheets_imported += 1

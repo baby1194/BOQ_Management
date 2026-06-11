@@ -399,7 +399,7 @@
     "systemPasswordForBOQUpload": "Enter the same system password used for BOQ item actions (create, update, delete).",
     "systemPasswordRequiredForBOQ": "Please enter your system password to import BOQ.",
     "calculationSheetsSection": "Import Calculation Sheets",
-    "calculationSheetsDescription": "Upload a folder containing calculation sheet Excel files. The system will extract calculation data from each sheet.",
+    "calculationSheetsDescription": "Upload a folder containing calculation sheet Excel files. The system will extract calculation data from each sheet and save copies under C:/Fatina for opening later.",
     "calculationSheetsImported": "Calculation sheets imported successfully!",
     "populationReminder": "Don't forget to populate calculation sheets with concentration entries!",
     "boqImportTitle": "BOQ File Import",

@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import List
 import logging
-from database.database import get_db
+from database.database import get_db, get_project_id, get_project_upload_dir
+from fatina_paths import resolve_calculation_sheet_open_path
 from models import models
 from schemas import schemas
 from services.sync_service import SyncService
@@ -122,7 +123,8 @@ async def update_calculation_sheet_source_file_path(
 @router.post("/{sheet_id}/open-source-file")
 async def open_source_file(
     sheet_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Open the source Excel file in the default application (Windows)
@@ -135,22 +137,24 @@ async def open_source_file(
     if not sheet:
         raise HTTPException(status_code=404, detail="Calculation sheet not found")
     
-    if not sheet.source_file_path:
+    upload_root = get_project_upload_dir(project_id)
+    file_path = resolve_calculation_sheet_open_path(sheet, db, upload_root)
+    if not file_path:
         raise HTTPException(status_code=400, detail="Source file path not set for this calculation sheet")
     
-    if not os.path.exists(sheet.source_file_path):
-        raise HTTPException(status_code=404, detail=f"Source file not found at path: {sheet.source_file_path}")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Source file not found at path: {file_path}")
     
     try:
         # Open file based on operating system
         if platform.system() == 'Windows':
-            os.startfile(sheet.source_file_path)
+            os.startfile(file_path)
         elif platform.system() == 'Darwin':  # macOS
-            subprocess.call(['open', sheet.source_file_path])
+            subprocess.call(['open', file_path])
         else:  # Linux
-            subprocess.call(['xdg-open', sheet.source_file_path])
+            subprocess.call(['xdg-open', file_path])
         
-        return {"success": True, "message": f"Opening file: {sheet.source_file_path}"}
+        return {"success": True, "message": f"Opening file: {file_path}"}
     except Exception as e:
         logger.error(f"Error opening file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error opening file: {str(e)}")

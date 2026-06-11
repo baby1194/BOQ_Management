@@ -173,13 +173,12 @@ const FileImport: React.FC = () => {
   };
 
   const handleCalculationImport = () => {
-    if (selectedFolder) {
-      const formData = new FormData();
-      Array.from(selectedFolder).forEach((file, index) => {
-        formData.append(`files`, file);
-      });
-      calculationImportMutation.mutate(formData);
-    }
+    if (!selectedFolder) return;
+    const formData = new FormData();
+    Array.from(selectedFolder).forEach((file) => {
+      formData.append("files", file);
+    });
+    calculationImportMutation.mutate(formData);
   };
 
   const clearFile = () => {
@@ -271,36 +270,36 @@ const FileImport: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex items-center justify-center space-x-2">
-                    <button
-                      onClick={handleImport}
-                      disabled={importMutation.isLoading}
-                      className="btn btn-primary btn-md"
-                    >
-                      {importMutation.isLoading ? (
-                        <div className="flex items-center">
-                          <div
-                            className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
-                              isRTL ? "ml-2" : "mr-2"
-                            }`}
-                          ></div>
-                          {t("import.importing")}
-                        </div>
-                      ) : (
-                        <div className="flex items-center">
-                          <Upload
-                            className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
-                          />
-                          {t("import.importFile")}
-                        </div>
-                      )}
-                    </button>
-                    <button
-                      onClick={clearFile}
-                      className="btn btn-outline btn-md"
-                    >
-                      <X className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
-                      {t("import.clear")}
-                    </button>
+                      <button
+                        onClick={handleImport}
+                        disabled={importMutation.isLoading}
+                        className="btn btn-primary btn-md"
+                      >
+                        {importMutation.isLoading ? (
+                          <div className="flex items-center">
+                            <div
+                              className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
+                                isRTL ? "ml-2" : "mr-2"
+                              }`}
+                            ></div>
+                            {t("import.importing")}
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <Upload
+                              className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
+                            />
+                            {t("import.importFile")}
+                          </div>
+                        )}
+                      </button>
+                      <button
+                        onClick={clearFile}
+                        className="btn btn-outline btn-md"
+                      >
+                        <X className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+                        {t("import.clear")}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -535,6 +534,7 @@ const FileImport: React.FC = () => {
                     onChange={handleFolderInput}
                     className="hidden"
                     id="calculation-folder-input"
+                    {...({ webkitdirectory: "", directory: "" } as any)}
                   />
                   <label
                     htmlFor="calculation-folder-input"
