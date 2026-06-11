@@ -766,7 +766,7 @@ class PDFService:
                     'Description': 'תיאור:',
                     'Calculation Sheet No': 'מס\' דף חישוב',
                     'Drawing No': 'מס\' שרטוט',
-                    'Estimated Quantity': 'כמות משוערת',
+                    'Estimated Quantity': 'כמות מחושבת',
                     'Submission Percentage': 'אחוז הגשה',
                     'Quantity Submitted': 'כמות מוגשת',
                     'Internal Quantity': 'כמות פנימית',
@@ -2018,7 +2018,7 @@ class PDFService:
                     'price': 'מחיר',
                     'original_contract_quantity': 'כמות חוזה מקורית',
                     'total_contract_sum': 'סכום חוזה כולל',
-                    'estimated_quantity': 'כמות משוערת',
+                    'estimated_quantity': 'כמות מחושבת',
                     'quantity_submitted': 'כמות שהוגשה',
                     'internal_quantity': 'כמות פנימית',
                     'approved_by_project_manager': 'אושר על ידי מנהל פרויקט',
@@ -2308,7 +2308,7 @@ class PDFService:
             'Drawing No': 0.06,  # English
             'מס\' שרטוט': 0.06,  # Hebrew translation
             'Est. Quantity': 0.07,  # English translation
-            'כמות משוערת': 0.07,  # Hebrew translation
+            'כמות מחושבת': 0.07,  # Hebrew translation
             'Percentage': 0.06,  # English translation
             'אחוז הגשה': 0.06,  # Hebrew translation
             'Qty Submitted': 0.07,  # English translation

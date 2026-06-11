@@ -77,7 +77,7 @@ _BOQ_HEADER_TRANSLATIONS = {
         "price": "מחיר",
         "original_contract_quantity": "כמות חוזה מקורית",
         "total_contract_sum": "סכום חוזה כולל",
-        "estimated_quantity": "כמות משוערת",
+        "estimated_quantity": "כמות מחושבת",
         "quantity_submitted": "כמות שהוגשה",
         "internal_quantity": "כמות פנימית",
         "approved_by_project_manager": "אושר על ידי מנהל פרויקט",
