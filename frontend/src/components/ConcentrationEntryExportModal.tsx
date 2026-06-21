@@ -15,7 +15,7 @@ interface ConcentrationEntryExportModalProps {
   title: string;
   loading?: boolean;
   exportFormat: "pdf" | "excel";
-  /** When "all", show export modes: all items, without empty sheets, non-zero PSQ rows only */
+  /** When "all", show export modes: all items, without empty sheets, non-zero BOQ PSQ only */
   exportScope?: "single" | "all";
 }
 
