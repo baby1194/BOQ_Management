@@ -229,7 +229,7 @@
     "enterItemDescription": "הכנס תיאור פריט",
     "unitLabel": "יחידה",
     "unitPlaceholder": "לדוגמה: מ', מ\"ר, מ\"ק, ק\"ג",
-    "originalContractQuantity": "כמות חוזה מקורית",
+    "originalContractQuantity": "כמות חוזה",
     "priceLabel": "מחיר",
     "calculatedValues": "ערכים מחושבים:",
     "totalContractSum": "סה״כ חוזה כולל:",
