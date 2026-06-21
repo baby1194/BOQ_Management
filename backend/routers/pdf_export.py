@@ -26,16 +26,22 @@ def get_excel_service(project_id: str = Depends(get_project_id)) -> ExcelService
 
 
 def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
-    """Keep sheets whose BOQ item has PSQ != 0 and quantity_submitted > 0."""
+    """Keep sheets whose BOQ item has PSQ != 0 and quantity_submitted > 0.
+
+    Values are rounded to 2 decimal places before comparison so the filter
+    matches the BOQ Items page (formatNumber uses 2 decimals).
+    """
     from sqlalchemy import func
 
     q_sub = func.coalesce(models.BOQItem.quantity_submitted, 0)
     q_app = func.coalesce(models.BOQItem.approved_signed_quantity, 0)
+    rounded_sub = func.round(q_sub, 2)
+    rounded_app = func.round(q_app, 2)
     sheet_ids_with_psq = {
         row[0]
         for row in db.query(models.ConcentrationSheet.id)
         .join(models.BOQItem, models.BOQItem.id == models.ConcentrationSheet.boq_item_id)
-        .filter(q_sub != q_app, q_sub > 0)
+        .filter(rounded_sub != rounded_app, rounded_sub > 0)
         .distinct()
         .all()
     }
