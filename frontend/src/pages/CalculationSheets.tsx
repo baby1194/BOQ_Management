@@ -47,6 +47,7 @@ const CalculationSheets: React.FC = () => {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [tracking, setTracking] = useState(false);
+  const [trackingSheetId, setTrackingSheetId] = useState<number | null>(null);
   const [openingFile, setOpeningFile] = useState(false);
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
     new Set()
@@ -414,6 +415,44 @@ const CalculationSheets: React.FC = () => {
       alert(`Error: ${errorMessage}`);
     } finally {
       setOpeningFile(false);
+    }
+  };
+
+  const handleTrackSheet = async () => {
+    if (!selectedSheet) return;
+
+    try {
+      setTrackingSheetId(selectedSheet.id);
+      setError(null);
+      const response = await calculationSheetsApi.trackSheet(selectedSheet.id);
+
+      if (response.success) {
+        const refreshedSheets = await calculationSheetsApi.getAll(0, 10000);
+        setSheets(refreshedSheets);
+        const updatedSheet = refreshedSheets.find(
+          (s) => s.id === selectedSheet.id
+        );
+        if (updatedSheet) {
+          setSelectedSheet(updatedSheet);
+        }
+        await fetchEntries(selectedSheet.id);
+        alert(`✅ ${response.message}`);
+      } else {
+        const errorMessage =
+          response.errors[0] || response.message || t("calculationSheets.failedToTrack");
+        setError(errorMessage);
+        alert(`Error: ${errorMessage}`);
+      }
+    } catch (err: any) {
+      console.error("Error tracking calculation sheet:", err);
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        t("calculationSheets.failedToTrack");
+      setError(errorMessage);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setTrackingSheetId(null);
     }
   };
 
@@ -789,24 +828,44 @@ const CalculationSheets: React.FC = () => {
                     <div className="flex flex-col items-end space-y-2">
                       <div className="flex space-x-2">
                         {selectedSheet.source_file_path && (
-                          <button
-                            onClick={handleOpenSourceFile}
-                            disabled={openingFile}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                            title="Open source Excel file"
-                          >
-                            {openingFile ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                <span>Opening...</span>
-                              </>
-                            ) : (
-                              <>
-                                <FolderOpen className="h-4 w-4" />
-                                <span>Open Source File</span>
-                              </>
-                            )}
-                          </button>
+                          <>
+                            <button
+                              onClick={handleTrackSheet}
+                              disabled={trackingSheetId === selectedSheet.id}
+                              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                              title={t("calculationSheets.trackSheetTooltip")}
+                            >
+                              {trackingSheetId === selectedSheet.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                  <span>{t("calculationSheets.tracking")}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="h-4 w-4" />
+                                  <span>{t("calculationSheets.track")}</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={handleOpenSourceFile}
+                              disabled={openingFile}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                              title="Open source Excel file"
+                            >
+                              {openingFile ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                  <span>Opening...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FolderOpen className="h-4 w-4" />
+                                  <span>Open Source File</span>
+                                </>
+                              )}
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={handlePopulateConcentrationEntries}

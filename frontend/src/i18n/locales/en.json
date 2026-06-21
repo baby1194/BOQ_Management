@@ -571,6 +571,7 @@
     "track": "Track",
     "tracking": "Tracking...",
     "trackTooltip": "Reread all calculation sheets from their saved source file paths and refresh entry values",
+    "trackSheetTooltip": "Reread this calculation sheet from its source file path and refresh entry values",
     "failedToTrack": "Failed to track calculation sheets from disk",
     "entries": "Entries",
     "noEntriesFound": "No entries found for this sheet",

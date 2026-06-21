@@ -344,6 +344,18 @@ export const calculationSheetsApi = {
         errors: string[];
       }>("/calculation-sheets/track")
       .then((res) => res.data),
+
+  trackSheet: (sheetId: number) =>
+    api
+      .post<{
+        success: boolean;
+        message: string;
+        sheets_updated: number;
+        sheets_skipped: number;
+        entries_updated: number;
+        errors: string[];
+      }>(`/calculation-sheets/${sheetId}/track`)
+      .then((res) => res.data),
 };
 
 // Search API

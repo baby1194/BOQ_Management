@@ -17,6 +17,56 @@ from utils.concentration_utils import (
 # Set up logger
 logger = logging.getLogger(__name__)
 
+
+def refresh_calculation_sheet_from_disk(
+    sheet: models.CalculationSheet,
+    excel_service: ExcelService,
+    db: Session,
+) -> tuple[int, str | None]:
+    """
+    Reread one calculation sheet from its source file path.
+    Returns (entries_refreshed, error_message_or_none).
+    """
+    label = f"{sheet.calculation_sheet_no} / {sheet.drawing_no}"
+    if not sheet.source_file_path:
+        return 0, f"{label} - No source file path saved"
+
+    file_path = Path(sheet.source_file_path)
+    if not file_path.is_file():
+        return 0, f"{label} - Source file not found: {sheet.source_file_path}"
+
+    try:
+        sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
+        sheet.file_name = file_path.name
+        sheet.description = sheet_data["description"]
+        sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
+        sheet.drawing_no = sheet_data["drawing_no"]
+
+        db.query(models.CalculationEntry).filter(
+            models.CalculationEntry.calculation_sheet_id == sheet.id
+        ).delete()
+
+        entries_refreshed = 0
+        for entry_data in sheet_data["entries"]:
+            db.add(
+                models.CalculationEntry(
+                    calculation_sheet_id=sheet.id,
+                    section_number=entry_data["section_number"],
+                    estimated_quantity=entry_data["estimated_quantity"],
+                    quantity_submitted=entry_data["quantity_submitted"],
+                    notes=entry_data.get("notes", ""),
+                )
+            )
+            entries_refreshed += 1
+
+        logger.info(f"Tracked calculation sheet {label} from {file_path}")
+        return entries_refreshed, None
+    except Exception as e:
+        error_msg = f"{label} - {file_path.name}: {str(e)}"
+        logger.error(error_msg)
+        return 0, error_msg
+
+
 router = APIRouter()
 
 @router.get("/", response_model=List[schemas.CalculationSheet])
@@ -163,6 +213,50 @@ async def open_source_file(
     except Exception as e:
         logger.error(f"Error opening file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error opening file: {str(e)}")
+
+@router.post("/{sheet_id}/track", response_model=schemas.CalculationSheetsTrackResponse)
+async def track_calculation_sheet(
+    sheet_id: int,
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """Reread one calculation sheet from its saved source file path on disk."""
+    sheet = db.query(models.CalculationSheet).filter(
+        models.CalculationSheet.id == sheet_id
+    ).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Calculation sheet not found")
+
+    excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
+    entries_refreshed, error = refresh_calculation_sheet_from_disk(
+        sheet, excel_service, db
+    )
+
+    if error:
+        return schemas.CalculationSheetsTrackResponse(
+            success=False,
+            message=error,
+            sheets_updated=0,
+            sheets_skipped=1,
+            entries_updated=0,
+            errors=[error],
+        )
+
+    db.commit()
+    db.refresh(sheet)
+
+    message = (
+        f"Updated calculation sheet {sheet.calculation_sheet_no} "
+        f"({entries_refreshed} entries refreshed from disk)"
+    )
+    return schemas.CalculationSheetsTrackResponse(
+        success=True,
+        message=message,
+        sheets_updated=1,
+        sheets_skipped=0,
+        entries_updated=entries_refreshed,
+        errors=[],
+    )
 
 @router.delete("/{sheet_id}")
 async def delete_calculation_sheet(
@@ -370,48 +464,15 @@ async def track_calculation_sheets(
     errors: List[str] = []
 
     for sheet in sheets:
-        label = f"{sheet.calculation_sheet_no} / {sheet.drawing_no}"
-        if not sheet.source_file_path:
+        entries_refreshed, error = refresh_calculation_sheet_from_disk(
+            sheet, excel_service, db
+        )
+        if error:
             sheets_skipped += 1
-            errors.append(f"{label} - No source file path saved")
-            continue
-
-        file_path = Path(sheet.source_file_path)
-        if not file_path.is_file():
-            sheets_skipped += 1
-            errors.append(f"{label} - Source file not found: {sheet.source_file_path}")
-            continue
-
-        try:
-            sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
-            sheet.file_name = file_path.name
-            sheet.description = sheet_data["description"]
-            sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
-            sheet.drawing_no = sheet_data["drawing_no"]
-
-            db.query(models.CalculationEntry).filter(
-                models.CalculationEntry.calculation_sheet_id == sheet.id
-            ).delete()
-
-            for entry_data in sheet_data["entries"]:
-                db.add(
-                    models.CalculationEntry(
-                        calculation_sheet_id=sheet.id,
-                        section_number=entry_data["section_number"],
-                        estimated_quantity=entry_data["estimated_quantity"],
-                        quantity_submitted=entry_data["quantity_submitted"],
-                        notes=entry_data.get("notes", ""),
-                    )
-                )
-                entries_updated += 1
-
+            errors.append(error)
+        else:
             sheets_updated += 1
-            logger.info(f"Tracked calculation sheet {label} from {file_path}")
-        except Exception as e:
-            sheets_skipped += 1
-            error_msg = f"{label} - {file_path.name}: {str(e)}"
-            logger.error(error_msg)
-            errors.append(error_msg)
+            entries_updated += entries_refreshed
 
     db.commit()
 
