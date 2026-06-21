@@ -332,6 +332,18 @@ export const calculationSheetsApi = {
         `/calculation-sheets/sync-all`
       )
       .then((res) => res.data),
+
+  track: () =>
+    api
+      .post<{
+        success: boolean;
+        message: string;
+        sheets_updated: number;
+        sheets_skipped: number;
+        entries_updated: number;
+        errors: string[];
+      }>("/calculation-sheets/track")
+      .then((res) => res.data),
 };
 
 // Search API
@@ -417,6 +429,22 @@ export const importApi = {
       )
       .then((res) => res.data);
   },
+
+  listCalculationSheetFiles: (path: string) =>
+    api
+      .post<{ files: string[] }>(
+        "/file-import/list-calculation-sheet-files/",
+        { path }
+      )
+      .then((res) => res.data),
+
+  importCalculationSheetsFromPaths: (filePaths: string[]) =>
+    api
+      .post<CalculationImportResponse>(
+        "/file-import/import-calculation-sheets-from-paths/",
+        { file_paths: filePaths }
+      )
+      .then((res) => res.data),
 
   importCalculationSheetsFromFolder: (folderPath: string, recursive = true) => {
     const request = {

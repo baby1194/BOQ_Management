@@ -1,12 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import List
+from pathlib import Path
 import logging
-from database.database import get_db, get_project_id, get_project_upload_dir
+from database.database import get_db, get_project_id, get_project_upload_dir, get_project_export_dir
 from fatina_paths import resolve_calculation_sheet_open_path
 from models import models
 from schemas import schemas
 from services.sync_service import SyncService
+from services.excel_service import ExcelService
 from utils.concentration_utils import (
     apply_calculation_entry_quantities,
     compute_submission_percentage,
@@ -349,6 +351,86 @@ async def update_calculation_entry(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating calculation entry: {str(e)}")
+
+@router.post("/track", response_model=schemas.CalculationSheetsTrackResponse)
+async def track_calculation_sheets(
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """
+    Reread all calculation sheets from their saved source file paths on disk
+    and refresh calculation entry values.
+    """
+    excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
+    sheets = db.query(models.CalculationSheet).all()
+
+    sheets_updated = 0
+    sheets_skipped = 0
+    entries_updated = 0
+    errors: List[str] = []
+
+    for sheet in sheets:
+        label = f"{sheet.calculation_sheet_no} / {sheet.drawing_no}"
+        if not sheet.source_file_path:
+            sheets_skipped += 1
+            errors.append(f"{label} - No source file path saved")
+            continue
+
+        file_path = Path(sheet.source_file_path)
+        if not file_path.is_file():
+            sheets_skipped += 1
+            errors.append(f"{label} - Source file not found: {sheet.source_file_path}")
+            continue
+
+        try:
+            sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
+            sheet.file_name = file_path.name
+            sheet.description = sheet_data["description"]
+            sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
+            sheet.drawing_no = sheet_data["drawing_no"]
+
+            db.query(models.CalculationEntry).filter(
+                models.CalculationEntry.calculation_sheet_id == sheet.id
+            ).delete()
+
+            for entry_data in sheet_data["entries"]:
+                db.add(
+                    models.CalculationEntry(
+                        calculation_sheet_id=sheet.id,
+                        section_number=entry_data["section_number"],
+                        estimated_quantity=entry_data["estimated_quantity"],
+                        quantity_submitted=entry_data["quantity_submitted"],
+                        notes=entry_data.get("notes", ""),
+                    )
+                )
+                entries_updated += 1
+
+            sheets_updated += 1
+            logger.info(f"Tracked calculation sheet {label} from {file_path}")
+        except Exception as e:
+            sheets_skipped += 1
+            error_msg = f"{label} - {file_path.name}: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+
+    db.commit()
+
+    message = (
+        f"Updated {sheets_updated} calculation sheet(s) "
+        f"({entries_updated} entries refreshed from disk)"
+    )
+    if sheets_skipped:
+        message += f". Skipped {sheets_skipped} sheet(s)."
+
+    return schemas.CalculationSheetsTrackResponse(
+        success=sheets_updated > 0 or sheets_skipped == 0,
+        message=message,
+        sheets_updated=sheets_updated,
+        sheets_skipped=sheets_skipped,
+        entries_updated=entries_updated,
+        errors=errors,
+    )
+
 
 @router.post("/sync-all", response_model=dict)
 async def sync_all_calculation_sheets(db: Session = Depends(get_db)):

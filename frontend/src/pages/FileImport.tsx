@@ -10,7 +10,6 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  FolderOpen,
   FileSpreadsheet,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -19,11 +18,14 @@ const FileImport: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<FileList | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isDraggingFolder, setIsDraggingFolder] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [boqSystemPassword, setBoqSystemPassword] = useState("");
+  const [calculationSheetsPath, setCalculationSheetsPath] = useState("");
+  const [listedCalculationFiles, setListedCalculationFiles] = useState<
+    string[]
+  >([]);
+  const [readingCalculationFiles, setReadingCalculationFiles] = useState(false);
   const [calculationImportResult, setCalculationImportResult] =
     useState<CalculationImportResponse | null>(null);
   const queryClient = useQueryClient();
@@ -52,15 +54,13 @@ const FileImport: React.FC = () => {
   );
 
   const calculationImportMutation = useMutation(
-    importApi.importCalculationSheets,
+    importApi.importCalculationSheetsFromPaths,
     {
       onSuccess: (data) => {
         setCalculationImportResult(data);
         toast.success(t("import.calculationSheetsImported"));
-        // Refresh the calculation sheets data
         queryClient.invalidateQueries("calculation-sheets");
 
-        // Show notification about populating calculation sheets
         setTimeout(() => {
           toast.success(t("import.populationReminder"), {
             duration: 8000,
@@ -90,24 +90,6 @@ const FileImport: React.FC = () => {
     }
   };
 
-  const handleFolderSelect = (files: FileList) => {
-    const excelFiles = Array.from(files).filter(
-      (file) =>
-        file.type ===
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-        file.type === "application/vnd.ms-excel"
-    );
-
-    if (excelFiles.length === 0) {
-      toast.error(t("import.noValidExcelFiles"));
-      return;
-    }
-
-    setSelectedFolder(files);
-    setCalculationImportResult(null);
-    toast.success(t("import.foundExcelFiles", { count: excelFiles.length }));
-  };
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -128,37 +110,10 @@ const FileImport: React.FC = () => {
     }
   };
 
-  const handleFolderDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingFolder(true);
-  };
-
-  const handleFolderDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingFolder(false);
-  };
-
-  const handleFolderDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingFolder(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFolderSelect(files);
-    }
-  };
-
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       handleFileSelect(files[0]);
-    }
-  };
-
-  const handleFolderInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFolderSelect(files);
     }
   };
 
@@ -172,13 +127,39 @@ const FileImport: React.FC = () => {
     importMutation.mutate({ file: selectedFile, systemPassword: pwd });
   };
 
+  const handleReadCalculationFiles = async () => {
+    const path = calculationSheetsPath.trim();
+    if (!path) {
+      toast.error(t("import.calculationSheetsPathRequired"));
+      return;
+    }
+
+    try {
+      setReadingCalculationFiles(true);
+      setCalculationImportResult(null);
+      const response = await importApi.listCalculationSheetFiles(path);
+      setListedCalculationFiles(response.files);
+      toast.success(
+        t("import.foundExcelFiles", { count: response.files.length })
+      );
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.detail || t("import.failedToReadCalculationFiles")
+      );
+    } finally {
+      setReadingCalculationFiles(false);
+    }
+  };
+
+  const handleRemoveListedFile = (filePath: string) => {
+    setListedCalculationFiles((prev) =>
+      prev.filter((path) => path !== filePath)
+    );
+  };
+
   const handleCalculationImport = () => {
-    if (!selectedFolder) return;
-    const formData = new FormData();
-    Array.from(selectedFolder).forEach((file) => {
-      formData.append("files", file);
-    });
-    calculationImportMutation.mutate(formData);
+    if (listedCalculationFiles.length === 0) return;
+    calculationImportMutation.mutate(listedCalculationFiles);
   };
 
   const clearFile = () => {
@@ -187,19 +168,14 @@ const FileImport: React.FC = () => {
     setBoqSystemPassword("");
   };
 
-  const clearFolder = () => {
-    setSelectedFolder(null);
+  const clearCalculationFiles = () => {
+    setListedCalculationFiles([]);
     setCalculationImportResult(null);
   };
 
-  const getExcelFilesCount = () => {
-    if (!selectedFolder) return 0;
-    return Array.from(selectedFolder).filter(
-      (file) =>
-        file.type ===
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-        file.type === "application/vnd.ms-excel"
-    ).length;
+  const getFileDisplayName = (filePath: string) => {
+    const parts = filePath.split(/[/\\]/);
+    return parts[parts.length - 1] || filePath;
   };
 
   return (
@@ -399,7 +375,6 @@ const FileImport: React.FC = () => {
                 </div>
               </div>
 
-              {/* Show errors/warnings */}
               {importResult.errors && importResult.errors.length > 0 && (
                 <div className="mt-4">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">
@@ -437,117 +412,117 @@ const FileImport: React.FC = () => {
               </p>
             </div>
 
-            {/* Drag & Drop Area */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                isDraggingFolder
-                  ? "border-green-500 bg-green-50"
-                  : "border-gray-300 hover:border-gray-400"
-              }`}
-              onDragOver={handleFolderDragOver}
-              onDragLeave={handleFolderDragLeave}
-              onDrop={handleFolderDrop}
-            >
-              {selectedFolder ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center">
-                    <FolderOpen className="h-12 w-12 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-medium text-gray-900">
-                      {t("import.folderSelected")}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {t("import.excelFilesFound", {
-                        count: getExcelFilesCount(),
-                      })}
-                    </p>
-                    <div className="mt-2 text-xs text-gray-400 max-h-20 overflow-y-auto">
-                      {Array.from(selectedFolder)
-                        .slice(0, 5)
-                        .map((file, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-center"
-                          >
-                            <FileSpreadsheet
-                              className={`h-3 w-3 ${isRTL ? "ml-1" : "mr-1"}`}
-                            />
-                            {file.name}
-                          </div>
-                        ))}
-                      {selectedFolder.length > 5 && (
-                        <div className="text-gray-400">
-                          ... {t("import.andMore")} {selectedFolder.length - 5}
-                        </div>
-                      )}
+            <div className="space-y-3">
+              <label
+                htmlFor="calculation-sheets-path"
+                className="block text-sm font-medium text-gray-700"
+              >
+                {t("import.calculationSheetsPath")}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="calculation-sheets-path"
+                  type="text"
+                  value={calculationSheetsPath}
+                  onChange={(e) => setCalculationSheetsPath(e.target.value)}
+                  placeholder={t("import.calculationSheetsPathPlaceholder")}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  onClick={handleReadCalculationFiles}
+                  disabled={readingCalculationFiles}
+                  className="btn btn-success btn-md whitespace-nowrap"
+                >
+                  {readingCalculationFiles ? (
+                    <div className="flex items-center">
+                      <div
+                        className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
+                          isRTL ? "ml-2" : "mr-2"
+                        }`}
+                      ></div>
+                      {t("import.reading")}
                     </div>
-                  </div>
-                  <div className="flex items-center justify-center space-x-2">
-                    <button
-                      onClick={handleCalculationImport}
-                      disabled={calculationImportMutation.isLoading}
-                      className="btn btn-success btn-md"
-                    >
-                      {calculationImportMutation.isLoading ? (
-                        <div className="flex items-center">
-                          <div
-                            className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
-                              isRTL ? "ml-2" : "mr-2"
-                            }`}
-                          ></div>
-                          {t("import.importing")}
-                        </div>
-                      ) : (
-                        <div className="flex items-center">
-                          <Upload
-                            className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
-                          />
-                          {t("import.importSheets")}
-                        </div>
-                      )}
-                    </button>
-                    <button
-                      onClick={clearFolder}
-                      className="btn btn-outline btn-md"
-                    >
-                      <X className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
-                      {t("import.clear")}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <FolderOpen className="h-12 w-12 text-gray-400 mx-auto" />
-                  <div>
-                    <p className="text-lg font-medium text-gray-900">
-                      {t("import.dropCalculationSheetsFolder")}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {t("import.orClickToBrowseFolder")}
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    multiple
-                    accept=".xlsx,.xls"
-                    onChange={handleFolderInput}
-                    className="hidden"
-                    id="calculation-folder-input"
-                    {...({ webkitdirectory: "", directory: "" } as any)}
-                  />
-                  <label
-                    htmlFor="calculation-folder-input"
-                    className="btn btn-success btn-md cursor-pointer"
-                  >
-                    <FolderOpen
-                      className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
-                    />
-                    {t("import.chooseFolder")}
-                  </label>
-                </div>
-              )}
+                  ) : (
+                    t("import.read")
+                  )}
+                </button>
+              </div>
             </div>
+
+            {listedCalculationFiles.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700">
+                    {t("import.excelFilesFound", {
+                      count: listedCalculationFiles.length,
+                    })}
+                  </p>
+                  <button
+                    onClick={clearCalculationFiles}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    {t("import.clearAll")}
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto divide-y divide-gray-100">
+                  {listedCalculationFiles.map((filePath) => (
+                    <div
+                      key={filePath}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-gray-50"
+                    >
+                      <div
+                        className="flex items-center min-w-0 flex-1"
+                        title={filePath}
+                      >
+                        <FileSpreadsheet
+                          className={`h-4 w-4 text-green-600 shrink-0 ${
+                            isRTL ? "ml-2" : "mr-2"
+                          }`}
+                        />
+                        <span className="truncate text-gray-900">
+                          {getFileDisplayName(filePath)}
+                        </span>
+                        <span className="hidden sm:inline truncate text-gray-400 text-xs ml-2">
+                          {filePath}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveListedFile(filePath)}
+                        className="shrink-0 p-1 text-gray-400 hover:text-red-600 rounded"
+                        title={t("import.removeFromList")}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleCalculationImport}
+                  disabled={calculationImportMutation.isLoading}
+                  className="btn btn-success btn-md w-full"
+                >
+                  {calculationImportMutation.isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div
+                        className={`animate-spin rounded-full h-4 w-4 border-b-2 border-white ${
+                          isRTL ? "ml-2" : "mr-2"
+                        }`}
+                      ></div>
+                      {t("import.importing")}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <Upload
+                        className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`}
+                      />
+                      {t("import.importCalculationSheets")}
+                    </div>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Calculation Sheets Import Results */}
@@ -630,7 +605,6 @@ const FileImport: React.FC = () => {
                 </div>
               </div>
 
-              {/* Show detailed errors including skipped duplicates */}
               {calculationImportResult.errors &&
                 calculationImportResult.errors.length > 0 && (
                   <div className="mt-4">

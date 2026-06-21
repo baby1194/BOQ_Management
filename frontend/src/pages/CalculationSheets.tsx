@@ -11,6 +11,7 @@ import {
   Search,
   Filter,
   FolderOpen,
+  RefreshCw,
 } from "lucide-react";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
@@ -45,6 +46,7 @@ const CalculationSheets: React.FC = () => {
   const [commentValue, setCommentValue] = useState("");
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [tracking, setTracking] = useState(false);
   const [openingFile, setOpeningFile] = useState(false);
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
     new Set()
@@ -451,6 +453,36 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
+  const handleTrack = async () => {
+    try {
+      setTracking(true);
+      setError(null);
+      const response = await calculationSheetsApi.track();
+
+      alert(
+        `${response.success ? "✅" : "⚠️"} ${response.message}\n\nSheets Updated: ${response.sheets_updated}\nEntries Refreshed: ${response.entries_updated}\nSheets Skipped: ${response.sheets_skipped}${
+          response.errors.length > 0
+            ? `\n\nIssues:\n${response.errors.slice(0, 10).join("\n")}${
+                response.errors.length > 10
+                  ? `\n... and ${response.errors.length - 10} more`
+                  : ""
+              }`
+            : ""
+        }`
+      );
+
+      await fetchSheets();
+      if (selectedSheet) {
+        await fetchEntries(selectedSheet.id);
+      }
+    } catch (err) {
+      console.error("Error tracking calculation sheets:", err);
+      setError(t("calculationSheets.failedToTrack"));
+    } finally {
+      setTracking(false);
+    }
+  };
+
   // Filter sheets based on search and filters
   const filteredSheets = sheets.filter((sheet) => {
     const matchesSearch =
@@ -516,14 +548,34 @@ const CalculationSheets: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          {t("calculationSheets.title")}
-        </h1>
-        <p className="mt-2 text-gray-600">
-          {t("calculationSheets.subtitle")} ({sheets.length}{" "}
-          {t("calculationSheets.sheets")})
-        </p>
+      <div className="flex justify-between items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("calculationSheets.title")}
+          </h1>
+          <p className="mt-2 text-gray-600">
+            {t("calculationSheets.subtitle")} ({sheets.length}{" "}
+            {t("calculationSheets.sheets")})
+          </p>
+        </div>
+        <button
+          onClick={handleTrack}
+          disabled={tracking || sheets.length === 0}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shrink-0"
+          title={t("calculationSheets.trackTooltip")}
+        >
+          {tracking ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <span>{t("calculationSheets.tracking")}</span>
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4" />
+              <span>{t("calculationSheets.track")}</span>
+            </>
+          )}
+        </button>
       </div>
 
       {error && (

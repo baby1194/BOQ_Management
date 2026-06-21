@@ -331,6 +331,27 @@ class CalculationImportResponse(BaseModel):
     entries_imported: int
     errors: List[str] = []
 
+
+class CalculationSheetsPathRequest(BaseModel):
+    path: str = Field(..., min_length=1)
+
+
+class CalculationSheetsListResponse(BaseModel):
+    files: List[str]
+
+
+class CalculationSheetsImportPathsRequest(BaseModel):
+    file_paths: List[str] = Field(..., min_items=1)
+
+
+class CalculationSheetsTrackResponse(BaseModel):
+    success: bool
+    message: str
+    sheets_updated: int
+    sheets_skipped: int
+    entries_updated: int
+    errors: List[str] = []
+
 # Populate Concentration Entries Response
 class PopulateConcentrationEntriesResponse(BaseModel):
     success: bool
