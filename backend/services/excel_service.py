@@ -86,7 +86,7 @@ _BOQ_HEADER_TRANSLATIONS = {
         "total_estimate": "סה\"כ מחושב",
         "total_submitted": "סה\"כ הוגש",
         "internal_total": 'סה"כ פנימי',
-        "total_approved_by_project_manager": 'סה"כ אושר על ידי מנהל פרויקט',
+        "total_approved_by_project_manager": 'סה"כ מאושר ע"י מנה"פ',
         "approved_signed_total": 'סה"כ אושר וחתום',
         "partial_submitted_total": 'סה"כ מוגש חלקי',
         "total_decrease": 'סה"כ הקטנה',
