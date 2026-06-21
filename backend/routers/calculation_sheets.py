@@ -627,17 +627,25 @@ async def populate_concentration_entries(
                     break
             
             if existing_concentration_entry:
-                # Only update if it's an auto-generated entry, don't override manual entries
-                if not existing_concentration_entry.is_manual:
-                    apply_calculation_entry_quantities(
-                        existing_concentration_entry, calc_entry
+                was_incorrectly_manual = existing_concentration_entry.is_manual
+                apply_calculation_entry_quantities(
+                    existing_concentration_entry, calc_entry
+                )
+                existing_concentration_entry.description = calculation_sheet.description
+                existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                existing_concentration_entry.is_manual = False
+                entries_created += 1  # Count as updated
+                if was_incorrectly_manual:
+                    logger.info(
+                        f"Corrected is_manual flag and updated entry for section {calc_entry.section_number} "
+                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no}"
                     )
-                    existing_concentration_entry.description = calculation_sheet.description
-                    existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
-                    entries_created += 1  # Count as updated
-                    logger.info(f"Updated existing auto-generated entry for section {calc_entry.section_number} with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} in sheet {concentration_sheet.sheet_name}")
                 else:
-                    logger.info(f"Skipped updating manual entry for section {calc_entry.section_number} as it was manually created")
+                    logger.info(
+                        f"Updated existing auto-generated entry for section {calc_entry.section_number} "
+                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} "
+                        f"in sheet {concentration_sheet.sheet_name}"
+                    )
             else:
                 estimated = float(calc_entry.estimated_quantity or 0)
                 submitted = float(calc_entry.quantity_submitted or 0)

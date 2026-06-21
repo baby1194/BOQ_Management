@@ -355,7 +355,8 @@ class SyncService:
                                         ),
                                         internal_quantity=0.0,
                                         approved_by_project_manager=0.0,
-                                        notes=f"Auto-synced from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                                        notes=f"Auto-synced from calculation sheet {calculation_sheet.calculation_sheet_no}",
+                                        is_manual=False,
                                     )
                                     
                                     self.db.add(new_concentration_entry)
