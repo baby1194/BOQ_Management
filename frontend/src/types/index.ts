@@ -248,6 +248,7 @@ export interface PopulateConcentrationEntriesResponse {
   entries_skipped: number;
   boq_items_updated: number;
   concentration_sheet_id: number;
+  concentration_sheets_exported?: number;
 }
 
 export interface ProjectInfo {

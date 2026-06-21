@@ -30,3 +30,14 @@ def apply_calculation_entry_quantities(
     concentration_entry.submission_percentage = compute_submission_percentage(
         estimated, submitted
     )
+
+
+def concentration_entry_quantities_differ(
+    concentration_entry, calc_entry
+) -> bool:
+    """Return True if applying calc entry quantities would change the concentration entry."""
+    new_estimated = float(calc_entry.estimated_quantity or 0)
+    new_submitted = float(calc_entry.quantity_submitted or 0)
+    old_estimated = float(concentration_entry.estimated_quantity or 0)
+    old_submitted = float(concentration_entry.quantity_submitted or 0)
+    return old_estimated != new_estimated or old_submitted != new_submitted

@@ -12,6 +12,7 @@ from services.excel_service import ExcelService
 from utils.concentration_utils import (
     apply_calculation_entry_quantities,
     compute_submission_percentage,
+    concentration_entry_quantities_differ,
 )
 
 # Set up logger
@@ -494,7 +495,10 @@ async def track_calculation_sheets(
 
 
 @router.post("/sync-all", response_model=dict)
-async def sync_all_calculation_sheets(db: Session = Depends(get_db)):
+async def sync_all_calculation_sheets(
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
     """
     Synchronize all calculation sheets with concentration sheets and BOQ items
     """
@@ -503,13 +507,25 @@ async def sync_all_calculation_sheets(db: Session = Depends(get_db)):
         result = sync_service.sync_all_calculation_sheets()
         
         if result["success"]:
+            concentration_sheets_exported = 0
+            boq_items_to_export = result.get("boq_items_to_export") or []
+            if boq_items_to_export:
+                excel_service = ExcelService(
+                    exports_dir=get_project_export_dir(project_id)
+                )
+                concentration_sheets_exported = (
+                    excel_service.export_concentration_sheets_for_boq_items(
+                        boq_items_to_export, db
+                    )
+                )
             return {
                 "success": True,
                 "message": result["message"],
                 "details": {
                     "sheets_processed": result["sheets_processed"],
                     "entries_updated": result["entries_updated"],
-                    "boq_items_updated": result["boq_items_updated"]
+                    "boq_items_updated": result["boq_items_updated"],
+                    "concentration_sheets_exported": concentration_sheets_exported,
                 }
             }
         else:
@@ -522,7 +538,8 @@ async def sync_all_calculation_sheets(db: Session = Depends(get_db)):
 @router.post("/{sheet_id}/populate-concentration-entries", response_model=schemas.PopulateConcentrationEntriesResponse)
 async def populate_concentration_entries(
     sheet_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Populate concentration entries from calculation sheet entries
@@ -602,6 +619,7 @@ async def populate_concentration_entries(
     # Populate concentration entries
     entries_created = 0
     entries_skipped = 0
+    boq_items_to_export: set[int] = set()
     
     try:
         for calc_entry in calculation_entries:
@@ -627,24 +645,41 @@ async def populate_concentration_entries(
                     break
             
             if existing_concentration_entry:
-                was_incorrectly_manual = existing_concentration_entry.is_manual
-                apply_calculation_entry_quantities(
+                if concentration_entry_quantities_differ(
                     existing_concentration_entry, calc_entry
-                )
-                existing_concentration_entry.description = calculation_sheet.description
-                existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
-                existing_concentration_entry.is_manual = False
-                entries_created += 1  # Count as updated
-                if was_incorrectly_manual:
+                ):
+                    was_incorrectly_manual = existing_concentration_entry.is_manual
+                    apply_calculation_entry_quantities(
+                        existing_concentration_entry, calc_entry
+                    )
+                    existing_concentration_entry.description = calculation_sheet.description
+                    existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
+                    existing_concentration_entry.is_manual = False
+                    entries_created += 1
+                    boq_items_to_export.add(concentration_sheet.boq_item_id)
+                    if was_incorrectly_manual:
+                        logger.info(
+                            f"Corrected is_manual flag and updated entry for section {calc_entry.section_number} "
+                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no}"
+                        )
+                    else:
+                        logger.info(
+                            f"Updated existing auto-generated entry for section {calc_entry.section_number} "
+                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} "
+                            f"in sheet {concentration_sheet.sheet_name}"
+                        )
+                elif existing_concentration_entry.is_manual:
+                    existing_concentration_entry.is_manual = False
+                    entries_skipped += 1
                     logger.info(
-                        f"Corrected is_manual flag and updated entry for section {calc_entry.section_number} "
-                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no}"
+                        f"Corrected is_manual flag for section {calc_entry.section_number} "
+                        f"(quantities unchanged)"
                     )
                 else:
+                    entries_skipped += 1
                     logger.info(
-                        f"Updated existing auto-generated entry for section {calc_entry.section_number} "
-                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} "
-                        f"in sheet {concentration_sheet.sheet_name}"
+                        f"Skipped unchanged entry for section {calc_entry.section_number} "
+                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no}"
                     )
             else:
                 estimated = float(calc_entry.estimated_quantity or 0)
@@ -669,6 +704,7 @@ async def populate_concentration_entries(
                 
                 db.add(new_concentration_entry)
                 entries_created += 1
+                boq_items_to_export.add(concentration_sheet.boq_item_id)
                 logger.info(f"Created entry for section {calc_entry.section_number} in concentration sheet {concentration_sheet.sheet_name}")
         
         db.commit()
@@ -711,14 +747,26 @@ async def populate_concentration_entries(
         if boq_items_updated > 0:
             db.commit()
             logger.info(f"Updated {boq_items_updated} BOQ Items with concentration sheet totals")
+
+        concentration_sheets_exported = 0
+        if boq_items_to_export:
+            excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
+            concentration_sheets_exported = excel_service.export_concentration_sheets_for_boq_items(
+                boq_items_to_export, db
+            )
+            logger.info(
+                f"Exported {concentration_sheets_exported} concentration sheet(s) to Fatina "
+                f"after populating entries"
+            )
         
         return {
             "success": True,
-            "message": f"Successfully processed {entries_created} concentration entries (updated existing entries and created new ones as needed). Updated {boq_items_updated} BOQ Items with totals.",
+            "message": f"Successfully processed {entries_created} concentration entries (updated existing entries and created new ones as needed). Updated {boq_items_updated} BOQ Items with totals. Exported {concentration_sheets_exported} concentration sheet(s) to Fatina.",
             "entries_created": entries_created,
-            "entries_skipped": 0,  # No longer skipping entries
+            "entries_skipped": entries_skipped,
             "boq_items_updated": boq_items_updated,
-            "concentration_sheet_id": concentration_sheet.id
+            "concentration_sheet_id": concentration_sheet.id,
+            "concentration_sheets_exported": concentration_sheets_exported,
         }
         
     except Exception as e:

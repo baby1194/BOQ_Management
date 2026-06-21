@@ -360,6 +360,7 @@ class PopulateConcentrationEntriesResponse(BaseModel):
     entries_skipped: int
     boq_items_updated: int
     concentration_sheet_id: int
+    concentration_sheets_exported: int = 0
 
 # Bulk Delete Request
 class BulkDeleteCalculationSheetsRequest(BaseModel):

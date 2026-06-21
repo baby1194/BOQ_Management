@@ -12,6 +12,7 @@ from models import models
 from utils.concentration_utils import (
     apply_calculation_entry_quantities,
     compute_submission_percentage,
+    concentration_entry_quantities_differ,
 )
 
 logger = logging.getLogger(__name__)
@@ -301,6 +302,7 @@ class SyncService:
             total_entries_updated = 0
             total_boq_items_updated = 0
             processed_sheets = 0
+            boq_items_to_export: set[int] = set()
             
             for calculation_sheet in calculation_sheets:
                 try:
@@ -321,20 +323,40 @@ class SyncService:
                         ).first()
                         
                         if concentration_entry:
-                            was_incorrectly_manual = concentration_entry.is_manual
-                            apply_calculation_entry_quantities(
+                            quantities_changed = concentration_entry_quantities_differ(
                                 concentration_entry, calc_entry
                             )
-                            concentration_entry.is_manual = False
-                            total_entries_updated += 1
-                            if was_incorrectly_manual:
-                                logger.info(
-                                    f"Corrected is_manual flag and updated concentration entry "
-                                    f"for section {calc_entry.section_number}"
+                            if quantities_changed:
+                                was_incorrectly_manual = concentration_entry.is_manual
+                                apply_calculation_entry_quantities(
+                                    concentration_entry, calc_entry
                                 )
-                            else:
+                                concentration_entry.is_manual = False
+                                total_entries_updated += 1
+                                concentration_sheet = self.db.query(
+                                    models.ConcentrationSheet
+                                ).filter(
+                                    models.ConcentrationSheet.id
+                                    == concentration_entry.concentration_sheet_id
+                                ).first()
+                                if concentration_sheet:
+                                    boq_items_to_export.add(
+                                        concentration_sheet.boq_item_id
+                                    )
+                                if was_incorrectly_manual:
+                                    logger.info(
+                                        f"Corrected is_manual flag and updated concentration entry "
+                                        f"for section {calc_entry.section_number}"
+                                    )
+                                else:
+                                    logger.info(
+                                        f"Updated existing concentration entry for section {calc_entry.section_number}"
+                                    )
+                            elif concentration_entry.is_manual:
+                                concentration_entry.is_manual = False
                                 logger.info(
-                                    f"Updated existing concentration entry for section {calc_entry.section_number}"
+                                    f"Corrected is_manual flag for section {calc_entry.section_number} "
+                                    f"(quantities unchanged)"
                                 )
                         else:
                             # Create new concentration entry if it doesn't exist
@@ -370,6 +392,7 @@ class SyncService:
                                     
                                     self.db.add(new_concentration_entry)
                                     total_entries_updated += 1
+                                    boq_items_to_export.add(boq_item.id)
                                     logger.info(f"Created new concentration entry for section {calc_entry.section_number}")
                     
                     # Update BOQ items for this sheet
@@ -398,7 +421,8 @@ class SyncService:
                 "message": f"Successfully synchronized {processed_sheets} calculation sheets",
                 "entries_updated": total_entries_updated,
                 "boq_items_updated": total_boq_items_updated,
-                "sheets_processed": processed_sheets
+                "sheets_processed": processed_sheets,
+                "boq_items_to_export": list(boq_items_to_export),
             }
             
         except Exception as e:

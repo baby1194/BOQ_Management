@@ -859,6 +859,22 @@ class ExcelService:
             logger.error(f"Error generating all concentration sheets Excel: {str(e)}")
             raise
 
+    def export_concentration_sheets_for_boq_items(self, boq_item_ids, db_session) -> int:
+        """Export concentration sheets for specific BOQ items to C:/Fatina/{section_number}/."""
+        if not boq_item_ids:
+            return 0
+        concentration_sheets = db_session.query(models.ConcentrationSheet).filter(
+            models.ConcentrationSheet.boq_item_id.in_(boq_item_ids)
+        ).all()
+        if not concentration_sheets:
+            return 0
+        self.export_all_concentration_sheets(concentration_sheets, db_session)
+        logger.info(
+            f"Exported {len(concentration_sheets)} concentration sheet(s) to Fatina "
+            f"for {len(boq_item_ids)} BOQ item(s)"
+        )
+        return len(concentration_sheets)
+
     def export_structures_summary(self, summaries):
         """Export structures summary to Excel"""
         try:
