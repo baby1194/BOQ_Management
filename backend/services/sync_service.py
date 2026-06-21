@@ -321,12 +321,21 @@ class SyncService:
                         ).first()
                         
                         if concentration_entry:
-                            # Update the existing concentration entry
+                            was_incorrectly_manual = concentration_entry.is_manual
                             apply_calculation_entry_quantities(
                                 concentration_entry, calc_entry
                             )
+                            concentration_entry.is_manual = False
                             total_entries_updated += 1
-                            logger.info(f"Updated existing concentration entry for section {calc_entry.section_number}")
+                            if was_incorrectly_manual:
+                                logger.info(
+                                    f"Corrected is_manual flag and updated concentration entry "
+                                    f"for section {calc_entry.section_number}"
+                                )
+                            else:
+                                logger.info(
+                                    f"Updated existing concentration entry for section {calc_entry.section_number}"
+                                )
                         else:
                             # Create new concentration entry if it doesn't exist
                             # First, find the concentration sheet for this section
