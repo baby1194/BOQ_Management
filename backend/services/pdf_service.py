@@ -9,6 +9,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from pathlib import Path
 import logging
 import re
+from xml.sax.saxutils import escape
 from datetime import datetime
 from models import models
 from bidi.algorithm import get_display
@@ -36,6 +37,11 @@ def _notes_for_pdf_export(entry) -> str:
 
 
 logger = logging.getLogger(__name__)
+
+BOQ_PDF_FONT_SIZE = 7
+BOQ_PDF_HEADER_FONT_SIZE = 8
+BOQ_PDF_CELL_PADDING = 12
+BOQ_PDF_HORIZONTAL_MARGIN = 108  # matches leftMargin + rightMargin on the BOQ PDF
 
 class PDFService:
     def __init__(self, exports_dir: Path = None):
@@ -172,76 +178,73 @@ class PDFService:
         has_shekel = '₪' in text
         return has_rtl or has_shekel
 
+    def _escape_paragraph_text(self, text):
+        """Escape text for ReportLab Paragraph markup."""
+        return escape(str(text)) if text else ""
+
+    def _break_long_token(self, token, max_chars):
+        """Split an unbreakable token into chunks that fit the column width."""
+        if len(token) <= max_chars:
+            return [token]
+        return [token[i : i + max_chars] for i in range(0, len(token), max_chars)]
+
     def _wrap_hebrew_text(self, text, column_width_points):
         """Wrap Hebrew text and reverse line order for proper RTL display"""
         if not text or not self._detect_rtl(text):
-            return text
-            
-        # First, reshape the text for proper Hebrew display
-        reshaped_text = arabic_reshaper.reshape(str(text))
-        display_text = get_display(reshaped_text)
-        
+            return self._escape_paragraph_text(text)
+
+        text = str(text).replace("\r\n", "\n").replace("\r", "\n")
+
         # Convert column width from points to approximate character count
-        # For 10pt Hebrew font, characters are typically 5-6 points wide
-        # Use a more accurate estimate based on typical Hebrew character width
-        char_width_points = 5  # More accurate estimate for 10pt Hebrew character width
+        char_width_points = 5
         max_chars_per_line = max(20, int(column_width_points / char_width_points))
-        
-        # Apply a reasonable maximum to prevent excessive wrapping
-        # Allow more characters per line for better readability
-        max_chars_per_line = min(max_chars_per_line, 60)  # Allow up to 60 characters per line
-        
-        # Debug logging
-        logger.debug(f"Hebrew text wrapping: '{text[:50]}...', column_width: {column_width_points:.1f}pts, max_chars: {max_chars_per_line}")
-        
-        # Split text into words
-        words = display_text.split()
-        if not words:
-            return text
-            
-        # Wrap text by building lines with intelligent word breaking
-        lines = []
-        current_line = []
-        current_length = 0
-        
-        for word in words:
-            word_length = len(word)
-            # Add space length (1) if not the first word in line
-            space_length = 1 if current_line else 0
-            
-            # Check if adding this word would exceed the line limit
-            if current_length + space_length + word_length <= max_chars_per_line:
-                current_line.append(word)
-                current_length += space_length + word_length
-            else:
-                # Start a new line, but avoid very short lines if possible
-                if current_line:
-                    # If the current line is very short (less than 30% of max), 
-                    # and the word is not too long, try to fit it anyway
-                    if len(' '.join(current_line)) < max_chars_per_line * 0.3 and word_length <= max_chars_per_line * 0.7:
-                        current_line.append(word)
+        max_chars_per_line = min(max_chars_per_line, 60)
+
+        logger.debug(
+            f"Hebrew text wrapping: '{text[:50]}...', column_width: {column_width_points:.1f}pts, max_chars: {max_chars_per_line}"
+        )
+
+        all_lines = []
+        for segment in text.split("\n"):
+            if not segment.strip():
+                continue
+
+            reshaped_text = arabic_reshaper.reshape(segment)
+            display_text = get_display(reshaped_text)
+            words = display_text.split() or [display_text]
+
+            lines = []
+            current_line = []
+            current_length = 0
+
+            for word in words:
+                word_parts = self._break_long_token(word, max_chars_per_line)
+                for part in word_parts:
+                    word_length = len(part)
+                    space_length = 1 if current_line else 0
+
+                    if current_length + space_length + word_length <= max_chars_per_line:
+                        current_line.append(part)
                         current_length += space_length + word_length
                     else:
-                        # Normal wrapping - start new line
-                        lines.append(' '.join(current_line))
-                        current_line = [word]
+                        if current_line:
+                            lines.append(" ".join(current_line))
+                        current_line = [part]
                         current_length = word_length
-                else:
-                    # Single word that's too long - force it on its own line
-                    current_line = [word]
-                    current_length = word_length
-        
-        # Add the last line
-        if current_line:
-            lines.append(' '.join(current_line))
-        
-        # For Hebrew/RTL text, reverse the line order so the first logical line
-        # appears on the right (visually first) and subsequent lines appear to the left
-        if len(lines) > 1:
-            lines.reverse()
-        
-        result = '<br/>'.join(lines)
-        logger.debug(f"Final wrapped result: '{result}'")
+
+            if current_line:
+                lines.append(" ".join(current_line))
+
+            all_lines.extend(lines)
+
+        if not all_lines:
+            return self._escape_paragraph_text(text)
+
+        if len(all_lines) > 1:
+            all_lines.reverse()
+
+        result = "<br/>".join(self._escape_paragraph_text(line) for line in all_lines)
+        logger.debug(f"Final wrapped result: '{result[:120]}...'")
         return result
     
     def _reverse_hebrew_text(self, text):
@@ -325,6 +328,7 @@ class PDFService:
             spaceBefore=0,
             leftIndent=0,
             rightIndent=0,
+            wordWrap='RTL',
         )
         
         english_style = ParagraphStyle(
@@ -336,6 +340,7 @@ class PDFService:
             spaceBefore=0,
             leftIndent=0,
             rightIndent=0,
+            wordWrap='LTR',
         )
         
         # Convert data to Paragraph objects for better text rendering
@@ -356,11 +361,18 @@ class PDFService:
                     paragraph_row.append(Paragraph(wrapped_text, hebrew_style))
                 else:
                     # Use English paragraph style for non-Hebrew text
-                    paragraph_row.append(Paragraph(str(cell_value) if cell_value else "", english_style))
+                    paragraph_row.append(
+                        Paragraph(self._escape_paragraph_text(cell_value) if cell_value else "", english_style)
+                    )
             paragraph_data.append(paragraph_row)
         
         # Create table with Paragraph objects and repeatRows if specified
-        table = Table(paragraph_data, colWidths=column_widths, repeatRows=repeat_rows)
+        table = Table(
+            paragraph_data,
+            colWidths=column_widths,
+            repeatRows=repeat_rows,
+            splitInRow=1,
+        )
         
         # Set alignment based on language
         align_mode = 'RIGHT' if language == "he" else 'LEFT'
@@ -384,6 +396,129 @@ class PDFService:
         table.setStyle(TableStyle(table_style))
         return table
     
+    def _prepare_boq_single_line_cell(self, value):
+        """Format a BOQ cell for single-line PDF display."""
+        if value is None or value == "":
+            return ""
+        text = str(value)
+        if self._is_currency_value(text):
+            return text
+        if self._detect_rtl(text):
+            return self._reverse_hebrew_text(text)
+        return text
+
+    def _measure_boq_cell_width(self, value, font_name, font_size, is_header=False):
+        """Measure rendered width for a single-line BOQ cell."""
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+
+        if value is None or value == "":
+            return 0
+
+        text = str(value)
+        display_text = self._prepare_boq_single_line_cell(text)
+        if is_header:
+            if self._detect_rtl(text) or self._is_currency_value(text):
+                return stringWidth(display_text, self.hebrew_font, font_size) * 1.1
+            return stringWidth(display_text, "Helvetica-Bold", font_size)
+
+        if self._detect_rtl(text) or self._is_currency_value(text):
+            return stringWidth(display_text, self.hebrew_font, font_size) * 1.1
+
+        return stringWidth(display_text, font_name, font_size)
+
+    def _calculate_boq_single_line_page_and_columns(self, data):
+        """Size each column to its widest single-line value and expand the page to fit."""
+        if not data or not data[0]:
+            return landscape(A3), []
+
+        num_cols = len(data[0])
+        column_widths = []
+
+        for col_idx in range(num_cols):
+            max_width = 0
+            for row_idx, row in enumerate(data):
+                if col_idx >= len(row):
+                    continue
+                cell_width = self._measure_boq_cell_width(
+                    row[col_idx],
+                    "Helvetica",
+                    BOQ_PDF_HEADER_FONT_SIZE if row_idx == 0 else BOQ_PDF_FONT_SIZE,
+                    is_header=row_idx == 0,
+                )
+                max_width = max(max_width, cell_width)
+            column_widths.append(max_width + BOQ_PDF_CELL_PADDING)
+
+        table_width = sum(column_widths)
+        page_width = table_width + BOQ_PDF_HORIZONTAL_MARGIN
+        page_height = 842  # A3 landscape height — rows paginate vertically
+        page_size = (page_width, page_height)
+
+        logger.info(
+            "BOQ single-line layout: page %.0fx%.0f, columns %s (table %.1f)",
+            page_width,
+            page_height,
+            [f"{width:.1f}" for width in column_widths],
+            table_width,
+        )
+        return page_size, column_widths
+
+    def _create_boq_single_line_table(
+        self,
+        data,
+        column_widths,
+        repeat_rows=1,
+        language="en",
+    ):
+        """Create a BOQ table with plain single-line cells (no wrapping)."""
+        processed_data = [
+            [self._prepare_boq_single_line_cell(cell) for cell in row]
+            for row in data
+        ]
+
+        table = Table(
+            processed_data,
+            colWidths=column_widths,
+            repeatRows=repeat_rows,
+            splitInRow=0,
+        )
+
+        align_mode = "RIGHT" if language == "he" else "LEFT"
+        table_style = [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+            ("ALIGN", (0, 0), (-1, -1), align_mode),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), BOQ_PDF_HEADER_FONT_SIZE),
+            ("FONTSIZE", (0, 1), (-1, -1), BOQ_PDF_FONT_SIZE),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("BACKGROUND", (0, 1), (-1, -2), colors.white),
+            ("BACKGROUND", (0, -1), (-1, -1), colors.lightgrey),
+            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]
+
+        for row_idx, row in enumerate(data):
+            for col_idx, cell_value in enumerate(row):
+                if not cell_value:
+                    continue
+                text = str(cell_value)
+                if self._detect_rtl(text) or self._is_currency_value(text):
+                    header_font = self.hebrew_font_bold if row_idx == 0 else self.hebrew_font
+                    table_style.append(
+                        ("FONTNAME", (col_idx, row_idx), (col_idx, row_idx), header_font)
+                    )
+                    if self._detect_rtl(text):
+                        table_style.append(
+                            ("ALIGN", (col_idx, row_idx), (col_idx, row_idx), "RIGHT")
+                        )
+
+        table.setStyle(TableStyle(table_style))
+        return table
+
     def _get_project_names(self, db_session=None, sheet_data=None):
         """Get project names (English and Hebrew) from various sources"""
         project_name = ""
@@ -2063,107 +2198,45 @@ class PDFService:
                     'subsection': 'Subsection',
                     'notes': 'Notes'
                 }
-            
-            # Calculate optimal page size and column widths based on content
+
+            page_size = landscape(A3)
+            column_widths = None
+            data = None
+
             if items:
-                # Prepare headers and data for size calculation
                 all_possible_headers = [
                     'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
                     'original_contract_quantity'
                 ]
-                
-                # Add contract update quantity columns in order
+
                 for key in items[0].keys():
                     if key.startswith('updated_contract_quantity_'):
                         all_possible_headers.append(key)
-                
+
                 all_possible_headers.append('price')
-                
-                # Add contract update sum columns in order
+
                 for key in items[0].keys():
                     if key.startswith('updated_contract_sum_'):
                         all_possible_headers.append(key)
-                
+
                 all_possible_headers.extend([
                     'total_contract_sum', 'estimated_quantity', 'quantity_submitted', 'internal_quantity',
                     'approved_by_project_manager', 'approved_signed_quantity',
                     'partially_submitted_quantity', 'total_estimate',
                     'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                    'approved_signed_total', 'partial_submitted_total', 'subsection', 'notes'
+                    'approved_signed_total', 'partial_submitted_total',
+                    'total_decrease', 'total_increase', 'subsection', 'notes'
                 ])
-                
-                # Only include headers that exist in the data
-                headers = [h for h in all_possible_headers if h in items[0].keys()]
-                
-                # Prepare data for calculation (headers + sample data + totals row)
-                calc_data = [headers]
-                for item in items[:10]:  # Use first 10 items for calculation to avoid too large pages
-                    row_data = []
-                    for key in headers:
-                        value = item[key]
-                        if isinstance(value, (int, float)):
-                            if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
-                                row_data.append(self._format_currency(value))
-                            else:
-                                row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
-                        else:
-                            row_data.append(str(value))
-                    calc_data.append(row_data)
-                
-                # Add a sample totals row for calculation
-                calc_data.append(["GRAND TOTAL"] + [""] * (len(headers) - 1))
-                
-                # Calculate optimal page size
-                page_size, page_name, column_widths = self._calculate_optimal_page_size(headers, calc_data, font_size=8)
-                logger.info(f"Calculated optimal page size: {page_name} for {len(items)} BOQ items")
-            else:
-                # Default to A3 landscape if no items
-                page_size = landscape(A3)
-                column_widths = None
-            
-            doc = SimpleDocTemplate(str(filepath), pagesize=page_size)
-            story = []
-            styles = getSampleStyleSheet()
-            
-            # Create table for BOQ items data
-            if items:
-                # Define column order to match BOQ table order
-                all_possible_headers = [
-                    'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
-                    'price', 'original_contract_quantity', 'total_contract_sum'
-                ]
-                
-                # Add contract update quantity columns in order
-                for key in items[0].keys():
-                    if key.startswith('updated_contract_quantity_'):
-                        all_possible_headers.append(key)
-                
-                # Add contract update sum columns in order
-                for key in items[0].keys():
-                    if key.startswith('updated_contract_sum_'):
-                        all_possible_headers.append(key)
-                
-                all_possible_headers.extend([
-                    'estimated_quantity', 'quantity_submitted', 'internal_quantity',
-                    'approved_by_project_manager', 'approved_signed_quantity',
-                    'partially_submitted_quantity', 'total_estimate',
-                    'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                    'approved_signed_total', 'partial_submitted_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
-                ])
-                
-                # Only include headers that exist in the data
+
                 raw_headers = [h for h in all_possible_headers if h in items[0].keys()]
-                # Translate headers based on language
                 headers = [headers_translations.get(header, header) for header in raw_headers]
-                
-                # In Hebrew mode, reverse column order for RTL display
+
                 if language == "he":
                     raw_headers = list(reversed(raw_headers))
                     headers = list(reversed(headers))
-                
+
                 data = [headers]
-                
-                # Define columns that should have grand totals (same as Excel export)
+
                 total_columns = {
                     'total_contract_sum',
                     'total_estimate',
@@ -2175,79 +2248,61 @@ class PDFService:
                     'total_decrease',
                     'total_increase'
                 }
-                # Add updated contract sum columns
                 for key in raw_headers:
                     if key.startswith('updated_contract_sum_'):
                         total_columns.add(key)
-                
-                grand_totals = {key: 0 if isinstance(items[0][key], (int, float)) else "" for key in raw_headers}
-                
-                # First pass: collect all data and calculate totals
+
+                grand_totals = {
+                    key: 0 if isinstance(items[0][key], (int, float)) else ""
+                    for key in raw_headers
+                }
+
                 for item in items:
                     row_data = []
                     for key in raw_headers:
                         value = item[key]
                         if isinstance(value, (int, float)):
-                            # Only apply ₪ formatting to price and sum/total columns, not quantity columns
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
                                 row_data.append(self._format_currency(value))
                             else:
                                 row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
                             row_data.append(str(value))
-                    # Column order is already reversed in raw_headers if Hebrew
                     data.append(row_data)
-                    
-                    # Calculate grand totals only for specified columns
+
                     for key in raw_headers:
                         if key in total_columns and isinstance(item[key], (int, float)):
                             grand_totals[key] += item[key]
-                
-                # Add grand totals row (columns already in correct order for language)
+
                 totals_row = []
                 for i, key in enumerate(raw_headers):
                     if i == 0:
-                        # First column (leftmost in Hebrew due to reversal) shows "GRAND TOTAL"
-                        if language == "he":
-                            totals_row.append("סה\"כ כולל")
-                        else:
-                            totals_row.append("GRAND TOTAL")
+                        totals_row.append("סה\"כ כולל" if language == "he" else "GRAND TOTAL")
                     elif key in total_columns and isinstance(grand_totals[key], (int, float)):
-                        # Only show totals for specified columns
                         totals_row.append(self._format_currency(grand_totals[key]))
                     else:
-                        # Empty values for all other columns
                         totals_row.append("")
                 data.append(totals_row)
-                
-                # Use pre-calculated column widths from page size calculation
-                if column_widths is None:
-                    # Fallback to old method if column_widths not calculated
-                    column_widths = self._calculate_column_widths(data, headers, 'A3', 8, 8)
-                
-                # In Hebrew mode, reverse column widths to match reversed column order
-                if language == "he" and column_widths:
-                    column_widths = list(reversed(column_widths))
-                
-                # Try to use robust Hebrew table method first, fallback to regular table if it fails
-                try:
-                    table = self._create_robust_hebrew_table(data, headers, column_widths, repeat_rows=1, language=language)
-                    logger.info("Successfully created robust Hebrew table for BOQ items with repeatRows")
-                except Exception as e:
-                    logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
-                    # Use Hebrew-aware table style that applies Hebrew fonts to Hebrew text
-                    table_style, processed_data = self._create_hebrew_aware_table_style(data, headers, column_widths)
-                    
-                    # Apply alignment based on language
-                    align_mode = 'RIGHT' if language == "he" else 'LEFT'
-                    table_style.extend([
-                        ('ALIGN', (0, 0), (-1, -1), align_mode),
-                    ])
-                    
-                    # Create table with processed data (Hebrew text reversed) and repeatRows
-                    table = Table(processed_data, colWidths=column_widths, repeatRows=1)
-                    table.setStyle(TableStyle(table_style))
-                
+
+                page_size, column_widths = self._calculate_boq_single_line_page_and_columns(data)
+
+            doc = SimpleDocTemplate(
+                str(filepath),
+                pagesize=page_size,
+                leftMargin=54,
+                rightMargin=54,
+                topMargin=72,
+                bottomMargin=72,
+            )
+            story = []
+
+            if data and column_widths:
+                table = self._create_boq_single_line_table(
+                    data,
+                    column_widths,
+                    repeat_rows=1,
+                    language=language,
+                )
                 story.append(table)
             
             doc.build(story, onFirstPage=lambda canvas, doc: self._add_boq_header_footer(canvas, doc, project_name, project_name_hebrew), 
@@ -2433,7 +2488,7 @@ class PDFService:
         logger.info(f"Column widths: {[f'{w:.1f}' for w in column_max_widths]} (Total: {sum(column_max_widths):.1f}/{available_width:.1f})")
         
         return column_max_widths 
-    
+
     def _calculate_optimal_page_size(self, headers, data, font_size=8):
         """Calculate optimal page size based on content volume"""
         from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -2504,14 +2559,10 @@ class PDFService:
         margin = 72 * 2  # 2 inches total margin
         required_page_width = total_content_width + margin
         
-        # Calculate page height based on number of rows
-        row_height = font_size + 8  # Font size + padding
-        header_height = font_size + 12  # Header row height
-        total_content_height = header_height + (len(data) * row_height)
-        
-        # Add margins for header/footer (2 inches total)
-        margin_height = 72 * 2  # 2 inches total margin
-        required_page_height = total_content_height + margin_height
+        # Tables paginate across pages; height is based on a standard landscape page,
+        # not the full row count (sample data may be much smaller than the final export).
+        standard_landscape_height = 842  # A3 landscape height in points
+        required_page_height = standard_landscape_height
         
         # Standard page sizes in points (landscape orientation)
         standard_sizes = {
@@ -2522,29 +2573,26 @@ class PDFService:
             'A0': (3370, 2384),    # A0 landscape
         }
         
-        # Find the smallest standard size that fits our content
+        # Find the smallest standard size wide enough for all columns
         optimal_size = None
         optimal_name = None
         
         for size_name, (width, height) in standard_sizes.items():
-            if width >= required_page_width and height >= required_page_height:
+            if width >= required_page_width:
                 optimal_size = (width, height)
                 optimal_name = size_name
                 break
         
-        # If no standard size fits, create a custom size
+        # If no standard size fits, create a custom width with standard height
         if optimal_size is None:
-            # Use the required dimensions, but ensure minimum standards
             custom_width = max(required_page_width, 842)  # At least A4 width
-            custom_height = max(required_page_height, 595)  # At least A4 height
             
             # Round up to nearest 50 points for cleaner dimensions
             custom_width = ((int(custom_width) + 49) // 50) * 50
-            custom_height = ((int(custom_height) + 49) // 50) * 50
             
-            optimal_size = (custom_width, custom_height)
-            optimal_name = f"Custom_{custom_width}x{custom_height}"
-            logger.info(f"Using custom page size: {custom_width}x{custom_height} points")
+            optimal_size = (custom_width, standard_landscape_height)
+            optimal_name = f"Custom_{custom_width}x{standard_landscape_height}"
+            logger.info(f"Using custom page size: {custom_width}x{standard_landscape_height} points")
         else:
             logger.info(f"Using standard page size: {optimal_name} ({optimal_size[0]}x{optimal_size[1]} points)")
         
