@@ -41,7 +41,6 @@ const CalculationSheets: React.FC = () => {
   const [deletingSheet, setDeletingSheet] = useState(false);
   const [deletingEntry, setDeletingEntry] = useState<number | null>(null);
   const [populatingEntries, setPopulatingEntries] = useState(false);
-  const [populatingAllEntries, setPopulatingAllEntries] = useState(false);
   const [editingComment, setEditingComment] = useState(false);
   const [commentValue, setCommentValue] = useState("");
   const [updatingComment, setUpdatingComment] = useState(false);
@@ -416,59 +415,6 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
-  // Populate ALL calculation entries from ALL calculation sheets
-  const handlePopulateAllCalculationEntries = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to populate concentration entries from ALL calculation sheets? This will DELETE auto-generated concentration entries and recreate them from ${sheets.length} calculation sheets. Manual entries will be preserved. This action cannot be undone and may take some time.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      setPopulatingAllEntries(true);
-      setError(null);
-
-      const response =
-        await calculationSheetsApi.populateAllCalculationEntries();
-
-      // Show success message
-      alert(
-        `✅ ${response.message}\n\nTotal Entries Created: ${
-          response.entries_created
-        }\nTotal Entries Skipped: ${
-          response.entries_skipped
-        }\nTotal BOQ Items Updated: ${response.boq_items_updated || 0}`
-      );
-
-      // Clear any previous errors
-      setError(null);
-    } catch (err: any) {
-      console.error("Error populating all calculation entries:", err);
-
-      // Extract detailed error message
-      let errorMessage = t("auth.failedToPopulateAllEntries");
-
-      if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setError(errorMessage);
-
-      // Show error in console for debugging
-      console.error("Detailed error:", {
-        status: err.response?.status,
-        data: err.response?.data,
-        message: err.message,
-      });
-    } finally {
-      setPopulatingAllEntries(false);
-    }
-  };
-
   // Sync all calculation sheets with concentration sheets and BOQ items
   const handleSyncAll = async () => {
     if (
@@ -591,28 +537,6 @@ const CalculationSheets: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-screen max-h-[calc(100vh-200px)]">
         {/* Left Side - Sheets List */}
         <div className="lg:col-span-1">
-          {/* Bulk Populate Button */}
-          <div className="mb-4">
-            <button
-              onClick={handlePopulateAllCalculationEntries}
-              disabled={populatingAllEntries || sheets.length === 0}
-              className="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              title="Populate concentration entries from ALL calculation sheets"
-            >
-              {populatingAllEntries ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Populating All...</span>
-                </>
-              ) : (
-                <>
-                  <span>🚀</span>
-                  <span>Populate ALL Sheets</span>
-                </>
-              )}
-            </button>
-          </div>
-
           {/* Sync All Button */}
           <div className="mb-4">
             <button

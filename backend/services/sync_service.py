@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 import logging
 from models import models
-from utils.concentration_utils import compute_quantity_submitted
+from utils.concentration_utils import (
+    apply_calculation_entry_quantities,
+    compute_submission_percentage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -207,13 +210,7 @@ class SyncService:
             
             if concentration_entry:
                 # Update the concentration entry with new values
-                concentration_entry.estimated_quantity = calculation_entry.estimated_quantity
-                if concentration_entry.submission_percentage is None:
-                    concentration_entry.submission_percentage = 100.0
-                concentration_entry.quantity_submitted = compute_quantity_submitted(
-                    concentration_entry.estimated_quantity,
-                    concentration_entry.submission_percentage,
-                )
+                apply_calculation_entry_quantities(concentration_entry, calculation_entry)
                 entries_updated = 1
                 
                 # Update BOQ item totals
@@ -325,12 +322,8 @@ class SyncService:
                         
                         if concentration_entry:
                             # Update the existing concentration entry
-                            concentration_entry.estimated_quantity = calc_entry.estimated_quantity
-                            if concentration_entry.submission_percentage is None:
-                                concentration_entry.submission_percentage = 100.0
-                            concentration_entry.quantity_submitted = compute_quantity_submitted(
-                                concentration_entry.estimated_quantity,
-                                concentration_entry.submission_percentage,
+                            apply_calculation_entry_quantities(
+                                concentration_entry, calc_entry
                             )
                             total_entries_updated += 1
                             logger.info(f"Updated existing concentration entry for section {calc_entry.section_number}")
@@ -347,16 +340,18 @@ class SyncService:
                                 ).first()
                                 
                                 if concentration_sheet:
+                                    estimated = float(calc_entry.estimated_quantity or 0)
+                                    submitted = float(calc_entry.quantity_submitted or 0)
                                     new_concentration_entry = models.ConcentrationEntry(
                                         concentration_sheet_id=concentration_sheet.id,
                                         section_number=calc_entry.section_number,
                                         description=calculation_sheet.description,
                                         calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                                         drawing_no=calculation_sheet.drawing_no,
-                                        estimated_quantity=calc_entry.estimated_quantity,
-                                        submission_percentage=100.0,
-                                        quantity_submitted=compute_quantity_submitted(
-                                            calc_entry.estimated_quantity, 100.0
+                                        estimated_quantity=estimated,
+                                        quantity_submitted=submitted,
+                                        submission_percentage=compute_submission_percentage(
+                                            estimated, submitted
                                         ),
                                         internal_quantity=0.0,
                                         approved_by_project_manager=0.0,

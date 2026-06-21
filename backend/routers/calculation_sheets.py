@@ -7,7 +7,10 @@ from fatina_paths import resolve_calculation_sheet_open_path
 from models import models
 from schemas import schemas
 from services.sync_service import SyncService
-from utils.concentration_utils import compute_quantity_submitted
+from utils.concentration_utils import (
+    apply_calculation_entry_quantities,
+    compute_submission_percentage,
+)
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -483,12 +486,8 @@ async def populate_concentration_entries(
             if existing_concentration_entry:
                 # Only update if it's an auto-generated entry, don't override manual entries
                 if not existing_concentration_entry.is_manual:
-                    existing_concentration_entry.estimated_quantity = calc_entry.estimated_quantity
-                    if existing_concentration_entry.submission_percentage is None:
-                        existing_concentration_entry.submission_percentage = 100.0
-                    existing_concentration_entry.quantity_submitted = compute_quantity_submitted(
-                        existing_concentration_entry.estimated_quantity,
-                        existing_concentration_entry.submission_percentage,
+                    apply_calculation_entry_quantities(
+                        existing_concentration_entry, calc_entry
                     )
                     existing_concentration_entry.description = calculation_sheet.description
                     existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
@@ -497,6 +496,8 @@ async def populate_concentration_entries(
                 else:
                     logger.info(f"Skipped updating manual entry for section {calc_entry.section_number} as it was manually created")
             else:
+                estimated = float(calc_entry.estimated_quantity or 0)
+                submitted = float(calc_entry.quantity_submitted or 0)
                 # Create new concentration entry
                 new_concentration_entry = models.ConcentrationEntry(
                     concentration_sheet_id=concentration_sheet.id,
@@ -504,10 +505,10 @@ async def populate_concentration_entries(
                     description=calculation_sheet.description,  # Use calculation sheet description
                     calculation_sheet_no=calculation_sheet.calculation_sheet_no,
                     drawing_no=calculation_sheet.drawing_no,
-                    estimated_quantity=calc_entry.estimated_quantity,
-                    submission_percentage=100.0,
-                    quantity_submitted=compute_quantity_submitted(
-                        calc_entry.estimated_quantity, 100.0
+                    estimated_quantity=estimated,
+                    quantity_submitted=submitted,
+                    submission_percentage=compute_submission_percentage(
+                        estimated, submitted
                     ),
                     internal_quantity=0.0,
                     approved_by_project_manager=0.0,
@@ -572,179 +573,3 @@ async def populate_concentration_entries(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error populating concentration entries: {str(e)}")
-
-@router.post("/populate-all", response_model=schemas.PopulateConcentrationEntriesResponse)
-async def populate_all_calculation_entries(
-    db: Session = Depends(get_db)
-):
-    """
-    Populate concentration entries from ALL calculation sheets in the database
-    This will erase all existing concentration entries first and rewrite them.
-    """
-    try:
-        # Get all calculation sheets
-        calculation_sheets = db.query(models.CalculationSheet).all()
-        
-        if not calculation_sheets:
-            raise HTTPException(
-                status_code=400, 
-                detail="No calculation sheets found in the database"
-            )
-        
-        logger.info(f"Starting bulk population from {len(calculation_sheets)} calculation sheets")
-        
-        # FIRST: Clear only auto-generated concentration entries before repopulating
-        logger.info("Clearing auto-generated concentration entries (preserving manual ones)...")
-        try:
-            # Delete only auto-generated entries (is_manual = False)
-            concentration_entries_deleted = db.query(models.ConcentrationEntry).filter(
-                models.ConcentrationEntry.is_manual == False
-            ).delete()
-            db.commit()
-            logger.info(f"Deleted {concentration_entries_deleted} auto-generated concentration entries, preserved manual entries")
-        except Exception as e:
-            logger.error(f"Error clearing auto-generated concentration entries: {str(e)}")
-            db.rollback()
-            raise HTTPException(status_code=500, detail=f"Error clearing auto-generated concentration entries: {str(e)}")
-        
-        total_entries_processed = 0
-        total_boq_items_updated = 0
-        processed_sheets = 0
-        
-        for calculation_sheet in calculation_sheets:
-            try:
-                logger.info(f"Processing calculation sheet {calculation_sheet.calculation_sheet_no} (ID: {calculation_sheet.id})")
-                
-                # Get all calculation entries for this sheet
-                calculation_entries = db.query(models.CalculationEntry).filter(
-                    models.CalculationEntry.calculation_sheet_id == calculation_sheet.id
-                ).all()
-                
-                if not calculation_entries:
-                    logger.info(f"No calculation entries found for sheet {calculation_sheet.calculation_sheet_no}, skipping")
-                    continue
-                
-                # Validate that calculation entries have valid section numbers
-                invalid_entries = [entry for entry in calculation_entries if not entry.section_number or entry.section_number.strip() == ""]
-                if invalid_entries:
-                    logger.warning(f"Found {len(invalid_entries)} calculation entries with invalid section numbers in sheet {calculation_sheet.calculation_sheet_no}")
-                    continue
-                
-                # For each calculation entry, find the corresponding concentration sheet by section number
-                section_numbers = [entry.section_number for entry in calculation_entries]
-                
-                # Find BOQ items with matching section numbers
-                matching_boq_items = db.query(models.BOQItem).filter(
-                    models.BOQItem.section_number.in_(section_numbers)
-                ).all()
-                
-                if not matching_boq_items:
-                    logger.warning(f"No BOQ items found with section numbers: {section_numbers} for sheet {calculation_sheet.calculation_sheet_no}")
-                    continue
-                
-                # Create a mapping of section number to concentration sheet
-                section_to_concentration_sheet = {}
-                for boq_item in matching_boq_items:
-                    concentration_sheet = db.query(models.ConcentrationSheet).filter(
-                        models.ConcentrationSheet.boq_item_id == boq_item.id
-                    ).first()
-                    
-                    if concentration_sheet:
-                        section_to_concentration_sheet[boq_item.section_number] = concentration_sheet
-                
-                if not section_to_concentration_sheet:
-                    logger.warning(f"No concentration sheets found for BOQ items in sheet {calculation_sheet.calculation_sheet_no}")
-                    continue
-                
-                # Populate concentration entries for this sheet
-                entries_processed = 0
-                
-                for calc_entry in calculation_entries:
-                    # Find the corresponding concentration sheet for this entry
-                    if calc_entry.section_number not in section_to_concentration_sheet:
-                        continue
-                    
-                    concentration_sheet = section_to_concentration_sheet[calc_entry.section_number]
-                    
-                    # Since we cleared auto-generated entries, we can directly create new ones
-                    # Create new concentration entry
-                    new_concentration_entry = models.ConcentrationEntry(
-                        concentration_sheet_id=concentration_sheet.id,
-                        section_number=calc_entry.section_number,
-                        description=calculation_sheet.description,  # Use calculation sheet description
-                        calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                        drawing_no=calculation_sheet.drawing_no,
-                        estimated_quantity=calc_entry.estimated_quantity,
-                        submission_percentage=100.0,
-                        quantity_submitted=compute_quantity_submitted(
-                            calc_entry.estimated_quantity, 100.0
-                        ),
-                        internal_quantity=0.0,
-                        approved_by_project_manager=0.0,
-                        notes=calc_entry.notes or f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
-                        is_manual=False  # Mark as auto-generated
-                    )
-                    
-                    db.add(new_concentration_entry)
-                    entries_processed += 1
-                    logger.info(f"Created new concentration entry for section {calc_entry.section_number} in sheet {concentration_sheet.sheet_name}")
-                
-                # Update BOQ Items with totals from concentration sheets
-                boq_items_updated = 0
-                for boq_item in matching_boq_items:
-                    concentration_sheet = section_to_concentration_sheet.get(boq_item.section_number)
-                    if concentration_sheet:
-                        # Get all concentration entries for this sheet
-                        sheet_entries = db.query(models.ConcentrationEntry).filter(
-                            models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id
-                        ).all()
-                        
-                        if sheet_entries:
-                            # Calculate totals
-                            total_estimated = sum(entry.estimated_quantity for entry in sheet_entries)
-                            total_submitted = sum(entry.quantity_submitted for entry in sheet_entries)
-                            total_internal = sum(entry.internal_quantity for entry in sheet_entries)
-                            total_approved = sum(entry.approved_by_project_manager for entry in sheet_entries)
-                            
-                            # Update BOQ Item
-                            boq_item.estimated_quantity = total_estimated
-                            boq_item.quantity_submitted = total_submitted
-                            boq_item.internal_quantity = total_internal
-                            boq_item.approved_by_project_manager = total_approved
-                            
-                            # Calculate derived totals
-                            boq_item.total_estimate = total_estimated * boq_item.price
-                            boq_item.total_submitted = total_submitted * boq_item.price
-                            boq_item.internal_total = total_internal * boq_item.price
-                            boq_item.total_approved_by_project_manager = total_approved * boq_item.price
-                            
-                            boq_items_updated += 1
-                
-                # Commit changes for this sheet
-                db.commit()
-                
-                total_entries_processed += entries_processed
-                total_boq_items_updated += boq_items_updated
-                processed_sheets += 1
-                
-                logger.info(f"Processed sheet {calculation_sheet.calculation_sheet_no}: {entries_processed} entries created, {boq_items_updated} BOQ items updated")
-                
-            except Exception as e:
-                logger.error(f"Error processing calculation sheet {calculation_sheet.calculation_sheet_no}: {str(e)}")
-                db.rollback()
-                continue
-        
-        logger.info(f"Bulk population completed. Processed {processed_sheets} sheets. Total: {total_entries_processed} entries created (after clearing auto-generated entries), {total_boq_items_updated} BOQ items updated, manual entries preserved")
-        
-        return {
-            "success": True,
-            "message": f"Successfully cleared auto-generated concentration entries and created {total_entries_processed} new concentration entries from {processed_sheets} calculation sheets. Manual entries were preserved. Updated {total_boq_items_updated} BOQ Items with totals.",
-            "entries_created": total_entries_processed,
-            "entries_skipped": 0,  # No longer skipping entries
-            "boq_items_updated": total_boq_items_updated,
-            "concentration_sheet_id": 0  # Not applicable for bulk operation
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in bulk population: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error in bulk population: {str(e)}")

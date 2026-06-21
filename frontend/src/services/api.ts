@@ -325,12 +325,6 @@ export const calculationSheetsApi = {
         `/calculation-sheets/${sheetId}/populate-concentration-entries`
       )
       .then((res) => res.data),
-  populateAllCalculationEntries: () =>
-    api
-      .post<PopulateConcentrationEntriesResponse>(
-        `/calculation-sheets/populate-all`
-      )
-      .then((res) => res.data),
 
   syncAll: () =>
     api
