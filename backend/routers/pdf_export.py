@@ -26,7 +26,7 @@ def get_excel_service(project_id: str = Depends(get_project_id)) -> ExcelService
 
 
 def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
-    """Keep concentration sheets whose BOQ item has PSQ > 0."""
+    """Keep concentration sheets whose BOQ item has PSQ != 0 (positive or negative)."""
     from sqlalchemy import func
 
     q_sub = func.coalesce(models.BOQItem.quantity_submitted, 0)
@@ -35,7 +35,7 @@ def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
         row[0]
         for row in db.query(models.ConcentrationSheet.id)
         .join(models.BOQItem, models.BOQItem.id == models.ConcentrationSheet.boq_item_id)
-        .filter(q_sub > q_app)
+        .filter(q_sub != q_app)
         .distinct()
         .all()
     }
