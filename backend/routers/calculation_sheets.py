@@ -9,6 +9,7 @@ from models import models
 from schemas import schemas
 from services.sync_service import SyncService
 from services.excel_service import ExcelService
+from services.pdf_service import PDFService
 from utils.concentration_utils import (
     apply_calculation_entry_quantities,
     compute_submission_percentage,
@@ -510,11 +511,11 @@ async def sync_all_calculation_sheets(
             concentration_sheets_exported = 0
             boq_items_to_export = result.get("boq_items_to_export") or []
             if boq_items_to_export:
-                excel_service = ExcelService(
+                pdf_service = PDFService(
                     exports_dir=get_project_export_dir(project_id)
                 )
                 concentration_sheets_exported = (
-                    excel_service.export_concentration_sheets_for_boq_items(
+                    pdf_service.export_concentration_sheets_for_boq_items(
                         boq_items_to_export, db
                     )
                 )
@@ -750,18 +751,18 @@ async def populate_concentration_entries(
 
         concentration_sheets_exported = 0
         if boq_items_to_export:
-            excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
-            concentration_sheets_exported = excel_service.export_concentration_sheets_for_boq_items(
+            pdf_service = PDFService(exports_dir=get_project_export_dir(project_id))
+            concentration_sheets_exported = pdf_service.export_concentration_sheets_for_boq_items(
                 boq_items_to_export, db
             )
             logger.info(
-                f"Exported {concentration_sheets_exported} concentration sheet(s) to Fatina "
+                f"Exported {concentration_sheets_exported} concentration sheet PDF(s) to Fatina "
                 f"after populating entries"
             )
         
         return {
             "success": True,
-            "message": f"Successfully processed {entries_created} concentration entries (updated existing entries and created new ones as needed). Updated {boq_items_updated} BOQ Items with totals. Exported {concentration_sheets_exported} concentration sheet(s) to Fatina.",
+            "message": f"Successfully processed {entries_created} concentration entries (updated existing entries and created new ones as needed). Updated {boq_items_updated} BOQ Items with totals. Exported {concentration_sheets_exported} concentration sheet PDF(s) to Fatina.",
             "entries_created": entries_created,
             "entries_skipped": entries_skipped,
             "boq_items_updated": boq_items_updated,

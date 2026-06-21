@@ -1392,6 +1392,48 @@ class PDFService:
             logger.error(f"Error generating single concentration sheet PDF: {str(e)}")
             raise
 
+    def export_concentration_sheets_for_boq_items(
+        self, boq_item_ids, db_session, language="en"
+    ) -> int:
+        """Export concentration sheets for specific BOQ items to C:/Fatina/{section_number}/ as PDF."""
+        if not boq_item_ids:
+            return 0
+        concentration_sheets = db_session.query(models.ConcentrationSheet).filter(
+            models.ConcentrationSheet.boq_item_id.in_(boq_item_ids)
+        ).all()
+        if not concentration_sheets:
+            return 0
+
+        exported_count = 0
+        for sheet in concentration_sheets:
+            boq_item = db_session.query(models.BOQItem).filter(
+                models.BOQItem.id == sheet.boq_item_id
+            ).first()
+            if not boq_item:
+                continue
+            entries = (
+                db_session.query(models.ConcentrationEntry)
+                .filter(models.ConcentrationEntry.concentration_sheet_id == sheet.id)
+                .order_by(models.ConcentrationEntry.id)
+                .all()
+            )
+            try:
+                self.export_single_concentration_sheet(
+                    sheet, boq_item, entries, db_session, language=language
+                )
+                exported_count += 1
+            except Exception as e:
+                section = boq_item.section_number or sheet.id
+                logger.warning(
+                    f"Failed to export concentration sheet PDF for section {section}: {e}"
+                )
+
+        logger.info(
+            f"Exported {exported_count} concentration sheet PDF(s) to Fatina "
+            f"for {len(boq_item_ids)} BOQ item(s)"
+        )
+        return exported_count
+
     def export_summary(self, summary_data, db_session=None, language="en"):
         """Export summary report to PDF with language support"""
         try:

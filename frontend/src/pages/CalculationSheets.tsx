@@ -354,7 +354,7 @@ const CalculationSheets: React.FC = () => {
           response.entries_created
         }\nEntries Skipped: ${response.entries_skipped}\nBOQ Items Updated: ${
           response.boq_items_updated || 0
-        }\nConcentration Sheets Exported: ${
+        }\nConcentration Sheet PDFs Exported: ${
           response.concentration_sheets_exported || 0
         }`
       );
@@ -476,7 +476,7 @@ const CalculationSheets: React.FC = () => {
       if (response.success) {
         setError(null);
         alert(
-          `✅ ${response.message}\n\nSheets Processed: ${response.details.sheets_processed}\nEntries Updated: ${response.details.entries_updated}\nBOQ Items Updated: ${response.details.boq_items_updated}\nConcentration Sheets Exported: ${response.details.concentration_sheets_exported || 0}`
+          `✅ ${response.message}\n\nSheets Processed: ${response.details.sheets_processed}\nEntries Updated: ${response.details.entries_updated}\nBOQ Items Updated: ${response.details.boq_items_updated}\nConcentration Sheet PDFs Exported: ${response.details.concentration_sheets_exported || 0}`
         );
         // Refresh data to show updated values
         await fetchSheets();
