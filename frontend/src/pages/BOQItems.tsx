@@ -1704,19 +1704,7 @@ const BOQItems: React.FC = () => {
             );
 
       if (response.success && response.pdf_path) {
-        // Create download link
-        const link = document.createElement("a");
-        const downloadUrl = response.pdf_path.startsWith("/")
-          ? `/api${response.pdf_path}`
-          : `/api/${response.pdf_path}`;
-        link.href = downloadUrl;
-        const fileExtension = format === "excel" ? "xlsx" : "pdf";
-        const filename =
-          response.pdf_path.split("/").pop() || `boq_items.${fileExtension}`;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        await exportApi.downloadExportFile(response.pdf_path);
 
         // Show success message
         const formatName = format === "excel" ? "Excel" : "PDF";

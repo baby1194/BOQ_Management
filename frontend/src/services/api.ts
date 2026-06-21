@@ -40,6 +40,10 @@ import {
   WorkspaceProjectCreate,
 } from "../types";
 import {
+  filenameFromExportPath,
+  triggerBrowserDownload,
+} from "../utils/download";
+import {
   clearAppLocalStorage,
   getActiveProjectId,
 } from "../utils/localStorage";
@@ -599,6 +603,16 @@ export const exportApi = {
     api
       .get<{ file_path: string }>(`/export/download/${filename}`)
       .then((res) => res.data),
+
+  /** Fetch an export file with auth/project headers and save to the browser Downloads folder. */
+  downloadExportFile: async (exportPath: string) => {
+    const downloadPath = exportPath.startsWith("/")
+      ? exportPath
+      : `/export/download/${exportPath}`;
+    const filename = filenameFromExportPath(downloadPath);
+    const response = await api.get(downloadPath, { responseType: "blob" });
+    triggerBrowserDownload(response.data, filename);
+  },
 
   cleanupPDFs: (days = 7) =>
     api.delete(`/export/cleanup?days=${days}`).then((res) => res.data),
