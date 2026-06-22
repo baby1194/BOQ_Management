@@ -17,13 +17,12 @@ import arabic_reshaper
 from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name, calculation_file_uri
 
 
-def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_no):
-    """Resolve calculation_sheet_no + drawing_no to CalculationSheet.file_name, or None."""
-    if not db_session or not calculation_sheet_no or not drawing_no:
+def _get_calculation_sheet_file_name(db_session, calculation_sheet_no):
+    """Resolve calculation_sheet_no to CalculationSheet.file_name, or None."""
+    if not db_session or not calculation_sheet_no:
         return None
     sheet = db_session.query(models.CalculationSheet).filter(
         models.CalculationSheet.calculation_sheet_no == calculation_sheet_no,
-        models.CalculationSheet.drawing_no == drawing_no,
     ).first()
     return sheet.file_name if sheet else None
 
@@ -1212,7 +1211,7 @@ class PDFService:
                     filtered_entry_data = [all_entry_data[i] for i in header_indices]
                     # Add clickable link to Calculation Sheet No (file:///C:/Fatina/...) when we have a matching file
                     if calc_sheet_col >= 0 and db_session and boq_item and boq_item.section_number:
-                        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
+                        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
                         if file_name:
                             display_text = entry.calculation_sheet_no or ''
                             # Escape for XML in Paragraph

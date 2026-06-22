@@ -148,6 +148,92 @@ def _ensure_drawing_files_column(engine) -> None:
         conn.commit()
 
 
+def _ensure_calculation_sheet_no_unique(engine) -> None:
+    """Migrate calculation_sheets unique key from (sheet_no, drawing_no) to sheet_no only."""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='table' AND name='calculation_sheets'"
+            )
+        ).fetchone()
+        if not row or not row[0]:
+            return
+        table_sql = row[0]
+        if "uq_calculation_sheet_drawing" not in table_sql:
+            return
+
+        duplicate_groups = conn.execute(
+            text(
+                """
+                SELECT calculation_sheet_no, GROUP_CONCAT(id) AS ids, MAX(id) AS keep_id
+                FROM calculation_sheets
+                GROUP BY calculation_sheet_no
+                HAVING COUNT(*) > 1
+                """
+            )
+        ).fetchall()
+        for group in duplicate_groups:
+            keep_id = group[2]
+            for sheet_id in (int(x) for x in group[1].split(",")):
+                if sheet_id == keep_id:
+                    continue
+                conn.execute(
+                    text(
+                        "UPDATE calculation_entries "
+                        "SET calculation_sheet_id = :keep_id "
+                        "WHERE calculation_sheet_id = :sheet_id"
+                    ),
+                    {"keep_id": keep_id, "sheet_id": sheet_id},
+                )
+                conn.execute(
+                    text("DELETE FROM calculation_sheets WHERE id = :sheet_id"),
+                    {"sheet_id": sheet_id},
+                )
+
+        conn.execute(
+            text(
+                """
+                CREATE TABLE calculation_sheets_new (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    file_name VARCHAR(200) NOT NULL,
+                    calculation_sheet_no VARCHAR(100) NOT NULL,
+                    drawing_no VARCHAR(100) NOT NULL,
+                    description TEXT NOT NULL,
+                    comment TEXT,
+                    source_file_path VARCHAR(500),
+                    import_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME,
+                    CONSTRAINT uq_calculation_sheet_no UNIQUE (calculation_sheet_no)
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO calculation_sheets_new (
+                    id, file_name, calculation_sheet_no, drawing_no, description,
+                    comment, source_file_path, import_date, created_at, updated_at
+                )
+                SELECT
+                    id, file_name, calculation_sheet_no, drawing_no, description,
+                    comment, source_file_path, import_date, created_at, updated_at
+                FROM calculation_sheets
+                """
+            )
+        )
+        conn.execute(text("DROP TABLE calculation_sheets"))
+        conn.execute(text("ALTER TABLE calculation_sheets_new RENAME TO calculation_sheets"))
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_calculation_sheets_id ON calculation_sheets (id)")
+        )
+        conn.commit()
+
+
 def init_project_database(project_id: str) -> None:
     from models import models
 
@@ -155,6 +241,7 @@ def init_project_database(project_id: str) -> None:
     models.Base.metadata.create_all(bind=engine)
     _ensure_submission_percentage_column(engine)
     _ensure_drawing_files_column(engine)
+    _ensure_calculation_sheet_no_unique(engine)
 
 
 def get_project_upload_dir(project_id: str) -> Path:

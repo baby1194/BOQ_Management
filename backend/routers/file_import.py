@@ -66,7 +66,6 @@ def import_calculation_sheet_from_disk(
 
     existing_sheet = db.query(models.CalculationSheet).filter(
         models.CalculationSheet.calculation_sheet_no == sheet_data["calculation_sheet_no"],
-        models.CalculationSheet.drawing_no == sheet_data["drawing_no"],
     ).first()
 
     if existing_sheet:
@@ -75,8 +74,15 @@ def import_calculation_sheet_from_disk(
             f"Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}"
         )
         existing_sheet.file_name = file_path.name
+        existing_sheet.drawing_no = sheet_data["drawing_no"]
         existing_sheet.description = sheet_data["description"]
         existing_sheet.source_file_path = source_file_path
+        db.query(models.ConcentrationEntry).filter(
+            models.ConcentrationEntry.calculation_sheet_no == sheet_data["calculation_sheet_no"]
+        ).update(
+            {"drawing_no": sheet_data["drawing_no"]},
+            synchronize_session=False,
+        )
         db.query(models.CalculationEntry).filter(
             models.CalculationEntry.calculation_sheet_id == existing_sheet.id
         ).delete()
@@ -811,10 +817,9 @@ async def import_calculation_sheets(
                 # Process the calculation sheet
                 sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
                 
-                # Check if calculation sheet already exists (by calculation_sheet_no and drawing_no)
+                # Check if calculation sheet already exists (by calculation_sheet_no only)
                 existing_sheet = db.query(models.CalculationSheet).filter(
                     models.CalculationSheet.calculation_sheet_no == sheet_data['calculation_sheet_no'],
-                    models.CalculationSheet.drawing_no == sheet_data['drawing_no']
                 ).first()
                 
                 if existing_sheet:
@@ -823,7 +828,14 @@ async def import_calculation_sheets(
                     
                     # Update the existing sheet with new data
                     existing_sheet.file_name = file.filename
+                    existing_sheet.drawing_no = sheet_data['drawing_no']
                     existing_sheet.description = sheet_data['description']
+                    db.query(models.ConcentrationEntry).filter(
+                        models.ConcentrationEntry.calculation_sheet_no == sheet_data['calculation_sheet_no']
+                    ).update(
+                        {"drawing_no": sheet_data['drawing_no']},
+                        synchronize_session=False,
+                    )
                     keep_existing_source = (
                         existing_sheet.source_file_path
                         and not is_upload_copy_path(existing_sheet.source_file_path, upload_dir)

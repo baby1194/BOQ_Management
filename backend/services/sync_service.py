@@ -39,14 +39,12 @@ class SyncService:
                 return {"success": False, "message": "Calculation sheet not found"}
             
             calculation_sheet_no = calculation_sheet.calculation_sheet_no
-            drawing_no = calculation_sheet.drawing_no
             
             logger.info(f"Syncing deletion of calculation sheet {calculation_sheet_no} (ID: {calculation_sheet_id})")
             
             # Find all concentration entries that reference this calculation sheet
             concentration_entries = self.db.query(models.ConcentrationEntry).filter(
                 models.ConcentrationEntry.calculation_sheet_no == calculation_sheet_no,
-                models.ConcentrationEntry.drawing_no == drawing_no
             ).all()
             
             entries_deleted = 0
@@ -121,7 +119,6 @@ class SyncService:
             
             section_number = calculation_entry.section_number
             calculation_sheet_no = calculation_sheet.calculation_sheet_no
-            drawing_no = calculation_sheet.drawing_no
             
             logger.info(f"Syncing deletion of calculation entry for section {section_number}")
             
@@ -129,7 +126,6 @@ class SyncService:
             concentration_entry = self.db.query(models.ConcentrationEntry).filter(
                 models.ConcentrationEntry.section_number == section_number,
                 models.ConcentrationEntry.calculation_sheet_no == calculation_sheet_no,
-                models.ConcentrationEntry.drawing_no == drawing_no
             ).first()
             
             entries_deleted = 0
@@ -203,7 +199,6 @@ class SyncService:
             concentration_entry = self.db.query(models.ConcentrationEntry).filter(
                 models.ConcentrationEntry.section_number == section_number,
                 models.ConcentrationEntry.calculation_sheet_no == calculation_sheet_no,
-                models.ConcentrationEntry.drawing_no == drawing_no
             ).first()
             
             entries_updated = 0
@@ -212,6 +207,7 @@ class SyncService:
             if concentration_entry:
                 # Update the concentration entry with new values
                 apply_calculation_entry_quantities(concentration_entry, calculation_entry)
+                concentration_entry.drawing_no = drawing_no
                 entries_updated = 1
                 
                 # Update BOQ item totals
@@ -319,7 +315,6 @@ class SyncService:
                         concentration_entry = self.db.query(models.ConcentrationEntry).filter(
                             models.ConcentrationEntry.section_number == calc_entry.section_number,
                             models.ConcentrationEntry.calculation_sheet_no == calculation_sheet.calculation_sheet_no,
-                            models.ConcentrationEntry.drawing_no == calculation_sheet.drawing_no
                         ).first()
                         
                         if concentration_entry:
@@ -331,6 +326,7 @@ class SyncService:
                                 apply_calculation_entry_quantities(
                                     concentration_entry, calc_entry
                                 )
+                                concentration_entry.drawing_no = calculation_sheet.drawing_no
                                 concentration_entry.is_manual = False
                                 total_entries_updated += 1
                                 concentration_sheet = self.db.query(
@@ -354,6 +350,7 @@ class SyncService:
                                     )
                             elif concentration_entry.is_manual:
                                 concentration_entry.is_manual = False
+                                concentration_entry.drawing_no = calculation_sheet.drawing_no
                                 logger.info(
                                     f"Corrected is_manual flag for section {calc_entry.section_number} "
                                     f"(quantities unchanged)"

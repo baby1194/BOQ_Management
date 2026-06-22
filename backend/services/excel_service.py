@@ -133,13 +133,12 @@ def _apply_boq_sheet_number_formats(worksheet, column_names):
                 cell.number_format = fmt
 
 
-def _get_calculation_sheet_file_name(db_session, calculation_sheet_no, drawing_no):
-    """Resolve calculation_sheet_no + drawing_no to CalculationSheet.file_name, or None."""
-    if not db_session or not calculation_sheet_no or not drawing_no:
+def _get_calculation_sheet_file_name(db_session, calculation_sheet_no):
+    """Resolve calculation_sheet_no to CalculationSheet.file_name, or None."""
+    if not db_session or not calculation_sheet_no:
         return None
     sheet = db_session.query(models.CalculationSheet).filter(
         models.CalculationSheet.calculation_sheet_no == calculation_sheet_no,
-        models.CalculationSheet.drawing_no == drawing_no,
     ).first()
     return sheet.file_name if sheet else None
 
@@ -160,7 +159,7 @@ def _add_calculation_sheet_hyperlinks(
 
     for i in range(len(entries)):
         entry = entries[i]
-        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no, entry.drawing_no)
+        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
         if not file_name:
             continue
         row_1based = start_row_1based + 1 + i  # header at start_row_1based, first data at start_row_1based+1

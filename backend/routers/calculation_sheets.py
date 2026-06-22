@@ -43,6 +43,12 @@ def refresh_calculation_sheet_from_disk(
         sheet.description = sheet_data["description"]
         sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
         sheet.drawing_no = sheet_data["drawing_no"]
+        db.query(models.ConcentrationEntry).filter(
+            models.ConcentrationEntry.calculation_sheet_no == sheet_data["calculation_sheet_no"]
+        ).update(
+            {"drawing_no": sheet_data["drawing_no"]},
+            synchronize_session=False,
+        )
 
         db.query(models.CalculationEntry).filter(
             models.CalculationEntry.calculation_sheet_id == sheet.id
@@ -636,12 +642,11 @@ async def populate_concentration_entries(
                 models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id
             ).all()
             
-            # Check if entry already exists with the same Calculation Sheet No AND Drawing No
+            # Check if entry already exists with the same section + Calculation Sheet No
             existing_concentration_entry = None
             for entry in existing_entries:
                 if (entry.section_number == calc_entry.section_number and
-                    entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no and
-                    entry.drawing_no == calculation_sheet.drawing_no):
+                    entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no):
                     existing_concentration_entry = entry
                     break
             
@@ -654,6 +659,7 @@ async def populate_concentration_entries(
                         existing_concentration_entry, calc_entry
                     )
                     existing_concentration_entry.description = calculation_sheet.description
+                    existing_concentration_entry.drawing_no = calculation_sheet.drawing_no
                     existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
                     existing_concentration_entry.is_manual = False
                     entries_created += 1
@@ -671,6 +677,7 @@ async def populate_concentration_entries(
                         )
                 elif existing_concentration_entry.is_manual:
                     existing_concentration_entry.is_manual = False
+                    existing_concentration_entry.drawing_no = calculation_sheet.drawing_no
                     entries_skipped += 1
                     logger.info(
                         f"Corrected is_manual flag for section {calc_entry.section_number} "

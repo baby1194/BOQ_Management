@@ -147,9 +147,9 @@ class CalculationSheet(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Unique constraint on calculation_sheet_no + drawing_no combination
+    # Unique constraint on calculation_sheet_no only (drawing_no is mutable)
     __table_args__ = (
-        UniqueConstraint('calculation_sheet_no', 'drawing_no', name='uq_calculation_sheet_drawing'),
+        UniqueConstraint('calculation_sheet_no', name='uq_calculation_sheet_no'),
     )
     
     # Relationships
