@@ -14,7 +14,11 @@ from database.database import get_db, get_project_id, get_project_upload_dir
 from models import models
 from schemas import schemas
 from utils.concentration_utils import compute_quantity_submitted
-from fatina_paths import copy_files_to_calc_sheet_dir
+from fatina_paths import (
+    copy_files_to_calc_sheet_dir,
+    remove_file_from_calc_sheet_dir,
+    is_upload_copy_path,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -71,6 +75,46 @@ def _entry_boq_section_number(db_entry: models.ConcentrationEntry, db: Session) 
     return None
 
 
+def _fatina_drawing_still_referenced(
+    db: Session,
+    *,
+    exclude_entry_id: int,
+    section_number: str,
+    calculation_sheet_no: str,
+    filename: str,
+) -> bool:
+    """True if another entry still references the same Fatina drawing filename."""
+    others = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.id != exclude_entry_id,
+        models.ConcentrationEntry.calculation_sheet_no == calculation_sheet_no,
+    ).all()
+    for other in others:
+        other_section = _entry_boq_section_number(other, db)
+        if other_section != section_number:
+            continue
+        for path in _normalize_drawing_files(other.drawing_files):
+            if Path(path).name == filename:
+                return True
+    return False
+
+
+def _drawing_path_still_referenced(
+    db: Session, *, exclude_entry_id: int, resolved_path: str
+) -> bool:
+    """True if another entry still lists the same absolute drawing file path."""
+    others = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.id != exclude_entry_id
+    ).all()
+    for other in others:
+        for path in _normalize_drawing_files(other.drawing_files):
+            try:
+                if str(Path(path).resolve()) == resolved_path:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
 def _sync_entry_drawing_files_to_fatina(
     db_entry: models.ConcentrationEntry, db: Session
 ) -> None:
@@ -84,6 +128,7 @@ def _sync_entry_drawing_files_to_fatina(
             db_entry.calculation_sheet_no,
             paths,
         )
+
 
 @router.get("/", response_model=List[schemas.ConcentrationSheet])
 async def get_concentration_sheets(
@@ -768,8 +813,9 @@ async def remove_entry_drawing_file(
     entry_id: int,
     body: schemas.DrawingFilePathRequest,
     db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
-    """Remove a drawing file path from a concentration entry (does not delete from disk)."""
+    """Remove a drawing file from an entry and delete its upload and Fatina copies."""
     db_entry = db.query(models.ConcentrationEntry).filter(
         models.ConcentrationEntry.id == entry_id
     ).first()
@@ -785,12 +831,51 @@ async def remove_entry_drawing_file(
     except OSError:
         raise HTTPException(status_code=400, detail="Invalid file path")
 
+    filename = Path(body.path).name
+    section_number = _entry_boq_section_number(db_entry, db)
+    calculation_sheet_no = db_entry.calculation_sheet_no
+
     db_entry.drawing_files = [
         p for p in stored_paths
         if str(Path(p).resolve()) != requested_resolved
     ]
     db.commit()
     db.refresh(db_entry)
+
+    still_referenced = _drawing_path_still_referenced(
+        db, exclude_entry_id=entry_id, resolved_path=requested_resolved
+    )
+
+    if not still_referenced:
+        upload_root = get_project_upload_dir(project_id)
+        if is_upload_copy_path(requested_resolved, upload_root):
+            try:
+                Path(requested_resolved).unlink(missing_ok=True)
+                logger.info(f"Removed drawing upload file: {requested_resolved}")
+            except OSError as exc:
+                logger.warning(
+                    f"Could not remove drawing upload file {requested_resolved}: {exc}"
+                )
+
+    if (
+        not still_referenced
+        and section_number
+        and calculation_sheet_no
+        and filename
+        and not _fatina_drawing_still_referenced(
+            db,
+            exclude_entry_id=entry_id,
+            section_number=section_number,
+            calculation_sheet_no=calculation_sheet_no,
+            filename=filename,
+        )
+    ):
+        remove_file_from_calc_sheet_dir(
+            section_number,
+            calculation_sheet_no,
+            body.path,
+        )
+
     return db_entry
 
 

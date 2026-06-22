@@ -129,6 +129,32 @@ def copy_files_to_calc_sheet_dir(
     return copied
 
 
+def remove_file_from_calc_sheet_dir(
+    section_number: str,
+    calculation_sheet_no: str,
+    file_path: str,
+) -> bool:
+    """Delete a file from C:/Fatina/{section}/{calculation_sheet_no}/ by basename."""
+    if not section_number or not calculation_sheet_no or not file_path:
+        return False
+
+    filename = Path(file_path).name
+    if not filename:
+        return False
+
+    dest = fatina_calculation_sheet_dir(section_number, calculation_sheet_no) / filename
+    if not dest.is_file():
+        return False
+
+    try:
+        dest.unlink()
+        logger.info(f"Removed file from Fatina: {dest}")
+        return True
+    except OSError as exc:
+        logger.error(f"Failed to remove {dest}: {exc}")
+        return False
+
+
 def resolve_original_source_path(
     filename: str,
     upload_copy_path: Path,
