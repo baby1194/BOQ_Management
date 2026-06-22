@@ -1,13 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional, Set
+import json
 import logging
+import os
+import platform
+import shutil
+import subprocess
+from pathlib import Path
 
-from database.database import get_db
+from database.database import get_db, get_project_id, get_project_upload_dir
 from models import models
 from schemas import schemas
 from utils.concentration_utils import compute_quantity_submitted
+from fatina_paths import copy_files_to_calc_sheet_dir
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,6 +25,65 @@ def _sync_quantity_submitted(entry: models.ConcentrationEntry) -> None:
         entry.estimated_quantity,
         entry.submission_percentage if entry.submission_percentage is not None else 100.0,
     )
+
+
+def _normalize_drawing_files(value) -> List[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(p) for p in value if p]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(p) for p in parsed if p]
+        except json.JSONDecodeError:
+            pass
+    return []
+
+
+def _drawing_path_is_listed(stored_paths: List[str], requested: str) -> bool:
+    try:
+        requested_resolved = str(Path(requested).resolve())
+    except OSError:
+        return False
+    for stored in stored_paths:
+        try:
+            if str(Path(stored).resolve()) == requested_resolved:
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _entry_boq_section_number(db_entry: models.ConcentrationEntry, db: Session) -> Optional[str]:
+    sheet = db.query(models.ConcentrationSheet).filter(
+        models.ConcentrationSheet.id == db_entry.concentration_sheet_id
+    ).first()
+    if sheet:
+        boq_item = db.query(models.BOQItem).filter(
+            models.BOQItem.id == sheet.boq_item_id
+        ).first()
+        if boq_item and boq_item.section_number:
+            return str(boq_item.section_number).strip()
+    if db_entry.section_number:
+        return str(db_entry.section_number).strip()
+    return None
+
+
+def _sync_entry_drawing_files_to_fatina(
+    db_entry: models.ConcentrationEntry, db: Session
+) -> None:
+    section_number = _entry_boq_section_number(db_entry, db)
+    if not section_number or not db_entry.calculation_sheet_no:
+        return
+    paths = _normalize_drawing_files(db_entry.drawing_files)
+    if paths:
+        copy_files_to_calc_sheet_dir(
+            section_number,
+            db_entry.calculation_sheet_no,
+            paths,
+        )
 
 @router.get("/", response_model=List[schemas.ConcentrationSheet])
 async def get_concentration_sheets(
@@ -339,6 +405,7 @@ async def create_concentration_entry(
             approved_by_project_manager=entry.approved_by_project_manager,
             notes=entry.notes,
             supervisor_notes=entry.supervisor_notes,
+            drawing_files=entry.drawing_files or [],
             is_manual=True  # Mark as manually created
         )
         _sync_quantity_submitted(db_entry)
@@ -569,6 +636,7 @@ async def copy_concentration_entry_to_boq_items(
                 approved_by_project_manager=db_entry.approved_by_project_manager,
                 notes=db_entry.notes,
                 supervisor_notes=db_entry.supervisor_notes,
+                drawing_files=_normalize_drawing_files(db_entry.drawing_files),
                 is_manual=True,
             )
             db.add(clone)
@@ -597,6 +665,133 @@ async def copy_concentration_entry_to_boq_items(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
+
+
+@router.post(
+    "/entries/{entry_id}/drawing-files",
+    response_model=schemas.ConcentrationEntry,
+)
+async def upload_entry_drawing_files(
+    entry_id: int,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """Attach one or more drawing files to a concentration entry."""
+    db_entry = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.id == entry_id
+    ).first()
+    if not db_entry:
+        raise HTTPException(status_code=404, detail="Concentration entry not found")
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+
+    upload_root = get_project_upload_dir(project_id)
+    dest_dir = upload_root / "drawing-files" / str(entry_id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    stored_paths = _normalize_drawing_files(db_entry.drawing_files)
+    added = 0
+
+    for upload in files:
+        if not upload.filename:
+            continue
+        safe_name = Path(upload.filename).name
+        dest_path = dest_dir / safe_name
+        counter = 1
+        while dest_path.exists():
+            stem = Path(safe_name).stem
+            suffix = Path(safe_name).suffix
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+        try:
+            with open(dest_path, "wb") as buffer:
+                shutil.copyfileobj(upload.file, buffer)
+            stored_paths.append(str(dest_path.resolve()))
+            added += 1
+        except OSError as exc:
+            logger.error(f"Failed to save drawing file {safe_name}: {exc}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save drawing file: {safe_name}",
+            )
+
+    if added == 0:
+        raise HTTPException(status_code=400, detail="No valid files uploaded")
+
+    db_entry.drawing_files = stored_paths
+    db.commit()
+    db.refresh(db_entry)
+    _sync_entry_drawing_files_to_fatina(db_entry, db)
+    return db_entry
+
+
+@router.post("/entries/{entry_id}/open-drawing-file")
+async def open_entry_drawing_file(
+    entry_id: int,
+    body: schemas.DrawingFilePathRequest,
+    db: Session = Depends(get_db),
+):
+    """Open an attached drawing file in the default OS application."""
+    db_entry = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.id == entry_id
+    ).first()
+    if not db_entry:
+        raise HTTPException(status_code=404, detail="Concentration entry not found")
+
+    stored_paths = _normalize_drawing_files(db_entry.drawing_files)
+    if not _drawing_path_is_listed(stored_paths, body.path):
+        raise HTTPException(status_code=403, detail="File path not attached to this entry")
+
+    file_path = body.path
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    try:
+        if platform.system() == "Windows":
+            os.startfile(file_path)
+        elif platform.system() == "Darwin":
+            subprocess.call(["open", file_path])
+        else:
+            subprocess.call(["xdg-open", file_path])
+        return {"success": True, "message": f"Opening file: {file_path}"}
+    except Exception as exc:
+        logger.error(f"Error opening drawing file: {exc}")
+        raise HTTPException(status_code=500, detail=f"Error opening file: {exc}")
+
+
+@router.delete(
+    "/entries/{entry_id}/drawing-files",
+    response_model=schemas.ConcentrationEntry,
+)
+async def remove_entry_drawing_file(
+    entry_id: int,
+    body: schemas.DrawingFilePathRequest,
+    db: Session = Depends(get_db),
+):
+    """Remove a drawing file path from a concentration entry (does not delete from disk)."""
+    db_entry = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.id == entry_id
+    ).first()
+    if not db_entry:
+        raise HTTPException(status_code=404, detail="Concentration entry not found")
+
+    stored_paths = _normalize_drawing_files(db_entry.drawing_files)
+    if not _drawing_path_is_listed(stored_paths, body.path):
+        raise HTTPException(status_code=404, detail="File not attached to this entry")
+
+    try:
+        requested_resolved = str(Path(body.path).resolve())
+    except OSError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    db_entry.drawing_files = [
+        p for p in stored_paths
+        if str(Path(p).resolve()) != requested_resolved
+    ]
+    db.commit()
+    db.refresh(db_entry)
+    return db_entry
 
 
 async def _update_boq_item_totals(boq_item_id: int, db: Session):

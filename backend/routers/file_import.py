@@ -18,6 +18,7 @@ from services.excel_service import ExcelService
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
+    fatina_calculation_sheet_dir,
     sanitize_folder_name,
     is_upload_copy_path,
     primary_fatina_source_path,
@@ -115,6 +116,7 @@ def import_calculation_sheet_from_disk(
         file_path,
         sheet_data["entries"],
         db,
+        calculation_sheet_no=sheet_data["calculation_sheet_no"],
         original_filename=file_path.name,
     )
 
@@ -130,11 +132,12 @@ def save_calculation_sheet_to_item_folders(
     source_file_path: Path,
     calculation_entries: List[Dict],
     db: Session,
+    calculation_sheet_no: str,
     original_filename: str = None
 ) -> int:
     """
     Save calculation sheet Excel file to all contract item folders related to the calculation sheet.
-    Each calculation sheet contains calculations for one or more items (identified by section_number).
+    Each file is stored under C:/Fatina/{section_number}/{calculation_sheet_no}/.
     
     Args:
         source_file_path: Path to the source Excel file
@@ -169,25 +172,29 @@ def save_calculation_sheet_to_item_folders(
             logger.warning(f"No BOQ items found with section numbers: {section_numbers} for file: {source_file_path}")
             return 0
         
-        # Use original filename if provided, otherwise use the source file path name
+        if not calculation_sheet_no or not str(calculation_sheet_no).strip():
+            logger.warning(
+                f"No calculation sheet number for file: {source_file_path}"
+            )
+            return 0
+
+        sheet_no = str(calculation_sheet_no).strip()
         filename_to_use = original_filename if original_filename else source_file_path.name
         
         files_saved = 0
         
-        # Save the file to each related item's folder
+        # Save the file to each related item's folder under a calculation-sheet subfolder
         for boq_item in matching_boq_items:
             if not boq_item.section_number:
                 continue
                 
-            # Create folder path using sanitized section number
-            folder_name = sanitize_folder_name(str(boq_item.section_number))
-            folder_path = FATINA_BASE_DIR / folder_name
+            folder_path = fatina_calculation_sheet_dir(
+                str(boq_item.section_number), sheet_no
+            )
             
             try:
-                # Create folder if it doesn't exist
                 folder_path.mkdir(parents=True, exist_ok=True)
                 
-                # Copy the Excel file to the folder using the original filename (overwrite if exists)
                 destination_file = folder_path / filename_to_use
                 shutil.copy2(source_file_path, destination_file)
                 files_saved += 1
@@ -226,8 +233,6 @@ def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> 
         return 0
     try:
         section_number = str(section_number).strip()
-        folder_name = sanitize_folder_name(section_number)
-        folder_path = FATINA_BASE_DIR / folder_name
 
         # Find calculation sheet IDs that have at least one entry with this section_number
         sheet_ids = (
@@ -251,19 +256,68 @@ def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> 
             if not src.exists():
                 logger.warning(f"Calculation sheet source not found: {src}")
                 continue
+            if not sheet.calculation_sheet_no:
+                logger.warning(
+                    f"Skipping Fatina copy for sheet id {sheet.id}: no calculation_sheet_no"
+                )
+                continue
             FATINA_BASE_DIR.mkdir(parents=True, exist_ok=True)
-            folder_path.mkdir(parents=True, exist_ok=True)
-            dest = folder_path / (sheet.file_name or src.name)
+            dest_dir = fatina_calculation_sheet_dir(
+                section_number, sheet.calculation_sheet_no
+            )
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / (sheet.file_name or src.name)
             try:
                 shutil.copy2(src, dest)
                 copied += 1
                 logger.info(f"Copied calculation sheet to folder: {dest}")
             except (PermissionError, OSError) as e:
-                logger.error(f"Error copying calculation sheet to {folder_path}: {e}")
+                logger.error(f"Error copying calculation sheet to {dest_dir}: {e}")
         return copied
     except Exception as e:
         logger.error(f"Error in copy_calculation_sheets_to_item_folder: {e}")
         return 0
+
+
+def copy_concentration_entry_drawing_files_to_fatina(
+    db: Session,
+    section_number: str,
+    entries: List[models.ConcentrationEntry] | None = None,
+    sheet_id: int | None = None,
+) -> int:
+    """Copy drawing files attached to concentration entries into Fatina calc sheet folders."""
+    from fatina_paths import copy_files_to_calc_sheet_dir
+
+    if not section_number or not str(section_number).strip():
+        return 0
+
+    section_number = str(section_number).strip()
+    if entries is None and sheet_id is not None:
+        entries = (
+            db.query(models.ConcentrationEntry)
+            .filter(models.ConcentrationEntry.concentration_sheet_id == sheet_id)
+            .all()
+        )
+    if not entries:
+        return 0
+
+    copied = 0
+    for entry in entries:
+        paths = entry.drawing_files
+        if isinstance(paths, str):
+            import json
+            try:
+                paths = json.loads(paths)
+            except json.JSONDecodeError:
+                paths = []
+        if not paths or not entry.calculation_sheet_no:
+            continue
+        copied += copy_files_to_calc_sheet_dir(
+            section_number,
+            entry.calculation_sheet_no,
+            paths,
+        )
+    return copied
 
 
 async def _require_valid_system_password(
@@ -819,6 +873,7 @@ async def import_calculation_sheets(
                     file_path,
                     sheet_data['entries'],
                     db,
+                    calculation_sheet_no=sheet_data['calculation_sheet_no'],
                     original_filename=file.filename
                 )
 
@@ -828,7 +883,11 @@ async def import_calculation_sheets(
                     for entry_data in sheet_data['entries']
                     if entry_data.get('section_number') and str(entry_data['section_number']).strip()
                 }
-                fatina_source = primary_fatina_source_path(file.filename, section_numbers)
+                fatina_source = primary_fatina_source_path(
+                    file.filename,
+                    section_numbers,
+                    sheet_data['calculation_sheet_no'],
+                )
                 if fatina_source and is_upload_copy_path(source_file_path, upload_dir):
                     source_file_path = fatina_source
                     current_sheet.source_file_path = fatina_source

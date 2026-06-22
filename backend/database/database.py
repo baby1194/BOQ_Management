@@ -128,12 +128,33 @@ def _ensure_submission_percentage_column(engine) -> None:
         conn.commit()
 
 
+def _ensure_drawing_files_column(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(concentration_entries)"))
+        ]
+        if "drawing_files" in columns:
+            return
+
+        conn.execute(
+            text(
+                "ALTER TABLE concentration_entries "
+                "ADD COLUMN drawing_files TEXT"
+            )
+        )
+        conn.commit()
+
+
 def init_project_database(project_id: str) -> None:
     from models import models
 
     engine = get_project_engine(project_id)
     models.Base.metadata.create_all(bind=engine)
     _ensure_submission_percentage_column(engine)
+    _ensure_drawing_files_column(engine)
 
 
 def get_project_upload_dir(project_id: str) -> Path:

@@ -17,7 +17,7 @@ import {
   BOQItem,
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
-import { Search, X, ExternalLink } from "lucide-react";
+import { Search, X, ExternalLink, Paperclip, FileText } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
@@ -43,6 +43,11 @@ function computeQuantitySubmitted(
   submissionPercentage: number,
 ): number {
   return estimatedQuantity * (submissionPercentage / 100);
+}
+
+function drawingFileName(path: string): string {
+  const parts = path.split(/[/\\]/);
+  return parts[parts.length - 1] || path;
 }
 
 function concentrationEntryToEditDraft(
@@ -118,6 +123,13 @@ const ConcentrationSheets: React.FC = () => {
   const [populateBoqItems, setPopulateBoqItems] = useState<BOQItem[]>([]);
   const [populateListLoading, setPopulateListLoading] = useState(false);
   const [populateSubmitting, setPopulateSubmitting] = useState(false);
+  const drawingFileInputRef = useRef<HTMLInputElement>(null);
+  const [attachTargetEntryId, setAttachTargetEntryId] = useState<number | null>(
+    null,
+  );
+  const [uploadingDrawingEntryId, setUploadingDrawingEntryId] = useState<
+    number | null
+  >(null);
 
   // Project info state - will be loaded from selected sheet
   const [projectInfo, setProjectInfo] = useState({
@@ -194,6 +206,65 @@ const ConcentrationSheets: React.FC = () => {
         err.response?.data?.detail || "Failed to open calculation sheet",
       );
     }
+  };
+
+  const handleAttachDrawingFiles = async (
+    entryId: number,
+    fileList: FileList | null,
+  ) => {
+    if (!fileList?.length) return;
+    try {
+      setUploadingDrawingEntryId(entryId);
+      setError(null);
+      const updated = await concentrationApi.uploadDrawingFiles(
+        entryId,
+        Array.from(fileList),
+      );
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? updated : e)),
+      );
+    } catch (err: any) {
+      console.error("Error attaching drawing files:", err);
+      setError(
+        err.response?.data?.detail || t("concentration.failedToAttachDrawings"),
+      );
+    } finally {
+      setUploadingDrawingEntryId(null);
+      setAttachTargetEntryId(null);
+    }
+  };
+
+  const handleOpenDrawingFile = async (entryId: number, path: string) => {
+    try {
+      setError(null);
+      await concentrationApi.openDrawingFile(entryId, path);
+    } catch (err: any) {
+      console.error("Error opening drawing file:", err);
+      setError(
+        err.response?.data?.detail || t("concentration.failedToOpenDrawing"),
+      );
+    }
+  };
+
+  const handleRemoveDrawingFile = async (entryId: number, path: string) => {
+    if (!confirm(t("concentration.confirmRemoveDrawing"))) return;
+    try {
+      setError(null);
+      const updated = await concentrationApi.removeDrawingFile(entryId, path);
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? updated : e)),
+      );
+    } catch (err: any) {
+      console.error("Error removing drawing file:", err);
+      setError(
+        err.response?.data?.detail || t("concentration.failedToRemoveDrawing"),
+      );
+    }
+  };
+
+  const triggerAttachDrawings = (entryId: number) => {
+    setAttachTargetEntryId(entryId);
+    drawingFileInputRef.current?.click();
   };
 
   const executeSingleSheetExport = async (
@@ -841,6 +912,21 @@ const ConcentrationSheets: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <input
+        ref={drawingFileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (attachTargetEntryId !== null) {
+            void handleAttachDrawingFiles(
+              attachTargetEntryId,
+              e.target.files,
+            );
+          }
+          e.target.value = "";
+        }}
+      />
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
@@ -1351,6 +1437,9 @@ const ConcentrationSheets: React.FC = () => {
                                 {t("concentration.drawingNoLabel")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {t("concentration.drawings")}
+                              </th>
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.estQuantity")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1380,7 +1469,7 @@ const ConcentrationSheets: React.FC = () => {
                             {entries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={11}
+                                  colSpan={12}
                                   className={`px-3 py-8 text-gray-500 ${
                                     isRTL ? "text-right" : "text-center"
                                   }`}
@@ -1524,6 +1613,92 @@ const ConcentrationSheets: React.FC = () => {
                                       ) : (
                                         entry.drawing_no || "-"
                                       )}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
+                                      <div className="flex flex-col items-center justify-center gap-2 min-h-[2.5rem]">
+                                        {(entry.drawing_files || []).length >
+                                          0 && (
+                                          <div className="w-full space-y-1">
+                                            {(entry.drawing_files || []).map(
+                                              (filePath) => (
+                                                <div
+                                                  key={filePath}
+                                                  className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 ${
+                                                    isRTL
+                                                      ? "flex-row-reverse"
+                                                      : ""
+                                                  }`}
+                                                >
+                                                  <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      handleOpenDrawingFile(
+                                                        entry.id,
+                                                        filePath,
+                                                      )
+                                                    }
+                                                    onDoubleClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                    className="flex-1 min-w-0 text-blue-600 hover:text-blue-800 hover:underline truncate text-xs text-left"
+                                                    title={filePath}
+                                                  >
+                                                    {drawingFileName(filePath)}
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      handleRemoveDrawingFile(
+                                                        entry.id,
+                                                        filePath,
+                                                      )
+                                                    }
+                                                    onDoubleClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                    className="shrink-0 text-red-500 hover:text-red-700 text-sm leading-none px-0.5"
+                                                    title={t(
+                                                      "concentration.removeDrawing",
+                                                    )}
+                                                    aria-label={t(
+                                                      "concentration.removeDrawing",
+                                                    )}
+                                                  >
+                                                    ×
+                                                  </button>
+                                                </div>
+                                              ),
+                                            )}
+                                          </div>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            triggerAttachDrawings(entry.id)
+                                          }
+                                          onDoubleClick={(e) =>
+                                            e.stopPropagation()
+                                          }
+                                          disabled={
+                                            uploadingDrawingEntryId ===
+                                            entry.id
+                                          }
+                                          className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+                                        >
+                                          <Paperclip className="h-3.5 w-3.5" />
+                                          <span>
+                                            {uploadingDrawingEntryId ===
+                                            entry.id
+                                              ? t(
+                                                  "concentration.uploadingDrawings",
+                                                )
+                                              : t(
+                                                  "concentration.attachDrawings",
+                                                )}
+                                          </span>
+                                        </button>
+                                      </div>
                                     </td>
                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
                                       {manualEditable ? (

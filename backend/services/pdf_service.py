@@ -807,7 +807,7 @@ class PDFService:
             # Use the widest table as base and ensure good readability
             
             # Calculate column widths for entries table (widest table)
-            entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity', 
+            entries_headers = ['Description', 'Calculation Sheet No', 'Invoice No', 'Estimated Quantity', 
                              'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager', 'Notes']
             
             # Calculate width for each column based on content
@@ -865,10 +865,15 @@ class PDFService:
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
             if db_session and boq_item and boq_item.section_number:
-                from routers.file_import import copy_calculation_sheets_to_item_folder
+                from routers.file_import import (
+                    copy_calculation_sheets_to_item_folder,
+                    copy_concentration_entry_drawing_files_to_fatina,
+                )
 
-                copy_calculation_sheets_to_item_folder(
-                    db_session, str(boq_item.section_number).strip()
+                link_section = str(boq_item.section_number).strip()
+                copy_calculation_sheets_to_item_folder(db_session, link_section)
+                copy_concentration_entry_drawing_files_to_fatina(
+                    db_session, link_section, entries=entries
                 )
 
             # Use section number in filename if available, otherwise use sheet ID
@@ -900,7 +905,7 @@ class PDFService:
                 headers_translations = {
                     'Description': 'תיאור:',
                     'Calculation Sheet No': 'מס\' דף חישוב',
-                    'Drawing No': 'מס\' שרטוט',
+                    'Invoice No': 'מס\' שרטוט',
                     'Estimated Quantity': 'כמות מחושבת',
                     'Submission Percentage': 'אחוז הגשה',
                     'Quantity Submitted': 'כמות מוגשת',
@@ -931,7 +936,7 @@ class PDFService:
                 headers_translations = {
                     'Description': 'Description:',
                     'Calculation Sheet No': 'Calc. Sheet No',
-                    'Drawing No': 'Drawing No',
+                    'Invoice No': 'Invoice No',
                     'Estimated Quantity': 'Est. Quantity',
                     'Submission Percentage': 'Percentage',
                     'Quantity Submitted': 'Qty Submitted',
@@ -959,7 +964,7 @@ class PDFService:
                 totals_text = "TOTALS"
             
             # Apply column filtering based on entry_columns if provided (define early for use throughout method)
-            all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
+            all_headers = ['Description', 'Calculation Sheet No', 'Invoice No', 'Estimated Quantity',
                            'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
                            'Approved by Project Manager', 'Notes', 'Supervisor Notes']
             
@@ -971,7 +976,7 @@ class PDFService:
                 if entry_columns.get('include_calculation_sheet_no', True):
                     filtered_headers.append('Calculation Sheet No')
                 if entry_columns.get('include_drawing_no', True):
-                    filtered_headers.append('Drawing No')
+                    filtered_headers.append('Invoice No')
                 if entry_columns.get('include_estimated_quantity', True):
                     filtered_headers.append('Estimated Quantity')
                 if entry_columns.get('include_submission_percentage', True):
@@ -1214,7 +1219,9 @@ class PDFService:
                             display_escaped = (display_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                                               .replace('"', '&quot;'))
                             href_uri = calculation_file_uri(
-                                str(boq_item.section_number).strip(), file_name
+                                str(boq_item.section_number).strip(),
+                                file_name,
+                                entry.calculation_sheet_no,
                             )
                             file_escaped = (href_uri.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                                             .replace('"', '&quot;'))
@@ -2402,7 +2409,7 @@ class PDFService:
             'תיאור:': 0.29,  # Hebrew translation
             'Calc. Sheet No': 0.08,  # English translation
             'מס\' דף חישוב': 0.08,  # Hebrew translation
-            'Drawing No': 0.06,  # English
+            'Invoice No': 0.06,  # English
             'מס\' שרטוט': 0.06,  # Hebrew translation
             'Est. Quantity': 0.07,  # English translation
             'כמות מחושבת': 0.07,  # Hebrew translation

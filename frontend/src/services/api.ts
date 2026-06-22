@@ -245,6 +245,34 @@ export const concentrationApi = {
         body
       )
       .then((res) => res.data),
+
+  uploadDrawingFiles: (entryId: number, files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    return api
+      .post<ConcentrationEntry>(
+        `/concentration/entries/${entryId}/drawing-files`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      )
+      .then((res) => res.data);
+  },
+
+  openDrawingFile: (entryId: number, path: string) =>
+    api
+      .post<{ success: boolean; message: string }>(
+        `/concentration/entries/${entryId}/open-drawing-file`,
+        { path }
+      )
+      .then((res) => res.data),
+
+  removeDrawingFile: (entryId: number, path: string) =>
+    api
+      .delete<ConcentrationEntry>(
+        `/concentration/entries/${entryId}/drawing-files`,
+        { data: { path } }
+      )
+      .then((res) => res.data),
 };
 
 // Calculation Sheets API

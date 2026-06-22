@@ -165,7 +165,9 @@ def _add_calculation_sheet_hyperlinks(
             continue
         row_1based = start_row_1based + 1 + i  # header at start_row_1based, first data at start_row_1based+1
         cell = worksheet.cell(row=row_1based, column=col_index_0based + 1)
-        cell.hyperlink = calculation_file_uri(section_number, file_name)
+        cell.hyperlink = calculation_file_uri(
+            section_number, file_name, entry.calculation_sheet_no
+        )
         cell.font = link_font
 
 
@@ -441,9 +443,15 @@ class ExcelService:
                 else None
             )
             if db_session and link_section:
-                from routers.file_import import copy_calculation_sheets_to_item_folder
+                from routers.file_import import (
+                    copy_calculation_sheets_to_item_folder,
+                    copy_concentration_entry_drawing_files_to_fatina,
+                )
 
                 copy_calculation_sheets_to_item_folder(db_session, link_section)
+                copy_concentration_entry_drawing_files_to_fatina(
+                    db_session, link_section, entries=entries
+                )
 
             folder_key = link_section if link_section else str(sheet.id)
             folder_name = sanitize_folder_name(folder_key)
@@ -454,7 +462,7 @@ class ExcelService:
             filepath = base_dir / filename
             
             # Build entries column list from entry_columns (same logic as PDF)
-            all_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
+            all_headers = ['Description', 'Calculation Sheet No', 'Invoice No', 'Estimated Quantity',
                            'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
                            'Approved by Project Manager', 'Notes', 'Supervisor Notes']
             if entry_columns:
@@ -464,7 +472,7 @@ class ExcelService:
                 if entry_columns.get('include_calculation_sheet_no', True):
                     filtered_headers.append('Calculation Sheet No')
                 if entry_columns.get('include_drawing_no', True):
-                    filtered_headers.append('Drawing No')
+                    filtered_headers.append('Invoice No')
                 if entry_columns.get('include_estimated_quantity', True):
                     filtered_headers.append('Estimated Quantity')
                 if entry_columns.get('include_submission_percentage', True):
@@ -656,9 +664,10 @@ class ExcelService:
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
             exported_paths = []
-            from routers.file_import import copy_calculation_sheets_to_item_folder
-
-            # Create individual Excel files for each concentration sheet
+            from routers.file_import import (
+                copy_calculation_sheets_to_item_folder,
+                copy_concentration_entry_drawing_files_to_fatina,
+            )
             for sheet in sheets:
                 # Get the associated BOQ item
                 boq_item = db_session.query(models.BOQItem).filter(
@@ -670,6 +679,9 @@ class ExcelService:
 
                 link_section = str(boq_item.section_number).strip()
                 copy_calculation_sheets_to_item_folder(db_session, link_section)
+                copy_concentration_entry_drawing_files_to_fatina(
+                    db_session, link_section, sheet_id=sheet.id
+                )
 
                 # Get all entries for this concentration sheet
                 entries = db_session.query(models.ConcentrationEntry).filter(
@@ -723,7 +735,7 @@ class ExcelService:
                     # Third Table: Concentration Entries (following the order shown on concentration sheets page)
                     if entries:
                         # Column order as shown on concentration sheets page
-                        entries_headers = ['Description', 'Calculation Sheet No', 'Drawing No', 'Estimated Quantity',
+                        entries_headers = ['Description', 'Calculation Sheet No', 'Invoice No', 'Estimated Quantity',
                                          'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
                                          'Approved by Project Manager', 'Notes']
                         

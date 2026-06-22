@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add submission_percentage column to concentration_entries in all project databases."""
+"""Add drawing_files column to concentration_entries in all project databases."""
 
 import sqlite3
 from pathlib import Path
@@ -20,24 +20,13 @@ def migrate_database(db_path: Path) -> None:
         cursor.execute("PRAGMA table_info(concentration_entries)")
         columns = [column[1] for column in cursor.fetchall()]
 
-        if "submission_percentage" in columns:
-            print(f"submission_percentage already exists in {db_path}")
+        if "drawing_files" in columns:
+            print(f"drawing_files already exists in {db_path}")
             return
 
-        print(f"Adding submission_percentage to {db_path}...")
+        print(f"Adding drawing_files to {db_path}...")
         cursor.execute(
-            "ALTER TABLE concentration_entries "
-            "ADD COLUMN submission_percentage REAL DEFAULT 100.0"
-        )
-        cursor.execute(
-            """
-            UPDATE concentration_entries
-            SET submission_percentage = CASE
-                WHEN estimated_quantity > 0
-                THEN (quantity_submitted / estimated_quantity) * 100.0
-                ELSE 100.0
-            END
-            """
+            "ALTER TABLE concentration_entries ADD COLUMN drawing_files TEXT"
         )
         conn.commit()
         print(f"Migration completed for {db_path}")

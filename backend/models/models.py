@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.database import Base
@@ -99,6 +99,7 @@ class ConcentrationEntry(Base):
     # Notes
     notes = Column(Text, nullable=True)
     supervisor_notes = Column(Text, nullable=True)
+    drawing_files = Column(JSON, nullable=True)  # list of absolute source file paths
     
     # Track whether entry was created manually (True) or auto-generated from calculation sheets (False)
     is_manual = Column(Boolean, default=True, nullable=False)

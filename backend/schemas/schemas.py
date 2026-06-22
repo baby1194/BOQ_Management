@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -125,7 +125,25 @@ class ConcentrationEntryBase(BaseModel):
     approved_by_project_manager: float = Field(0.0, ge=0)
     notes: Optional[str] = None
     supervisor_notes: Optional[str] = None
+    drawing_files: List[str] = Field(default_factory=list)
     is_manual: bool = Field(True, description="True if entry was created manually, False if auto-generated from calculation sheets")
+
+    @field_validator("drawing_files", mode="before")
+    @classmethod
+    def normalize_drawing_files(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(path) for path in value if path]
+        if isinstance(value, str):
+            import json
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return [str(path) for path in parsed if path]
+            except json.JSONDecodeError:
+                pass
+        return []
 
 class ConcentrationEntryCreate(ConcentrationEntryBase):
     pass
@@ -151,6 +169,10 @@ class ConcentrationEntry(ConcentrationEntryBase):
 
     class Config:
         from_attributes = True
+
+
+class DrawingFilePathRequest(BaseModel):
+    path: str = Field(..., min_length=1)
 
 class CopyConcentrationEntryToBOQItemsRequest(BaseModel):
     boq_item_ids: List[int] = Field(..., min_length=1)
