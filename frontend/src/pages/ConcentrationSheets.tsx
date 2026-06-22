@@ -17,7 +17,14 @@ import {
   BOQItem,
 } from "../types";
 import { formatCurrency, formatNumber } from "../utils/format";
-import { Search, X, ExternalLink, Paperclip, FileText } from "lucide-react";
+import {
+  Search,
+  X,
+  ExternalLink,
+  Paperclip,
+  FileText,
+  RefreshCw,
+} from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
@@ -104,6 +111,8 @@ const ConcentrationSheets: React.FC = () => {
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingAllPDF, setExportingAllPDF] = useState(false);
   const [exportingAllExcel, setExportingAllExcel] = useState(false);
+  const [trackingCalculationSheets, setTrackingCalculationSheets] =
+    useState(false);
   const [showNavigationMessage, setShowNavigationMessage] = useState(false);
   const [navigatedFromBOQ, setNavigatedFromBOQ] = useState(false);
   // Initialize filter from localStorage
@@ -502,6 +511,40 @@ const ConcentrationSheets: React.FC = () => {
       } else {
         setExportingAllExcel(false);
       }
+    }
+  };
+
+  const handleTrackCalculationSheets = async () => {
+    if (!selectedSheet) return;
+
+    try {
+      setTrackingCalculationSheets(true);
+      setError(null);
+      const response = await concentrationApi.trackCalculationSheets(
+        selectedSheet.id,
+      );
+
+      if (response.success) {
+        await fetchEntries(selectedSheet.id);
+        alert(`✅ ${response.message}`);
+      } else {
+        const errorMessage =
+          response.errors[0] ||
+          response.message ||
+          t("concentration.failedToTrack");
+        setError(errorMessage);
+        alert(`Error: ${errorMessage}`);
+      }
+    } catch (err: any) {
+      console.error("Error tracking calculation sheets:", err);
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        t("concentration.failedToTrack");
+      setError(errorMessage);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setTrackingCalculationSheets(false);
     }
   };
 
@@ -1232,6 +1275,24 @@ const ConcentrationSheets: React.FC = () => {
                       </h2>
                     </div>
                     <div className="flex gap-2">
+                      <button
+                        onClick={handleTrackCalculationSheets}
+                        disabled={trackingCalculationSheets}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                        title={t("concentration.trackTooltip")}
+                      >
+                        {trackingCalculationSheets ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>{t("calculationSheets.tracking")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4" />
+                            <span>{t("calculationSheets.track")}</span>
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={handleExportPDF}
                         disabled={exportingPDF}

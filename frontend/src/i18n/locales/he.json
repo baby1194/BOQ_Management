@@ -289,6 +289,8 @@
     "exportWithoutEmptyItems": "ייצא ללא פריטים ריקים",
     "exportNonZeroPsqItems": "ייצוא פריטים עם כמות מוגש חלקי ≠ 0",
     "noSheetSelected": "לא נבחר דף ריכוז לייצוא",
+    "trackTooltip": "קרא מחדש את דפי החישוב המקושרים לדף ריכוז זה מנתיבי קבצי המקור שלהם ורענן ערכי רשומות",
+    "failedToTrack": "נכשל במעקב אחר דפי חישוב מהדיסק",
     "failedToFetchSheets": "נכשל בטעינת דפי הריכוז",
     "subtitle": "נהל דפי ריכוז עבור פריטי BOQ",
     "sheetsCount": "דפים",

@@ -273,6 +273,18 @@ export const concentrationApi = {
         { data: { path } }
       )
       .then((res) => res.data),
+
+  trackCalculationSheets: (sheetId: number) =>
+    api
+      .post<{
+        success: boolean;
+        message: string;
+        sheets_updated: number;
+        sheets_skipped: number;
+        entries_updated: number;
+        errors: string[];
+      }>(`/concentration/${sheetId}/track-calculation-sheets`)
+      .then((res) => res.data),
 };
 
 // Calculation Sheets API

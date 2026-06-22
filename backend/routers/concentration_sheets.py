@@ -10,9 +10,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from database.database import get_db, get_project_id, get_project_upload_dir
+from database.database import get_db, get_project_id, get_project_upload_dir, get_project_export_dir
 from models import models
 from schemas import schemas
+from services.excel_service import ExcelService
+from routers.calculation_sheets import refresh_calculation_sheet_from_disk
 from utils.concentration_utils import compute_quantity_submitted
 from fatina_paths import (
     copy_files_to_calc_sheet_dir,
@@ -405,6 +407,90 @@ async def delete_concentration_sheet(sheet_id: int, db: Session = Depends(get_db
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
+@router.post(
+    "/{sheet_id}/track-calculation-sheets",
+    response_model=schemas.CalculationSheetsTrackResponse,
+)
+async def track_concentration_sheet_calculation_sheets(
+    sheet_id: int,
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """Reread calculation sheets linked to this concentration sheet from disk."""
+    sheet = db.query(models.ConcentrationSheet).filter(
+        models.ConcentrationSheet.id == sheet_id
+    ).first()
+    if not sheet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Concentration sheet not found",
+        )
+
+    entries = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.concentration_sheet_id == sheet_id
+    ).all()
+
+    calculation_sheet_nos: Set[str] = {
+        entry.calculation_sheet_no.strip()
+        for entry in entries
+        if entry.calculation_sheet_no and entry.calculation_sheet_no.strip()
+    }
+
+    if not calculation_sheet_nos:
+        return schemas.CalculationSheetsTrackResponse(
+            success=False,
+            message="No calculation sheet numbers found on this concentration sheet",
+            sheets_updated=0,
+            sheets_skipped=0,
+            entries_updated=0,
+            errors=["No calculation sheet numbers found on this concentration sheet"],
+        )
+
+    excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
+    calculation_sheets = db.query(models.CalculationSheet).filter(
+        models.CalculationSheet.calculation_sheet_no.in_(calculation_sheet_nos)
+    ).all()
+
+    found_nos = {cs.calculation_sheet_no for cs in calculation_sheets}
+    sheets_updated = 0
+    sheets_skipped = 0
+    entries_updated = 0
+    errors: List[str] = []
+
+    for calc_no in sorted(calculation_sheet_nos - found_nos):
+        sheets_skipped += 1
+        errors.append(f"{calc_no} - Calculation sheet not found in database")
+
+    for calc_sheet in calculation_sheets:
+        entries_refreshed, error = refresh_calculation_sheet_from_disk(
+            calc_sheet, excel_service, db
+        )
+        if error:
+            sheets_skipped += 1
+            errors.append(error)
+        else:
+            sheets_updated += 1
+            entries_updated += entries_refreshed
+
+    db.commit()
+
+    message = (
+        f"Updated {sheets_updated} calculation sheet(s) "
+        f"({entries_updated} entries refreshed from disk)"
+    )
+    if sheets_skipped:
+        message += f". Skipped {sheets_skipped} sheet(s)."
+
+    return schemas.CalculationSheetsTrackResponse(
+        success=sheets_updated > 0 or sheets_skipped == 0,
+        message=message,
+        sheets_updated=sheets_updated,
+        sheets_skipped=sheets_skipped,
+        entries_updated=entries_updated,
+        errors=errors,
+    )
+
 
 # Concentration Entry endpoints
 @router.get("/{sheet_id}/entries", response_model=List[schemas.ConcentrationEntry])
