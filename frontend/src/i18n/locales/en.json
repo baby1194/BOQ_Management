@@ -330,6 +330,8 @@
     "failedToRemoveDrawing": "Failed to remove drawing file",
     "confirmRemoveDrawing": "Remove this drawing file from the entry?",
     "uploadingDrawings": "Uploading...",
+    "showMoreDrawings": "Show More...",
+    "showLessDrawings": "Show Less...",
     "estQuantity": "Est. Quantity",
     "submissionPercentage": "Percentage",
     "qtySubmitted": "Qty Submitted",

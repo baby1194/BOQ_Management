@@ -331,6 +331,8 @@
     "failedToRemoveDrawing": "הסרת קובץ שרטוט נכשלה",
     "confirmRemoveDrawing": "להסיר קובץ שרטוט זה מהרשומה?",
     "uploadingDrawings": "מעלה...",
+    "showMoreDrawings": "הצג עוד...",
+    "showLessDrawings": "הצג פחות...",
     "estQuantity": "כמות מחושבת",
     "submissionPercentage": "אחוז הגשה",
     "qtySubmitted": "כמות מוגשת",

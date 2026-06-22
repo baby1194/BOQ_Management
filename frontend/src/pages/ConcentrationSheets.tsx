@@ -139,6 +139,9 @@ const ConcentrationSheets: React.FC = () => {
   const [uploadingDrawingEntryId, setUploadingDrawingEntryId] = useState<
     number | null
   >(null);
+  const [expandedDrawingEntryIds, setExpandedDrawingEntryIds] = useState<
+    Set<number>
+  >(new Set());
 
   // Project info state - will be loaded from selected sheet
   const [projectInfo, setProjectInfo] = useState({
@@ -269,6 +272,18 @@ const ConcentrationSheets: React.FC = () => {
         err.response?.data?.detail || t("concentration.failedToRemoveDrawing"),
       );
     }
+  };
+
+  const toggleDrawingFilesExpanded = (entryId: number) => {
+    setExpandedDrawingEntryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
+        next.add(entryId);
+      }
+      return next;
+    });
   };
 
   const triggerAttachDrawings = (entryId: number) => {
@@ -1677,11 +1692,26 @@ const ConcentrationSheets: React.FC = () => {
                                     </td>
                                     <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
                                       <div className="flex flex-col items-center justify-center gap-2 min-h-[2.5rem]">
-                                        {(entry.drawing_files || []).length >
-                                          0 && (
-                                          <div className="w-full space-y-1">
-                                            {(entry.drawing_files || []).map(
-                                              (filePath) => (
+                                        {(() => {
+                                          const drawingFiles =
+                                            entry.drawing_files || [];
+                                          if (drawingFiles.length === 0) {
+                                            return null;
+                                          }
+                                          const showToggle =
+                                            drawingFiles.length > 3;
+                                          const isExpanded =
+                                            expandedDrawingEntryIds.has(
+                                              entry.id,
+                                            );
+                                          const visibleFiles =
+                                            showToggle && !isExpanded
+                                              ? drawingFiles.slice(0, 2)
+                                              : drawingFiles;
+
+                                          return (
+                                            <div className="w-full space-y-1">
+                                              {visibleFiles.map((filePath) => (
                                                 <div
                                                   key={filePath}
                                                   className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 ${
@@ -1729,10 +1759,36 @@ const ConcentrationSheets: React.FC = () => {
                                                     ×
                                                   </button>
                                                 </div>
-                                              ),
-                                            )}
-                                          </div>
-                                        )}
+                                              ))}
+                                              {showToggle && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    toggleDrawingFilesExpanded(
+                                                      entry.id,
+                                                    )
+                                                  }
+                                                  onDoubleClick={(e) =>
+                                                    e.stopPropagation()
+                                                  }
+                                                  className={`w-full text-xs font-medium px-2 py-1 rounded border transition-colors ${
+                                                    isExpanded
+                                                      ? "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100"
+                                                      : "bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100"
+                                                  }`}
+                                                >
+                                                  {isExpanded
+                                                    ? t(
+                                                        "concentration.showLessDrawings",
+                                                      )
+                                                    : t(
+                                                        "concentration.showMoreDrawings",
+                                                      )}
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
                                         <button
                                           type="button"
                                           onClick={() =>
