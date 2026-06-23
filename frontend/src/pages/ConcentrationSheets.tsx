@@ -1729,76 +1729,148 @@ const ConcentrationSheets: React.FC = () => {
                                       )}
                                     </td>
                                     <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
-                                      <div className="flex flex-col items-center justify-center gap-2 min-h-[2.5rem]">
+                                      <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
                                         {(() => {
                                           const drawingFiles =
                                             entry.drawing_files || [];
-                                          if (drawingFiles.length === 0) {
-                                            return null;
-                                          }
                                           const showToggle =
-                                            drawingFiles.length > 3;
+                                            drawingFiles.length > 1;
                                           const isExpanded =
+                                            showToggle &&
                                             expandedDrawingEntryIds.has(
                                               entry.id,
                                             );
-                                          const visibleFiles =
-                                            showToggle && !isExpanded
-                                              ? drawingFiles.slice(0, 2)
-                                              : drawingFiles;
+
+                                          const renderDrawingFile = (
+                                            filePath: string,
+                                          ) => (
+                                            <div
+                                              key={filePath}
+                                              className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 min-w-0 ${
+                                                isRTL ? "flex-row-reverse" : ""
+                                              }`}
+                                            >
+                                              <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleOpenDrawingFile(
+                                                    entry.id,
+                                                    filePath,
+                                                  )
+                                                }
+                                                onDoubleClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                className="flex-1 min-w-0 text-blue-600 hover:text-blue-800 hover:underline truncate text-xs text-left"
+                                                title={filePath}
+                                              >
+                                                {drawingFileName(filePath)}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleRemoveDrawingFile(
+                                                    entry.id,
+                                                    filePath,
+                                                  )
+                                                }
+                                                onDoubleClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                className="shrink-0 text-red-500 hover:text-red-700 text-sm leading-none px-0.5"
+                                                title={t(
+                                                  "concentration.removeDrawing",
+                                                )}
+                                                aria-label={t(
+                                                  "concentration.removeDrawing",
+                                                )}
+                                              >
+                                                ×
+                                              </button>
+                                            </div>
+                                          );
+
+                                          const attachButton = (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                triggerAttachDrawings(entry.id)
+                                              }
+                                              onDoubleClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                              disabled={
+                                                uploadingDrawingEntryId ===
+                                                entry.id
+                                              }
+                                              className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
+                                            >
+                                              <Paperclip className="h-3.5 w-3.5" />
+                                              <span>
+                                                {uploadingDrawingEntryId ===
+                                                entry.id
+                                                  ? t(
+                                                      "concentration.uploadingDrawings",
+                                                    )
+                                                  : t(
+                                                      "concentration.attachDrawings",
+                                                    )}
+                                              </span>
+                                            </button>
+                                          );
+
+                                          if (drawingFiles.length === 0) {
+                                            return (
+                                              <div className="flex justify-center w-full">
+                                                {attachButton}
+                                              </div>
+                                            );
+                                          }
+
+                                          if (!isExpanded) {
+                                            return (
+                                              <div
+                                                className={`flex items-center gap-1 w-full min-w-0 ${
+                                                  isRTL
+                                                    ? "flex-row-reverse"
+                                                    : ""
+                                                }`}
+                                              >
+                                                <div className="flex-1 min-w-0">
+                                                  {renderDrawingFile(
+                                                    drawingFiles[0],
+                                                  )}
+                                                </div>
+                                                {showToggle && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      toggleDrawingFilesExpanded(
+                                                        entry.id,
+                                                      )
+                                                    }
+                                                    onDoubleClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                    className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100 whitespace-nowrap"
+                                                  >
+                                                    {t(
+                                                      "concentration.showMoreDrawings",
+                                                    )}
+                                                  </button>
+                                                )}
+                                                {attachButton}
+                                              </div>
+                                            );
+                                          }
 
                                           return (
-                                            <div className="w-full space-y-1">
-                                              {visibleFiles.map((filePath) => (
-                                                <div
-                                                  key={filePath}
-                                                  className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 ${
-                                                    isRTL
-                                                      ? "flex-row-reverse"
-                                                      : ""
-                                                  }`}
-                                                >
-                                                  <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                                                  <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                      handleOpenDrawingFile(
-                                                        entry.id,
-                                                        filePath,
-                                                      )
-                                                    }
-                                                    onDoubleClick={(e) =>
-                                                      e.stopPropagation()
-                                                    }
-                                                    className="flex-1 min-w-0 text-blue-600 hover:text-blue-800 hover:underline truncate text-xs text-left"
-                                                    title={filePath}
-                                                  >
-                                                    {drawingFileName(filePath)}
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                      handleRemoveDrawingFile(
-                                                        entry.id,
-                                                        filePath,
-                                                      )
-                                                    }
-                                                    onDoubleClick={(e) =>
-                                                      e.stopPropagation()
-                                                    }
-                                                    className="shrink-0 text-red-500 hover:text-red-700 text-sm leading-none px-0.5"
-                                                    title={t(
-                                                      "concentration.removeDrawing",
-                                                    )}
-                                                    aria-label={t(
-                                                      "concentration.removeDrawing",
-                                                    )}
-                                                  >
-                                                    ×
-                                                  </button>
-                                                </div>
-                                              ))}
-                                              {showToggle && (
+                                            <>
+                                              <div className="w-full space-y-1">
+                                                {drawingFiles.map((filePath) =>
+                                                  renderDrawingFile(filePath),
+                                                )}
                                                 <button
                                                   type="button"
                                                   onClick={() =>
@@ -1809,50 +1881,19 @@ const ConcentrationSheets: React.FC = () => {
                                                   onDoubleClick={(e) =>
                                                     e.stopPropagation()
                                                   }
-                                                  className={`w-full text-xs font-medium px-2 py-1 rounded border transition-colors ${
-                                                    isExpanded
-                                                      ? "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100"
-                                                      : "bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100"
-                                                  }`}
+                                                  className="w-full text-xs font-medium px-2 py-1 rounded border transition-colors bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100"
                                                 >
-                                                  {isExpanded
-                                                    ? t(
-                                                        "concentration.showLessDrawings",
-                                                      )
-                                                    : t(
-                                                        "concentration.showMoreDrawings",
-                                                      )}
+                                                  {t(
+                                                    "concentration.showLessDrawings",
+                                                  )}
                                                 </button>
-                                              )}
-                                            </div>
+                                              </div>
+                                              <div className="flex justify-center">
+                                                {attachButton}
+                                              </div>
+                                            </>
                                           );
                                         })()}
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            triggerAttachDrawings(entry.id)
-                                          }
-                                          onDoubleClick={(e) =>
-                                            e.stopPropagation()
-                                          }
-                                          disabled={
-                                            uploadingDrawingEntryId ===
-                                            entry.id
-                                          }
-                                          className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
-                                        >
-                                          <Paperclip className="h-3.5 w-3.5" />
-                                          <span>
-                                            {uploadingDrawingEntryId ===
-                                            entry.id
-                                              ? t(
-                                                  "concentration.uploadingDrawings",
-                                                )
-                                              : t(
-                                                  "concentration.attachDrawings",
-                                                )}
-                                          </span>
-                                        </button>
                                       </div>
                                     </td>
                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">

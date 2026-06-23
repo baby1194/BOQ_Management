@@ -7,6 +7,10 @@ from database.database import get_db, get_project_id, get_project_upload_dir, ge
 from fatina_paths import resolve_calculation_sheet_open_path
 from models import models
 from schemas import schemas
+from services.calculation_sheet_sync import (
+    perform_sync_all_calculation_sheets,
+    run_auto_sync_after_calculation_sheet_changes,
+)
 from services.sync_service import SyncService
 from services.excel_service import ExcelService
 from services.pdf_service import PDFService
@@ -258,6 +262,7 @@ async def track_calculation_sheet(
         f"Updated calculation sheet {sheet.calculation_sheet_no} "
         f"({entries_refreshed} entries refreshed from disk)"
     )
+    message = run_auto_sync_after_calculation_sheet_changes(db, project_id, message)
     return schemas.CalculationSheetsTrackResponse(
         success=True,
         message=message,
@@ -492,6 +497,11 @@ async def track_calculation_sheets(
     if sheets_skipped:
         message += f". Skipped {sheets_skipped} sheet(s)."
 
+    if sheets_updated > 0:
+        message = run_auto_sync_after_calculation_sheet_changes(
+            db, project_id, message
+        )
+
     return schemas.CalculationSheetsTrackResponse(
         success=sheets_updated > 0 or sheets_skipped == 0,
         message=message,
@@ -511,34 +521,19 @@ async def sync_all_calculation_sheets(
     Synchronize all calculation sheets with concentration sheets and BOQ items
     """
     try:
-        sync_service = SyncService(db)
-        result = sync_service.sync_all_calculation_sheets()
-        
+        result = perform_sync_all_calculation_sheets(db, project_id)
+
         if result["success"]:
-            concentration_sheets_exported = 0
-            boq_items_to_export = result.get("boq_items_to_export") or []
-            if boq_items_to_export:
-                pdf_service = PDFService(
-                    exports_dir=get_project_export_dir(project_id)
-                )
-                concentration_sheets_exported = (
-                    pdf_service.export_concentration_sheets_for_boq_items(
-                        boq_items_to_export, db
-                    )
-                )
             return {
                 "success": True,
                 "message": result["message"],
-                "details": {
-                    "sheets_processed": result["sheets_processed"],
-                    "entries_updated": result["entries_updated"],
-                    "boq_items_updated": result["boq_items_updated"],
-                    "concentration_sheets_exported": concentration_sheets_exported,
-                }
+                "details": result["details"],
             }
         else:
             raise HTTPException(status_code=500, detail=result["message"])
             
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in sync all operation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error synchronizing all calculation sheets: {str(e)}")

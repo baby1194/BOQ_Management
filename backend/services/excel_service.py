@@ -312,18 +312,23 @@ class ExcelService:
             from utils.calculation_sheet_utils import (
                 collect_sheet_periods,
                 compute_submission_breakdown,
+                validate_calculation_sheet_header_fields,
             )
 
             df = pd.read_excel(file_path, sheet_name="Calculation", header=None)
+            file_name = Path(file_path).name
             
             # Extract header information from specific cells
             calculation_sheet_no = str(df.iloc[0, 2]).strip() if pd.notna(df.iloc[0, 2]) else ""  # C1
             drawing_no = str(df.iloc[1, 2]).strip() if pd.notna(df.iloc[1, 2]) else ""  # C2
             description = str(df.iloc[2, 2]).strip() if pd.notna(df.iloc[2, 2]) else ""  # C3
             
-            # Validate required fields
-            if not calculation_sheet_no or not drawing_no or not description:
-                raise ValueError(f"Missing required header information in {file_path}")
+            validate_calculation_sheet_header_fields(
+                calculation_sheet_no,
+                drawing_no,
+                description,
+                file_name,
+            )
 
             sheet_periods = collect_sheet_periods(df)
             

@@ -15,6 +15,7 @@ from database.database import get_db, get_system_db, get_project_id, get_project
 from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
+from services.calculation_sheet_sync import run_auto_sync_after_calculation_sheet_changes
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
@@ -701,6 +702,10 @@ async def import_calculation_sheets_from_paths(
         f"Successfully processed {total_sheets_imported} calculation sheets "
         f"with {total_entries_imported} entries"
     )
+    if total_sheets_imported > 0:
+        success_message = run_auto_sync_after_calculation_sheet_changes(
+            db, project_id, success_message
+        )
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
         message=success_message,
@@ -745,11 +750,19 @@ async def import_calculation_sheets_from_folder(
 
     db.commit()
 
+    success_message = (
+        f"Successfully processed {total_sheets_imported} calculation sheets "
+        f"with {total_entries_imported} entries"
+    )
+    if total_sheets_imported > 0:
+        success_message = run_auto_sync_after_calculation_sheet_changes(
+            db, project_id, success_message
+        )
+
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
         message=(
-            f"Successfully processed {total_sheets_imported} calculation sheets "
-            f"with {total_entries_imported} entries"
+            success_message
         ),
         files_processed=len(excel_files),
         sheets_imported=total_sheets_imported,
@@ -935,6 +948,10 @@ async def import_calculation_sheets(
         db.commit()
         
         success_message = f"Successfully processed {total_sheets_imported} calculation sheets with {total_entries_imported} entries (updated existing sheets and added new ones as needed)"
+        if total_sheets_imported > 0:
+            success_message = run_auto_sync_after_calculation_sheet_changes(
+                db, project_id, success_message
+            )
         
         return schemas.CalculationImportResponse(
             success=len(all_errors) == 0,

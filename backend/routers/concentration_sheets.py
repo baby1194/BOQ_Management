@@ -15,6 +15,7 @@ from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
 from routers.calculation_sheets import refresh_calculation_sheet_from_disk
+from services.calculation_sheet_sync import run_auto_sync_after_calculation_sheet_changes
 from utils.concentration_utils import compute_quantity_submitted
 from fatina_paths import (
     copy_files_to_calc_sheet_dir,
@@ -481,6 +482,11 @@ async def track_concentration_sheet_calculation_sheets(
     )
     if sheets_skipped:
         message += f". Skipped {sheets_skipped} sheet(s)."
+
+    if sheets_updated > 0:
+        message = run_auto_sync_after_calculation_sheet_changes(
+            db, project_id, message
+        )
 
     return schemas.CalculationSheetsTrackResponse(
         success=sheets_updated > 0 or sheets_skipped == 0,

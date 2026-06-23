@@ -141,3 +141,30 @@ def test_collect_export_past_period_keys_excludes_current():
     assert headers.index(period_header_key("05")) == 10
     assert headers.index("Internal Quantity") == 11
     assert period_header_key("06") not in headers
+
+
+def test_reads_quantities_beyond_row_100():
+    df = pd.DataFrame([[None] * 12 for _ in range(150)])
+    col = 10
+    df.iloc[120, 1] = "01"
+    df.iloc[120, col] = 99.0
+
+    sheet_periods = collect_sheet_periods(df)
+    breakdown, current = compute_submission_breakdown(
+        df, col, "01", sheet_periods=sheet_periods
+    )
+
+    assert current == 99.0
+    assert breakdown["periods"]["01"] == 99.0
+
+
+def test_validate_calculation_sheet_header_fields_messages():
+    import pytest
+
+    from utils.calculation_sheet_utils import validate_calculation_sheet_header_fields
+
+    with pytest.raises(ValueError, match="File test.xlsx has empty calculation no."):
+        validate_calculation_sheet_header_fields("", "06", "desc", "test.xlsx")
+
+    with pytest.raises(ValueError, match="File test.xlsx has empty invoice no."):
+        validate_calculation_sheet_header_fields("7", "", "desc", "test.xlsx")

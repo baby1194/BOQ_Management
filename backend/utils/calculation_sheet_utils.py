@@ -9,7 +9,6 @@ import pandas as pd
 
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
-DETAIL_END_ROW = 100  # Excel row 100 inclusive (0-based index 99)
 PERIOD_COLUMN_INDEX = 1  # Column B
 
 _INVALID_PERIOD_STRINGS = frozenset({"nan", "none", "<na>", "nat"})
@@ -47,14 +46,62 @@ def _safe_float(value) -> float:
         return 0.0
 
 
+def _cell_has_value(value) -> bool:
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, float) and math.isnan(value):
+        return False
+    if isinstance(value, str) and not value.strip():
+        return False
+    return True
+
+
+def _row_has_any_value(row) -> bool:
+    for value in row:
+        if _cell_has_value(value):
+            return True
+    return False
+
+
+def get_detail_row_end_exclusive(df) -> int:
+    """
+    Exclusive end row index for detail scanning (from Excel row 28 onward).
+    Uses the last row in the sheet that contains any non-empty cell.
+    """
+    end = DETAIL_START_ROW
+    for row_idx in range(DETAIL_START_ROW, df.shape[0]):
+        if _row_has_any_value(df.iloc[row_idx]):
+            end = row_idx + 1
+    return max(end, DETAIL_START_ROW + 1)
+
+
+def validate_calculation_sheet_header_fields(
+    calculation_sheet_no: str,
+    drawing_no: str,
+    description: str,
+    file_name: str,
+) -> None:
+    if not calculation_sheet_no:
+        raise ValueError(f"File {file_name} has empty calculation no.")
+    if not drawing_no:
+        raise ValueError(f"File {file_name} has empty invoice no.")
+    if not description:
+        raise ValueError(f"File {file_name} has empty description.")
+
+
 def _sort_period_keys(periods: Iterable[str]) -> List[str]:
     return sorted(set(periods), key=lambda key: (len(key), key))
 
 
 def collect_sheet_periods(df) -> List[str]:
-    """Collect all unique non-empty column B values from detail rows 28-100."""
+    """Collect all unique non-empty column B values from detail rows (row 28+)."""
     periods: set[str] = set()
-    row_limit = min(DETAIL_END_ROW, df.shape[0])
+    row_limit = get_detail_row_end_exclusive(df)
     for row_idx in range(DETAIL_START_ROW, row_limit):
         period = _normalize_period_value(df.iloc[row_idx, PERIOD_COLUMN_INDEX])
         if period:
@@ -103,7 +150,7 @@ def compute_submission_breakdown(
     sheet_periods: Optional[List[str]] = None,
 ) -> Tuple[Dict[str, Any], float]:
     """
-    Sum submitted quantities from detail rows 28-100 for one item column.
+    Sum submitted quantities from detail rows (row 28 through last sheet row with data).
 
     Every unique column B period on the sheet gets a row (0 when no qty for this item).
     Rows with empty/invalid column B accumulate into left_submitted.
@@ -119,7 +166,7 @@ def compute_submission_breakdown(
     periods = {period: 0.0 for period in period_keys}
     left_submitted = 0.0
 
-    row_limit = min(DETAIL_END_ROW, df.shape[0])
+    row_limit = get_detail_row_end_exclusive(df)
     for row_idx in range(DETAIL_START_ROW, row_limit):
         if col_index >= df.shape[1]:
             break
