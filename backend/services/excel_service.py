@@ -29,6 +29,18 @@ _CONCENTRATION_QTY_HEADERS = frozenset({
 })
 
 
+def _is_concentration_qty_header(header: str) -> bool:
+    from utils.calculation_sheet_utils import is_past_period_export_header
+
+    if header in _CONCENTRATION_QTY_HEADERS:
+        return True
+    if header == "Left Submitted":
+        return True
+    if is_past_period_export_header(header):
+        return True
+    return False
+
+
 def _boq_excel_number_format(column_name: str) -> str:
     """Excel number_format: match prior rules (currency for price/sums, else quantity-style)."""
     c = column_name.lower()
@@ -289,24 +301,20 @@ class ExcelService:
                 {
                     'section_number': str,
                     'estimated_quantity': float,
-                    'quantity_submitted': float,
+                    'quantity_submitted': float,  # current month (column B == C2, rows 28-100)
+                    'submission_breakdown': dict,
                     'notes': str
                 }
             ]
         }
         """
         try:
-            print("_____ok_____")
-            # Read Excel file without headers to access specific cells
-
-            # if os.path.exists(file_path):
-            #     print("_____file exists_____")
-            # else:
-            #     print("_____file does not exist_____")
+            from utils.calculation_sheet_utils import (
+                collect_sheet_periods,
+                compute_submission_breakdown,
+            )
 
             df = pd.read_excel(file_path, sheet_name="Calculation", header=None)
-            df.to_csv("output.csv", index=False, header=False)
-            # print(df)
             
             # Extract header information from specific cells
             calculation_sheet_no = str(df.iloc[0, 2]).strip() if pd.notna(df.iloc[0, 2]) else ""  # C1
@@ -316,27 +324,26 @@ class ExcelService:
             # Validate required fields
             if not calculation_sheet_no or not drawing_no or not description:
                 raise ValueError(f"Missing required header information in {file_path}")
+
+            sheet_periods = collect_sheet_periods(df)
             
             entries = []
             
             col_index = 4
             
             while col_index < df.shape[1]:
-                # Check if section number exists in row 4 (J5, K5, L5, etc.)
                 section_number = df.iloc[4, col_index]
                 
                 if pd.notna(section_number) and str(section_number).strip():
                     section_number = str(section_number).strip()
                     
-                    # Get estimated quantity from row 5 (J6, K6, L6, etc.)
                     estimated_quantity = df.iloc[5, col_index]
                     estimated_quantity = float(estimated_quantity) if pd.notna(estimated_quantity) else 0.0
                     
-                    # Get quantity submitted from row 23 (J24, K24, L24, etc.)
-                    quantity_submitted = df.iloc[23, col_index]
-                    quantity_submitted = float(quantity_submitted) if pd.notna(quantity_submitted) else 0.0
+                    submission_breakdown, quantity_submitted = compute_submission_breakdown(
+                        df, col_index, drawing_no, sheet_periods=sheet_periods
+                    )
                     
-                    # Get notes from row 18 (J19, K19, L19, etc.)
                     notes = df.iloc[17, col_index]
                     notes = str(notes).strip() if pd.notna(notes) else ""
                     
@@ -344,6 +351,7 @@ class ExcelService:
                         'section_number': section_number,
                         'estimated_quantity': estimated_quantity,
                         'quantity_submitted': quantity_submitted,
+                        'submission_breakdown': submission_breakdown,
                         'notes': notes
                     }
                     entries.append(entry)
@@ -461,34 +469,15 @@ class ExcelService:
             filepath = base_dir / filename
             
             # Build entries column list from entry_columns (same logic as PDF)
-            all_headers = ['Description', 'Calculation Sheet No', 'Invoice No', 'Estimated Quantity',
-                           'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
-                           'Approved by Project Manager', 'Notes', 'Supervisor Notes']
-            if entry_columns:
-                filtered_headers = []
-                if entry_columns.get('include_description', True):
-                    filtered_headers.append('Description')
-                if entry_columns.get('include_calculation_sheet_no', True):
-                    filtered_headers.append('Calculation Sheet No')
-                if entry_columns.get('include_drawing_no', True):
-                    filtered_headers.append('Invoice No')
-                if entry_columns.get('include_estimated_quantity', True):
-                    filtered_headers.append('Estimated Quantity')
-                if entry_columns.get('include_submission_percentage', True):
-                    filtered_headers.append('Submission Percentage')
-                if entry_columns.get('include_quantity_submitted', True):
-                    filtered_headers.append('Quantity Submitted')
-                if entry_columns.get('include_internal_quantity', True):
-                    filtered_headers.append('Internal Quantity')
-                if entry_columns.get('include_approved_by_project_manager', True):
-                    filtered_headers.append('Approved by Project Manager')
-                if entry_columns.get('include_notes', True):
-                    filtered_headers.append('Notes')
-                if entry_columns.get('include_supervisor_notes', True):
-                    filtered_headers.append('Supervisor Notes')
-            else:
-                filtered_headers = all_headers
-            header_indices = [all_headers.index(h) for h in filtered_headers]
+            from utils.calculation_sheet_utils import (
+                build_concentration_export_row_values,
+                build_concentration_export_totals_row,
+                filter_concentration_export_headers,
+            )
+
+            filtered_headers, period_keys = filter_concentration_export_headers(
+                entry_columns, entries or []
+            )
             
             # Create Excel writer
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
@@ -533,36 +522,19 @@ class ExcelService:
                     entries_headers = filtered_headers
                     entries_data = [entries_headers]
                     for entry in entries:
-                        all_row = [
-                            entry.description or '',
-                            entry.calculation_sheet_no or '',
-                            entry.drawing_no or '',
-                            float(entry.estimated_quantity or 0),
-                            float(getattr(entry, 'submission_percentage', 100.0) or 100.0),
-                            float(entry.quantity_submitted or 0),
-                            float(entry.internal_quantity or 0),
-                            float(entry.approved_by_project_manager or 0),
-                            entry.notes or '',
-                            getattr(entry, 'supervisor_notes', None) or '',
-                        ]
-                        entries_data.append([all_row[i] for i in header_indices])
+                        row_values = build_concentration_export_row_values(
+                            entry, period_keys
+                        )
+                        entries_data.append(
+                            [row_values.get(header, "") for header in filtered_headers]
+                        )
                     
-                    # Totals row (only for quantity columns that are included)
-                    total_estimate = sum(entry.estimated_quantity for entry in entries)
-                    total_submitted = sum(entry.quantity_submitted for entry in entries)
-                    total_internal = sum(entry.internal_quantity for entry in entries)
-                    total_approved = sum(entry.approved_by_project_manager for entry in entries)
-                    all_totals = [
-                        'TOTALS', '', '',
-                        float(total_estimate),
-                        '',
-                        float(total_submitted),
-                        float(total_internal),
-                        float(total_approved),
-                        '',
-                        '',
-                    ]
-                    entries_data.append([all_totals[i] for i in header_indices])
+                    totals_values = build_concentration_export_totals_row(
+                        entries, filtered_headers, period_keys, "TOTALS"
+                    )
+                    entries_data.append(
+                        [totals_values.get(header, "") for header in filtered_headers]
+                    )
                     
                     df_entries = pd.DataFrame(entries_data)
                     entries_block_header_1based = current_row + 1
@@ -642,7 +614,7 @@ class ExcelService:
                 worksheet.cell(row=boq_data_row_1based, column=4).number_format = '"₪"#,##0.00'
                 if entries:
                     for col_i, h in enumerate(filtered_headers, start=1):
-                        if h not in _CONCENTRATION_QTY_HEADERS:
+                        if not _is_concentration_qty_header(h):
                             continue
                         for r in range(
                             entries_block_header_1based + 1,
@@ -846,7 +818,7 @@ class ExcelService:
                     worksheet.cell(row=boq_data_row_1based, column=4).number_format = '"₪"#,##0.00'
                     if entries:
                         for col_i, h in enumerate(entries_headers, start=1):
-                            if h not in _CONCENTRATION_QTY_HEADERS:
+                            if not _is_concentration_qty_header(h):
                                 continue
                             for r in range(
                                 entries_block_header_1based + 1,

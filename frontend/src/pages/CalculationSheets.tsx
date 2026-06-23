@@ -14,6 +14,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
+import SubmissionBreakdownPanel, {
+  SubmissionBreakdownToggle,
+} from "../components/SubmissionBreakdownPanel";
 
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
@@ -48,6 +51,9 @@ const CalculationSheets: React.FC = () => {
   const [syncingAll, setSyncingAll] = useState(false);
   const [tracking, setTracking] = useState(false);
   const [trackingSheetId, setTrackingSheetId] = useState<number | null>(null);
+  const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
+    Set<number>
+  >(new Set());
   const [openingFile, setOpeningFile] = useState(false);
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
     new Set()
@@ -99,6 +105,7 @@ const CalculationSheets: React.FC = () => {
   const fetchEntries = async (sheetId: number) => {
     try {
       setEntriesLoading(true);
+      setExpandedBreakdownEntryIds(new Set());
       // console.log("Fetching entries for sheet:", sheetId);
       const response = await calculationSheetsApi.getWithEntries(sheetId);
       // console.log("Entries response:", response);
@@ -157,6 +164,18 @@ const CalculationSheets: React.FC = () => {
   // Handle comment edit start
   const handleCommentEditStart = () => {
     setEditingComment(true);
+  };
+
+  const toggleBreakdownExpanded = (entryId: number) => {
+    setExpandedBreakdownEntryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
+        next.add(entryId);
+      }
+      return next;
+    });
   };
 
   // Handle comment edit cancel
@@ -999,9 +1018,23 @@ const CalculationSheets: React.FC = () => {
                 {/* Entries Table */}
                 <div className="flex-1 p-6 overflow-hidden flex flex-col">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {t("calculationSheets.entries")} ({entries.length})
-                    </h3>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {t("calculationSheets.entries")} ({entries.length})
+                      </h3>
+                      {selectedSheet && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          {t("concentration.drawingNoLabel")}:{" "}
+                          <span className="font-medium text-gray-700">
+                            {selectedSheet.drawing_no}
+                          </span>
+                          <span className="mx-2">·</span>
+                          <span title={t("submissionBreakdown.currentMonthHint")}>
+                            {t("submissionBreakdown.currentMonthHint")}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {entriesLoading ? (
@@ -1014,13 +1047,21 @@ const CalculationSheets: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
+                              <th className="px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                                <span className="sr-only">
+                                  {t("submissionBreakdown.toggleDetails")}
+                                </span>
+                              </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.sectionNumber")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.estimatedQuantity")}
                               </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th
+                                className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                title={t("submissionBreakdown.currentMonthHint")}
+                              >
                                 {t("common.quantitySubmitted")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1035,7 +1076,7 @@ const CalculationSheets: React.FC = () => {
                             {entries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={5}
+                                  colSpan={6}
                                   className="px-3 py-8 text-center text-gray-500"
                                 >
                                   <p>No entries found</p>
@@ -1045,39 +1086,74 @@ const CalculationSheets: React.FC = () => {
                                 </td>
                               </tr>
                             ) : (
-                              entries.map((entry) => (
-                                <tr key={entry.id} className="table-row-hover">
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {entry.section_number}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {formatNumber(entry.estimated_quantity)}
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {formatNumber(entry.quantity_submitted)}
-                                  </td>
-                                  <td className="px-3 py-4 text-sm text-gray-900 max-w-xs">
-                                    <div
-                                      className="truncate"
-                                      title={entry.notes || ""}
-                                    >
-                                      {entry.notes || "-"}
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <button
-                                      onClick={() =>
-                                        handleDeleteEntry(entry.id)
-                                      }
-                                      disabled={deletingEntry === entry.id}
-                                      className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                      title="Delete entry"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))
+                              entries.map((entry) => {
+                                const isExpanded = expandedBreakdownEntryIds.has(
+                                  entry.id,
+                                );
+
+                                return (
+                                  <React.Fragment key={entry.id}>
+                                    <tr className="table-row-hover">
+                                      <td className="px-2 py-4 whitespace-nowrap align-top">
+                                        <SubmissionBreakdownToggle
+                                          expanded={isExpanded}
+                                          onToggle={() =>
+                                            toggleBreakdownExpanded(entry.id)
+                                          }
+                                        />
+                                      </td>
+                                      <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {entry.section_number}
+                                      </td>
+                                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {formatNumber(entry.estimated_quantity)}
+                                      </td>
+                                      <td
+                                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500"
+                                        title={t(
+                                          "submissionBreakdown.currentMonthHint",
+                                        )}
+                                      >
+                                        {formatNumber(entry.quantity_submitted)}
+                                      </td>
+                                      <td className="px-3 py-4 text-sm text-gray-900 max-w-xs">
+                                        <div
+                                          className="truncate"
+                                          title={entry.notes || ""}
+                                        >
+                                          {entry.notes || "-"}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <button
+                                          onClick={() =>
+                                            handleDeleteEntry(entry.id)
+                                          }
+                                          disabled={deletingEntry === entry.id}
+                                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                          title="Delete entry"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                    {isExpanded && (
+                                      <tr className="bg-gray-50/70">
+                                        <td colSpan={6} className="px-3 py-3">
+                                          <SubmissionBreakdownPanel
+                                            breakdown={
+                                              entry.submission_breakdown
+                                            }
+                                            quantitySubmitted={
+                                              entry.quantity_submitted
+                                            }
+                                          />
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })
                             )}
                           </tbody>
                         </table>

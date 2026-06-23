@@ -963,42 +963,32 @@ class PDFService:
                 totals_text = "TOTALS"
             
             # Apply column filtering based on entry_columns if provided (define early for use throughout method)
-            all_headers = ['Description', 'Calculation Sheet No', 'Invoice No', 'Estimated Quantity',
-                           'Submission Percentage', 'Quantity Submitted', 'Internal Quantity',
-                           'Approved by Project Manager', 'Notes', 'Supervisor Notes']
-            
-            # Filter headers and their indices based on entry_columns configuration
-            filtered_headers = []
-            if entry_columns:
-                if entry_columns.get('include_description', True):
-                    filtered_headers.append('Description')
-                if entry_columns.get('include_calculation_sheet_no', True):
-                    filtered_headers.append('Calculation Sheet No')
-                if entry_columns.get('include_drawing_no', True):
-                    filtered_headers.append('Invoice No')
-                if entry_columns.get('include_estimated_quantity', True):
-                    filtered_headers.append('Estimated Quantity')
-                if entry_columns.get('include_submission_percentage', True):
-                    filtered_headers.append('Submission Percentage')
-                if entry_columns.get('include_quantity_submitted', True):
-                    filtered_headers.append('Quantity Submitted')
-                if entry_columns.get('include_internal_quantity', True):
-                    filtered_headers.append('Internal Quantity')
-                if entry_columns.get('include_approved_by_project_manager', True):
-                    filtered_headers.append('Approved by Project Manager')
-                if entry_columns.get('include_notes', True):
-                    filtered_headers.append('Notes')
-                if entry_columns.get('include_supervisor_notes', True):
-                    filtered_headers.append('Supervisor Notes')
-            else:
-                # If no filtering specified, include all columns
-                filtered_headers = all_headers
+            from utils.calculation_sheet_utils import (
+                LEFT_SUBMITTED_HEADER,
+                build_concentration_export_row_values,
+                build_concentration_export_totals_row,
+                concentration_export_header_translations,
+                filter_concentration_export_headers,
+                format_concentration_export_row_for_pdf,
+                is_past_period_export_header,
+                period_header_key,
+                translate_past_period_header,
+            )
+
+            filtered_headers, period_keys = filter_concentration_export_headers(
+                entry_columns, entries or []
+            )
+            headers_translations = concentration_export_header_translations(language)
+            for period in period_keys:
+                english_key = period_header_key(period)
+                headers_translations[english_key] = translate_past_period_header(
+                    period, language
+                )
             
             # Translate headers based on language
-            translated_headers = [headers_translations[header] for header in filtered_headers]
-            
-            # Create list of column indices to include
-            header_indices = [all_headers.index(header) for header in filtered_headers]
+            translated_headers = [
+                headers_translations.get(header, header) for header in filtered_headers
+            ]
             
             # Calculate optimal page size based on content
             page_size = None
@@ -1009,20 +999,14 @@ class PDFService:
                 # Prepare data for optimal page size calculation using translated headers
                 calc_data = [translated_headers]
                 for entry in entries[:10]:  # Use first 10 entries for calculation
-                    all_entry_data = [
-                        entry.description or '',
-                        entry.calculation_sheet_no or '',
-                        entry.drawing_no or '',
-                        f"{entry.estimated_quantity:,.2f}",
-                        f"{getattr(entry, 'submission_percentage', 100.0) or 100.0:,.1f}%",
-                        f"{entry.quantity_submitted:,.2f}",
-                        f"{entry.internal_quantity:,.2f}",
-                        f"{entry.approved_by_project_manager:,.2f}",
-                        _notes_for_pdf_export(entry),
-                        getattr(entry, 'supervisor_notes', None) or '',
-                    ]
-                    # Filter data based on selected columns
-                    filtered_entry_data = [all_entry_data[i] for i in header_indices]
+                    row_values = build_concentration_export_row_values(
+                        entry,
+                        period_keys,
+                        notes_value=_notes_for_pdf_export(entry),
+                    )
+                    filtered_entry_data = format_concentration_export_row_for_pdf(
+                        row_values, filtered_headers
+                    )
                     calc_data.append(filtered_entry_data)
                 
                 # Add a sample totals row for calculation
@@ -1195,20 +1179,14 @@ class PDFService:
                 calc_sheet_col = filtered_headers.index('Calculation Sheet No') if 'Calculation Sheet No' in filtered_headers else -1
 
                 for entry in entries:
-                    all_entry_data = [
-                        entry.description or '',
-                        entry.calculation_sheet_no or '',
-                        entry.drawing_no or '',
-                        f"{entry.estimated_quantity:,.2f}",
-                        f"{getattr(entry, 'submission_percentage', 100.0) or 100.0:,.1f}%",
-                        f"{entry.quantity_submitted:,.2f}",
-                        f"{entry.internal_quantity:,.2f}",
-                        f"{entry.approved_by_project_manager:,.2f}",
-                        _notes_for_pdf_export(entry),
-                        getattr(entry, 'supervisor_notes', None) or '',
-                    ]
-                    # Filter data based on selected columns
-                    filtered_entry_data = [all_entry_data[i] for i in header_indices]
+                    row_values = build_concentration_export_row_values(
+                        entry,
+                        period_keys,
+                        notes_value=_notes_for_pdf_export(entry),
+                    )
+                    filtered_entry_data = format_concentration_export_row_for_pdf(
+                        row_values, filtered_headers
+                    )
                     # Add clickable link to Calculation Sheet No (file:///C:/Fatina/...) when we have a matching file
                     if calc_sheet_col >= 0 and db_session and boq_item and boq_item.section_number:
                         file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
@@ -1228,26 +1206,12 @@ class PDFService:
                             filtered_entry_data[calc_sheet_col] = Paragraph(link_markup, link_style)
                     entries_data.append(filtered_entry_data)
                 
-                # Add totals row with filtered columns
-                total_estimate = sum(entry.estimated_quantity for entry in entries)
-                total_submitted = sum(entry.quantity_submitted for entry in entries)
-                total_internal = sum(entry.internal_quantity for entry in entries)
-                total_approved = sum(entry.approved_by_project_manager for entry in entries)
-                
-                # Create full totals row and filter based on selected columns
-                all_totals_row = [
-                    totals_text,
-                    '',
-                    '',
-                    f"{total_estimate:,.2f}",
-                    '',
-                    f"{total_submitted:,.2f}",
-                    f"{total_internal:,.2f}",
-                    f"{total_approved:,.2f}",
-                    '',
-                    '',
-                ]
-                filtered_totals_row = [all_totals_row[i] for i in header_indices]
+                totals_values = build_concentration_export_totals_row(
+                    entries, filtered_headers, period_keys, totals_text
+                )
+                filtered_totals_row = format_concentration_export_row_for_pdf(
+                    totals_values, filtered_headers
+                )
                 entries_data.append(filtered_totals_row)
                 
                 # In Hebrew mode, reverse the column order for RTL display
@@ -1265,7 +1229,13 @@ class PDFService:
                 # Identify numerical columns (columns that contain quantities)
                 # Use the actual translated headers to identify numerical columns
                 numerical_column_indices = []
-                numerical_header_keys = ['Estimated Quantity', 'Quantity Submitted', 'Internal Quantity', 'Approved by Project Manager']
+                numerical_header_keys = [
+                    'Estimated Quantity',
+                    'Quantity Submitted',
+                    'Internal Quantity',
+                    'Approved by Project Manager',
+                    LEFT_SUBMITTED_HEADER,
+                ] + [period_header_key(period) for period in period_keys]
                 
                 # Get the translated headers for numerical columns
                 numerical_translated_headers = [headers_translations[key] for key in numerical_header_keys if key in headers_translations]

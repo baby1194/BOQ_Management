@@ -658,5 +658,17 @@
     "deleting": "מוחק...",
     "deletedSuccessfully": "נמחק בהצלחה",
     "failedToDelete": "נכשל במחיקה"
+  },
+  "submissionBreakdown": {
+    "title": "פירוט כמויות מוגשות",
+    "period": "תקופה",
+    "submittedQty": "כמות מוגשת",
+    "currentPeriod": "נוכחי ({{period}})",
+    "leftSubmitted": "כמות שנותרה",
+    "toggleDetails": "הצג פירוט הגשות",
+    "retrackToLoad": "עקוב אחר דף החישוב מחדש כדי לטעון כמויות של חודשים קודמים וכמות שנותרה.",
+    "currentMonthHint": "",
+    "exportPastMonths": "כמויות מוגשות של חודשים קודמים",
+    "exportLeftSubmitted": "כמות שנותרה"
   }
 }

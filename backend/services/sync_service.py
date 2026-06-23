@@ -381,6 +381,9 @@ class SyncService:
                                         submission_percentage=compute_submission_percentage(
                                             estimated, submitted
                                         ),
+                                        submission_breakdown=getattr(
+                                            calc_entry, "submission_breakdown", None
+                                        ),
                                         internal_quantity=0.0,
                                         approved_by_project_manager=0.0,
                                         notes=f"Auto-synced from calculation sheet {calculation_sheet.calculation_sheet_no}",

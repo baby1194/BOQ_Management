@@ -26,6 +26,8 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_estimated_quantity",
   "include_submission_percentage",
   "include_quantity_submitted",
+  "include_past_months_submitted",
+  "include_left_submitted",
   "include_internal_quantity",
   "include_approved_by_project_manager",
   "include_notes",
@@ -40,6 +42,8 @@ const buildDefaultConcentrationEntryExportRequest =
     include_estimated_quantity: true,
     include_submission_percentage: true,
     include_quantity_submitted: true,
+    include_past_months_submitted: false,
+    include_left_submitted: false,
     include_internal_quantity: true,
     include_approved_by_project_manager: true,
     include_notes: true,
@@ -241,6 +245,36 @@ const ConcentrationEntryExportModal: React.FC<
                 disabled={loading}
               />
               <span className="text-sm">{t("boq.quantitySubmitted")}</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_past_months_submitted}
+                onChange={() =>
+                  handleCheckboxChange("include_past_months_submitted")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">
+                {t("submissionBreakdown.exportPastMonths")}
+              </span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_left_submitted}
+                onChange={() =>
+                  handleCheckboxChange("include_left_submitted")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">
+                {t("submissionBreakdown.exportLeftSubmitted")}
+              </span>
             </label>
 
             <label className="flex items-center">

@@ -234,6 +234,26 @@ def _ensure_calculation_sheet_no_unique(engine) -> None:
         conn.commit()
 
 
+def _ensure_submission_breakdown_columns(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        for table in ("calculation_entries", "concentration_entries"):
+            columns = [
+                row[1]
+                for row in conn.execute(text(f"PRAGMA table_info({table})"))
+            ]
+            if "submission_breakdown" in columns:
+                continue
+            conn.execute(
+                text(
+                    f"ALTER TABLE {table} "
+                    "ADD COLUMN submission_breakdown TEXT"
+                )
+            )
+        conn.commit()
+
+
 def init_project_database(project_id: str) -> None:
     from models import models
 
@@ -241,6 +261,7 @@ def init_project_database(project_id: str) -> None:
     models.Base.metadata.create_all(bind=engine)
     _ensure_submission_percentage_column(engine)
     _ensure_drawing_files_column(engine)
+    _ensure_submission_breakdown_columns(engine)
     _ensure_calculation_sheet_no_unique(engine)
 
 

@@ -103,6 +103,14 @@ export interface ConcentrationSheetWithBOQData extends ConcentrationSheet {
   boq_item: BOQItemWithLatestContractUpdate;
 }
 
+export interface SubmissionBreakdown {
+  current_drawing_no?: string;
+  periods?: Record<string, number>;
+  /** @deprecated Legacy shape; use periods instead */
+  past_months?: Record<string, number>;
+  left_submitted?: number;
+}
+
 export interface ConcentrationEntry {
   id: number;
   concentration_sheet_id: number;
@@ -113,7 +121,8 @@ export interface ConcentrationEntry {
   drawing_no?: string; // Drawing No
   estimated_quantity: number; // Estimated Quantity
   submission_percentage: number; // Submission percentage (default 100%)
-  quantity_submitted: number; // Quantity Submitted (derived from estimated × percentage)
+  quantity_submitted: number; // Quantity Submitted (current month from calculation sheet)
+  submission_breakdown?: SubmissionBreakdown | null;
   internal_quantity: number; // Internal Quantity
   approved_by_project_manager: number; // Approved by Project Manager
   notes?: string; // Notes
@@ -178,6 +187,8 @@ export interface ConcentrationEntryExportRequest {
   include_estimated_quantity: boolean;
   include_submission_percentage: boolean;
   include_quantity_submitted: boolean;
+  include_past_months_submitted: boolean;
+  include_left_submitted: boolean;
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;
   include_notes: boolean;
@@ -224,6 +235,7 @@ export interface CalculationEntry {
   section_number: string;
   estimated_quantity: number;
   quantity_submitted: number;
+  submission_breakdown?: SubmissionBreakdown | null;
   notes?: string;
   created_at: string;
   updated_at?: string;

@@ -93,6 +93,7 @@ class ConcentrationEntry(Base):
     estimated_quantity = Column(Float, default=0.0)
     submission_percentage = Column(Float, default=100.0)
     quantity_submitted = Column(Float, default=0.0)
+    submission_breakdown = Column(JSON, nullable=True)
     internal_quantity = Column(Float, default=0.0)
     approved_by_project_manager = Column(Float, default=0.0)
     
@@ -165,6 +166,7 @@ class CalculationEntry(Base):
     section_number = Column(String(100), nullable=False)
     estimated_quantity = Column(Float, default=0.0)
     quantity_submitted = Column(Float, default=0.0)
+    submission_breakdown = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

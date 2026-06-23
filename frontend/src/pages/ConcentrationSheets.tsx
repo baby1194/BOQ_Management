@@ -27,6 +27,9 @@ import {
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
+import SubmissionBreakdownPanel, {
+  SubmissionBreakdownToggle,
+} from "../components/SubmissionBreakdownPanel";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 /** Draft state for inline row editing (mirrors EntryForm fields). */
@@ -140,6 +143,9 @@ const ConcentrationSheets: React.FC = () => {
     number | null
   >(null);
   const [expandedDrawingEntryIds, setExpandedDrawingEntryIds] = useState<
+    Set<number>
+  >(new Set());
+  const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
   >(new Set());
 
@@ -276,6 +282,18 @@ const ConcentrationSheets: React.FC = () => {
 
   const toggleDrawingFilesExpanded = (entryId: number) => {
     setExpandedDrawingEntryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
+        next.add(entryId);
+      }
+      return next;
+    });
+  };
+
+  const toggleBreakdownExpanded = (entryId: number) => {
+    setExpandedBreakdownEntryIds((prev) => {
       const next = new Set(prev);
       if (next.has(entryId)) {
         next.delete(entryId);
@@ -670,6 +688,7 @@ const ConcentrationSheets: React.FC = () => {
   const fetchEntries = async (sheetId: number) => {
     try {
       setEntriesLoading(true);
+      setExpandedBreakdownEntryIds(new Set());
       const sheetEntries = await concentrationApi.getEntries(sheetId);
       setEntries(sheetEntries);
     } catch (err) {
@@ -1503,6 +1522,11 @@ const ConcentrationSheets: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
+                              <th className="px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                                <span className="sr-only">
+                                  {t("submissionBreakdown.toggleDetails")}
+                                </span>
+                              </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.descriptionLabel")}
                               </th>
@@ -1521,7 +1545,10 @@ const ConcentrationSheets: React.FC = () => {
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.submissionPercentage")}
                               </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th
+                                className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                title={t("submissionBreakdown.currentMonthHint")}
+                              >
                                 {t("concentration.qtySubmitted")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1545,7 +1572,7 @@ const ConcentrationSheets: React.FC = () => {
                             {entries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={12}
+                                  colSpan={13}
                                   className={`px-3 py-8 text-gray-500 ${
                                     isRTL ? "text-right" : "text-center"
                                   }`}
@@ -1565,9 +1592,12 @@ const ConcentrationSheets: React.FC = () => {
                                 const manualEditable =
                                   isEditingRow && editDraft.is_manual;
 
+                                const isBreakdownExpanded =
+                                  expandedBreakdownEntryIds.has(entry.id);
+
                                 return (
+                                  <React.Fragment key={entry.id}>
                                   <tr
-                                    key={entry.id}
                                     onDoubleClick={(e) =>
                                       handleRowDoubleClick(entry, e)
                                     }
@@ -1576,6 +1606,14 @@ const ConcentrationSheets: React.FC = () => {
                                       isEditingRow ? "bg-blue-50/80" : ""
                                     }`}
                                   >
+                                    <td className="px-2 py-2 whitespace-nowrap align-top">
+                                      <SubmissionBreakdownToggle
+                                        expanded={isBreakdownExpanded}
+                                        onToggle={() =>
+                                          toggleBreakdownExpanded(entry.id)
+                                        }
+                                      />
+                                    </td>
                                     <td className="px-3 py-2 text-sm text-gray-900 max-w-[14rem] align-top">
                                       {manualEditable ? (
                                         <input
@@ -1888,7 +1926,12 @@ const ConcentrationSheets: React.FC = () => {
                                         `${formatNumber(entry.submission_percentage ?? 100)}%`
                                       )}
                                     </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                    <td
+                                      className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top"
+                                      title={t(
+                                        "submissionBreakdown.currentMonthHint",
+                                      )}
+                                    >
                                       {formatNumber(
                                         isEditingRow
                                           ? editDraft.quantity_submitted
@@ -2090,6 +2133,19 @@ const ConcentrationSheets: React.FC = () => {
                                       )}
                                     </td>
                                   </tr>
+                                  {isBreakdownExpanded && (
+                                    <tr className="bg-gray-50/70">
+                                      <td colSpan={13} className="px-3 py-3">
+                                        <SubmissionBreakdownPanel
+                                          breakdown={entry.submission_breakdown}
+                                          quantitySubmitted={
+                                            entry.quantity_submitted
+                                          }
+                                        />
+                                      </td>
+                                    </tr>
+                                  )}
+                                  </React.Fragment>
                                 );
                               })
                             )}
@@ -2097,6 +2153,9 @@ const ConcentrationSheets: React.FC = () => {
                             {/* Totals Row */}
                             {entries.length > 0 && (
                               <tr className="bg-gray-50 border-t-2 border-gray-300">
+                                <td className="px-2 py-3 text-sm text-gray-500">
+                                  -
+                                </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {t("concentration.totals")}
                                 </td>

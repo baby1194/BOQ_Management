@@ -1,5 +1,7 @@
 """Helpers for concentration entry quantity calculations."""
 
+from utils.calculation_sheet_utils import breakdowns_equal
+
 
 def compute_quantity_submitted(
     estimated_quantity: float, submission_percentage: float
@@ -30,6 +32,9 @@ def apply_calculation_entry_quantities(
     concentration_entry.submission_percentage = compute_submission_percentage(
         estimated, submitted
     )
+    concentration_entry.submission_breakdown = getattr(
+        calc_entry, "submission_breakdown", None
+    )
 
 
 def concentration_entry_quantities_differ(
@@ -40,4 +45,9 @@ def concentration_entry_quantities_differ(
     new_submitted = float(calc_entry.quantity_submitted or 0)
     old_estimated = float(concentration_entry.estimated_quantity or 0)
     old_submitted = float(concentration_entry.quantity_submitted or 0)
-    return old_estimated != new_estimated or old_submitted != new_submitted
+    if old_estimated != new_estimated or old_submitted != new_submitted:
+        return True
+    return not breakdowns_equal(
+        getattr(concentration_entry, "submission_breakdown", None),
+        getattr(calc_entry, "submission_breakdown", None),
+    )

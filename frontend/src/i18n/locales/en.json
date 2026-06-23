@@ -657,5 +657,17 @@
     "deleting": "Deleting...",
     "deletedSuccessfully": "Deleted successfully",
     "failedToDelete": "Failed to delete"
+  },
+  "submissionBreakdown": {
+    "title": "Submission breakdown",
+    "period": "Period",
+    "submittedQty": "Submitted qty",
+    "currentPeriod": "Current ({{period}})",
+    "leftSubmitted": "Left submitted",
+    "toggleDetails": "Show submission breakdown",
+    "retrackToLoad": "Re-track the calculation sheet to load past months and left submitted quantities.",
+    "currentMonthHint": "",
+    "exportPastMonths": "Past months submitted",
+    "exportLeftSubmitted": "Left submitted"
   }
 }

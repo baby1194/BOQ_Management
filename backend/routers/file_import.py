@@ -113,6 +113,7 @@ def import_calculation_sheet_from_disk(
                 section_number=entry_data["section_number"],
                 estimated_quantity=entry_data["estimated_quantity"],
                 quantity_submitted=entry_data["quantity_submitted"],
+                submission_breakdown=entry_data.get("submission_breakdown"),
                 notes=entry_data.get("notes", ""),
             )
         )
@@ -874,6 +875,7 @@ async def import_calculation_sheets(
                         section_number=entry_data['section_number'],
                         estimated_quantity=entry_data['estimated_quantity'],
                         quantity_submitted=entry_data['quantity_submitted'],
+                        submission_breakdown=entry_data.get('submission_breakdown'),
                         notes=entry_data.get('notes', '')
                     )
                     db.add(new_entry)

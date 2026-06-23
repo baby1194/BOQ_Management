@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 # BOQ Item Schemas
@@ -121,6 +121,7 @@ class ConcentrationEntryBase(BaseModel):
     estimated_quantity: float = Field(0.0, ge=0)
     submission_percentage: float = Field(100.0, ge=0, le=100)
     quantity_submitted: float = Field(0.0, ge=0)
+    submission_breakdown: Optional[Dict[str, Any]] = None
     internal_quantity: float = Field(0.0, ge=0)
     approved_by_project_manager: float = Field(0.0, ge=0)
     notes: Optional[str] = None
@@ -190,6 +191,8 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_estimated_quantity: bool = True
     include_submission_percentage: bool = True
     include_quantity_submitted: bool = True
+    include_past_months_submitted: bool = False
+    include_left_submitted: bool = False
     include_internal_quantity: bool = True
     include_approved_by_project_manager: bool = True
     include_notes: bool = True
@@ -318,6 +321,7 @@ class CalculationEntryBase(BaseModel):
     section_number: str = Field(..., min_length=1, max_length=100)
     estimated_quantity: float = Field(0.0, ge=0)
     quantity_submitted: float = Field(0.0, ge=0)
+    submission_breakdown: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
 
 class CalculationEntryCreate(CalculationEntryBase):

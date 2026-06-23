@@ -62,6 +62,7 @@ def refresh_calculation_sheet_from_disk(
                     section_number=entry_data["section_number"],
                     estimated_quantity=entry_data["estimated_quantity"],
                     quantity_submitted=entry_data["quantity_submitted"],
+                    submission_breakdown=entry_data.get("submission_breakdown"),
                     notes=entry_data.get("notes", ""),
                 )
             )
@@ -703,6 +704,9 @@ async def populate_concentration_entries(
                     quantity_submitted=submitted,
                     submission_percentage=compute_submission_percentage(
                         estimated, submitted
+                    ),
+                    submission_breakdown=getattr(
+                        calc_entry, "submission_breakdown", None
                     ),
                     internal_quantity=0.0,
                     approved_by_project_manager=0.0,
