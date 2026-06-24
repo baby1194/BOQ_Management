@@ -618,6 +618,17 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
+# Non-BOQ item schemas (calc sheet sections missing from BOQ list)
+class NonBoqItem(BaseModel):
+    id: int
+    section_number: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 # Workspace project schemas (multi-project support)
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)

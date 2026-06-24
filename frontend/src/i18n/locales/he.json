@@ -553,7 +553,13 @@
     "version": "גרסה",
     "lastUpdated": "עודכן לאחרונה",
     "database": "מסד נתונים",
-    "backend": "שרת"
+    "backend": "שרת",
+    "nonBoqItems": "פריטים שאינם ב-BOQ",
+    "nonBoqItemsDescription": "מספרי סעיפים שנמצאו בדפי חישוב ואינם ברשימת ה-BOQ",
+    "noNonBoqItems": "לא נמצאו מספרי סעיפים לא מוכרים",
+    "addToBoqList": "הוסף לרשימת פריטי BOQ",
+    "removeFromList": "הסר מהרשימה",
+    "removingNonBoqItem": "מסיר..."
   },
   "calculationSheets": {
     "title": "דפי חישוב",

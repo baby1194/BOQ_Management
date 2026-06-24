@@ -233,6 +233,17 @@ class BOQItemQuantityUpdate(Base):
         UniqueConstraint('boq_item_id', 'contract_update_id', name='uq_boq_item_contract_update'),
     )
 
+class NonBoqItem(Base):
+    """Section numbers found in calculation sheets but not in the BOQ list."""
+
+    __tablename__ = "non_boq_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    section_number = Column(String(100), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
     

@@ -264,6 +264,13 @@ export interface PopulateConcentrationEntriesResponse {
   concentration_sheets_exported?: number;
 }
 
+export interface NonBoqItem {
+  id: number;
+  section_number: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface ProjectInfo {
   id: number;
   project_name?: string;

@@ -14,6 +14,7 @@ from services.calculation_sheet_sync import (
 )
 from services.sync_service import SyncService
 from services.excel_service import ExcelService
+from services.non_boq_service import register_non_boq_items_from_calculation_entries
 from services.pdf_service import PDFService
 from utils.concentration_utils import (
     apply_calculation_entry_quantities,
@@ -67,6 +68,8 @@ def refresh_calculation_sheet_from_disk(
                 )
             )
             entries_refreshed += 1
+
+        register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
 
         push_calculation_sheet_to_concentration_entries(
             db,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
@@ -91,6 +91,7 @@ type BoqEditingColumnKey =
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [items, setItems] = useState<BOQItem[]>([]);
@@ -455,6 +456,56 @@ const BOQItems: React.FC = () => {
     structure: 0,
   });
   const [creatingItem, setCreatingItem] = useState(false);
+  const addNewItemSectionRef = useRef<HTMLDivElement>(null);
+  const newItemDescriptionRef = useRef<HTMLInputElement>(null);
+  const pendingAddFormNavigationRef = useRef(false);
+
+  useEffect(() => {
+    const addSection = searchParams.get("addSection");
+    if (!addSection) return;
+
+    pendingAddFormNavigationRef.current = true;
+    setPanelsCollapsed(false);
+    setShowAddForm(true);
+    setNewItemForm((prev) => ({
+      ...prev,
+      section_number: addSection,
+    }));
+
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("addSection");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (
+      !pendingAddFormNavigationRef.current ||
+      loading ||
+      !showAddForm ||
+      panelsCollapsed
+    ) {
+      return;
+    }
+
+    pendingAddFormNavigationRef.current = false;
+
+    const timeoutId = window.setTimeout(() => {
+      addNewItemSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      window.setTimeout(() => {
+        newItemDescriptionRef.current?.focus({ preventScroll: true });
+      }, 350);
+    }, 100);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showAddForm, panelsCollapsed, loading]);
 
   // Password confirmation functions
   const handlePasswordConfirm = async () => {
@@ -2696,7 +2747,10 @@ const BOQItems: React.FC = () => {
 
       {/* Manual BOQ Item Creation Form */}
       {!panelsCollapsed && showAddForm && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div
+          ref={addNewItemSectionRef}
+          className="bg-white rounded-lg shadow p-6"
+        >
           <div className="flex justify-between items-center mb-4">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
@@ -2775,6 +2829,7 @@ const BOQItems: React.FC = () => {
                 {t("boq.description")} *
               </label>
               <input
+                ref={newItemDescriptionRef}
                 type="text"
                 required
                 value={newItemForm.description}

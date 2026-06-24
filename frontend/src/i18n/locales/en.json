@@ -552,7 +552,13 @@
     "version": "Version",
     "lastUpdated": "Last Updated",
     "database": "Database",
-    "backend": "Backend"
+    "backend": "Backend",
+    "nonBoqItems": "Non-BOQ Items",
+    "nonBoqItemsDescription": "Section numbers found in calculation sheets that are not in your BOQ list",
+    "noNonBoqItems": "No unknown section numbers found",
+    "addToBoqList": "Add to BOQ items list",
+    "removeFromList": "Remove from list",
+    "removingNonBoqItem": "Removing..."
   },
   "calculationSheets": {
     "title": "Calculation Sheets",

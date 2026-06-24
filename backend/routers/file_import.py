@@ -19,6 +19,7 @@ from services.calculation_sheet_sync import (
     push_calculation_sheet_to_concentration_entries,
     run_auto_sync_after_calculation_sheet_changes,
 )
+from services.non_boq_service import register_non_boq_items_from_calculation_entries
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
@@ -119,6 +120,8 @@ def import_calculation_sheet_from_disk(
             )
         )
         entries_created += 1
+
+    register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
 
     push_calculation_sheet_to_concentration_entries(
         db,
@@ -895,6 +898,10 @@ async def import_calculation_sheets(
                     )
                     db.add(new_entry)
                     entries_created += 1
+
+                register_non_boq_items_from_calculation_entries(
+                    db, sheet_data["entries"]
+                )
 
                 push_calculation_sheet_to_concentration_entries(
                     db,

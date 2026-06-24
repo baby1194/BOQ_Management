@@ -7,6 +7,7 @@ import {
   searchApi,
   concentrationApi,
   calculationSheetsApi,
+  nonBoqApi,
 } from "../services/api";
 import {
   BarChart3,
@@ -40,6 +41,7 @@ import {
   ConcentrationSheet,
   CalculationSheet,
   SummaryResponse,
+  NonBoqItem,
 } from "../types";
 
 const Dashboard: React.FC = () => {
@@ -60,6 +62,8 @@ const Dashboard: React.FC = () => {
   const [calculationSheets, setCalculationSheets] = useState<
     CalculationSheet[] | null
   >(null);
+  const [nonBoqItems, setNonBoqItems] = useState<NonBoqItem[]>([]);
+  const [removingNonBoqId, setRemovingNonBoqId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -80,13 +84,15 @@ const Dashboard: React.FC = () => {
       searchApi.getSummary(),
       concentrationApi.getAll(),
       calculationSheetsApi.getAll(),
+      nonBoqApi.getAll(),
     ])
-      .then(([boq, summaryData, concentration, calculation]) => {
+      .then(([boq, summaryData, concentration, calculation, nonBoq]) => {
         if (cancelled) return;
         setBoqItems(boq);
         setSummary(summaryData);
         setConcentrationSheets(concentration);
         setCalculationSheets(calculation);
+        setNonBoqItems(nonBoq);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -185,6 +191,24 @@ const Dashboard: React.FC = () => {
   };
 
   const stats = calculateStats();
+
+  const handleRemoveNonBoqItem = async (item: NonBoqItem) => {
+    setRemovingNonBoqId(item.id);
+    try {
+      await nonBoqApi.remove(item.id);
+      setNonBoqItems((prev) => prev.filter((entry) => entry.id !== item.id));
+    } catch (error) {
+      console.error("Failed to remove non-BOQ item:", error);
+    } finally {
+      setRemovingNonBoqId(null);
+    }
+  };
+
+  const handleAddNonBoqToBoq = (sectionNumber: string) => {
+    navigate(
+      `/boq?addSection=${encodeURIComponent(sectionNumber)}`,
+    );
+  };
 
   // Main statistics cards
   const mainStats = [
@@ -498,6 +522,71 @@ const Dashboard: React.FC = () => {
             </div>
           );
         })}
+      </div>
+
+      {/* Non-BOQ Items from Calculation Sheets */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2
+            className={`text-lg font-semibold text-gray-900 flex items-center ${
+              isRTL ? "flex-row-reverse" : ""
+            }`}
+          >
+            <AlertTriangle
+              className={`h-5 w-5 text-amber-600 ${isRTL ? "ml-2" : "mr-2"}`}
+            />
+            <span>{t("dashboard.nonBoqItems")}</span>
+          </h2>
+          <p className="text-sm text-gray-600 mt-1">
+            {t("dashboard.nonBoqItemsDescription")}
+          </p>
+        </div>
+        <div className="p-6">
+          {nonBoqItems.length > 0 ? (
+            <div className="space-y-3">
+              {nonBoqItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center justify-between gap-4 p-3 bg-amber-50 rounded-lg border border-amber-200 ${
+                    isRTL ? "flex-row-reverse" : ""
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {item.section_number}
+                    </p>
+                  </div>
+                  <div
+                    className={`flex items-center gap-2 shrink-0 ${
+                      isRTL ? "flex-row-reverse" : ""
+                    }`}
+                  >
+                    <button
+                      onClick={() => handleAddNonBoqToBoq(item.section_number)}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      {t("dashboard.addToBoqList")}
+                    </button>
+                    <button
+                      onClick={() => handleRemoveNonBoqItem(item)}
+                      disabled={removingNonBoqId === item.id}
+                      className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                      {removingNonBoqId === item.id
+                        ? t("dashboard.removingNonBoqItem")
+                        : t("dashboard.removeFromList")}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-300" />
+              <p>{t("dashboard.noNonBoqItems")}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Summary Charts Section */}

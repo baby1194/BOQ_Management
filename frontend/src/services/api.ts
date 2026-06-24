@@ -20,6 +20,7 @@ import {
   CalculationEntry,
   CalculationImportResponse,
   PopulateConcentrationEntriesResponse,
+  NonBoqItem,
   ProjectInfo,
   ProjectInfoUpdate,
   ContractQuantityUpdate,
@@ -59,6 +60,7 @@ function withTrailingSlash(url: string): string {
     "/boq",
     "/concentration",
     "/calculation-sheets",
+    "/non-boq-items",
     "/contract-updates",
     "/project-info",
     "/search",
@@ -160,6 +162,14 @@ export const boqApi = {
     api
       .post<{ ok: boolean }>("/boq/reorder", { ordered_ids: orderedIds })
       .then((res) => res.data),
+};
+
+export const nonBoqApi = {
+  getAll: () =>
+    api.get<NonBoqItem[]>("/non-boq-items").then((res) => res.data),
+
+  remove: (id: number) =>
+    api.delete(`/non-boq-items/${id}`).then((res) => res.data),
 };
 
 // Concentration Sheets API

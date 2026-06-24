@@ -7,6 +7,7 @@ import logging
 from database.database import get_db
 from models import models
 from schemas import schemas
+from services.non_boq_service import remove_non_boq_item_by_section
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -182,6 +183,9 @@ async def create_boq_item(item: schemas.BOQItemCreate, db: Session = Depends(get
         db_item.serial_number = db_item.id
         db.commit()
         db.refresh(db_item)
+
+        remove_non_boq_item_by_section(db, item.section_number)
+        db.commit()
         
         logger.info(f"Created BOQ item: {item.section_number}")
         return db_item
