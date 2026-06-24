@@ -673,6 +673,7 @@
     "leftSubmitted": "כמות שנותרה",
     "toggleDetails": "הצג פירוט הגשות",
     "retrackToLoad": "עקוב אחר דף החישוב מחדש כדי לטעון כמויות של חודשים קודמים וכמות שנותרה.",
+    "noNonZeroSubmitted": "אין כמויות מוגשות שאינן אפס.",
     "currentMonthHint": "",
     "exportPastMonths": "כמויות מוגשות של חודשים קודמים",
     "exportLeftSubmitted": "כמות שנותרה"

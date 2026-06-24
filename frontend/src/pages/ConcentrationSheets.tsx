@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -148,6 +148,10 @@ const ConcentrationSheets: React.FC = () => {
   const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
   >(new Set());
+  const visibleEntries = useMemo(
+    () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
+    [entries],
+  );
 
   // Project info state - will be loaded from selected sheet
   const [projectInfo, setProjectInfo] = useState({
@@ -1569,7 +1573,7 @@ const ConcentrationSheets: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {entries.length === 0 ? (
+                            {visibleEntries.length === 0 ? (
                               <tr>
                                 <td
                                   colSpan={13}
@@ -1584,7 +1588,7 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                               </tr>
                             ) : (
-                              entries.map((entry) => {
+                              visibleEntries.map((entry) => {
                                 const isEditingRow =
                                   editingEntry !== null &&
                                   editDraft !== null &&
@@ -2192,7 +2196,7 @@ const ConcentrationSheets: React.FC = () => {
                             )}
 
                             {/* Totals Row */}
-                            {entries.length > 0 && (
+                            {visibleEntries.length > 0 && (
                               <tr className="bg-gray-50 border-t-2 border-gray-300">
                                 <td className="px-2 py-3 text-sm text-gray-500">
                                   -
@@ -2211,7 +2215,7 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
-                                    entries.reduce(
+                                    visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.estimated_quantity,
                                       0,
@@ -2223,7 +2227,7 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
-                                    entries.reduce(
+                                    visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.quantity_submitted,
                                       0,
@@ -2232,7 +2236,7 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
-                                    entries.reduce(
+                                    visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.internal_quantity,
                                       0,
@@ -2241,7 +2245,7 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
-                                    entries.reduce(
+                                    visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.approved_by_project_manager,
                                       0,

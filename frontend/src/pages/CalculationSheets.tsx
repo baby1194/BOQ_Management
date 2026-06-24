@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { calculationSheetsApi } from "../services/api";
@@ -54,6 +54,10 @@ const CalculationSheets: React.FC = () => {
   const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
   >(new Set());
+  const visibleEntries = useMemo(
+    () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
+    [entries],
+  );
   const [openingFile, setOpeningFile] = useState(false);
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
     new Set()
@@ -1020,7 +1024,7 @@ const CalculationSheets: React.FC = () => {
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
-                        {t("calculationSheets.entries")} ({entries.length})
+                        {t("calculationSheets.entries")} ({visibleEntries.length})
                       </h3>
                       {selectedSheet && (
                         <p className="text-sm text-gray-500 mt-1">
@@ -1073,7 +1077,7 @@ const CalculationSheets: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {entries.length === 0 ? (
+                            {visibleEntries.length === 0 ? (
                               <tr>
                                 <td
                                   colSpan={6}
@@ -1086,7 +1090,7 @@ const CalculationSheets: React.FC = () => {
                                 </td>
                               </tr>
                             ) : (
-                              entries.map((entry) => {
+                              visibleEntries.map((entry) => {
                                 const isExpanded = expandedBreakdownEntryIds.has(
                                   entry.id,
                                 );

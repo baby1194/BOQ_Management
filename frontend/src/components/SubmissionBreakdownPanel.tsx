@@ -53,9 +53,34 @@ export const SubmissionBreakdownPanel: React.FC<
   }
 
   const periodQuantities = getPeriodQuantities(breakdown);
-  const periodKeys = sortedPeriodKeys(periodQuantities);
   const currentPeriod = breakdown.current_drawing_no?.trim() || "";
   const leftSubmitted = breakdown.left_submitted ?? 0;
+
+  const visiblePeriodRows = sortedPeriodKeys(periodQuantities).flatMap(
+    (period) => {
+      const isCurrent = period === currentPeriod;
+      const qty = isCurrent
+        ? quantitySubmitted
+        : (periodQuantities[period] ?? 0);
+      if (qty === 0) {
+        return [];
+      }
+      return [{ period, isCurrent, qty }];
+    },
+  );
+  const showLeftSubmitted = leftSubmitted !== 0;
+
+  if (visiblePeriodRows.length === 0 && !showLeftSubmitted) {
+    return (
+      <div
+        className={`rounded-md border border-gray-200 bg-gray-50 text-sm text-gray-600 ${
+          compact ? "px-3 py-2" : "px-4 py-3"
+        }`}
+      >
+        {t("submissionBreakdown.noNonZeroSubmitted")}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -75,42 +100,37 @@ export const SubmissionBreakdownPanel: React.FC<
             </tr>
           </thead>
           <tbody className="text-gray-800">
-            {periodKeys.map((period) => {
-              const isCurrent = period === currentPeriod;
-              const qty = isCurrent
-                ? quantitySubmitted
-                : (periodQuantities[period] ?? 0);
-
-              return (
-                <tr
-                  key={period}
-                  className={isCurrent ? "border-t border-gray-200" : undefined}
+            {visiblePeriodRows.map(({ period, isCurrent, qty }) => (
+              <tr
+                key={period}
+                className={isCurrent ? "border-t border-gray-200" : undefined}
+              >
+                <td
+                  className={`py-0.5 pe-4 font-medium ${
+                    isCurrent ? "font-semibold text-blue-700" : ""
+                  }`}
                 >
-                  <td
-                    className={`py-0.5 pe-4 font-medium ${
-                      isCurrent ? "font-semibold text-blue-700" : ""
-                    }`}
-                  >
-                    {isCurrent
-                      ? t("submissionBreakdown.currentPeriod", { period })
-                      : period}
-                  </td>
-                  <td
-                    className={`py-0.5 ${
-                      isCurrent ? "font-semibold text-blue-700" : ""
-                    }`}
-                  >
-                    {formatNumber(qty)}
-                  </td>
-                </tr>
-              );
-            })}
-            <tr className="border-t border-gray-200">
-              <td className="py-0.5 pe-4 font-medium">
-                {t("submissionBreakdown.leftSubmitted")}
-              </td>
-              <td className="py-0.5">{formatNumber(leftSubmitted)}</td>
-            </tr>
+                  {isCurrent
+                    ? t("submissionBreakdown.currentPeriod", { period })
+                    : period}
+                </td>
+                <td
+                  className={`py-0.5 ${
+                    isCurrent ? "font-semibold text-blue-700" : ""
+                  }`}
+                >
+                  {formatNumber(qty)}
+                </td>
+              </tr>
+            ))}
+            {showLeftSubmitted && (
+              <tr className="border-t border-gray-200">
+                <td className="py-0.5 pe-4 font-medium">
+                  {t("submissionBreakdown.leftSubmitted")}
+                </td>
+                <td className="py-0.5">{formatNumber(leftSubmitted)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

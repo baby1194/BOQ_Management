@@ -672,6 +672,7 @@
     "leftSubmitted": "Left submitted",
     "toggleDetails": "Show submission breakdown",
     "retrackToLoad": "Re-track the calculation sheet to load past months and left submitted quantities.",
+    "noNonZeroSubmitted": "No non-zero submitted quantities.",
     "currentMonthHint": "",
     "exportPastMonths": "Past months submitted",
     "exportLeftSubmitted": "Left submitted"
