@@ -9,6 +9,7 @@ from models import models
 from schemas import schemas
 from services.calculation_sheet_sync import (
     perform_sync_all_calculation_sheets,
+    push_calculation_sheet_to_concentration_entries,
     run_auto_sync_after_calculation_sheet_changes,
 )
 from services.sync_service import SyncService
@@ -43,16 +44,11 @@ def refresh_calculation_sheet_from_disk(
 
     try:
         sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
+        previous_calculation_sheet_no = sheet.calculation_sheet_no
         sheet.file_name = file_path.name
         sheet.description = sheet_data["description"]
         sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
         sheet.drawing_no = sheet_data["drawing_no"]
-        db.query(models.ConcentrationEntry).filter(
-            models.ConcentrationEntry.calculation_sheet_no == sheet_data["calculation_sheet_no"]
-        ).update(
-            {"drawing_no": sheet_data["drawing_no"]},
-            synchronize_session=False,
-        )
 
         db.query(models.CalculationEntry).filter(
             models.CalculationEntry.calculation_sheet_id == sheet.id
@@ -71,6 +67,12 @@ def refresh_calculation_sheet_from_disk(
                 )
             )
             entries_refreshed += 1
+
+        push_calculation_sheet_to_concentration_entries(
+            db,
+            sheet,
+            lookup_calculation_sheet_no=previous_calculation_sheet_no,
+        )
 
         logger.info(f"Tracked calculation sheet {label} from {file_path}")
         return entries_refreshed, None

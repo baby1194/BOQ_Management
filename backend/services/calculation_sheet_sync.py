@@ -8,10 +8,60 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from database.database import get_project_export_dir
+from models import models
 from services.pdf_service import PDFService
 from services.sync_service import SyncService
+from utils.concentration_utils import apply_calculation_entry_quantities
 
 logger = logging.getLogger(__name__)
+
+
+def push_calculation_sheet_to_concentration_entries(
+    db: Session,
+    calculation_sheet: models.CalculationSheet,
+    *,
+    lookup_calculation_sheet_no: str | None = None,
+) -> int:
+    """
+    Copy estimated/submitted quantities from calc entries to matching concentration entries.
+    Used immediately after import or track so concentration values stay in sync.
+    """
+    lookup_no = lookup_calculation_sheet_no or calculation_sheet.calculation_sheet_no
+    db.flush()
+
+    calculation_entries = (
+        db.query(models.CalculationEntry)
+        .filter(models.CalculationEntry.calculation_sheet_id == calculation_sheet.id)
+        .all()
+    )
+
+    updated = 0
+    for calc_entry in calculation_entries:
+        concentration_entry = (
+            db.query(models.ConcentrationEntry)
+            .filter(
+                models.ConcentrationEntry.section_number == calc_entry.section_number,
+                models.ConcentrationEntry.calculation_sheet_no == lookup_no,
+            )
+            .first()
+        )
+        if not concentration_entry:
+            continue
+
+        apply_calculation_entry_quantities(concentration_entry, calc_entry)
+        concentration_entry.calculation_sheet_no = calculation_sheet.calculation_sheet_no
+        concentration_entry.drawing_no = calculation_sheet.drawing_no
+        concentration_entry.description = calculation_sheet.description
+        concentration_entry.is_manual = False
+        updated += 1
+
+    if updated:
+        logger.info(
+            "Pushed calc sheet %s quantities to %s concentration entries",
+            calculation_sheet.calculation_sheet_no,
+            updated,
+        )
+    return updated
 
 
 def perform_sync_all_calculation_sheets(

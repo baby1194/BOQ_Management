@@ -15,7 +15,10 @@ from database.database import get_db, get_system_db, get_project_id, get_project
 from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
-from services.calculation_sheet_sync import run_auto_sync_after_calculation_sheet_changes
+from services.calculation_sheet_sync import (
+    push_calculation_sheet_to_concentration_entries,
+    run_auto_sync_after_calculation_sheet_changes,
+)
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
@@ -74,22 +77,19 @@ def import_calculation_sheet_from_disk(
             f"Updating existing calculation sheet: {file_path.name} - "
             f"Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}"
         )
+        previous_calculation_sheet_no = existing_sheet.calculation_sheet_no
         existing_sheet.file_name = file_path.name
+        existing_sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
         existing_sheet.drawing_no = sheet_data["drawing_no"]
         existing_sheet.description = sheet_data["description"]
         existing_sheet.source_file_path = source_file_path
-        db.query(models.ConcentrationEntry).filter(
-            models.ConcentrationEntry.calculation_sheet_no == sheet_data["calculation_sheet_no"]
-        ).update(
-            {"drawing_no": sheet_data["drawing_no"]},
-            synchronize_session=False,
-        )
         db.query(models.CalculationEntry).filter(
             models.CalculationEntry.calculation_sheet_id == existing_sheet.id
         ).delete()
         current_sheet = existing_sheet
         was_existing = True
     else:
+        previous_calculation_sheet_no = None
         logger.info(
             f"Creating new calculation sheet: {file_path.name} - "
             f"Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}"
@@ -119,6 +119,12 @@ def import_calculation_sheet_from_disk(
             )
         )
         entries_created += 1
+
+    push_calculation_sheet_to_concentration_entries(
+        db,
+        current_sheet,
+        lookup_calculation_sheet_no=previous_calculation_sheet_no,
+    )
 
     files_saved_count = save_calculation_sheet_to_item_folders(
         file_path,
@@ -836,20 +842,16 @@ async def import_calculation_sheets(
                     models.CalculationSheet.calculation_sheet_no == sheet_data['calculation_sheet_no'],
                 ).first()
                 
+                previous_calculation_sheet_no = None
                 if existing_sheet:
                     # Update existing calculation sheet with new data
                     logger.info(f"Updating existing calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
                     
-                    # Update the existing sheet with new data
+                    previous_calculation_sheet_no = existing_sheet.calculation_sheet_no
                     existing_sheet.file_name = file.filename
+                    existing_sheet.calculation_sheet_no = sheet_data['calculation_sheet_no']
                     existing_sheet.drawing_no = sheet_data['drawing_no']
                     existing_sheet.description = sheet_data['description']
-                    db.query(models.ConcentrationEntry).filter(
-                        models.ConcentrationEntry.calculation_sheet_no == sheet_data['calculation_sheet_no']
-                    ).update(
-                        {"drawing_no": sheet_data['drawing_no']},
-                        synchronize_session=False,
-                    )
                     keep_existing_source = (
                         existing_sheet.source_file_path
                         and not is_upload_copy_path(existing_sheet.source_file_path, upload_dir)
@@ -893,6 +895,12 @@ async def import_calculation_sheets(
                     )
                     db.add(new_entry)
                     entries_created += 1
+
+                push_calculation_sheet_to_concentration_entries(
+                    db,
+                    current_sheet,
+                    lookup_calculation_sheet_no=previous_calculation_sheet_no,
+                )
                 
                 # Save the calculation sheet Excel file to all related contract item folders
                 # Use the original filename (file.filename) to preserve the original name even if it was renamed during upload
