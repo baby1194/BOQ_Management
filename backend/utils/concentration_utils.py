@@ -1,6 +1,19 @@
 """Helpers for concentration entry quantity calculations."""
 
+from typing import Iterable, List, TypeVar
+
 from utils.calculation_sheet_utils import breakdowns_equal
+
+T = TypeVar("T")
+
+
+def filter_concentration_entries_for_export(entries: Iterable[T]) -> List[T]:
+    """Exclude entries with zero estimated quantity from concentration sheet exports."""
+    return [
+        entry
+        for entry in entries
+        if float(getattr(entry, "estimated_quantity", 0) or 0) != 0
+    ]
 
 
 def compute_quantity_submitted(

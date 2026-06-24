@@ -449,6 +449,10 @@ class ExcelService:
         entry_columns: optional dict with include_* keys to filter which columns to include.
         db_session: optional DB session to resolve Calculation Sheet No -> file link under C:/Fatina."""
         try:
+            from utils.concentration_utils import filter_concentration_entries_for_export
+
+            entries = filter_concentration_entries_for_export(entries or [])
+
             link_section = (
                 str(boq_item.section_number).strip()
                 if boq_item and boq_item.section_number
@@ -639,6 +643,8 @@ class ExcelService:
     def export_all_concentration_sheets(self, sheets, db_session):
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
+            from utils.concentration_utils import filter_concentration_entries_for_export
+
             exported_paths = []
             from routers.file_import import (
                 copy_calculation_sheets_to_item_folder,
@@ -663,6 +669,7 @@ class ExcelService:
                 entries = db_session.query(models.ConcentrationEntry).filter(
                     models.ConcentrationEntry.concentration_sheet_id == sheet.id
                 ).order_by(models.ConcentrationEntry.id).all()
+                entries = filter_concentration_entries_for_export(entries)
 
                 folder_name = sanitize_folder_name(link_section)
                 base_dir = FATINA_BASE_DIR / folder_name

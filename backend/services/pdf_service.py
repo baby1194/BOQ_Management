@@ -863,6 +863,10 @@ class PDFService:
     def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en"):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
+            from utils.concentration_utils import filter_concentration_entries_for_export
+
+            entries = filter_concentration_entries_for_export(entries or [])
+
             if db_session and boq_item and boq_item.section_number:
                 from routers.file_import import (
                     copy_calculation_sheets_to_item_folder,
