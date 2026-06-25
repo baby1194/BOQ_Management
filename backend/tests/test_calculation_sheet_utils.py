@@ -158,6 +158,52 @@ def test_reads_quantities_beyond_row_100():
     assert breakdown["periods"]["01"] == 99.0
 
 
+def test_concentration_export_totals_row_leaves_percentage_blank():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import (
+        build_concentration_export_totals_row,
+        format_concentration_export_row_for_pdf,
+        filter_concentration_export_headers,
+    )
+
+    entries = [
+        SimpleNamespace(
+            description="a",
+            calculation_sheet_no="1",
+            drawing_no="01",
+            estimated_quantity=100,
+            submission_percentage=50,
+            quantity_submitted=50,
+            internal_quantity=10,
+            approved_by_project_manager=5,
+            notes="",
+            submission_breakdown=None,
+        ),
+        SimpleNamespace(
+            description="b",
+            calculation_sheet_no="2",
+            drawing_no="02",
+            estimated_quantity=200,
+            submission_percentage=75,
+            quantity_submitted=150,
+            internal_quantity=20,
+            approved_by_project_manager=10,
+            notes="",
+            submission_breakdown=None,
+        ),
+    ]
+    headers, period_keys = filter_concentration_export_headers({}, entries)
+    totals = build_concentration_export_totals_row(
+        entries, headers, period_keys, "TOTALS"
+    )
+    assert totals["Submission Percentage"] == ""
+
+    formatted = format_concentration_export_row_for_pdf(totals, headers)
+    pct_idx = headers.index("Submission Percentage")
+    assert formatted[pct_idx] == ""
+
+
 def test_validate_calculation_sheet_header_fields_messages():
     import pytest
 

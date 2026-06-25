@@ -458,7 +458,10 @@ def format_concentration_export_row_for_pdf(
     for header in filtered_headers:
         value = row_values.get(header, "")
         if header == "Submission Percentage":
-            formatted.append(f"{float(value or 0):,.1f}%")
+            if value in ("", None):
+                formatted.append("")
+            else:
+                formatted.append(f"{float(value):,.1f}%")
         elif header in text_headers:
             formatted.append(str(value or ""))
         else:
@@ -474,6 +477,8 @@ def build_concentration_export_totals_row(
 ) -> Dict[str, Any]:
     totals: Dict[str, Any] = {header: "" for header in filtered_headers}
     totals["Description"] = totals_label
+    if "Submission Percentage" in filtered_headers:
+        totals["Submission Percentage"] = ""
     numeric_headers = [
         "Estimated Quantity",
         "Quantity Submitted",
