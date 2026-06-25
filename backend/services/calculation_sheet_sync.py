@@ -12,6 +12,7 @@ from models import models
 from services.pdf_service import PDFService
 from services.sync_service import SyncService
 from utils.concentration_utils import apply_calculation_entry_quantities
+from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,9 @@ def push_calculation_sheet_to_concentration_entries(
 
         apply_calculation_entry_quantities(concentration_entry, calc_entry)
         concentration_entry.calculation_sheet_no = calculation_sheet.calculation_sheet_no
-        concentration_entry.drawing_no = calculation_sheet.drawing_no
+        concentration_entry.drawing_no = resolve_calc_entry_current_invoice_id(
+            calc_entry, calculation_sheet
+        )
         concentration_entry.description = calculation_sheet.description
         concentration_entry.is_manual = False
         updated += 1

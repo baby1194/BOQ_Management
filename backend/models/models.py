@@ -164,6 +164,7 @@ class CalculationEntry(Base):
     
     # Entry details
     section_number = Column(String(100), nullable=False)
+    current_invoice_id = Column(String(100), nullable=True)
     estimated_quantity = Column(Float, default=0.0)
     quantity_submitted = Column(Float, default=0.0)
     submission_breakdown = Column(JSON, nullable=True)

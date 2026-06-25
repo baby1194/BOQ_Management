@@ -319,6 +319,7 @@ class CalculationSheetSourceFilePathUpdate(BaseModel):
 # Calculation Entry Schemas
 class CalculationEntryBase(BaseModel):
     section_number: str = Field(..., min_length=1, max_length=100)
+    current_invoice_id: Optional[str] = None
     estimated_quantity: float = Field(0.0, ge=0)
     quantity_submitted: float = Field(0.0, ge=0)
     submission_breakdown: Optional[Dict[str, Any]] = None

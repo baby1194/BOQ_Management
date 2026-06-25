@@ -592,6 +592,7 @@
     "trackSheetTooltip": "Reread this calculation sheet from its source file path and refresh entry values",
     "failedToTrack": "Failed to track calculation sheets from disk",
     "entries": "Entries",
+    "currentInvoiceId": "Invoice No",
     "noEntriesFound": "No entries found for this sheet",
     "entryNumber": "Entry Number",
     "itemDescription": "Item Description",

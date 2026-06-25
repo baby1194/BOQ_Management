@@ -14,6 +14,7 @@ from utils.concentration_utils import (
     compute_submission_percentage,
     concentration_entry_quantities_differ,
 )
+from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +192,9 @@ class SyncService:
             
             section_number = calculation_entry.section_number
             calculation_sheet_no = calculation_sheet.calculation_sheet_no
-            drawing_no = calculation_sheet.drawing_no
+            drawing_no = resolve_calc_entry_current_invoice_id(
+                calculation_entry, calculation_sheet
+            )
             
             logger.info(f"Syncing update of calculation entry for section {section_number}")
             
@@ -312,6 +315,9 @@ class SyncService:
                     
                     # For each calculation entry, find and update the corresponding concentration entry
                     for calc_entry in calculation_entries:
+                        entry_invoice_id = resolve_calc_entry_current_invoice_id(
+                            calc_entry, calculation_sheet
+                        )
                         concentration_entry = self.db.query(models.ConcentrationEntry).filter(
                             models.ConcentrationEntry.section_number == calc_entry.section_number,
                             models.ConcentrationEntry.calculation_sheet_no == calculation_sheet.calculation_sheet_no,
@@ -319,14 +325,17 @@ class SyncService:
                         
                         if concentration_entry:
                             quantities_changed = concentration_entry_quantities_differ(
-                                concentration_entry, calc_entry
+                                concentration_entry,
+                                calc_entry,
+                                drawing_no=entry_invoice_id,
                             )
                             if quantities_changed:
                                 was_incorrectly_manual = concentration_entry.is_manual
                                 apply_calculation_entry_quantities(
-                                    concentration_entry, calc_entry
+                                    concentration_entry,
+                                    calc_entry,
+                                    drawing_no=entry_invoice_id,
                                 )
-                                concentration_entry.drawing_no = calculation_sheet.drawing_no
                                 concentration_entry.is_manual = False
                                 total_entries_updated += 1
                                 concentration_sheet = self.db.query(
@@ -350,7 +359,7 @@ class SyncService:
                                     )
                             elif concentration_entry.is_manual:
                                 concentration_entry.is_manual = False
-                                concentration_entry.drawing_no = calculation_sheet.drawing_no
+                                concentration_entry.drawing_no = entry_invoice_id
                                 logger.info(
                                     f"Corrected is_manual flag for section {calc_entry.section_number} "
                                     f"(quantities unchanged)"
@@ -375,7 +384,7 @@ class SyncService:
                                         section_number=calc_entry.section_number,
                                         description=calculation_sheet.description,
                                         calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                                        drawing_no=calculation_sheet.drawing_no,
+                                        drawing_no=entry_invoice_id,
                                         estimated_quantity=estimated,
                                         quantity_submitted=submitted,
                                         submission_percentage=compute_submission_percentage(

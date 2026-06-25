@@ -21,6 +21,7 @@ from utils.concentration_utils import (
     compute_submission_percentage,
     concentration_entry_quantities_differ,
 )
+from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ def refresh_calculation_sheet_from_disk(
                 models.CalculationEntry(
                     calculation_sheet_id=sheet.id,
                     section_number=entry_data["section_number"],
+                    current_invoice_id=entry_data.get("current_invoice_id"),
                     estimated_quantity=entry_data["estimated_quantity"],
                     quantity_submitted=entry_data["quantity_submitted"],
                     submission_breakdown=entry_data.get("submission_breakdown"),
@@ -631,6 +633,9 @@ async def populate_concentration_entries(
     
     try:
         for calc_entry in calculation_entries:
+            entry_invoice_id = resolve_calc_entry_current_invoice_id(
+                calc_entry, calculation_sheet
+            )
             # Find the corresponding concentration sheet for this entry
             if calc_entry.section_number not in section_to_concentration_sheet:
                 logger.warning(f"No concentration sheet found for section {calc_entry.section_number}")
@@ -653,14 +658,17 @@ async def populate_concentration_entries(
             
             if existing_concentration_entry:
                 if concentration_entry_quantities_differ(
-                    existing_concentration_entry, calc_entry
+                    existing_concentration_entry,
+                    calc_entry,
+                    drawing_no=entry_invoice_id,
                 ):
                     was_incorrectly_manual = existing_concentration_entry.is_manual
                     apply_calculation_entry_quantities(
-                        existing_concentration_entry, calc_entry
+                        existing_concentration_entry,
+                        calc_entry,
+                        drawing_no=entry_invoice_id,
                     )
                     existing_concentration_entry.description = calculation_sheet.description
-                    existing_concentration_entry.drawing_no = calculation_sheet.drawing_no
                     existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
                     existing_concentration_entry.is_manual = False
                     entries_created += 1
@@ -668,17 +676,17 @@ async def populate_concentration_entries(
                     if was_incorrectly_manual:
                         logger.info(
                             f"Corrected is_manual flag and updated entry for section {calc_entry.section_number} "
-                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no}"
+                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Invoice No {entry_invoice_id}"
                         )
                     else:
                         logger.info(
                             f"Updated existing auto-generated entry for section {calc_entry.section_number} "
-                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no} "
+                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Invoice No {entry_invoice_id} "
                             f"in sheet {concentration_sheet.sheet_name}"
                         )
                 elif existing_concentration_entry.is_manual:
                     existing_concentration_entry.is_manual = False
-                    existing_concentration_entry.drawing_no = calculation_sheet.drawing_no
+                    existing_concentration_entry.drawing_no = entry_invoice_id
                     entries_skipped += 1
                     logger.info(
                         f"Corrected is_manual flag for section {calc_entry.section_number} "
@@ -688,7 +696,7 @@ async def populate_concentration_entries(
                     entries_skipped += 1
                     logger.info(
                         f"Skipped unchanged entry for section {calc_entry.section_number} "
-                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Drawing No {calculation_sheet.drawing_no}"
+                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Invoice No {entry_invoice_id}"
                     )
             else:
                 estimated = float(calc_entry.estimated_quantity or 0)
@@ -699,7 +707,7 @@ async def populate_concentration_entries(
                     section_number=calc_entry.section_number,  # Use section number from calculation entry
                     description=calculation_sheet.description,  # Use calculation sheet description
                     calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                    drawing_no=calculation_sheet.drawing_no,
+                    drawing_no=entry_invoice_id,
                     estimated_quantity=estimated,
                     quantity_submitted=submitted,
                     submission_percentage=compute_submission_percentage(

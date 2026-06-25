@@ -9,6 +9,7 @@ import pandas as pd
 
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
+INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
 PERIOD_COLUMN_INDEX = 1  # Column B
 
 _INVALID_PERIOD_STRINGS = frozenset({"nan", "none", "<na>", "nat"})
@@ -143,6 +144,33 @@ def period_quantity(breakdown: Optional[Dict[str, Any]], period: str) -> float:
     return float(periods.get(period, 0.0) or 0.0)
 
 
+def read_entry_current_invoice_id(
+    df, col_index: int, sheet_drawing_no: str = ""
+) -> str:
+    """Read current invoice id from row 2 of an item column; fall back to sheet C2."""
+    if col_index < df.shape[1]:
+        cell = df.iloc[INVOICE_ID_ROW, col_index]
+        if pd.notna(cell):
+            text = str(cell).strip()
+            if text and text.lower() not in _INVALID_PERIOD_STRINGS:
+                return text
+    return str(sheet_drawing_no or "").strip()
+
+
+def resolve_calc_entry_current_invoice_id(
+    calc_entry: Any, calculation_sheet: Any | None = None
+) -> str:
+    """Resolve the active invoice id for a calculation entry."""
+    current = str(getattr(calc_entry, "current_invoice_id", None) or "").strip()
+    if not current:
+        breakdown = getattr(calc_entry, "submission_breakdown", None) or {}
+        if isinstance(breakdown, dict):
+            current = str(breakdown.get("current_drawing_no") or "").strip()
+    if not current and calculation_sheet is not None:
+        current = str(getattr(calculation_sheet, "drawing_no", None) or "").strip()
+    return current
+
+
 def compute_submission_breakdown(
     df,
     col_index: int,
@@ -215,7 +243,9 @@ def collect_breakdown_period_keys(entries: Iterable[Any]) -> List[str]:
 
 
 def _entry_current_drawing_no(entry: Any, breakdown: Dict[str, Any]) -> str:
-    current = str(breakdown.get("current_drawing_no") or "").strip()
+    current = str(getattr(entry, "current_invoice_id", None) or "").strip()
+    if not current:
+        current = str(breakdown.get("current_drawing_no") or "").strip()
     if not current:
         current = str(getattr(entry, "drawing_no", None) or "").strip()
     return current

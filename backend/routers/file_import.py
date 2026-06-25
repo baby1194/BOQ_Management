@@ -113,6 +113,7 @@ def import_calculation_sheet_from_disk(
             models.CalculationEntry(
                 calculation_sheet_id=current_sheet.id,
                 section_number=entry_data["section_number"],
+                current_invoice_id=entry_data.get("current_invoice_id"),
                 estimated_quantity=entry_data["estimated_quantity"],
                 quantity_submitted=entry_data["quantity_submitted"],
                 submission_breakdown=entry_data.get("submission_breakdown"),
@@ -891,6 +892,7 @@ async def import_calculation_sheets(
                     new_entry = models.CalculationEntry(
                         calculation_sheet_id=current_sheet.id,
                         section_number=entry_data['section_number'],
+                        current_invoice_id=entry_data.get('current_invoice_id'),
                         estimated_quantity=entry_data['estimated_quantity'],
                         quantity_submitted=entry_data['quantity_submitted'],
                         submission_breakdown=entry_data.get('submission_breakdown'),

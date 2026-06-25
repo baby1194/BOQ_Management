@@ -243,12 +243,29 @@ def _ensure_submission_breakdown_columns(engine) -> None:
                 row[1]
                 for row in conn.execute(text(f"PRAGMA table_info({table})"))
             ]
-            if "submission_breakdown" in columns:
-                continue
+            if "submission_breakdown" not in columns:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table} "
+                        "ADD COLUMN submission_breakdown TEXT"
+                    )
+                )
+        conn.commit()
+
+
+def _ensure_calculation_entry_current_invoice_id_column(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(calculation_entries)"))
+        ]
+        if "current_invoice_id" not in columns:
             conn.execute(
                 text(
-                    f"ALTER TABLE {table} "
-                    "ADD COLUMN submission_breakdown TEXT"
+                    "ALTER TABLE calculation_entries "
+                    "ADD COLUMN current_invoice_id VARCHAR(100)"
                 )
             )
         conn.commit()
@@ -262,6 +279,7 @@ def init_project_database(project_id: str) -> None:
     _ensure_submission_percentage_column(engine)
     _ensure_drawing_files_column(engine)
     _ensure_submission_breakdown_columns(engine)
+    _ensure_calculation_entry_current_invoice_id_column(engine)
     _ensure_calculation_sheet_no_unique(engine)
 
 

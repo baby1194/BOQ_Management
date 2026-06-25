@@ -593,6 +593,7 @@
     "trackSheetTooltip": "קרא מחדש את דף החישוב מנתיב הקובץ השמור ורענן את ערכי החישוב",
     "failedToTrack": "נכשל בעדכון דפי החישוב מהדיסק",
     "entries": "ערכים",
+    "currentInvoiceId": "מזהה חשבונית",
     "noEntriesFound": "לא נמצאו ערכים עבור דף זה",
     "entryNumber": "מספר ערך",
     "itemDescription": "תיאור פריט",

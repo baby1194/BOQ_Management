@@ -35,7 +35,7 @@ def compute_submission_percentage(
 
 
 def apply_calculation_entry_quantities(
-    concentration_entry, calc_entry
+    concentration_entry, calc_entry, *, drawing_no: str | None = None
 ) -> None:
     """Copy estimated/submitted quantities from a calc entry and derive submission percentage."""
     estimated = float(calc_entry.estimated_quantity or 0)
@@ -48,10 +48,12 @@ def apply_calculation_entry_quantities(
     concentration_entry.submission_breakdown = getattr(
         calc_entry, "submission_breakdown", None
     )
+    if drawing_no is not None:
+        concentration_entry.drawing_no = drawing_no
 
 
 def concentration_entry_quantities_differ(
-    concentration_entry, calc_entry
+    concentration_entry, calc_entry, *, drawing_no: str | None = None
 ) -> bool:
     """Return True if applying calc entry quantities would change the concentration entry."""
     new_estimated = float(calc_entry.estimated_quantity or 0)
@@ -60,6 +62,9 @@ def concentration_entry_quantities_differ(
     old_submitted = float(concentration_entry.quantity_submitted or 0)
     if old_estimated != new_estimated or old_submitted != new_submitted:
         return True
+    if drawing_no is not None:
+        if str(concentration_entry.drawing_no or "").strip() != str(drawing_no or "").strip():
+            return True
     return not breakdowns_equal(
         getattr(concentration_entry, "submission_breakdown", None),
         getattr(calc_entry, "submission_breakdown", None),

@@ -233,6 +233,7 @@ export interface CalculationEntry {
   id: number;
   calculation_sheet_id: number;
   section_number: string;
+  current_invoice_id?: string | null;
   estimated_quantity: number;
   quantity_submitted: number;
   submission_breakdown?: SubmissionBreakdown | null;

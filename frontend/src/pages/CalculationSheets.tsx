@@ -1060,6 +1060,9 @@ const CalculationSheets: React.FC = () => {
                                 {t("common.sectionNumber")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {t("calculationSheets.currentInvoiceId")}
+                              </th>
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.estimatedQuantity")}
                               </th>
                               <th
@@ -1080,7 +1083,7 @@ const CalculationSheets: React.FC = () => {
                             {visibleEntries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={6}
+                                  colSpan={7}
                                   className="px-3 py-8 text-center text-gray-500"
                                 >
                                   <p>No entries found</p>
@@ -1108,6 +1111,9 @@ const CalculationSheets: React.FC = () => {
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {entry.section_number}
+                                      </td>
+                                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {entry.current_invoice_id || "-"}
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {formatNumber(entry.estimated_quantity)}
@@ -1143,7 +1149,7 @@ const CalculationSheets: React.FC = () => {
                                     </tr>
                                     {isExpanded && (
                                       <tr className="bg-gray-50/70">
-                                        <td colSpan={6} className="px-3 py-3">
+                                        <td colSpan={7} className="px-3 py-3">
                                           <SubmissionBreakdownPanel
                                             breakdown={
                                               entry.submission_breakdown

@@ -5,6 +5,7 @@ import pandas as pd
 from utils.calculation_sheet_utils import (
     collect_sheet_periods,
     compute_submission_breakdown,
+    read_entry_current_invoice_id,
 )
 
 
@@ -214,3 +215,35 @@ def test_validate_calculation_sheet_header_fields_messages():
 
     with pytest.raises(ValueError, match="File test.xlsx has empty invoice no."):
         validate_calculation_sheet_header_fields("7", "", "desc", "test.xlsx")
+
+
+def test_read_entry_current_invoice_id_from_column_row_2():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    df.iloc[1, col] = "07"
+    assert read_entry_current_invoice_id(df, col, "06") == "07"
+
+
+def test_read_entry_current_invoice_id_falls_back_to_sheet_c2():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    assert read_entry_current_invoice_id(df, col, "06") == "06"
+
+
+def test_compute_submission_breakdown_uses_per_entry_invoice_id():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    df.iloc[27, 1] = "05"
+    df.iloc[27, col] = 100.0
+    df.iloc[28, 1] = "06"
+    df.iloc[28, col] = 50.0
+
+    sheet_periods = collect_sheet_periods(df)
+    breakdown, current = compute_submission_breakdown(
+        df, col, "06", sheet_periods=sheet_periods
+    )
+
+    assert current == 50.0
+    assert breakdown["current_drawing_no"] == "06"
+    assert breakdown["periods"]["05"] == 100.0
+    assert breakdown["periods"]["06"] == 50.0

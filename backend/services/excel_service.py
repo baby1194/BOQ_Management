@@ -300,8 +300,9 @@ class ExcelService:
             'entries': [
                 {
                     'section_number': str,
+                    'current_invoice_id': str,
                     'estimated_quantity': float,
-                    'quantity_submitted': float,  # current month (column B == C2, rows 28-100)
+                    'quantity_submitted': float,  # current month for this item's invoice id
                     'submission_breakdown': dict,
                     'notes': str
                 }
@@ -312,6 +313,7 @@ class ExcelService:
             from utils.calculation_sheet_utils import (
                 collect_sheet_periods,
                 compute_submission_breakdown,
+                read_entry_current_invoice_id,
                 validate_calculation_sheet_header_fields,
             )
 
@@ -344,9 +346,12 @@ class ExcelService:
                     
                     estimated_quantity = df.iloc[5, col_index]
                     estimated_quantity = float(estimated_quantity) if pd.notna(estimated_quantity) else 0.0
-                    
+
+                    entry_current_invoice_id = read_entry_current_invoice_id(
+                        df, col_index, drawing_no
+                    )
                     submission_breakdown, quantity_submitted = compute_submission_breakdown(
-                        df, col_index, drawing_no, sheet_periods=sheet_periods
+                        df, col_index, entry_current_invoice_id, sheet_periods=sheet_periods
                     )
                     
                     notes = df.iloc[17, col_index]
@@ -354,6 +359,7 @@ class ExcelService:
                     
                     entry = {
                         'section_number': section_number,
+                        'current_invoice_id': entry_current_invoice_id,
                         'estimated_quantity': estimated_quantity,
                         'quantity_submitted': quantity_submitted,
                         'submission_breakdown': submission_breakdown,
