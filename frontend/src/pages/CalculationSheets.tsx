@@ -15,10 +15,10 @@ import {
 } from "lucide-react";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 import {
-  SubmissionBreakdownPastRows,
-  SubmissionBreakdownTotalRow,
+  SubmissionBreakdownCalcSheetRows,
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
+import { entryCumulativeSubmittedQuantity } from "../utils/submissionBreakdown";
 
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
@@ -1040,7 +1040,7 @@ const CalculationSheets: React.FC = () => {
                       </h3>
                       {selectedSheet && (
                         <p className="text-sm text-gray-500 mt-1">
-                          {t("submissionBreakdown.currentMonthHint")}
+                          {t("submissionBreakdown.cumulativeSubmittedHint")}
                         </p>
                       )}
                     </div>
@@ -1072,7 +1072,7 @@ const CalculationSheets: React.FC = () => {
                               </th>
                               <th
                                 className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                title={t("submissionBreakdown.currentMonthHint")}
+                                title={t("submissionBreakdown.cumulativeSubmittedHint")}
                               >
                                 {t("common.quantitySubmitted")}
                               </th>
@@ -1101,11 +1101,16 @@ const CalculationSheets: React.FC = () => {
                               visibleEntries.map((entry) => {
                                 const isExpanded =
                                   expandedBreakdownEntryIds.has(entry.id);
+                                const cumulativeSubmitted =
+                                  entryCumulativeSubmittedQuantity(
+                                    entry.quantity_submitted,
+                                    entry.submission_breakdown,
+                                  );
 
                                 return (
                                   <React.Fragment key={entry.id}>
                                     {isExpanded && (
-                                      <SubmissionBreakdownPastRows
+                                      <SubmissionBreakdownCalcSheetRows
                                         breakdown={entry.submission_breakdown}
                                         quantitySubmitted={
                                           entry.quantity_submitted
@@ -1131,7 +1136,7 @@ const CalculationSheets: React.FC = () => {
                                         {entry.section_number}
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {entry.current_invoice_id || "-"}
+                                        _
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {formatNumber(entry.estimated_quantity)}
@@ -1139,10 +1144,10 @@ const CalculationSheets: React.FC = () => {
                                       <td
                                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500"
                                         title={t(
-                                          "submissionBreakdown.currentMonthHint",
+                                          "submissionBreakdown.cumulativeSubmittedHint",
                                         )}
                                       >
-                                        {formatNumber(entry.quantity_submitted)}
+                                        {formatNumber(cumulativeSubmitted)}
                                       </td>
                                       <td className="px-3 py-4 text-sm text-gray-900 max-w-xs">
                                         <div
@@ -1165,23 +1170,6 @@ const CalculationSheets: React.FC = () => {
                                         </button>
                                       </td>
                                     </tr>
-                                    {isExpanded && (
-                                      <SubmissionBreakdownTotalRow
-                                        breakdown={entry.submission_breakdown}
-                                        quantitySubmitted={
-                                          entry.quantity_submitted
-                                        }
-                                        currentInvoiceId={
-                                          entry.current_invoice_id
-                                        }
-                                        estimatedQuantity={
-                                          entry.estimated_quantity
-                                        }
-                                        columnCount={7}
-                                        invoiceColumnIndex={2}
-                                        qtyColumnIndex={4}
-                                      />
-                                    )}
                                   </React.Fragment>
                                 );
                               })

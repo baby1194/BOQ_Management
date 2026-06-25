@@ -5,6 +5,7 @@ import { SubmissionBreakdown } from "../types";
 import { formatNumber } from "../utils/format";
 import {
   cumulativeSubmittedQuantity,
+  getAllBreakdownPeriodRows,
   getPastPeriodRows,
   resolveCurrentPeriod,
 } from "../utils/submissionBreakdown";
@@ -144,6 +145,74 @@ export const SubmissionBreakdownPastRows: React.FC<
                 qty,
               ),
               qtyCell: formatNumber(qty),
+            },
+            "px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap",
+          )}
+        </tr>
+      ))}
+    </>
+  );
+};
+
+export const SubmissionBreakdownCalcSheetRows: React.FC<
+  SubmissionBreakdownTableRowsProps
+> = ({
+  breakdown,
+  quantitySubmitted,
+  currentInvoiceId,
+  columnCount,
+  invoiceColumnIndex,
+  qtyColumnIndex,
+}) => {
+  const { t } = useTranslation();
+  const layout = {
+    columnCount,
+    invoiceColumnIndex,
+    qtyColumnIndex,
+  };
+
+  if (!breakdown) {
+    return (
+      <tr className="bg-gray-50/70">
+        <td colSpan={columnCount} className="px-3 py-2 text-sm text-gray-600">
+          {t("submissionBreakdown.retrackToLoad")}
+        </td>
+      </tr>
+    );
+  }
+
+  const currentPeriod = resolveCurrentPeriod(breakdown, currentInvoiceId);
+  const periodRows = getAllBreakdownPeriodRows(
+    breakdown,
+    currentPeriod,
+    quantitySubmitted,
+  );
+
+  if (periodRows.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {periodRows.map(({ period, qty, isCurrent }) => (
+        <tr key={`period-${period}`} className="bg-gray-50/70">
+          {renderBreakdownCells(
+            layout,
+            {
+              invoiceCell: (
+                <span
+                  className={`font-medium ${
+                    isCurrent ? "font-semibold text-blue-700" : "text-gray-700"
+                  }`}
+                >
+                  {period}
+                </span>
+              ),
+              qtyCell: (
+                <span className={isCurrent ? "font-semibold text-blue-700" : ""}>
+                  {formatNumber(qty)}
+                </span>
+              ),
             },
             "px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap",
           )}

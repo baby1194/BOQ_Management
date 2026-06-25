@@ -62,6 +62,38 @@ export const getPastPeriodRows = (
     return [{ period, qty }];
   });
 
+export const getAllBreakdownPeriodRows = (
+  breakdown: SubmissionBreakdown,
+  currentPeriod: string,
+  currentMonthQty: number,
+): Array<{ period: string; qty: number; isCurrent: boolean }> => {
+  const periods = getPeriodQuantities(breakdown);
+  const periodKeys = sortedPeriodKeys({
+    ...periods,
+    ...(currentPeriod ? { [currentPeriod]: periods[currentPeriod] ?? 0 } : {}),
+  });
+
+  return periodKeys.flatMap((period) => {
+    const isCurrent = period === currentPeriod;
+    const qty = isCurrent ? currentMonthQty : (periods[period] ?? 0);
+    if (qty === 0) {
+      return [];
+    }
+    return [{ period, qty, isCurrent }];
+  });
+};
+
+export const entryCumulativeSubmittedQuantity = (
+  quantitySubmitted: number,
+  breakdown?: SubmissionBreakdown | null,
+): number => {
+  const cumulative = cumulativeSubmittedQuantity(breakdown);
+  if (cumulative > 0) {
+    return cumulative;
+  }
+  return quantitySubmitted || 0;
+};
+
 export const pastSubmittedQuantity = (
   breakdown?: SubmissionBreakdown | null,
   currentInvoiceId?: string | null,
