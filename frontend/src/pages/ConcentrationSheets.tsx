@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -27,7 +33,9 @@ import {
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
-import SubmissionBreakdownPanel, {
+import {
+  SubmissionBreakdownPastRows,
+  SubmissionBreakdownTotalRow,
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
@@ -50,7 +58,7 @@ type ConcentrationEntryEditDraft = {
 
 function computeQuantitySubmitted(
   estimatedQuantity: number,
-  submissionPercentage: number,
+  submissionPercentage: number
 ): number {
   return estimatedQuantity * (submissionPercentage / 100);
 }
@@ -61,7 +69,7 @@ function drawingFileName(path: string): string {
 }
 
 function concentrationEntryToEditDraft(
-  entry: ConcentrationEntry,
+  entry: ConcentrationEntry
 ): ConcentrationEntryEditDraft {
   const submissionPercentage = entry.submission_percentage ?? 100;
   const estimatedQuantity = entry.estimated_quantity ?? 0;
@@ -74,7 +82,7 @@ function concentrationEntryToEditDraft(
     submission_percentage: submissionPercentage,
     quantity_submitted: computeQuantitySubmitted(
       estimatedQuantity,
-      submissionPercentage,
+      submissionPercentage
     ),
     internal_quantity: entry.internal_quantity ?? 0,
     approved_by_project_manager: entry.approved_by_project_manager ?? 0,
@@ -103,11 +111,10 @@ const ConcentrationSheets: React.FC = () => {
   }, [error]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ConcentrationEntry | null>(
-    null,
+    null
   );
-  const [editDraft, setEditDraft] = useState<ConcentrationEntryEditDraft | null>(
-    null,
-  );
+  const [editDraft, setEditDraft] =
+    useState<ConcentrationEntryEditDraft | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
@@ -137,7 +144,7 @@ const ConcentrationSheets: React.FC = () => {
   const [populateSubmitting, setPopulateSubmitting] = useState(false);
   const drawingFileInputRef = useRef<HTMLInputElement>(null);
   const [attachTargetEntryId, setAttachTargetEntryId] = useState<number | null>(
-    null,
+    null
   );
   const [uploadingDrawingEntryId, setUploadingDrawingEntryId] = useState<
     number | null
@@ -150,7 +157,7 @@ const ConcentrationSheets: React.FC = () => {
   >(new Set());
   const visibleEntries = useMemo(
     () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
-    [entries],
+    [entries]
   );
 
   // Project info state - will be loaded from selected sheet
@@ -176,14 +183,14 @@ const ConcentrationSheets: React.FC = () => {
   const showExportModal = (
     type: "single" | "all",
     format: "pdf" | "excel",
-    title: string,
+    title: string
   ) => {
     setPendingExportAction({ type, format, title });
     setShowEntryColumnModal(true);
   };
 
   const handleExportModalSubmit = async (
-    entryColumnRequest: ConcentrationEntryExportRequest,
+    entryColumnRequest: ConcentrationEntryExportRequest
   ) => {
     if (!pendingExportAction) return;
 
@@ -202,7 +209,7 @@ const ConcentrationSheets: React.FC = () => {
 
   const handleOpenCalculationSheet = async (
     calculationSheetNo: string,
-    drawingNo: string,
+    drawingNo: string
   ) => {
     try {
       // Find the calculation sheet by sheet number and drawing number
@@ -210,12 +217,12 @@ const ConcentrationSheets: React.FC = () => {
       const sheet = allSheets.find(
         (s) =>
           s.calculation_sheet_no === calculationSheetNo &&
-          s.drawing_no === drawingNo,
+          s.drawing_no === drawingNo
       );
 
       if (!sheet) {
         setError(
-          `Calculation sheet ${calculationSheetNo} / ${drawingNo} not found`,
+          `Calculation sheet ${calculationSheetNo} / ${drawingNo} not found`
         );
         return;
       }
@@ -225,14 +232,14 @@ const ConcentrationSheets: React.FC = () => {
     } catch (err: any) {
       console.error("Error opening calculation sheet:", err);
       setError(
-        err.response?.data?.detail || "Failed to open calculation sheet",
+        err.response?.data?.detail || "Failed to open calculation sheet"
       );
     }
   };
 
   const handleAttachDrawingFiles = async (
     entryId: number,
-    fileList: FileList | null,
+    fileList: FileList | null
   ) => {
     if (!fileList?.length) return;
     try {
@@ -240,15 +247,13 @@ const ConcentrationSheets: React.FC = () => {
       setError(null);
       const updated = await concentrationApi.uploadDrawingFiles(
         entryId,
-        Array.from(fileList),
+        Array.from(fileList)
       );
-      setEntries((prev) =>
-        prev.map((e) => (e.id === entryId ? updated : e)),
-      );
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
     } catch (err: any) {
       console.error("Error attaching drawing files:", err);
       setError(
-        err.response?.data?.detail || t("concentration.failedToAttachDrawings"),
+        err.response?.data?.detail || t("concentration.failedToAttachDrawings")
       );
     } finally {
       setUploadingDrawingEntryId(null);
@@ -263,7 +268,7 @@ const ConcentrationSheets: React.FC = () => {
     } catch (err: any) {
       console.error("Error opening drawing file:", err);
       setError(
-        err.response?.data?.detail || t("concentration.failedToOpenDrawing"),
+        err.response?.data?.detail || t("concentration.failedToOpenDrawing")
       );
     }
   };
@@ -273,13 +278,11 @@ const ConcentrationSheets: React.FC = () => {
     try {
       setError(null);
       const updated = await concentrationApi.removeDrawingFile(entryId, path);
-      setEntries((prev) =>
-        prev.map((e) => (e.id === entryId ? updated : e)),
-      );
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
     } catch (err: any) {
       console.error("Error removing drawing file:", err);
       setError(
-        err.response?.data?.detail || t("concentration.failedToRemoveDrawing"),
+        err.response?.data?.detail || t("concentration.failedToRemoveDrawing")
       );
     }
   };
@@ -315,7 +318,7 @@ const ConcentrationSheets: React.FC = () => {
 
   const executeSingleSheetExport = async (
     format: "pdf" | "excel",
-    entryColumnRequest: ConcentrationEntryExportRequest,
+    entryColumnRequest: ConcentrationEntryExportRequest
   ) => {
     console.log("executeSingleSheetExport called with format:", format);
 
@@ -341,11 +344,11 @@ const ConcentrationSheets: React.FC = () => {
             ? await exportApi.exportSingleConcentrationSheetPDF(
                 selectedSheet.id,
                 entryColumnRequest,
-                isRTL ? "he" : "en",
+                isRTL ? "he" : "en"
               )
             : await exportApi.exportSingleConcentrationSheetExcel(
                 selectedSheet.id,
-                entryColumnRequest,
+                entryColumnRequest
               );
         console.log("API call completed, response received:", response);
       } catch (apiError: any) {
@@ -362,7 +365,7 @@ const ConcentrationSheets: React.FC = () => {
       console.log("Response.message:", response?.message);
       console.log(
         "Response keys:",
-        response ? Object.keys(response) : "response is null/undefined",
+        response ? Object.keys(response) : "response is null/undefined"
       );
 
       // Check for error first - be very explicit
@@ -377,7 +380,7 @@ const ConcentrationSheets: React.FC = () => {
         console.error(
           `Export failed - setting error: ${errorMessage}`,
           "Full response:",
-          response,
+          response
         );
         console.log("About to call setError with:", errorMessage);
 
@@ -391,7 +394,7 @@ const ConcentrationSheets: React.FC = () => {
         setTimeout(() => {
           console.log(
             "Error state after setError (delayed check):",
-            errorMessage,
+            errorMessage
           );
         }, 100);
 
@@ -425,7 +428,7 @@ const ConcentrationSheets: React.FC = () => {
           t("concentration.exportFailed") + " " + format.toUpperCase();
         console.error(
           `Export succeeded but no file path - setting error: ${errorMessage}`,
-          response,
+          response
         );
         setError(errorMessage);
       }
@@ -465,7 +468,7 @@ const ConcentrationSheets: React.FC = () => {
 
   const executeAllSheetsExport = async (
     format: "pdf" | "excel",
-    entryColumnRequest: ConcentrationEntryExportRequest,
+    entryColumnRequest: ConcentrationEntryExportRequest
   ) => {
     try {
       if (format === "pdf") {
@@ -491,7 +494,7 @@ const ConcentrationSheets: React.FC = () => {
                 export_non_zero_psq_only: exportNonZeroPsqOnly,
               },
               entryColumnRequest,
-              isRTL ? "he" : "en",
+              isRTL ? "he" : "en"
             )
           : await exportApi.exportAllConcentrationSheetsExcel(
               {
@@ -501,7 +504,7 @@ const ConcentrationSheets: React.FC = () => {
                 export_non_empty_only: exportNonEmptyOnly,
                 export_non_zero_psq_only: exportNonZeroPsqOnly,
               },
-              entryColumnRequest,
+              entryColumnRequest
             );
 
       console.log("Bulk export response:", response);
@@ -514,7 +517,7 @@ const ConcentrationSheets: React.FC = () => {
         console.error(
           `Bulk export failed - setting error: ${errorMessage}`,
           "Full response:",
-          response,
+          response
         );
         console.log("About to call setError with:", errorMessage);
         setError(errorMessage);
@@ -525,7 +528,7 @@ const ConcentrationSheets: React.FC = () => {
       // Bulk exports are saved server-side (Excel -> C:/Fatina, PDF zip -> Downloads)
       console.log(
         `${format.toUpperCase()} files saved server-side:`,
-        response.message,
+        response.message
       );
     } catch (err: any) {
       console.error(`Error exporting all ${format}s:`, err);
@@ -558,7 +561,7 @@ const ConcentrationSheets: React.FC = () => {
       setTrackingCalculationSheets(true);
       setError(null);
       const response = await concentrationApi.trackCalculationSheets(
-        selectedSheet.id,
+        selectedSheet.id
       );
 
       if (response.success) {
@@ -601,7 +604,7 @@ const ConcentrationSheets: React.FC = () => {
     showExportModal(
       "single",
       "excel",
-      t("concentration.exportSingleSheetExcel"),
+      t("concentration.exportSingleSheetExcel")
     );
   };
 
@@ -624,7 +627,7 @@ const ConcentrationSheets: React.FC = () => {
       const sheetsWithBOQ = await concentrationApi.getAllWithBOQData(0, 10000);
       console.log(
         "Concentration sheets with BOQ data fetched:",
-        sheetsWithBOQ.length,
+        sheetsWithBOQ.length
       );
 
       setSheets(sheetsWithBOQ);
@@ -633,7 +636,7 @@ const ConcentrationSheets: React.FC = () => {
       const selectedItemId = searchParams.get("selectedItem");
       if (selectedItemId) {
         const targetSheet = sheetsWithBOQ.find(
-          (sheet) => sheet.boq_item_id === parseInt(selectedItemId),
+          (sheet) => sheet.boq_item_id === parseInt(selectedItemId)
         );
         if (targetSheet) {
           setSelectedSheet(targetSheet);
@@ -648,7 +651,7 @@ const ConcentrationSheets: React.FC = () => {
           // Save selected sheet ID to localStorage
           setProjectItem(
             "concentration-selected-sheet-id",
-            targetSheet.id.toString(),
+            targetSheet.id.toString()
           );
 
           return; // Don't set default selection
@@ -656,12 +659,10 @@ const ConcentrationSheets: React.FC = () => {
       }
 
       // Restore previously selected sheet from localStorage
-      const savedSheetId = getProjectItem(
-        "concentration-selected-sheet-id",
-      );
+      const savedSheetId = getProjectItem("concentration-selected-sheet-id");
       if (savedSheetId) {
         const savedSheet = sheetsWithBOQ.find(
-          (sheet) => sheet.id === parseInt(savedSheetId),
+          (sheet) => sheet.id === parseInt(savedSheetId)
         );
         if (savedSheet) {
           setSelectedSheet(savedSheet);
@@ -712,10 +713,7 @@ const ConcentrationSheets: React.FC = () => {
     loadProjectInfoFromSheet(sheet);
     fetchEntries(sheet.id);
     // Save selected sheet ID to localStorage
-    setProjectItem(
-      "concentration-selected-sheet-id",
-      sheet.id.toString(),
-    );
+    setProjectItem("concentration-selected-sheet-id", sheet.id.toString());
   };
 
   // Create new entry
@@ -723,7 +721,7 @@ const ConcentrationSheets: React.FC = () => {
     entryData: Omit<
       ConcentrationEntry,
       "id" | "created_at" | "updated_at" | "concentration_sheet_id"
-    >,
+    >
   ) => {
     if (!selectedSheet) return;
 
@@ -747,17 +745,17 @@ const ConcentrationSheets: React.FC = () => {
   // Update existing entry
   const updateEntry = async (
     entryId: number,
-    entryData: Partial<ConcentrationEntry>,
+    entryData: Partial<ConcentrationEntry>
   ) => {
     try {
       setSaving(true);
       const updatedEntry = await concentrationApi.updateEntry(
         entryId,
-        entryData,
+        entryData
       );
 
       setEntries((prev) =>
-        prev.map((entry) => (entry.id === entryId ? updatedEntry : entry)),
+        prev.map((entry) => (entry.id === entryId ? updatedEntry : entry))
       );
       setEditingEntry(null);
       setEditDraft(null);
@@ -860,7 +858,7 @@ const ConcentrationSheets: React.FC = () => {
 
   const handleRowDoubleClick = (
     entry: ConcentrationEntry,
-    e: React.MouseEvent<HTMLTableRowElement>,
+    e: React.MouseEvent<HTMLTableRowElement>
   ) => {
     const target = e.target as HTMLElement;
     if (target.closest("button, a, input, textarea, select")) return;
@@ -900,7 +898,10 @@ const ConcentrationSheets: React.FC = () => {
       let msg: string = t("concentration.populateFailed");
       if (typeof detail === "string") msg = detail;
       else if (Array.isArray(detail) && detail[0]?.msg)
-        msg = detail.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ");
+        msg = detail
+          .map((x: { msg?: string }) => x.msg)
+          .filter(Boolean)
+          .join(", ");
       else if (err.response?.data?.message)
         msg = String(err.response.data.message);
       setError(msg);
@@ -923,10 +924,7 @@ const ConcentrationSheets: React.FC = () => {
 
   // Save section number filter to localStorage
   useEffect(() => {
-    setProjectItem(
-      "concentration-sheets-section-filter",
-      sectionNumberFilter,
-    );
+    setProjectItem("concentration-sheets-section-filter", sectionNumberFilter);
   }, [sectionNumberFilter]);
 
   // Refresh data when page becomes visible (e.g., user navigates back from BOQ Items)
@@ -954,7 +952,7 @@ const ConcentrationSheets: React.FC = () => {
     const selectedItemId = searchParams.get("selectedItem");
     if (selectedItemId && sheets.length > 0) {
       const targetSheet = sheets.find(
-        (sheet) => sheet.boq_item_id === parseInt(selectedItemId),
+        (sheet) => sheet.boq_item_id === parseInt(selectedItemId)
       );
       if (targetSheet && targetSheet.id !== selectedSheet?.id) {
         setSelectedSheet(targetSheet);
@@ -1000,10 +998,7 @@ const ConcentrationSheets: React.FC = () => {
         className="hidden"
         onChange={(e) => {
           if (attachTargetEntryId !== null) {
-            void handleAttachDrawingFiles(
-              attachTargetEntryId,
-              e.target.files,
-            );
+            void handleAttachDrawingFiles(attachTargetEntryId, e.target.files);
           }
           e.target.value = "";
         }}
@@ -1264,7 +1259,7 @@ const ConcentrationSheets: React.FC = () => {
                                 <div>
                                   {t("concentration.qtyLabel")}{" "}
                                   {formatNumber(
-                                    sheet.boq_item.latest_contract_quantity,
+                                    sheet.boq_item.latest_contract_quantity
                                   )}
                                   {sheet.boq_item.has_contract_updates && (
                                     <span
@@ -1396,7 +1391,7 @@ const ConcentrationSheets: React.FC = () => {
                       </label>
                       <p className="text-gray-900">
                         {formatNumber(
-                          selectedSheet.boq_item.latest_contract_quantity,
+                          selectedSheet.boq_item.latest_contract_quantity
                         )}{" "}
                         {selectedSheet.boq_item.unit}
                         {selectedSheet.boq_item.has_contract_updates && (
@@ -1459,14 +1454,14 @@ const ConcentrationSheets: React.FC = () => {
                           <div className="text-xs text-blue-600">
                             {t("concentration.original")}{" "}
                             {formatNumber(
-                              selectedSheet.boq_item.original_contract_quantity,
+                              selectedSheet.boq_item.original_contract_quantity
                             )}{" "}
                             {selectedSheet.boq_item.unit}
                           </div>
                           <div className="text-sm font-medium text-blue-800">
                             {t("concentration.current")}{" "}
                             {formatNumber(
-                              selectedSheet.boq_item.latest_contract_quantity,
+                              selectedSheet.boq_item.latest_contract_quantity
                             )}{" "}
                             {selectedSheet.boq_item.unit}
                           </div>
@@ -1551,7 +1546,9 @@ const ConcentrationSheets: React.FC = () => {
                               </th>
                               <th
                                 className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                title={t("submissionBreakdown.currentMonthHint")}
+                                title={t(
+                                  "submissionBreakdown.currentMonthHint"
+                                )}
                               >
                                 {t("concentration.qtySubmitted")}
                               </th>
@@ -1601,595 +1598,631 @@ const ConcentrationSheets: React.FC = () => {
 
                                 return (
                                   <React.Fragment key={entry.id}>
-                                  <tr
-                                    onDoubleClick={(e) =>
-                                      handleRowDoubleClick(entry, e)
-                                    }
-                                    title={t("concentration.doubleClickToEdit")}
-                                    className={`table-row-hover ${
-                                      isEditingRow ? "bg-blue-50/80" : ""
-                                    }`}
-                                  >
-                                    <td className="px-2 py-2 whitespace-nowrap align-top">
-                                      <SubmissionBreakdownToggle
-                                        expanded={isBreakdownExpanded}
-                                        onToggle={() =>
-                                          toggleBreakdownExpanded(entry.id)
+                                    {isBreakdownExpanded && (
+                                      <SubmissionBreakdownPastRows
+                                        breakdown={entry.submission_breakdown}
+                                        quantitySubmitted={
+                                          entry.quantity_submitted
                                         }
+                                        estimatedQuantity={
+                                          entry.estimated_quantity
+                                        }
+                                        columnCount={13}
+                                        invoiceColumnIndex={3}
+                                        qtyColumnIndex={7}
+                                        percentageColumnIndex={6}
                                       />
-                                    </td>
-                                    <td className="px-3 py-2 text-sm text-gray-900 max-w-[14rem] align-top">
-                                      {manualEditable ? (
-                                        <input
-                                          type="text"
-                                          value={editDraft.description}
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    description: e.target.value,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        <div
-                                          className="truncate py-1"
-                                          title={entry.description || ""}
-                                        >
-                                          {entry.description || "-"}
-                                        </div>
+                                    )}
+                                    <tr
+                                      onDoubleClick={(e) =>
+                                        handleRowDoubleClick(entry, e)
+                                      }
+                                      title={t(
+                                        "concentration.doubleClickToEdit"
                                       )}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top min-w-[7rem]">
-                                      {manualEditable ? (
-                                        <div className="flex items-start gap-1">
+                                      className={`table-row-hover ${
+                                        isEditingRow ? "bg-blue-50/80" : ""
+                                      }`}
+                                    >
+                                      <td className="px-2 py-2 whitespace-nowrap align-top">
+                                        <SubmissionBreakdownToggle
+                                          expanded={isBreakdownExpanded}
+                                          onToggle={() =>
+                                            toggleBreakdownExpanded(entry.id)
+                                          }
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-sm text-gray-900 max-w-[14rem] align-top">
+                                        {manualEditable ? (
                                           <input
                                             type="text"
+                                            value={editDraft.description}
+                                            onChange={(e) =>
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      description:
+                                                        e.target.value,
+                                                    }
+                                                  : null
+                                              )
+                                            }
+                                            className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                        ) : (
+                                          <div
+                                            className="truncate py-1"
+                                            title={entry.description || ""}
+                                          >
+                                            {entry.description || "-"}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top min-w-[7rem]">
+                                        {manualEditable ? (
+                                          <div className="flex items-start gap-1">
+                                            <input
+                                              type="text"
+                                              value={
+                                                editDraft.calculation_sheet_no
+                                              }
+                                              onChange={(e) =>
+                                                setEditDraft((d) =>
+                                                  d
+                                                    ? {
+                                                        ...d,
+                                                        calculation_sheet_no:
+                                                          e.target.value,
+                                                      }
+                                                    : null
+                                                )
+                                              }
+                                              className="min-w-0 flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                              disabled={saving}
+                                            />
+                                            {editDraft.calculation_sheet_no &&
+                                            editDraft.drawing_no ? (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleOpenCalculationSheet(
+                                                    editDraft.calculation_sheet_no,
+                                                    editDraft.drawing_no
+                                                  )
+                                                }
+                                                onDoubleClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                className="shrink-0 p-1 text-blue-600 hover:text-blue-800 rounded"
+                                                title="Open calculation sheet file"
+                                                aria-label="Open calculation sheet file"
+                                              >
+                                                <ExternalLink className="h-4 w-4" />
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                        ) : entry.calculation_sheet_no &&
+                                          entry.drawing_no ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleOpenCalculationSheet(
+                                                entry.calculation_sheet_no!,
+                                                entry.drawing_no!
+                                              )
+                                            }
+                                            onDoubleClick={(e) =>
+                                              e.stopPropagation()
+                                            }
+                                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                                            title="Open calculation sheet file"
+                                          >
+                                            {entry.calculation_sheet_no}
+                                          </button>
+                                        ) : (
+                                          entry.calculation_sheet_no || "-"
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                        {manualEditable ? (
+                                          <input
+                                            type="text"
+                                            value={editDraft.drawing_no}
+                                            onChange={(e) =>
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      drawing_no:
+                                                        e.target.value,
+                                                    }
+                                                  : null
+                                              )
+                                            }
+                                            className="w-full min-w-[5rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                        ) : (
+                                          entry.drawing_no || "-"
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
+                                        <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
+                                          {(() => {
+                                            const drawingFiles =
+                                              entry.drawing_files || [];
+                                            const showToggle =
+                                              drawingFiles.length > 1;
+                                            const isExpanded =
+                                              showToggle &&
+                                              expandedDrawingEntryIds.has(
+                                                entry.id
+                                              );
+
+                                            const renderDrawingFile = (
+                                              filePath: string
+                                            ) => (
+                                              <div
+                                                key={filePath}
+                                                className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 min-w-0 ${
+                                                  isRTL
+                                                    ? "flex-row-reverse"
+                                                    : ""
+                                                }`}
+                                              >
+                                                <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleOpenDrawingFile(
+                                                      entry.id,
+                                                      filePath
+                                                    )
+                                                  }
+                                                  onDoubleClick={(e) =>
+                                                    e.stopPropagation()
+                                                  }
+                                                  className="flex-1 min-w-0 text-blue-600 hover:text-blue-800 hover:underline truncate text-xs text-left"
+                                                  title={filePath}
+                                                >
+                                                  {drawingFileName(filePath)}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleRemoveDrawingFile(
+                                                      entry.id,
+                                                      filePath
+                                                    )
+                                                  }
+                                                  onDoubleClick={(e) =>
+                                                    e.stopPropagation()
+                                                  }
+                                                  className="shrink-0 text-red-500 hover:text-red-700 text-sm leading-none px-0.5"
+                                                  title={t(
+                                                    "concentration.removeDrawing"
+                                                  )}
+                                                  aria-label={t(
+                                                    "concentration.removeDrawing"
+                                                  )}
+                                                >
+                                                  ×
+                                                </button>
+                                              </div>
+                                            );
+
+                                            const attachButton = (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  triggerAttachDrawings(
+                                                    entry.id
+                                                  )
+                                                }
+                                                onDoubleClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                disabled={
+                                                  uploadingDrawingEntryId ===
+                                                  entry.id
+                                                }
+                                                className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
+                                              >
+                                                <Paperclip className="h-3.5 w-3.5" />
+                                                <span>
+                                                  {uploadingDrawingEntryId ===
+                                                  entry.id
+                                                    ? t(
+                                                        "concentration.uploadingDrawings"
+                                                      )
+                                                    : t(
+                                                        "concentration.attachDrawings"
+                                                      )}
+                                                </span>
+                                              </button>
+                                            );
+
+                                            if (drawingFiles.length === 0) {
+                                              return (
+                                                <div className="flex justify-center w-full">
+                                                  {attachButton}
+                                                </div>
+                                              );
+                                            }
+
+                                            if (!isExpanded) {
+                                              return (
+                                                <div
+                                                  className={`flex items-center gap-1 w-full min-w-0 ${
+                                                    isRTL
+                                                      ? "flex-row-reverse"
+                                                      : ""
+                                                  }`}
+                                                >
+                                                  <div className="flex-1 min-w-0">
+                                                    {renderDrawingFile(
+                                                      drawingFiles[0]
+                                                    )}
+                                                  </div>
+                                                  {showToggle && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        toggleDrawingFilesExpanded(
+                                                          entry.id
+                                                        )
+                                                      }
+                                                      onDoubleClick={(e) =>
+                                                        e.stopPropagation()
+                                                      }
+                                                      className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100 whitespace-nowrap"
+                                                    >
+                                                      {t(
+                                                        "concentration.showMoreDrawings"
+                                                      )}
+                                                    </button>
+                                                  )}
+                                                  {attachButton}
+                                                </div>
+                                              );
+                                            }
+
+                                            return (
+                                              <>
+                                                <div className="w-full space-y-1">
+                                                  {drawingFiles.map(
+                                                    (filePath) =>
+                                                      renderDrawingFile(
+                                                        filePath
+                                                      )
+                                                  )}
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      toggleDrawingFilesExpanded(
+                                                        entry.id
+                                                      )
+                                                    }
+                                                    onDoubleClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                    className="w-full text-xs font-medium px-2 py-1 rounded border transition-colors bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100"
+                                                  >
+                                                    {t(
+                                                      "concentration.showLessDrawings"
+                                                    )}
+                                                  </button>
+                                                </div>
+                                                <div className="flex justify-center">
+                                                  {attachButton}
+                                                </div>
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                        {manualEditable ? (
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editDraft.estimated_quantity}
+                                            onChange={(e) => {
+                                              const estimated =
+                                                parseFloat(e.target.value) || 0;
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      estimated_quantity:
+                                                        estimated,
+                                                      quantity_submitted:
+                                                        computeQuantitySubmitted(
+                                                          estimated,
+                                                          d.submission_percentage
+                                                        ),
+                                                    }
+                                                  : null
+                                              );
+                                            }}
+                                            className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                        ) : (
+                                          formatNumber(entry.estimated_quantity)
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                        {isEditingRow ? (
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="number"
+                                              step="0.1"
+                                              min="0"
+                                              max="100"
+                                              value={
+                                                editDraft.submission_percentage
+                                              }
+                                              onChange={(e) => {
+                                                const percentage = Math.min(
+                                                  100,
+                                                  Math.max(
+                                                    0,
+                                                    parseFloat(
+                                                      e.target.value
+                                                    ) || 0
+                                                  )
+                                                );
+                                                setEditDraft((d) =>
+                                                  d
+                                                    ? {
+                                                        ...d,
+                                                        submission_percentage:
+                                                          percentage,
+                                                        quantity_submitted:
+                                                          computeQuantitySubmitted(
+                                                            d.estimated_quantity,
+                                                            percentage
+                                                          ),
+                                                      }
+                                                    : null
+                                                );
+                                              }}
+                                              className="w-full max-w-[5rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                              disabled={saving}
+                                            />
+                                            <span>%</span>
+                                          </div>
+                                        ) : (
+                                          `${formatNumber(
+                                            entry.submission_percentage ?? 100
+                                          )}%`
+                                        )}
+                                      </td>
+                                      <td
+                                        className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top"
+                                        title={t(
+                                          "submissionBreakdown.currentMonthHint"
+                                        )}
+                                      >
+                                        {formatNumber(
+                                          isEditingRow
+                                            ? editDraft.quantity_submitted
+                                            : entry.quantity_submitted
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                        {isEditingRow ? (
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editDraft.internal_quantity}
+                                            onChange={(e) =>
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      internal_quantity:
+                                                        parseFloat(
+                                                          e.target.value
+                                                        ) || 0,
+                                                    }
+                                                  : null
+                                              )
+                                            }
+                                            className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                        ) : (
+                                          formatNumber(entry.internal_quantity)
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                        {isEditingRow ? (
+                                          <input
+                                            type="number"
+                                            step="0.01"
                                             value={
-                                              editDraft.calculation_sheet_no
+                                              editDraft.approved_by_project_manager
                                             }
                                             onChange={(e) =>
                                               setEditDraft((d) =>
                                                 d
                                                   ? {
                                                       ...d,
-                                                      calculation_sheet_no:
-                                                        e.target.value,
+                                                      approved_by_project_manager:
+                                                        parseFloat(
+                                                          e.target.value
+                                                        ) || 0,
                                                     }
-                                                  : null,
+                                                  : null
                                               )
                                             }
-                                            className="min-w-0 flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             disabled={saving}
                                           />
-                                          {editDraft.calculation_sheet_no &&
-                                          editDraft.drawing_no ? (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleOpenCalculationSheet(
-                                                  editDraft.calculation_sheet_no,
-                                                  editDraft.drawing_no,
-                                                )
-                                              }
-                                              onDoubleClick={(e) =>
-                                                e.stopPropagation()
-                                              }
-                                              className="shrink-0 p-1 text-blue-600 hover:text-blue-800 rounded"
-                                              title="Open calculation sheet file"
-                                              aria-label="Open calculation sheet file"
-                                            >
-                                              <ExternalLink className="h-4 w-4" />
-                                            </button>
-                                          ) : null}
-                                        </div>
-                                      ) : entry.calculation_sheet_no &&
-                                        entry.drawing_no ? (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleOpenCalculationSheet(
-                                              entry.calculation_sheet_no!,
-                                              entry.drawing_no!,
-                                            )
-                                          }
-                                          onDoubleClick={(e) =>
-                                            e.stopPropagation()
-                                          }
-                                          className="text-blue-600 hover:text-blue-800 hover:underline"
-                                          title="Open calculation sheet file"
-                                        >
-                                          {entry.calculation_sheet_no}
-                                        </button>
-                                      ) : (
-                                        entry.calculation_sheet_no || "-"
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {manualEditable ? (
-                                        <input
-                                          type="text"
-                                          value={editDraft.drawing_no}
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    drawing_no: e.target.value,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          className="w-full min-w-[5rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        entry.drawing_no || "-"
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
-                                      <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
-                                        {(() => {
-                                          const drawingFiles =
-                                            entry.drawing_files || [];
-                                          const showToggle =
-                                            drawingFiles.length > 1;
-                                          const isExpanded =
-                                            showToggle &&
-                                            expandedDrawingEntryIds.has(
-                                              entry.id,
-                                            );
-
-                                          const renderDrawingFile = (
-                                            filePath: string,
-                                          ) => (
-                                            <div
-                                              key={filePath}
-                                              className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 min-w-0 ${
-                                                isRTL ? "flex-row-reverse" : ""
-                                              }`}
-                                            >
-                                              <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  handleOpenDrawingFile(
-                                                    entry.id,
-                                                    filePath,
-                                                  )
-                                                }
-                                                onDoubleClick={(e) =>
-                                                  e.stopPropagation()
-                                                }
-                                                className="flex-1 min-w-0 text-blue-600 hover:text-blue-800 hover:underline truncate text-xs text-left"
-                                                title={filePath}
-                                              >
-                                                {drawingFileName(filePath)}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  handleRemoveDrawingFile(
-                                                    entry.id,
-                                                    filePath,
-                                                  )
-                                                }
-                                                onDoubleClick={(e) =>
-                                                  e.stopPropagation()
-                                                }
-                                                className="shrink-0 text-red-500 hover:text-red-700 text-sm leading-none px-0.5"
-                                                title={t(
-                                                  "concentration.removeDrawing",
-                                                )}
-                                                aria-label={t(
-                                                  "concentration.removeDrawing",
-                                                )}
-                                              >
-                                                ×
-                                              </button>
-                                            </div>
-                                          );
-
-                                          const attachButton = (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                triggerAttachDrawings(entry.id)
-                                              }
-                                              onDoubleClick={(e) =>
-                                                e.stopPropagation()
-                                              }
-                                              disabled={
-                                                uploadingDrawingEntryId ===
-                                                entry.id
-                                              }
-                                              className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
-                                            >
-                                              <Paperclip className="h-3.5 w-3.5" />
-                                              <span>
-                                                {uploadingDrawingEntryId ===
-                                                entry.id
-                                                  ? t(
-                                                      "concentration.uploadingDrawings",
-                                                    )
-                                                  : t(
-                                                      "concentration.attachDrawings",
-                                                    )}
-                                              </span>
-                                            </button>
-                                          );
-
-                                          if (drawingFiles.length === 0) {
-                                            return (
-                                              <div className="flex justify-center w-full">
-                                                {attachButton}
-                                              </div>
-                                            );
-                                          }
-
-                                          if (!isExpanded) {
-                                            return (
-                                              <div
-                                                className={`flex items-center gap-1 w-full min-w-0 ${
-                                                  isRTL
-                                                    ? "flex-row-reverse"
-                                                    : ""
-                                                }`}
-                                              >
-                                                <div className="flex-1 min-w-0">
-                                                  {renderDrawingFile(
-                                                    drawingFiles[0],
-                                                  )}
-                                                </div>
-                                                {showToggle && (
-                                                  <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                      toggleDrawingFilesExpanded(
-                                                        entry.id,
-                                                      )
-                                                    }
-                                                    onDoubleClick={(e) =>
-                                                      e.stopPropagation()
-                                                    }
-                                                    className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100 whitespace-nowrap"
-                                                  >
-                                                    {t(
-                                                      "concentration.showMoreDrawings",
-                                                    )}
-                                                  </button>
-                                                )}
-                                                {attachButton}
-                                              </div>
-                                            );
-                                          }
-
-                                          return (
-                                            <>
-                                              <div className="w-full space-y-1">
-                                                {drawingFiles.map((filePath) =>
-                                                  renderDrawingFile(filePath),
-                                                )}
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    toggleDrawingFilesExpanded(
-                                                      entry.id,
-                                                    )
-                                                  }
-                                                  onDoubleClick={(e) =>
-                                                    e.stopPropagation()
-                                                  }
-                                                  className="w-full text-xs font-medium px-2 py-1 rounded border transition-colors bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100"
-                                                >
-                                                  {t(
-                                                    "concentration.showLessDrawings",
-                                                  )}
-                                                </button>
-                                              </div>
-                                              <div className="flex justify-center">
-                                                {attachButton}
-                                              </div>
-                                            </>
-                                          );
-                                        })()}
-                                      </div>
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {manualEditable ? (
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={editDraft.estimated_quantity}
-                                          onChange={(e) => {
-                                            const estimated =
-                                              parseFloat(e.target.value) || 0;
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    estimated_quantity: estimated,
-                                                    quantity_submitted:
-                                                      computeQuantitySubmitted(
-                                                        estimated,
-                                                        d.submission_percentage,
-                                                      ),
-                                                  }
-                                                : null,
-                                            );
-                                          }}
-                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        formatNumber(entry.estimated_quantity)
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {isEditingRow ? (
-                                        <div className="flex items-center gap-1">
-                                          <input
-                                            type="number"
-                                            step="0.1"
-                                            min="0"
-                                            max="100"
-                                            value={editDraft.submission_percentage}
-                                            onChange={(e) => {
-                                              const percentage = Math.min(
-                                                100,
-                                                Math.max(
-                                                  0,
-                                                  parseFloat(e.target.value) || 0,
-                                                ),
-                                              );
+                                        ) : (
+                                          formatNumber(
+                                            entry.approved_by_project_manager
+                                          )
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
+                                        {isEditingRow ? (
+                                          <textarea
+                                            value={editDraft.notes}
+                                            onChange={(e) =>
                                               setEditDraft((d) =>
                                                 d
                                                   ? {
                                                       ...d,
-                                                      submission_percentage:
-                                                        percentage,
-                                                      quantity_submitted:
-                                                        computeQuantitySubmitted(
-                                                          d.estimated_quantity,
-                                                          percentage,
-                                                        ),
+                                                      notes: e.target.value,
                                                     }
-                                                  : null,
-                                              );
-                                            }}
-                                            className="w-full max-w-[5rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                  : null
+                                              )
+                                            }
+                                            rows={2}
+                                            className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                                             disabled={saving}
                                           />
-                                          <span>%</span>
-                                        </div>
-                                      ) : (
-                                        `${formatNumber(entry.submission_percentage ?? 100)}%`
-                                      )}
-                                    </td>
-                                    <td
-                                      className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top"
-                                      title={t(
-                                        "submissionBreakdown.currentMonthHint",
-                                      )}
-                                    >
-                                      {formatNumber(
-                                        isEditingRow
-                                          ? editDraft.quantity_submitted
-                                          : entry.quantity_submitted,
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {isEditingRow ? (
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={editDraft.internal_quantity}
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    internal_quantity:
-                                                      parseFloat(
-                                                        e.target.value,
-                                                      ) || 0,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        formatNumber(entry.internal_quantity)
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {isEditingRow ? (
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={
-                                            editDraft.approved_by_project_manager
-                                          }
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    approved_by_project_manager:
-                                                      parseFloat(
-                                                        e.target.value,
-                                                      ) || 0,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        formatNumber(
-                                          entry.approved_by_project_manager,
-                                        )
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
-                                      {isEditingRow ? (
-                                        <textarea
-                                          value={editDraft.notes}
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    notes: e.target.value,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          rows={2}
-                                          className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        <div
-                                          className="truncate py-1"
-                                          title={entry.notes || ""}
-                                        >
-                                          {entry.notes || "-"}
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
-                                      {isEditingRow ? (
-                                        <textarea
-                                          value={editDraft.supervisor_notes}
-                                          onChange={(e) =>
-                                            setEditDraft((d) =>
-                                              d
-                                                ? {
-                                                    ...d,
-                                                    supervisor_notes:
-                                                      e.target.value,
-                                                  }
-                                                : null,
-                                            )
-                                          }
-                                          rows={2}
-                                          className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                                          disabled={saving}
-                                        />
-                                      ) : (
-                                        <div
-                                          className="truncate py-1"
-                                          title={entry.supervisor_notes || ""}
-                                        >
-                                          {entry.supervisor_notes || "-"}
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
-                                      {isEditingRow ? (
-                                        <div
-                                          className={`flex flex-wrap gap-2 ${
-                                            isRTL ? "flex-row-reverse" : ""
-                                          }`}
-                                        >
-                                          <button
-                                            type="button"
-                                            onClick={() => saveInlineEdit()}
-                                            disabled={saving}
-                                            className="text-blue-700 font-medium hover:text-blue-900 disabled:opacity-50"
+                                        ) : (
+                                          <div
+                                            className="truncate py-1"
+                                            title={entry.notes || ""}
                                           >
-                                            {saving
-                                              ? t("boq.saving")
-                                              : t("common.update")}
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={cancelInlineEdit}
+                                            {entry.notes || "-"}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
+                                        {isEditingRow ? (
+                                          <textarea
+                                            value={editDraft.supervisor_notes}
+                                            onChange={(e) =>
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      supervisor_notes:
+                                                        e.target.value,
+                                                    }
+                                                  : null
+                                              )
+                                            }
+                                            rows={2}
+                                            className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                                             disabled={saving}
-                                            className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                          />
+                                        ) : (
+                                          <div
+                                            className="truncate py-1"
+                                            title={entry.supervisor_notes || ""}
                                           >
-                                            {t("common.cancel")}
-                                          </button>
-                                        </div>
-                                      ) : entry.is_manual ? (
-                                        <div
-                                          className={`flex flex-wrap gap-2 ${
-                                            isRTL ? "flex-row-reverse" : ""
-                                          }`}
-                                        >
+                                            {entry.supervisor_notes || "-"}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                        {isEditingRow ? (
+                                          <div
+                                            className={`flex flex-wrap gap-2 ${
+                                              isRTL ? "flex-row-reverse" : ""
+                                            }`}
+                                          >
+                                            <button
+                                              type="button"
+                                              onClick={() => saveInlineEdit()}
+                                              disabled={saving}
+                                              className="text-blue-700 font-medium hover:text-blue-900 disabled:opacity-50"
+                                            >
+                                              {saving
+                                                ? t("boq.saving")
+                                                : t("common.update")}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={cancelInlineEdit}
+                                              disabled={saving}
+                                              className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                            >
+                                              {t("common.cancel")}
+                                            </button>
+                                          </div>
+                                        ) : entry.is_manual ? (
+                                          <div
+                                            className={`flex flex-wrap gap-2 ${
+                                              isRTL ? "flex-row-reverse" : ""
+                                            }`}
+                                          >
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                startEditing(entry)
+                                              }
+                                              disabled={
+                                                saving || populateSubmitting
+                                              }
+                                              className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                            >
+                                              {t("common.edit")}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                openPopulateModal(entry)
+                                              }
+                                              disabled={
+                                                saving ||
+                                                populateSubmitting ||
+                                                populateListLoading ||
+                                                populateEntrySource !== null
+                                              }
+                                              className="text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
+                                            >
+                                              {t("concentration.populate")}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                deleteEntry(entry.id)
+                                              }
+                                              disabled={
+                                                saving || populateSubmitting
+                                              }
+                                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                            >
+                                              {t("common.delete")}
+                                            </button>
+                                          </div>
+                                        ) : (
                                           <button
                                             type="button"
-                                            onClick={() =>
-                                              startEditing(entry)
-                                            }
-                                            disabled={
-                                              saving || populateSubmitting
-                                            }
+                                            onClick={() => startEditing(entry)}
+                                            disabled={saving}
                                             className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                           >
                                             {t("common.edit")}
                                           </button>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              openPopulateModal(entry)
-                                            }
-                                            disabled={
-                                              saving ||
-                                              populateSubmitting ||
-                                              populateListLoading ||
-                                              populateEntrySource !== null
-                                            }
-                                            className="text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
-                                          >
-                                            {t("concentration.populate")}
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              deleteEntry(entry.id)
-                                            }
-                                            disabled={
-                                              saving || populateSubmitting
-                                            }
-                                            className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                          >
-                                            {t("common.delete")}
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() => startEditing(entry)}
-                                          disabled={saving}
-                                          className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                                        >
-                                          {t("common.edit")}
-                                        </button>
-                                      )}
-                                    </td>
-                                  </tr>
-                                  {isBreakdownExpanded && (
-                                    <tr className="bg-gray-50/70">
-                                      <td colSpan={13} className="px-3 py-3">
-                                        <SubmissionBreakdownPanel
-                                          breakdown={entry.submission_breakdown}
-                                          quantitySubmitted={
-                                            entry.quantity_submitted
-                                          }
-                                        />
+                                        )}
                                       </td>
                                     </tr>
-                                  )}
+                                    {isBreakdownExpanded && (
+                                      <SubmissionBreakdownTotalRow
+                                        breakdown={entry.submission_breakdown}
+                                        quantitySubmitted={
+                                          entry.quantity_submitted
+                                        }
+                                        estimatedQuantity={
+                                          entry.estimated_quantity
+                                        }
+                                        columnCount={13}
+                                        invoiceColumnIndex={3}
+                                        qtyColumnIndex={7}
+                                        percentageColumnIndex={6}
+                                      />
+                                    )}
                                   </React.Fragment>
                                 );
                               })
@@ -2218,8 +2251,8 @@ const ConcentrationSheets: React.FC = () => {
                                     visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.estimated_quantity,
-                                      0,
-                                    ),
+                                      0
+                                    )
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
@@ -2230,8 +2263,8 @@ const ConcentrationSheets: React.FC = () => {
                                     visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.quantity_submitted,
-                                      0,
-                                    ),
+                                      0
+                                    )
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
@@ -2239,8 +2272,8 @@ const ConcentrationSheets: React.FC = () => {
                                     visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.internal_quantity,
-                                      0,
-                                    ),
+                                      0
+                                    )
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
@@ -2248,8 +2281,8 @@ const ConcentrationSheets: React.FC = () => {
                                     visibleEntries.reduce(
                                       (sum, entry) =>
                                         sum + entry.approved_by_project_manager,
-                                      0,
-                                    ),
+                                      0
+                                    )
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-sm text-gray-500">
@@ -2314,7 +2347,7 @@ interface EntryFormProps {
     data: Omit<
       ConcentrationEntry,
       "id" | "created_at" | "updated_at" | "concentration_sheet_id"
-    >,
+    >
   ) => void;
   onCancel: () => void;
   saving: boolean;
@@ -2338,7 +2371,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
     submission_percentage: entry?.submission_percentage ?? 100,
     quantity_submitted: computeQuantitySubmitted(
       entry?.estimated_quantity || 0,
-      entry?.submission_percentage ?? 100,
+      entry?.submission_percentage ?? 100
     ),
     internal_quantity: entry?.internal_quantity || 0,
     approved_by_project_manager: entry?.approved_by_project_manager || 0,
@@ -2361,9 +2394,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
       if (field === "estimated_quantity" || field === "submission_percentage") {
         next.quantity_submitted = computeQuantitySubmitted(
           field === "estimated_quantity" ? value : prev.estimated_quantity,
-          field === "submission_percentage"
-            ? value
-            : prev.submission_percentage,
+          field === "submission_percentage" ? value : prev.submission_percentage
         );
       }
       return next;
@@ -2425,7 +2456,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             onChange={(e) =>
               handleChange(
                 "estimated_quantity",
-                parseFloat(e.target.value) || 0,
+                parseFloat(e.target.value) || 0
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2447,10 +2478,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
               onChange={(e) =>
                 handleChange(
                   "submission_percentage",
-                  Math.min(
-                    100,
-                    Math.max(0, parseFloat(e.target.value) || 0),
-                  ),
+                  Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
                 )
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2500,7 +2528,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             onChange={(e) =>
               handleChange(
                 "approved_by_project_manager",
-                parseFloat(e.target.value) || 0,
+                parseFloat(e.target.value) || 0
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2527,9 +2555,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
           </label>
           <textarea
             value={formData.supervisor_notes}
-            onChange={(e) =>
-              handleChange("supervisor_notes", e.target.value)
-            }
+            onChange={(e) => handleChange("supervisor_notes", e.target.value)}
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={saving}
@@ -2554,8 +2580,8 @@ const EntryForm: React.FC<EntryFormProps> = ({
           {saving
             ? t("boq.saving")
             : entry
-              ? t("common.update")
-              : t("common.create")}
+            ? t("common.update")
+            : t("common.create")}
         </button>
       </div>
     </form>

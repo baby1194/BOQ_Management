@@ -13,6 +13,7 @@ from utils.concentration_utils import (
     apply_calculation_entry_quantities,
     compute_submission_percentage,
     concentration_entry_quantities_differ,
+    entry_cumulative_submitted,
 )
 from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
@@ -263,7 +264,7 @@ class SyncService:
             
             # Calculate totals (even if no entries, totals will be 0)
             total_estimated = sum(entry.estimated_quantity for entry in entries)
-            total_submitted = sum(entry.quantity_submitted for entry in entries)
+            total_submitted = sum(entry_cumulative_submitted(entry) for entry in entries)
             total_internal = sum(entry.internal_quantity for entry in entries)
             total_approved = sum(entry.approved_by_project_manager for entry in entries)
             

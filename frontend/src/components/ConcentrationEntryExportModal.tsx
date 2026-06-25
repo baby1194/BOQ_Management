@@ -27,6 +27,7 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_submission_percentage",
   "include_quantity_submitted",
   "include_past_months_submitted",
+  "include_past_months_submitted_subrows",
   "include_left_submitted",
   "include_internal_quantity",
   "include_approved_by_project_manager",
@@ -43,6 +44,7 @@ const buildDefaultConcentrationEntryExportRequest =
     include_submission_percentage: true,
     include_quantity_submitted: true,
     include_past_months_submitted: false,
+    include_past_months_submitted_subrows: false,
     include_left_submitted: false,
     include_internal_quantity: true,
     include_approved_by_project_manager: true,
@@ -258,7 +260,22 @@ const ConcentrationEntryExportModal: React.FC<
                 disabled={loading}
               />
               <span className="text-sm">
-                {t("submissionBreakdown.exportPastMonths")}
+                {t("submissionBreakdown.exportPastMonthsColumnMode")}
+              </span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_past_months_submitted_subrows}
+                onChange={() =>
+                  handleCheckboxChange("include_past_months_submitted_subrows")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">
+                {t("submissionBreakdown.exportPastMonthsSubrowMode")}
               </span>
             </label>
 

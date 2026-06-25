@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 from datetime import datetime
 from models import models
@@ -163,6 +163,7 @@ def _add_calculation_sheet_hyperlinks(
     db_session,
     section_number: str,
     skip_totals_row=True,
+    link_row_offsets: Optional[List[int]] = None,
 ):
     """Add file hyperlinks to Calculation Sheet No pointing at C:/Fatina/{section}/... on disk."""
     from openpyxl.styles import Font
@@ -174,7 +175,8 @@ def _add_calculation_sheet_hyperlinks(
         file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
         if not file_name:
             continue
-        row_1based = start_row_1based + 1 + i  # header at start_row_1based, first data at start_row_1based+1
+        row_offset = link_row_offsets[i] if link_row_offsets is not None else i
+        row_1based = start_row_1based + 1 + row_offset
         cell = worksheet.cell(row=row_1based, column=col_index_0based + 1)
         cell.hyperlink = calculation_file_uri(
             section_number, file_name, entry.calculation_sheet_no
@@ -485,8 +487,12 @@ class ExcelService:
             
             # Build entries column list from entry_columns (same logic as PDF)
             from utils.calculation_sheet_utils import (
-                build_concentration_export_row_values,
+                apply_concentration_export_subrow_merges,
+                build_all_concentration_export_rows,
                 build_concentration_export_totals_row,
+                concentration_export_entry_row_groups,
+                concentration_export_link_row_offsets,
+                concentration_export_merge_column_indices,
                 filter_concentration_export_headers,
             )
 
@@ -535,17 +541,23 @@ class ExcelService:
                 # Third Table: Concentration Entries (filtered by entry_columns)
                 if entries:
                     entries_headers = filtered_headers
+                    export_rows = build_all_concentration_export_rows(
+                        entries,
+                        period_keys,
+                        filtered_headers,
+                        entry_columns,
+                    )
                     entries_data = [entries_headers]
-                    for entry in entries:
-                        row_values = build_concentration_export_row_values(
-                            entry, period_keys
-                        )
+                    for row_values in export_rows:
                         entries_data.append(
-                            [row_values.get(header, "") for header in filtered_headers]
+                            [
+                                "" if row_values.get(header) is None else row_values.get(header, "")
+                                for header in filtered_headers
+                            ]
                         )
                     
                     totals_values = build_concentration_export_totals_row(
-                        entries, filtered_headers, period_keys, "TOTALS"
+                        entries, filtered_headers, period_keys, "TOTALS", entry_columns
                     )
                     entries_data.append(
                         [totals_values.get(header, "") for header in filtered_headers]
@@ -560,6 +572,20 @@ class ExcelService:
                         calc_sheet_col_idx = filtered_headers.index("Calculation Sheet No")
                         workbook = writer.book
                         worksheet = workbook[sheet_name]
+                        entry_groups = concentration_export_entry_row_groups(
+                            entries, entry_columns
+                        )
+                        if entry_columns and entry_columns.get(
+                            "include_past_months_submitted_subrows"
+                        ):
+                            apply_concentration_export_subrow_merges(
+                                worksheet,
+                                data_start_row_1based=current_row + 2,
+                                groups=entry_groups,
+                                merge_column_indices=concentration_export_merge_column_indices(
+                                    filtered_headers
+                                ),
+                            )
                         _add_calculation_sheet_hyperlinks(
                             worksheet,
                             entries,
@@ -568,6 +594,9 @@ class ExcelService:
                             db_session=db_session,
                             section_number=link_section,
                             skip_totals_row=True,
+                            link_row_offsets=concentration_export_link_row_offsets(
+                                entries, entry_columns
+                            ),
                         )
                 
                 # Apply formatting to the single sheet

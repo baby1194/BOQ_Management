@@ -2,9 +2,14 @@
 
 from typing import Iterable, List, TypeVar
 
-from utils.calculation_sheet_utils import breakdowns_equal
+from utils.calculation_sheet_utils import breakdowns_equal, entry_cumulative_submitted_quantity
 
 T = TypeVar("T")
+
+
+def entry_cumulative_submitted(entry) -> float:
+    """Return cumulative submitted quantity for BOQ aggregation."""
+    return entry_cumulative_submitted_quantity(entry)
 
 
 def filter_concentration_entries_for_export(entries: Iterable[T]) -> List[T]:

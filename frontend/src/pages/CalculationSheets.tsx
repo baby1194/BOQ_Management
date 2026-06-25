@@ -14,7 +14,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
-import SubmissionBreakdownPanel, {
+import {
+  SubmissionBreakdownPastRows,
+  SubmissionBreakdownTotalRow,
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
 
@@ -56,7 +58,7 @@ const CalculationSheets: React.FC = () => {
   >(new Set());
   const visibleEntries = useMemo(
     () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
-    [entries],
+    [entries]
   );
   const [openingFile, setOpeningFile] = useState(false);
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
@@ -75,9 +77,7 @@ const CalculationSheets: React.FC = () => {
       setSheets(response);
 
       // Restore previously selected sheet from localStorage
-      const savedSheetId = getProjectItem(
-        "calculation-selected-sheet-id"
-      );
+      const savedSheetId = getProjectItem("calculation-selected-sheet-id");
       if (savedSheetId && response.length > 0) {
         const savedSheet = response.find(
           (sheet) => sheet.id === parseInt(savedSheetId)
@@ -464,7 +464,9 @@ const CalculationSheets: React.FC = () => {
         alert(`✅ ${response.message}`);
       } else {
         const errorMessage =
-          response.errors[0] || response.message || t("calculationSheets.failedToTrack");
+          response.errors[0] ||
+          response.message ||
+          t("calculationSheets.failedToTrack");
         setError(errorMessage);
         alert(`Error: ${errorMessage}`);
       }
@@ -499,7 +501,15 @@ const CalculationSheets: React.FC = () => {
       if (response.success) {
         setError(null);
         alert(
-          `✅ ${response.message}\n\nSheets Processed: ${response.details.sheets_processed}\nEntries Updated: ${response.details.entries_updated}\nBOQ Items Updated: ${response.details.boq_items_updated}\nConcentration Sheet PDFs Exported: ${response.details.concentration_sheets_exported || 0}`
+          `✅ ${response.message}\n\nSheets Processed: ${
+            response.details.sheets_processed
+          }\nEntries Updated: ${
+            response.details.entries_updated
+          }\nBOQ Items Updated: ${
+            response.details.boq_items_updated
+          }\nConcentration Sheet PDFs Exported: ${
+            response.details.concentration_sheets_exported || 0
+          }`
         );
         // Refresh data to show updated values
         await fetchSheets();
@@ -524,7 +534,11 @@ const CalculationSheets: React.FC = () => {
       const response = await calculationSheetsApi.track();
 
       alert(
-        `${response.success ? "✅" : "⚠️"} ${response.message}\n\nSheets Updated: ${response.sheets_updated}\nEntries Refreshed: ${response.entries_updated}\nSheets Skipped: ${response.sheets_skipped}${
+        `${response.success ? "✅" : "⚠️"} ${
+          response.message
+        }\n\nSheets Updated: ${response.sheets_updated}\nEntries Refreshed: ${
+          response.entries_updated
+        }\nSheets Skipped: ${response.sheets_skipped}${
           response.errors.length > 0
             ? `\n\nIssues:\n${response.errors.slice(0, 10).join("\n")}${
                 response.errors.length > 10
@@ -584,10 +598,7 @@ const CalculationSheets: React.FC = () => {
   }, [filterSheetNo]);
 
   useEffect(() => {
-    setProjectItem(
-      "calculation-sheets-filter-drawing-no",
-      filterDrawingNo
-    );
+    setProjectItem("calculation-sheets-filter-drawing-no", filterDrawingNo);
   }, [filterDrawingNo]);
 
   if (loading) {
@@ -1024,18 +1035,12 @@ const CalculationSheets: React.FC = () => {
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
-                        {t("calculationSheets.entries")} ({visibleEntries.length})
+                        {t("calculationSheets.entries")} (
+                        {visibleEntries.length})
                       </h3>
                       {selectedSheet && (
                         <p className="text-sm text-gray-500 mt-1">
-                          {t("concentration.drawingNoLabel")}:{" "}
-                          <span className="font-medium text-gray-700">
-                            {selectedSheet.drawing_no}
-                          </span>
-                          <span className="mx-2">·</span>
-                          <span title={t("submissionBreakdown.currentMonthHint")}>
-                            {t("submissionBreakdown.currentMonthHint")}
-                          </span>
+                          {t("submissionBreakdown.currentMonthHint")}
                         </p>
                       )}
                     </div>
@@ -1094,12 +1099,25 @@ const CalculationSheets: React.FC = () => {
                               </tr>
                             ) : (
                               visibleEntries.map((entry) => {
-                                const isExpanded = expandedBreakdownEntryIds.has(
-                                  entry.id,
-                                );
+                                const isExpanded =
+                                  expandedBreakdownEntryIds.has(entry.id);
 
                                 return (
                                   <React.Fragment key={entry.id}>
+                                    {isExpanded && (
+                                      <SubmissionBreakdownPastRows
+                                        breakdown={entry.submission_breakdown}
+                                        quantitySubmitted={
+                                          entry.quantity_submitted
+                                        }
+                                        currentInvoiceId={
+                                          entry.current_invoice_id
+                                        }
+                                        columnCount={7}
+                                        invoiceColumnIndex={2}
+                                        qtyColumnIndex={4}
+                                      />
+                                    )}
                                     <tr className="table-row-hover">
                                       <td className="px-2 py-4 whitespace-nowrap align-top">
                                         <SubmissionBreakdownToggle
@@ -1148,18 +1166,21 @@ const CalculationSheets: React.FC = () => {
                                       </td>
                                     </tr>
                                     {isExpanded && (
-                                      <tr className="bg-gray-50/70">
-                                        <td colSpan={7} className="px-3 py-3">
-                                          <SubmissionBreakdownPanel
-                                            breakdown={
-                                              entry.submission_breakdown
-                                            }
-                                            quantitySubmitted={
-                                              entry.quantity_submitted
-                                            }
-                                          />
-                                        </td>
-                                      </tr>
+                                      <SubmissionBreakdownTotalRow
+                                        breakdown={entry.submission_breakdown}
+                                        quantitySubmitted={
+                                          entry.quantity_submitted
+                                        }
+                                        currentInvoiceId={
+                                          entry.current_invoice_id
+                                        }
+                                        estimatedQuantity={
+                                          entry.estimated_quantity
+                                        }
+                                        columnCount={7}
+                                        invoiceColumnIndex={2}
+                                        qtyColumnIndex={4}
+                                      />
                                     )}
                                   </React.Fragment>
                                 );

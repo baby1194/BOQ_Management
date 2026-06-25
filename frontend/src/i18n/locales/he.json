@@ -675,8 +675,10 @@
     "toggleDetails": "הצג פירוט הגשות",
     "retrackToLoad": "עקוב אחר דף החישוב מחדש כדי לטעון כמויות של חודשים קודמים וכמות שנותרה.",
     "noNonZeroSubmitted": "אין כמויות מוגשות שאינן אפס.",
-    "currentMonthHint": "",
-    "exportPastMonths": "כמויות מוגשות של חודשים קודמים",
+    "currentMonthHint": "כמות מוגשת של חשבונית נוכחית",
+    "cumulativeSubmittedHint": "כמות מוגשת מצטברת (לא כולל כמות שנותרה)",
+    "exportPastMonthsColumnMode": "כמויות מוגשות של חודשים קודמים (מצב עמודות)",
+    "exportPastMonthsSubrowMode": "כמויות מוגשות של חודשים קודמים (מצב תת-שורות)",
     "exportLeftSubmitted": "כמות שנותרה"
   }
 }

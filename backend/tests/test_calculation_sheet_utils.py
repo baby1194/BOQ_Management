@@ -205,6 +205,99 @@ def test_concentration_export_totals_row_leaves_percentage_blank():
     assert formatted[pct_idx] == ""
 
 
+def test_cumulative_submitted_quantity_excludes_left_submitted():
+    breakdown = {
+        "current_drawing_no": "03",
+        "periods": {"01": 100.0, "02": 100.0, "03": 100.0},
+        "left_submitted": 200.0,
+    }
+    from utils.calculation_sheet_utils import cumulative_submitted_quantity
+
+    assert cumulative_submitted_quantity(breakdown) == 300.0
+
+
+def test_entry_cumulative_submitted_quantity_falls_back_without_breakdown():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import entry_cumulative_submitted_quantity
+
+    entry = SimpleNamespace(quantity_submitted=125.0, submission_breakdown=None)
+    assert entry_cumulative_submitted_quantity(entry) == 125.0
+
+
+def test_build_concentration_export_subrows():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import (
+        build_concentration_export_rows_for_entry,
+        build_concentration_export_totals_row,
+        concentration_export_link_row_offsets,
+        concentration_export_main_row_offsets,
+    )
+
+    entry = SimpleNamespace(
+        description="Item A",
+        calculation_sheet_no="7",
+        drawing_no="06",
+        estimated_quantity=1000.0,
+        submission_percentage=10.0,
+        quantity_submitted=100.0,
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes="",
+        supervisor_notes="",
+        submission_breakdown={
+            "current_drawing_no": "06",
+            "periods": {"01": 200.0, "02": 150.0, "06": 100.0},
+            "left_submitted": 50.0,
+        },
+    )
+    headers = [
+        "Description",
+        "Calculation Sheet No",
+        "Estimated Quantity",
+        "Invoice No",
+        "Submission Percentage",
+        "Quantity Submitted",
+        "Internal Quantity",
+        "Approved by Project Manager",
+    ]
+    entry_columns = {"include_past_months_submitted_subrows": True}
+
+    rows = build_concentration_export_rows_for_entry(
+        entry, [], headers, entry_columns
+    )
+    assert len(rows) == 3
+    assert rows[0]["Description"] == "Item A"
+    assert rows[0]["Invoice No"] == "01"
+    assert rows[0]["Quantity Submitted"] == 200.0
+    assert rows[0]["Submission Percentage"] == 20.0
+    assert rows[0]["Estimated Quantity"] == 1000.0
+    assert rows[0]["Internal Quantity"] is None
+    assert rows[1]["Invoice No"] == "02"
+    assert rows[1]["Description"] is None
+    assert rows[1]["Estimated Quantity"] is None
+    assert rows[1]["Internal Quantity"] is None
+    assert rows[1]["Approved by Project Manager"] is None
+    assert rows[2]["Invoice No"] == "06"
+    assert rows[2]["Description"] is None
+    assert rows[2]["Quantity Submitted"] == 100.0
+
+    offsets = concentration_export_main_row_offsets([entry], entry_columns)
+    assert offsets == [2]
+    link_offsets = concentration_export_link_row_offsets([entry], entry_columns)
+    assert link_offsets == [0]
+
+    totals = build_concentration_export_totals_row(
+        [entry],
+        ["Quantity Submitted"],
+        [],
+        "TOTALS",
+        entry_columns,
+    )
+    assert totals["Quantity Submitted"] == 450.0
+
+
 def test_validate_calculation_sheet_header_fields_messages():
     import pytest
 

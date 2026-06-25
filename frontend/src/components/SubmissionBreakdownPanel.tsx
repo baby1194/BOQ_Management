@@ -1,47 +1,242 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight, ChevronUp } from "lucide-react";
 import { SubmissionBreakdown } from "../types";
 import { formatNumber } from "../utils/format";
+import {
+  cumulativeSubmittedQuantity,
+  getPastPeriodRows,
+  resolveCurrentPeriod,
+} from "../utils/submissionBreakdown";
 
 interface SubmissionBreakdownPanelProps {
   breakdown?: SubmissionBreakdown | null;
   quantitySubmitted: number;
   compact?: boolean;
+  currentInvoiceId?: string | null;
 }
 
-const INVALID_PERIODS = new Set(["nan", "none", "<na>", "nat"]);
+interface SubmissionBreakdownTableLayout {
+  columnCount: number;
+  invoiceColumnIndex: number;
+  qtyColumnIndex: number;
+  percentageColumnIndex?: number;
+}
 
-const getPeriodQuantities = (
-  breakdown: SubmissionBreakdown,
-): Record<string, number> => {
-  if (breakdown.periods && Object.keys(breakdown.periods).length > 0) {
-    return breakdown.periods;
+interface SubmissionBreakdownTableRowsProps
+  extends SubmissionBreakdownPanelProps,
+    SubmissionBreakdownTableLayout {
+  estimatedQuantity?: number;
+}
+
+const TOTAL_ROW_CLASS = "bg-gray-200/80 text-gray-700";
+
+function getBreakdownTotals(
+  breakdown: SubmissionBreakdown | null | undefined,
+  quantitySubmitted: number,
+  currentInvoiceId?: string | null,
+) {
+  if (!breakdown) {
+    return null;
   }
 
-  const merged: Record<string, number> = { ...(breakdown.past_months ?? {}) };
-  const current = breakdown.current_drawing_no?.trim();
-  if (current && !(current in merged)) {
-    merged[current] = 0;
-  }
+  const currentPeriod = resolveCurrentPeriod(breakdown, currentInvoiceId);
+  const pastRows = getPastPeriodRows(breakdown, currentPeriod);
+  const cumulativeTotal =
+    cumulativeSubmittedQuantity(breakdown) ||
+    quantitySubmitted + pastRows.reduce((sum, row) => sum + row.qty, 0);
 
-  Object.keys(merged).forEach((key) => {
-    if (INVALID_PERIODS.has(key.toLowerCase())) {
-      delete merged[key];
+  return { pastRows, cumulativeTotal };
+}
+
+function formatSubmissionPercentage(
+  estimatedQuantity: number,
+  cumulativeSubmitted: number,
+): string {
+  const estimated = estimatedQuantity || 0;
+  const submitted = cumulativeSubmitted || 0;
+  if (estimated > 0) {
+    return `${formatNumber((submitted / estimated) * 100, 1)}%`;
+  }
+  return `${formatNumber(100, 1)}%`;
+}
+
+const renderBreakdownCells = (
+  layout: SubmissionBreakdownTableLayout,
+  cells: {
+    invoiceCell?: React.ReactNode;
+    qtyCell?: React.ReactNode;
+    percentageCell?: React.ReactNode;
+  },
+  cellClassName: string,
+) =>
+  Array.from({ length: layout.columnCount }, (_, index) => {
+    let content: React.ReactNode = "";
+    if (index === layout.invoiceColumnIndex) {
+      content = cells.invoiceCell ?? "";
+    } else if (index === layout.qtyColumnIndex) {
+      content = cells.qtyCell ?? "";
+    } else if (
+      layout.percentageColumnIndex !== undefined &&
+      index === layout.percentageColumnIndex
+    ) {
+      content = cells.percentageCell ?? "";
     }
+
+    return (
+      <td key={index} className={cellClassName}>
+        {content}
+      </td>
+    );
   });
 
-  return merged;
+export const SubmissionBreakdownPastRows: React.FC<
+  SubmissionBreakdownTableRowsProps
+> = ({
+  breakdown,
+  quantitySubmitted,
+  currentInvoiceId,
+  estimatedQuantity = 0,
+  columnCount,
+  invoiceColumnIndex,
+  qtyColumnIndex,
+  percentageColumnIndex,
+}) => {
+  const { t } = useTranslation();
+  const layout = {
+    columnCount,
+    invoiceColumnIndex,
+    qtyColumnIndex,
+    percentageColumnIndex,
+  };
+
+  if (!breakdown) {
+    return (
+      <tr className="bg-gray-50/70">
+        <td colSpan={columnCount} className="px-3 py-2 text-sm text-gray-600">
+          {t("submissionBreakdown.retrackToLoad")}
+        </td>
+      </tr>
+    );
+  }
+
+  const totals = getBreakdownTotals(
+    breakdown,
+    quantitySubmitted,
+    currentInvoiceId,
+  );
+  if (!totals || totals.pastRows.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {totals.pastRows.map(({ period, qty }) => (
+        <tr key={`past-${period}`} className="bg-gray-50/70">
+          {renderBreakdownCells(
+            layout,
+            {
+              invoiceCell: (
+                <span className="font-medium text-gray-700">{period}</span>
+              ),
+              percentageCell: formatSubmissionPercentage(
+                estimatedQuantity,
+                qty,
+              ),
+              qtyCell: formatNumber(qty),
+            },
+            "px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap",
+          )}
+        </tr>
+      ))}
+    </>
+  );
 };
 
-const sortedPeriodKeys = (periods: Record<string, number>): string[] =>
-  Object.keys(periods).sort((a, b) =>
-    a.length === b.length ? a.localeCompare(b) : a.length - b.length,
+export const SubmissionBreakdownTotalRow: React.FC<
+  SubmissionBreakdownTableRowsProps
+> = ({
+  breakdown,
+  quantitySubmitted,
+  currentInvoiceId,
+  estimatedQuantity = 0,
+  columnCount,
+  invoiceColumnIndex,
+  qtyColumnIndex,
+  percentageColumnIndex,
+}) => {
+  const { t } = useTranslation();
+  const layout = {
+    columnCount,
+    invoiceColumnIndex,
+    qtyColumnIndex,
+    percentageColumnIndex,
+  };
+
+  if (!breakdown) {
+    return null;
+  }
+
+  const totals = getBreakdownTotals(
+    breakdown,
+    quantitySubmitted,
+    currentInvoiceId,
   );
+  if (!totals) {
+    return null;
+  }
+
+  const { cumulativeTotal } = totals;
+  const percentageLabel = formatSubmissionPercentage(
+    estimatedQuantity,
+    cumulativeTotal,
+  );
+
+  return (
+    <tr className={`${TOTAL_ROW_CLASS} border-t border-gray-300`}>
+      {renderBreakdownCells(
+        layout,
+        {
+          invoiceCell: (
+            <span className="font-semibold text-gray-800">
+              {t("common.total")}
+            </span>
+          ),
+          percentageCell: (
+            <span className="font-semibold text-gray-800">
+              {percentageLabel}
+            </span>
+          ),
+          qtyCell: (
+            <span className="font-semibold text-gray-800">
+              {formatNumber(cumulativeTotal)}
+            </span>
+          ),
+        },
+        "px-3 py-1.5 text-sm align-top whitespace-nowrap",
+      )}
+    </tr>
+  );
+};
+
+/** @deprecated Use SubmissionBreakdownPastRows and SubmissionBreakdownTotalRow */
+export const SubmissionBreakdownTableRows: React.FC<
+  SubmissionBreakdownTableRowsProps
+> = (props) => (
+  <>
+    <SubmissionBreakdownPastRows {...props} />
+    <SubmissionBreakdownTotalRow {...props} />
+  </>
+);
 
 export const SubmissionBreakdownPanel: React.FC<
   SubmissionBreakdownPanelProps
-> = ({ breakdown, quantitySubmitted, compact = false }) => {
+> = ({
+  breakdown,
+  quantitySubmitted,
+  compact = false,
+  currentInvoiceId,
+}) => {
   const { t } = useTranslation();
 
   if (!breakdown) {
@@ -52,25 +247,12 @@ export const SubmissionBreakdownPanel: React.FC<
     );
   }
 
-  const periodQuantities = getPeriodQuantities(breakdown);
-  const currentPeriod = breakdown.current_drawing_no?.trim() || "";
-  const leftSubmitted = breakdown.left_submitted ?? 0;
-
-  const visiblePeriodRows = sortedPeriodKeys(periodQuantities).flatMap(
-    (period) => {
-      const isCurrent = period === currentPeriod;
-      const qty = isCurrent
-        ? quantitySubmitted
-        : (periodQuantities[period] ?? 0);
-      if (qty === 0) {
-        return [];
-      }
-      return [{ period, isCurrent, qty }];
-    },
+  const totals = getBreakdownTotals(
+    breakdown,
+    quantitySubmitted,
+    currentInvoiceId,
   );
-  const showLeftSubmitted = leftSubmitted !== 0;
-
-  if (visiblePeriodRows.length === 0 && !showLeftSubmitted) {
+  if (!totals || (totals.pastRows.length === 0 && totals.cumulativeTotal === 0)) {
     return (
       <div
         className={`rounded-md border border-gray-200 bg-gray-50 text-sm text-gray-600 ${
@@ -88,49 +270,25 @@ export const SubmissionBreakdownPanel: React.FC<
         compact ? "px-3 py-2" : "px-4 py-3"
       }`}
     >
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {t("submissionBreakdown.title")}
-      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase text-gray-500">
-              <th className="pb-1 pe-4">{t("submissionBreakdown.period")}</th>
-              <th className="pb-1">{t("submissionBreakdown.submittedQty")}</th>
-            </tr>
-          </thead>
           <tbody className="text-gray-800">
-            {visiblePeriodRows.map(({ period, isCurrent, qty }) => (
-              <tr
-                key={period}
-                className={isCurrent ? "border-t border-gray-200" : undefined}
-              >
-                <td
-                  className={`py-0.5 pe-4 font-medium ${
-                    isCurrent ? "font-semibold text-blue-700" : ""
-                  }`}
-                >
-                  {isCurrent
-                    ? t("submissionBreakdown.currentPeriod", { period })
-                    : period}
+            {totals.pastRows.map(({ period, qty }) => (
+              <tr key={period}>
+                <td className="py-0.5 pe-4 font-medium text-gray-700">
+                  {period}
                 </td>
-                <td
-                  className={`py-0.5 ${
-                    isCurrent ? "font-semibold text-blue-700" : ""
-                  }`}
-                >
-                  {formatNumber(qty)}
-                </td>
+                <td className="py-0.5">{formatNumber(qty)}</td>
               </tr>
             ))}
-            {showLeftSubmitted && (
-              <tr className="border-t border-gray-200">
-                <td className="py-0.5 pe-4 font-medium">
-                  {t("submissionBreakdown.leftSubmitted")}
-                </td>
-                <td className="py-0.5">{formatNumber(leftSubmitted)}</td>
-              </tr>
-            )}
+            <tr className={TOTAL_ROW_CLASS}>
+              <td className="py-0.5 pe-4 font-semibold text-gray-800">
+                {t("common.total")}
+              </td>
+              <td className="py-0.5 font-semibold text-gray-800">
+                {formatNumber(totals.cumulativeTotal)}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -148,7 +306,7 @@ export const SubmissionBreakdownToggle: React.FC<
   SubmissionBreakdownToggleProps
 > = ({ expanded, onToggle, disabled = false }) => {
   const { t } = useTranslation();
-  const Icon = expanded ? ChevronDown : ChevronRight;
+  const Icon = expanded ? ChevronUp : ChevronRight;
 
   return (
     <button

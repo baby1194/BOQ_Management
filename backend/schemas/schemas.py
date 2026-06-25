@@ -192,6 +192,7 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_submission_percentage: bool = True
     include_quantity_submitted: bool = True
     include_past_months_submitted: bool = False
+    include_past_months_submitted_subrows: bool = False
     include_left_submitted: bool = False
     include_internal_quantity: bool = True
     include_approved_by_project_manager: bool = True

@@ -969,14 +969,17 @@ class PDFService:
             # Apply column filtering based on entry_columns if provided (define early for use throughout method)
             from utils.calculation_sheet_utils import (
                 LEFT_SUBMITTED_HEADER,
-                build_concentration_export_row_values,
+                add_concentration_export_subrow_pdf_spans,
+                build_all_concentration_export_rows,
                 build_concentration_export_totals_row,
+                concentration_export_entry_row_groups,
                 concentration_export_header_translations,
                 filter_concentration_export_headers,
                 format_concentration_export_row_for_pdf,
                 is_past_period_export_header,
                 period_header_key,
                 translate_past_period_header,
+                translated_merge_column_indices,
             )
 
             filtered_headers, period_keys = filter_concentration_export_headers(
@@ -1002,16 +1005,19 @@ class PDFService:
             if entries:
                 # Prepare data for optimal page size calculation using translated headers
                 calc_data = [translated_headers]
-                for entry in entries[:10]:  # Use first 10 entries for calculation
-                    row_values = build_concentration_export_row_values(
-                        entry,
-                        period_keys,
-                        notes_value=_notes_for_pdf_export(entry),
+                sample_rows = build_all_concentration_export_rows(
+                    entries[:10],
+                    period_keys,
+                    filtered_headers,
+                    entry_columns,
+                    notes_getter=_notes_for_pdf_export,
+                )
+                for row_values in sample_rows:
+                    calc_data.append(
+                        format_concentration_export_row_for_pdf(
+                            row_values, filtered_headers
+                        )
                     )
-                    filtered_entry_data = format_concentration_export_row_for_pdf(
-                        row_values, filtered_headers
-                    )
-                    calc_data.append(filtered_entry_data)
                 
                 # Add a sample totals row for calculation
                 calc_data.append([totals_text] + [""] * (len(translated_headers) - 1))
@@ -1181,37 +1187,51 @@ class PDFService:
                     'CalcSheetLink', parent=styles['Normal'], fontSize=12, spaceAfter=0, spaceBefore=0
                 )
                 calc_sheet_col = filtered_headers.index('Calculation Sheet No') if 'Calculation Sheet No' in filtered_headers else -1
+                entry_groups = concentration_export_entry_row_groups(
+                    entries, entry_columns
+                )
+                export_rows = build_all_concentration_export_rows(
+                    entries,
+                    period_keys,
+                    filtered_headers,
+                    entry_columns,
+                    notes_getter=_notes_for_pdf_export,
+                )
+                entry_index = 0
 
-                for entry in entries:
-                    row_values = build_concentration_export_row_values(
-                        entry,
-                        period_keys,
-                        notes_value=_notes_for_pdf_export(entry),
-                    )
+                for row_index, row_values in enumerate(export_rows):
                     filtered_entry_data = format_concentration_export_row_for_pdf(
                         row_values, filtered_headers
                     )
-                    # Add clickable link to Calculation Sheet No (file:///C:/Fatina/...) when we have a matching file
-                    if calc_sheet_col >= 0 and db_session and boq_item and boq_item.section_number:
-                        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
-                        if file_name:
-                            display_text = entry.calculation_sheet_no or ''
-                            # Escape for XML in Paragraph
-                            display_escaped = (display_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                                              .replace('"', '&quot;'))
-                            href_uri = calculation_file_uri(
-                                str(boq_item.section_number).strip(),
-                                file_name,
-                                entry.calculation_sheet_no,
-                            )
-                            file_escaped = (href_uri.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                                            .replace('"', '&quot;'))
-                            link_markup = f'<a href="{file_escaped}" color="blue">{display_escaped}</a>'
-                            filtered_entry_data[calc_sheet_col] = Paragraph(link_markup, link_style)
+                    if (
+                        entry_index < len(entry_groups)
+                        and row_index == entry_groups[entry_index][0]
+                    ):
+                        entry = entries[entry_index]
+                        if calc_sheet_col >= 0 and db_session and boq_item and boq_item.section_number:
+                            file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
+                            if file_name:
+                                display_text = entry.calculation_sheet_no or ''
+                                display_escaped = (display_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                                  .replace('"', '&quot;'))
+                                href_uri = calculation_file_uri(
+                                    str(boq_item.section_number).strip(),
+                                    file_name,
+                                    entry.calculation_sheet_no,
+                                )
+                                file_escaped = (href_uri.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                                .replace('"', '&quot;'))
+                                link_markup = f'<a href="{file_escaped}" color="blue">{display_escaped}</a>'
+                                filtered_entry_data[calc_sheet_col] = Paragraph(link_markup, link_style)
+                    if (
+                        entry_index < len(entry_groups)
+                        and row_index == entry_groups[entry_index][1]
+                    ):
+                        entry_index += 1
                     entries_data.append(filtered_entry_data)
                 
                 totals_values = build_concentration_export_totals_row(
-                    entries, filtered_headers, period_keys, totals_text
+                    entries, filtered_headers, period_keys, totals_text, entry_columns
                 )
                 filtered_totals_row = format_concentration_export_row_for_pdf(
                     totals_values, filtered_headers
@@ -1226,6 +1246,18 @@ class PDFService:
                     entries_data = [[row[col_idx] for col_idx in range(len(row)-1, -1, -1)] for row in entries_data]
                 else:
                     current_headers = translated_headers
+
+                subrow_groups: list = []
+                merge_col_indices: list = []
+                if entry_columns and entry_columns.get(
+                    "include_past_months_submitted_subrows"
+                ):
+                    subrow_groups = concentration_export_entry_row_groups(
+                        entries, entry_columns
+                    )
+                    merge_col_indices = translated_merge_column_indices(
+                        filtered_headers, headers_translations, current_headers
+                    )
                 
                 # Calculate column widths based on current (possibly reversed) data
                 column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12, language)
@@ -1274,6 +1306,9 @@ class PDFService:
                     if language == "en":
                         for col_idx in numerical_column_indices:
                             override_style.add('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER')
+                    add_concentration_export_subrow_pdf_spans(
+                        override_style, subrow_groups, merge_col_indices
+                    )
                     entries_table.setStyle(override_style)
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
@@ -1311,6 +1346,9 @@ class PDFService:
                     if language == "en":
                         for col_idx in numerical_column_indices:
                             entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
+                    add_concentration_export_subrow_pdf_spans(
+                        entries_table_style, subrow_groups, merge_col_indices
+                    )
                     
                     # Create table with processed data (Hebrew text reversed)
                     entries_table = Table(processed_entries_data, colWidths=column_widths)

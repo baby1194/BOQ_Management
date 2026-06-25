@@ -277,6 +277,22 @@ def left_submitted_quantity(breakdown: Optional[Dict[str, Any]]) -> float:
     return float(breakdown.get("left_submitted", 0.0) or 0.0)
 
 
+def cumulative_submitted_quantity(breakdown: Optional[Dict[str, Any]]) -> float:
+    """Sum all invoice-period quantities; excludes left_submitted."""
+    periods = _breakdown_periods(breakdown)
+    return float(sum(float(value or 0) for value in periods.values()))
+
+
+def entry_cumulative_submitted_quantity(entry: Any) -> float:
+    """Cumulative submitted qty for an entry, falling back to quantity_submitted."""
+    breakdown = getattr(entry, "submission_breakdown", None)
+    if isinstance(breakdown, dict) and breakdown:
+        cumulative = cumulative_submitted_quantity(breakdown)
+        if cumulative > 0:
+            return cumulative
+    return float(getattr(entry, "quantity_submitted", 0) or 0)
+
+
 def breakdowns_equal(
     left: Optional[Dict[str, Any]], right: Optional[Dict[str, Any]]
 ) -> bool:
@@ -308,6 +324,12 @@ CONCENTRATION_BASE_HEADERS = [
     "Notes",
     "Supervisor Notes",
 ]
+
+SUBROW_MERGE_HEADERS = (
+    "Description",
+    "Calculation Sheet No",
+    "Estimated Quantity",
+)
 
 LEFT_SUBMITTED_HEADER = "Left Submitted"
 
@@ -441,6 +463,230 @@ def build_concentration_export_row_values(
     return row
 
 
+def get_past_period_subrows_for_export(entry: Any) -> List[Tuple[str, float]]:
+    """Past invoice periods and quantities for subrow export (excludes current period)."""
+    breakdown = getattr(entry, "submission_breakdown", None) or {}
+    if not isinstance(breakdown, dict):
+        return []
+
+    current = _entry_current_drawing_no(entry, breakdown)
+    rows: List[Tuple[str, float]] = []
+    for period in breakdown_period_keys(breakdown):
+        if period == current:
+            continue
+        qty = period_quantity(breakdown, period)
+        if qty == 0:
+            continue
+        rows.append((period, qty))
+    return rows
+
+
+def _export_submission_percentage(estimated: float, submitted: float) -> float:
+    estimated = float(estimated or 0)
+    submitted = float(submitted or 0)
+    if estimated > 0:
+        return (submitted / estimated) * 100.0
+    return 100.0
+
+
+def build_concentration_export_subrow_values(
+    entry: Any,
+    period: str,
+    qty: float,
+    filtered_headers: List[str],
+) -> Dict[str, Any]:
+    """One past-invoice subrow aligned with concentration entry table columns."""
+    row: Dict[str, Any] = {header: None for header in filtered_headers}
+    if "Invoice No" in filtered_headers:
+        row["Invoice No"] = period
+    if "Submission Percentage" in filtered_headers:
+        row["Submission Percentage"] = _export_submission_percentage(
+            getattr(entry, "estimated_quantity", 0), qty
+        )
+    if "Quantity Submitted" in filtered_headers:
+        row["Quantity Submitted"] = float(qty)
+    return row
+
+
+def _apply_subrow_merge_column_values(
+    rows: List[Dict[str, Any]], filtered_headers: List[str]
+) -> None:
+    """Keep shared values on the first row only; clear merge columns on follow-up rows."""
+    if len(rows) <= 1:
+        return
+
+    main_row = rows[-1]
+    for header in SUBROW_MERGE_HEADERS:
+        if header not in filtered_headers:
+            continue
+        shared_value = main_row.get(header, "")
+        rows[0][header] = shared_value
+        for row in rows[1:]:
+            row[header] = None
+
+
+def build_concentration_export_rows_for_entry(
+    entry: Any,
+    period_keys: List[str],
+    filtered_headers: List[str],
+    entry_columns: Optional[Dict[str, Any]] = None,
+    notes_value: str = "",
+) -> List[Dict[str, Any]]:
+    """Main entry row plus optional past-invoice subrows placed before it."""
+    rows: List[Dict[str, Any]] = []
+    if entry_columns and entry_columns.get("include_past_months_submitted_subrows"):
+        for period, qty in get_past_period_subrows_for_export(entry):
+            rows.append(
+                build_concentration_export_subrow_values(
+                    entry, period, qty, filtered_headers
+                )
+            )
+    rows.append(
+        build_concentration_export_row_values(entry, period_keys, notes_value)
+    )
+    if entry_columns and entry_columns.get("include_past_months_submitted_subrows"):
+        _apply_subrow_merge_column_values(rows, filtered_headers)
+    return rows
+
+
+def build_all_concentration_export_rows(
+    entries: Iterable[Any],
+    period_keys: List[str],
+    filtered_headers: List[str],
+    entry_columns: Optional[Dict[str, Any]] = None,
+    notes_getter=None,
+) -> List[Dict[str, Any]]:
+    result: List[Dict[str, Any]] = []
+    for entry in entries:
+        notes = notes_getter(entry) if notes_getter else (getattr(entry, "notes", None) or "")
+        result.extend(
+            build_concentration_export_rows_for_entry(
+                entry, period_keys, filtered_headers, entry_columns, notes
+            )
+        )
+    return result
+
+
+def concentration_export_main_row_offsets(
+    entries: Iterable[Any],
+    entry_columns: Optional[Dict[str, Any]],
+) -> List[int]:
+    """0-based index of each main entry row within the expanded export row list."""
+    offsets: List[int] = []
+    offset = 0
+    include_subrows = bool(
+        entry_columns and entry_columns.get("include_past_months_submitted_subrows")
+    )
+    for entry in entries:
+        if include_subrows:
+            offset += len(get_past_period_subrows_for_export(entry))
+        offsets.append(offset)
+        offset += 1
+    return offsets
+
+
+def concentration_export_entry_row_groups(
+    entries: Iterable[Any],
+    entry_columns: Optional[Dict[str, Any]],
+) -> List[Tuple[int, int]]:
+    """Inclusive start/end indices for each entry block in the flat export row list."""
+    groups: List[Tuple[int, int]] = []
+    idx = 0
+    include_subrows = bool(
+        entry_columns and entry_columns.get("include_past_months_submitted_subrows")
+    )
+    for entry in entries:
+        row_count = 1
+        if include_subrows:
+            row_count += len(get_past_period_subrows_for_export(entry))
+        start = idx
+        end = idx + row_count - 1
+        groups.append((start, end))
+        idx += row_count
+    return groups
+
+
+def concentration_export_merge_column_indices(
+    filtered_headers: List[str],
+) -> List[int]:
+    return [
+        filtered_headers.index(header)
+        for header in SUBROW_MERGE_HEADERS
+        if header in filtered_headers
+    ]
+
+
+def apply_concentration_export_subrow_merges(
+    worksheet,
+    data_start_row_1based: int,
+    groups: List[Tuple[int, int]],
+    merge_column_indices: List[int],
+) -> None:
+    """Merge shared description/calc sheet/est qty cells across subrow blocks."""
+    if not groups or not merge_column_indices:
+        return
+
+    for start, end in groups:
+        if start >= end:
+            continue
+        for col_index in merge_column_indices:
+            worksheet.merge_cells(
+                start_row=data_start_row_1based + start,
+                end_row=data_start_row_1based + end,
+                start_column=col_index + 1,
+                end_column=col_index + 1,
+            )
+
+
+def add_concentration_export_subrow_pdf_spans(
+    table_style,
+    groups: List[Tuple[int, int]],
+    merge_column_indices: List[int],
+    data_row_offset: int = 1,
+) -> None:
+    """Apply PDF table SPANs for merged subrow columns."""
+    if not groups or not merge_column_indices:
+        return
+
+    for start, end in groups:
+        if start >= end:
+            continue
+        for col_idx in merge_column_indices:
+            table_style.add(
+                "SPAN",
+                (col_idx, data_row_offset + start),
+                (col_idx, data_row_offset + end),
+            )
+            table_style.add(
+                "VALIGN",
+                (col_idx, data_row_offset + start),
+                (col_idx, data_row_offset + end),
+                "TOP",
+            )
+
+
+def translated_merge_column_indices(
+    filtered_headers: List[str],
+    headers_translations: Dict[str, str],
+    current_headers: List[str],
+) -> List[int]:
+    indices: List[int] = []
+    for header in SUBROW_MERGE_HEADERS:
+        if header not in filtered_headers:
+            continue
+        translated = headers_translations.get(header, header)
+        indices.append(current_headers.index(translated))
+    return indices
+
+
+def concentration_export_link_row_offsets(
+    entries: Iterable[Any],
+    entry_columns: Optional[Dict[str, Any]],
+) -> List[int]:
+    """Row index (within export data rows) that holds the calc sheet no link cell."""
+    return [start for start, _ in concentration_export_entry_row_groups(entries, entry_columns)]
+
+
 def concentration_export_header_translations(language: str) -> Dict[str, str]:
     if language == "he":
         base = {
@@ -494,6 +740,8 @@ def format_concentration_export_row_for_pdf(
                 formatted.append(f"{float(value):,.1f}%")
         elif header in text_headers:
             formatted.append(str(value or ""))
+        elif value in ("", None):
+            formatted.append("")
         else:
             formatted.append(f"{float(value or 0):,.2f}")
     return formatted
@@ -504,6 +752,7 @@ def build_concentration_export_totals_row(
     filtered_headers: List[str],
     period_keys: List[str],
     totals_label: str,
+    entry_columns: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     totals: Dict[str, Any] = {header: "" for header in filtered_headers}
     totals["Description"] = totals_label
@@ -539,7 +788,16 @@ def build_concentration_export_totals_row(
         elif header == "Estimated Quantity":
             totals[header] = sum(float(entry.estimated_quantity or 0) for entry in entries)
         elif header == "Quantity Submitted":
-            totals[header] = sum(float(entry.quantity_submitted or 0) for entry in entries)
+            if entry_columns and entry_columns.get(
+                "include_past_months_submitted_subrows"
+            ):
+                totals[header] = sum(
+                    entry_cumulative_submitted_quantity(entry) for entry in entries
+                )
+            else:
+                totals[header] = sum(
+                    float(entry.quantity_submitted or 0) for entry in entries
+                )
         elif header == "Internal Quantity":
             totals[header] = sum(float(entry.internal_quantity or 0) for entry in entries)
         elif header == "Approved by Project Manager":

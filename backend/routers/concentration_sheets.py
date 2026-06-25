@@ -16,7 +16,7 @@ from schemas import schemas
 from services.excel_service import ExcelService
 from routers.calculation_sheets import refresh_calculation_sheet_from_disk
 from services.calculation_sheet_sync import run_auto_sync_after_calculation_sheet_changes
-from utils.concentration_utils import compute_quantity_submitted
+from utils.concentration_utils import compute_quantity_submitted, entry_cumulative_submitted
 from fatina_paths import (
     copy_files_to_calc_sheet_dir,
     remove_file_from_calc_sheet_dir,
@@ -993,7 +993,7 @@ async def _update_boq_item_totals(boq_item_id: int, db: Session):
         
         # Calculate totals (even if no entries, totals will be 0)
         total_estimated = sum(entry.estimated_quantity for entry in entries)
-        total_submitted = sum(entry.quantity_submitted for entry in entries)
+        total_submitted = sum(entry_cumulative_submitted(entry) for entry in entries)
         total_internal = sum(entry.internal_quantity for entry in entries)
         total_approved = sum(entry.approved_by_project_manager for entry in entries)
         

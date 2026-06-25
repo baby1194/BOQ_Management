@@ -674,8 +674,10 @@
     "toggleDetails": "Show submission breakdown",
     "retrackToLoad": "Re-track the calculation sheet to load past months and left submitted quantities.",
     "noNonZeroSubmitted": "No non-zero submitted quantities.",
-    "currentMonthHint": "",
-    "exportPastMonths": "Past months submitted",
+    "currentMonthHint": "Current invoice month quantity",
+    "cumulativeSubmittedHint": "Cumulative submitted quantity (excludes left submitted)",
+    "exportPastMonthsColumnMode": "Past months submitted (column mode)",
+    "exportPastMonthsSubrowMode": "Past months submitted (subrow mode)",
     "exportLeftSubmitted": "Left submitted"
   }
 }

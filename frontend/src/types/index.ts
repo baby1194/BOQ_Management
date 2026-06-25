@@ -188,6 +188,7 @@ export interface ConcentrationEntryExportRequest {
   include_submission_percentage: boolean;
   include_quantity_submitted: boolean;
   include_past_months_submitted: boolean;
+  include_past_months_submitted_subrows: boolean;
   include_left_submitted: boolean;
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;
