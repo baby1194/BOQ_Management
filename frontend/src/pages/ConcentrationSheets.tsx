@@ -38,6 +38,7 @@ import {
   SubmissionBreakdownTotalRow,
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
+import { concentrationEntriesQuantitySubmittedTotal } from "../utils/submissionBreakdown";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 /** Draft state for inline row editing (mirrors EntryForm fields). */
@@ -158,6 +159,14 @@ const ConcentrationSheets: React.FC = () => {
   const visibleEntries = useMemo(
     () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
     [entries]
+  );
+  const visibleEntriesSubmittedTotal = useMemo(
+    () =>
+      concentrationEntriesQuantitySubmittedTotal(
+        visibleEntries,
+        expandedBreakdownEntryIds,
+      ),
+    [visibleEntries, expandedBreakdownEntryIds],
   );
 
   // Project info state - will be loaded from selected sheet
@@ -2259,13 +2268,7 @@ const ConcentrationSheets: React.FC = () => {
                                   -
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                                  {formatNumber(
-                                    visibleEntries.reduce(
-                                      (sum, entry) =>
-                                        sum + entry.quantity_submitted,
-                                      0
-                                    )
-                                  )}
+                                  {formatNumber(visibleEntriesSubmittedTotal)}
                                 </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(

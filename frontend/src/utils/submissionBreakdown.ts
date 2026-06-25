@@ -61,3 +61,40 @@ export const getPastPeriodRows = (
     }
     return [{ period, qty }];
   });
+
+export const pastSubmittedQuantity = (
+  breakdown?: SubmissionBreakdown | null,
+  currentInvoiceId?: string | null,
+): number => {
+  if (!breakdown) {
+    return 0;
+  }
+  const currentPeriod = resolveCurrentPeriod(breakdown, currentInvoiceId);
+  return getPastPeriodRows(breakdown, currentPeriod).reduce(
+    (sum, row) => sum + row.qty,
+    0,
+  );
+};
+
+interface ConcentrationEntrySubmittedLike {
+  id: number;
+  quantity_submitted?: number;
+  submission_breakdown?: SubmissionBreakdown | null;
+  drawing_no?: string;
+}
+
+export const concentrationEntriesQuantitySubmittedTotal = (
+  entries: ConcentrationEntrySubmittedLike[],
+  expandedEntryIds: Set<number>,
+): number =>
+  entries.reduce((sum, entry) => {
+    const currentSubmitted = entry.quantity_submitted || 0;
+    if (expandedEntryIds.has(entry.id)) {
+      return (
+        sum +
+        currentSubmitted +
+        pastSubmittedQuantity(entry.submission_breakdown, entry.drawing_no)
+      );
+    }
+    return sum + currentSubmitted;
+  }, 0);
