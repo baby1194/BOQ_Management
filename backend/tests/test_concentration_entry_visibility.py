@@ -4,21 +4,17 @@ from types import SimpleNamespace
 
 from utils.concentration_utils import (
     calc_entry_is_submitted,
-    filter_concentration_entries_for_table,
+    filter_concentration_entries_for_export,
 )
 
 
-def test_filter_concentration_entries_for_table_hides_zero_submitted():
-    visible = SimpleNamespace(
-        quantity_submitted=25.0,
-        submission_breakdown=None,
+def test_filter_concentration_entries_for_export_keeps_estimated_only_rows():
+    with_estimate = SimpleNamespace(estimated_quantity=120.0, quantity_submitted=0.0)
+    without_estimate = SimpleNamespace(estimated_quantity=0.0, quantity_submitted=50.0)
+    result = filter_concentration_entries_for_export(
+        [with_estimate, without_estimate]
     )
-    hidden = SimpleNamespace(
-        quantity_submitted=0.0,
-        submission_breakdown=None,
-    )
-    result = filter_concentration_entries_for_table([visible, hidden])
-    assert result == [visible]
+    assert result == [with_estimate]
 
 
 def test_calc_entry_is_submitted_false_without_invoice():

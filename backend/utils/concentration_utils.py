@@ -21,15 +21,6 @@ def filter_concentration_entries_for_export(entries: Iterable[T]) -> List[T]:
     ]
 
 
-def filter_concentration_entries_for_table(entries: Iterable[T]) -> List[T]:
-    """Exclude entries with zero submitted quantity from the concentration sheet UI."""
-    return [
-        entry
-        for entry in entries
-        if entry_cumulative_submitted_quantity(entry) > 0
-    ]
-
-
 def calc_entry_is_submitted(calc_entry) -> bool:
     """True when a calc entry has an invoice id and non-zero submitted quantity."""
     if not str(getattr(calc_entry, "current_invoice_id", None) or "").strip():

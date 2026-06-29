@@ -218,25 +218,30 @@ const ConcentrationSheets: React.FC = () => {
 
   const handleOpenCalculationSheet = async (
     calculationSheetNo: string,
-    drawingNo: string
+    drawingNo?: string | null
   ) => {
     try {
-      // Find the calculation sheet by sheet number and drawing number
       const allSheets = await calculationSheetsApi.getAll();
-      const sheet = allSheets.find(
-        (s) =>
-          s.calculation_sheet_no === calculationSheetNo &&
-          s.drawing_no === drawingNo
-      );
+      const normalizedDrawing = drawingNo?.trim() || "";
+      const sheet = allSheets.find((s) => {
+        if (s.calculation_sheet_no !== calculationSheetNo) {
+          return false;
+        }
+        if (!normalizedDrawing) {
+          return true;
+        }
+        return s.drawing_no === normalizedDrawing;
+      });
 
       if (!sheet) {
         setError(
-          `Calculation sheet ${calculationSheetNo} / ${drawingNo} not found`
+          normalizedDrawing
+            ? `Calculation sheet ${calculationSheetNo} / ${normalizedDrawing} not found`
+            : `Calculation sheet ${calculationSheetNo} not found`
         );
         return;
       }
 
-      // Open the source file
       await calculationSheetsApi.openSourceFile(sheet.id);
     } catch (err: any) {
       console.error("Error opening calculation sheet:", err);
@@ -1712,14 +1717,13 @@ const ConcentrationSheets: React.FC = () => {
                                               </button>
                                             ) : null}
                                           </div>
-                                        ) : entry.calculation_sheet_no &&
-                                          entry.drawing_no ? (
+                                        ) : entry.calculation_sheet_no ? (
                                           <button
                                             type="button"
                                             onClick={() =>
                                               handleOpenCalculationSheet(
                                                 entry.calculation_sheet_no!,
-                                                entry.drawing_no!
+                                                entry.drawing_no
                                               )
                                             }
                                             onDoubleClick={(e) =>
@@ -1731,7 +1735,7 @@ const ConcentrationSheets: React.FC = () => {
                                             {entry.calculation_sheet_no}
                                           </button>
                                         ) : (
-                                          entry.calculation_sheet_no || "-"
+                                          "-"
                                         )}
                                       </td>
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
