@@ -258,7 +258,9 @@ class SyncService:
             
             if not concentration_sheet:
                 return False
-            
+
+            self.db.flush()
+
             entries = self.db.query(models.ConcentrationEntry).filter(
                 models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id
             ).all()

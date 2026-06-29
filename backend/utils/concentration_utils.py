@@ -165,6 +165,9 @@ def prune_stale_concentration_entries_for_calc_sheet(
         db.delete(entry)
         removed += 1
 
+    if removed:
+        db.flush()
+
     return removed, affected_boq_item_ids
 
 

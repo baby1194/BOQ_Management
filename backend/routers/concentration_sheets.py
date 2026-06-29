@@ -1011,6 +1011,8 @@ async def _update_boq_item_totals(boq_item_id: int, db: Session):
         if not concentration_sheet:
             return
         
+        db.flush()
+
         entries = db.query(models.ConcentrationEntry).filter(
             models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id
         ).all()
