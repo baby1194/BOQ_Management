@@ -692,7 +692,7 @@ def concentration_export_header_translations(language: str) -> Dict[str, str]:
         base = {
             "Description": "תיאור:",
             "Calculation Sheet No": "מס' דף חישוב",
-            "Invoice No": "מס' שרטוט",
+            "Invoice No": "חן מס'",
             "Estimated Quantity": "כמות מחושבת",
             "Submission Percentage": "אחוז הגשה",
             "Quantity Submitted": "כמות מוגשת",
