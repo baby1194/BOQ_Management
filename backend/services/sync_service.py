@@ -10,13 +10,10 @@ from typing import List, Dict, Optional
 import logging
 from models import models
 from utils.concentration_utils import (
-    apply_calculation_entry_quantities,
-    compute_submission_percentage,
-    concentration_entry_quantities_differ,
     entry_cumulative_submitted,
     prune_stale_concentration_entries_for_calc_sheet,
+    sync_calc_entry_to_concentration,
 )
-from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 logger = logging.getLogger(__name__)
 
@@ -192,45 +189,26 @@ class SyncService:
                 logger.warning(f"Calculation sheet for entry {calculation_entry_id} not found")
                 return {"success": False, "message": "Calculation sheet not found"}
             
-            section_number = calculation_entry.section_number
-            calculation_sheet_no = calculation_sheet.calculation_sheet_no
-            drawing_no = resolve_calc_entry_current_invoice_id(
-                calculation_entry, calculation_sheet
+            logger.info(f"Syncing update of calculation entry for section {calculation_entry.section_number}")
+
+            boq_item_id = sync_calc_entry_to_concentration(
+                self.db, calculation_entry, calculation_sheet
             )
-            
-            logger.info(f"Syncing update of calculation entry for section {section_number}")
-            
-            # Find the corresponding concentration entry
-            concentration_entry = self.db.query(models.ConcentrationEntry).filter(
-                models.ConcentrationEntry.section_number == section_number,
-                models.ConcentrationEntry.calculation_sheet_no == calculation_sheet_no,
-            ).first()
-            
-            entries_updated = 0
+            entries_updated = 1 if boq_item_id is not None else 0
             boq_items_updated = 0
-            
-            if concentration_entry:
-                # Update the concentration entry with new values
-                apply_calculation_entry_quantities(concentration_entry, calculation_entry)
-                concentration_entry.drawing_no = drawing_no
-                entries_updated = 1
-                
-                # Update BOQ item totals
-                concentration_sheet = self.db.query(models.ConcentrationSheet).filter(
-                    models.ConcentrationSheet.id == concentration_entry.concentration_sheet_id
-                ).first()
-                
-                if concentration_sheet:
-                    updated = self._update_boq_item_totals(concentration_sheet.boq_item_id)
-                    if updated:
-                        boq_items_updated = 1
-                
+
+            if boq_item_id is not None:
+                updated = self._update_boq_item_totals(boq_item_id)
+                if updated:
+                    boq_items_updated = 1
                 self.db.commit()
-                logger.info(f"Updated concentration entry for section {section_number} and updated BOQ item")
-            
+                logger.info(
+                    f"Updated concentration entry for section {calculation_entry.section_number} and updated BOQ item"
+                )
+
             return {
                 "success": True,
-                "message": f"Successfully synced update of calculation entry for section {section_number}",
+                "message": f"Successfully synced update of calculation entry for section {calculation_entry.section_number}",
                 "entries_updated": entries_updated,
                 "boq_items_updated": boq_items_updated
             }
@@ -316,97 +294,12 @@ class SyncService:
 
                     # For each calculation entry, find and update the corresponding concentration entry
                     for calc_entry in calculation_entries:
-                        entry_invoice_id = str(
-                            getattr(calc_entry, "current_invoice_id", None) or ""
-                        ).strip()
-                        if not entry_invoice_id:
-                            continue
-
-                        concentration_entry = self.db.query(models.ConcentrationEntry).filter(
-                            models.ConcentrationEntry.section_number == calc_entry.section_number,
-                            models.ConcentrationEntry.calculation_sheet_no == calculation_sheet.calculation_sheet_no,
-                        ).first()
-                        
-                        if concentration_entry:
-                            quantities_changed = concentration_entry_quantities_differ(
-                                concentration_entry,
-                                calc_entry,
-                                drawing_no=entry_invoice_id,
-                            )
-                            if quantities_changed:
-                                was_incorrectly_manual = concentration_entry.is_manual
-                                apply_calculation_entry_quantities(
-                                    concentration_entry,
-                                    calc_entry,
-                                    drawing_no=entry_invoice_id,
-                                )
-                                concentration_entry.is_manual = False
-                                total_entries_updated += 1
-                                concentration_sheet = self.db.query(
-                                    models.ConcentrationSheet
-                                ).filter(
-                                    models.ConcentrationSheet.id
-                                    == concentration_entry.concentration_sheet_id
-                                ).first()
-                                if concentration_sheet:
-                                    boq_items_to_export.add(
-                                        concentration_sheet.boq_item_id
-                                    )
-                                if was_incorrectly_manual:
-                                    logger.info(
-                                        f"Corrected is_manual flag and updated concentration entry "
-                                        f"for section {calc_entry.section_number}"
-                                    )
-                                else:
-                                    logger.info(
-                                        f"Updated existing concentration entry for section {calc_entry.section_number}"
-                                    )
-                            elif concentration_entry.is_manual:
-                                concentration_entry.is_manual = False
-                                concentration_entry.drawing_no = entry_invoice_id
-                                logger.info(
-                                    f"Corrected is_manual flag for section {calc_entry.section_number} "
-                                    f"(quantities unchanged)"
-                                )
-                        else:
-                            # Create new concentration entry if it doesn't exist
-                            # First, find the concentration sheet for this section
-                            boq_item = self.db.query(models.BOQItem).filter(
-                                models.BOQItem.section_number == calc_entry.section_number
-                            ).first()
-                            
-                            if boq_item:
-                                concentration_sheet = self.db.query(models.ConcentrationSheet).filter(
-                                    models.ConcentrationSheet.boq_item_id == boq_item.id
-                                ).first()
-                                
-                                if concentration_sheet:
-                                    estimated = float(calc_entry.estimated_quantity or 0)
-                                    submitted = float(calc_entry.quantity_submitted or 0)
-                                    new_concentration_entry = models.ConcentrationEntry(
-                                        concentration_sheet_id=concentration_sheet.id,
-                                        section_number=calc_entry.section_number,
-                                        description=calculation_sheet.description,
-                                        calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                                        drawing_no=entry_invoice_id,
-                                        estimated_quantity=estimated,
-                                        quantity_submitted=submitted,
-                                        submission_percentage=compute_submission_percentage(
-                                            estimated, submitted
-                                        ),
-                                        submission_breakdown=getattr(
-                                            calc_entry, "submission_breakdown", None
-                                        ),
-                                        internal_quantity=0.0,
-                                        approved_by_project_manager=0.0,
-                                        notes=f"Auto-synced from calculation sheet {calculation_sheet.calculation_sheet_no}",
-                                        is_manual=False,
-                                    )
-                                    
-                                    self.db.add(new_concentration_entry)
-                                    total_entries_updated += 1
-                                    boq_items_to_export.add(boq_item.id)
-                                    logger.info(f"Created new concentration entry for section {calc_entry.section_number}")
+                        boq_item_id = sync_calc_entry_to_concentration(
+                            self.db, calc_entry, calculation_sheet
+                        )
+                        if boq_item_id is not None:
+                            total_entries_updated += 1
+                            boq_items_to_export.add(boq_item_id)
 
                     removed, pruned_boq_item_ids = (
                         prune_stale_concentration_entries_for_calc_sheet(

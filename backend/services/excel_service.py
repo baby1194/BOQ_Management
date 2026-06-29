@@ -352,14 +352,14 @@ class ExcelService:
                     entry_current_invoice_id = read_entry_submitted_invoice_id(
                         df, col_index
                     )
-                    if not entry_current_invoice_id:
-                        col_index += 1
-                        continue
+                    if entry_current_invoice_id:
+                        submission_breakdown, quantity_submitted = compute_submission_breakdown(
+                            df, col_index, entry_current_invoice_id, sheet_periods=sheet_periods
+                        )
+                    else:
+                        submission_breakdown = None
+                        quantity_submitted = 0.0
 
-                    submission_breakdown, quantity_submitted = compute_submission_breakdown(
-                        df, col_index, entry_current_invoice_id, sheet_periods=sheet_periods
-                    )
-                    
                     notes = df.iloc[17, col_index]
                     notes = str(notes).strip() if pd.notna(notes) else ""
                     

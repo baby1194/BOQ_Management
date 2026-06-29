@@ -1,6 +1,6 @@
 """Helpers for concentration entry quantity calculations."""
 
-from typing import Iterable, List, Set, Tuple, TypeVar
+from typing import Iterable, List, Optional, Set, Tuple, TypeVar
 
 from utils.calculation_sheet_utils import breakdowns_equal, entry_cumulative_submitted_quantity
 
@@ -19,6 +19,22 @@ def filter_concentration_entries_for_export(entries: Iterable[T]) -> List[T]:
         for entry in entries
         if float(getattr(entry, "estimated_quantity", 0) or 0) != 0
     ]
+
+
+def filter_concentration_entries_for_table(entries: Iterable[T]) -> List[T]:
+    """Exclude entries with zero submitted quantity from the concentration sheet UI."""
+    return [
+        entry
+        for entry in entries
+        if entry_cumulative_submitted_quantity(entry) > 0
+    ]
+
+
+def calc_entry_is_submitted(calc_entry) -> bool:
+    """True when a calc entry has an invoice id and non-zero submitted quantity."""
+    if not str(getattr(calc_entry, "current_invoice_id", None) or "").strip():
+        return False
+    return entry_cumulative_submitted_quantity(calc_entry) > 0
 
 
 def compute_quantity_submitted(
@@ -55,6 +71,114 @@ def apply_calculation_entry_quantities(
     )
     if drawing_no is not None:
         concentration_entry.drawing_no = drawing_no
+
+
+def apply_calculation_entry_estimated_only(
+    concentration_entry, calc_entry
+) -> None:
+    """Sync estimated quantity only; clear submitted fields (no invoice / not submitted)."""
+    estimated = float(calc_entry.estimated_quantity or 0)
+    concentration_entry.estimated_quantity = estimated
+    concentration_entry.quantity_submitted = 0.0
+    concentration_entry.submission_percentage = 0.0
+    concentration_entry.submission_breakdown = None
+    concentration_entry.drawing_no = None
+
+
+def sync_calc_entry_to_concentration(
+    db,
+    calc_entry,
+    calculation_sheet,
+    *,
+    lookup_calculation_sheet_no: str | None = None,
+) -> Optional[int]:
+    """
+    Sync one calculation entry to its concentration entry (create or update).
+    Returns the affected boq_item_id when a concentration entry was synced.
+    """
+    from models import models
+
+    lookup_no = lookup_calculation_sheet_no or calculation_sheet.calculation_sheet_no
+    sheet_no = calculation_sheet.calculation_sheet_no
+
+    boq_item = (
+        db.query(models.BOQItem)
+        .filter(models.BOQItem.section_number == calc_entry.section_number)
+        .first()
+    )
+    if not boq_item:
+        return None
+
+    concentration_sheet = (
+        db.query(models.ConcentrationSheet)
+        .filter(models.ConcentrationSheet.boq_item_id == boq_item.id)
+        .first()
+    )
+    if not concentration_sheet:
+        return None
+
+    concentration_entry = None
+    for calc_no in {lookup_no, sheet_no}:
+        concentration_entry = (
+            db.query(models.ConcentrationEntry)
+            .filter(
+                models.ConcentrationEntry.concentration_sheet_id
+                == concentration_sheet.id,
+                models.ConcentrationEntry.section_number == calc_entry.section_number,
+                models.ConcentrationEntry.calculation_sheet_no == calc_no,
+            )
+            .first()
+        )
+        if concentration_entry:
+            break
+
+    submitted = calc_entry_is_submitted(calc_entry)
+    estimated = float(calc_entry.estimated_quantity or 0)
+
+    if concentration_entry:
+        if submitted:
+            invoice_id = str(calc_entry.current_invoice_id or "").strip()
+            apply_calculation_entry_quantities(
+                concentration_entry, calc_entry, drawing_no=invoice_id
+            )
+        else:
+            apply_calculation_entry_estimated_only(concentration_entry, calc_entry)
+        concentration_entry.calculation_sheet_no = sheet_no
+        concentration_entry.description = calculation_sheet.description
+        concentration_entry.is_manual = False
+        if calc_entry.notes:
+            concentration_entry.notes = calc_entry.notes
+        return boq_item.id
+
+    if estimated <= 0 and not submitted:
+        return None
+
+    submitted_qty = float(calc_entry.quantity_submitted or 0) if submitted else 0.0
+    invoice_id = (
+        str(calc_entry.current_invoice_id or "").strip() if submitted else None
+    )
+    new_entry = models.ConcentrationEntry(
+        concentration_sheet_id=concentration_sheet.id,
+        section_number=calc_entry.section_number,
+        description=calculation_sheet.description,
+        calculation_sheet_no=sheet_no,
+        drawing_no=invoice_id,
+        estimated_quantity=estimated,
+        quantity_submitted=submitted_qty,
+        submission_percentage=compute_submission_percentage(
+            estimated, submitted_qty
+        ),
+        submission_breakdown=(
+            getattr(calc_entry, "submission_breakdown", None) if submitted else None
+        ),
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes=calc_entry.notes
+        or f"Auto-synced from calculation sheet {sheet_no}",
+        is_manual=False,
+    )
+    db.add(new_entry)
+    return boq_item.id
 
 
 def remove_orphan_concentration_entries(db, sheet_id: int | None = None) -> Tuple[int, Set[int]]:
@@ -112,7 +236,7 @@ def prune_stale_concentration_entries_for_calc_sheet(
 ) -> Tuple[int, Set[int]]:
     """
     Remove auto-synced concentration entries linked to this calc sheet whose section
-    is no longer a submitted item on the sheet (e.g. row 2 invoice id cleared).
+    is no longer on the calculation sheet at all.
     Returns (removed_count, affected_boq_item_ids). Does not commit.
     """
     from models import models
@@ -135,11 +259,7 @@ def prune_stale_concentration_entries_for_calc_sheet(
         )
         .all()
     )
-    active_sections = {
-        entry.section_number
-        for entry in calculation_entries
-        if str(getattr(entry, "current_invoice_id", None) or "").strip()
-    }
+    active_sections = {entry.section_number for entry in calculation_entries}
 
     linked_entries = (
         db.query(models.ConcentrationEntry)

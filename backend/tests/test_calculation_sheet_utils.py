@@ -333,6 +333,23 @@ def test_read_entry_submitted_invoice_id_requires_row_2():
     assert read_entry_submitted_invoice_id(df, col) == "07"
 
 
+def test_calc_entry_is_submitted_requires_invoice_and_quantity():
+    from types import SimpleNamespace
+
+    from utils.concentration_utils import calc_entry_is_submitted
+
+    assert calc_entry_is_submitted(
+        SimpleNamespace(current_invoice_id=None, quantity_submitted=100.0)
+    ) is False
+    assert calc_entry_is_submitted(
+        SimpleNamespace(
+            current_invoice_id="06",
+            quantity_submitted=50.0,
+            submission_breakdown=None,
+        )
+    ) is True
+
+
 def test_compute_submission_breakdown_uses_per_entry_invoice_id():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10

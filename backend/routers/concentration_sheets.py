@@ -19,6 +19,7 @@ from services.calculation_sheet_sync import run_auto_sync_after_calculation_shee
 from utils.concentration_utils import (
     compute_quantity_submitted,
     entry_cumulative_submitted,
+    filter_concentration_entries_for_table,
     remove_orphan_concentration_entries,
 )
 from fatina_paths import (
@@ -530,7 +531,7 @@ async def get_concentration_entries(sheet_id: int, db: Session = Depends(get_db)
         entries = db.query(models.ConcentrationEntry).filter(
             models.ConcentrationEntry.concentration_sheet_id == sheet_id
         ).order_by(models.ConcentrationEntry.id).all()
-        return entries
+        return filter_concentration_entries_for_table(entries)
     except Exception as e:
         logger.error(f"Error fetching concentration entries: {str(e)}")
         raise HTTPException(

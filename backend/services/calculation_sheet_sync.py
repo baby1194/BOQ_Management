@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from sqlalchemy.orm import Session
 
@@ -12,10 +12,9 @@ from models import models
 from services.pdf_service import PDFService
 from services.sync_service import SyncService
 from utils.concentration_utils import (
-    apply_calculation_entry_quantities,
     prune_stale_concentration_entries_for_calc_sheet,
+    sync_calc_entry_to_concentration,
 )
-from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,35 +39,24 @@ def push_calculation_sheet_to_concentration_entries(
     )
 
     updated = 0
+    affected_boq_item_ids: Set[int] = set()
     for calc_entry in calculation_entries:
-        if not str(getattr(calc_entry, "current_invoice_id", None) or "").strip():
-            continue
-
-        concentration_entry = (
-            db.query(models.ConcentrationEntry)
-            .filter(
-                models.ConcentrationEntry.section_number == calc_entry.section_number,
-                models.ConcentrationEntry.calculation_sheet_no == lookup_no,
-            )
-            .first()
+        boq_item_id = sync_calc_entry_to_concentration(
+            db,
+            calc_entry,
+            calculation_sheet,
+            lookup_calculation_sheet_no=lookup_no,
         )
-        if not concentration_entry:
-            continue
+        if boq_item_id is not None:
+            affected_boq_item_ids.add(boq_item_id)
+            updated += 1
 
-        apply_calculation_entry_quantities(concentration_entry, calc_entry)
-        concentration_entry.calculation_sheet_no = calculation_sheet.calculation_sheet_no
-        concentration_entry.drawing_no = resolve_calc_entry_current_invoice_id(
-            calc_entry, calculation_sheet
-        )
-        concentration_entry.description = calculation_sheet.description
-        concentration_entry.is_manual = False
-        updated += 1
-
-    removed, affected_boq_item_ids = prune_stale_concentration_entries_for_calc_sheet(
+    removed, pruned_boq_item_ids = prune_stale_concentration_entries_for_calc_sheet(
         db,
         calculation_sheet,
         lookup_calculation_sheet_no=lookup_no,
     )
+    affected_boq_item_ids |= pruned_boq_item_ids
 
     if removed:
         logger.info(

@@ -17,12 +17,9 @@ from services.excel_service import ExcelService
 from services.non_boq_service import register_non_boq_items_from_calculation_entries
 from services.pdf_service import PDFService
 from utils.concentration_utils import (
-    apply_calculation_entry_quantities,
-    compute_submission_percentage,
-    concentration_entry_quantities_differ,
     entry_cumulative_submitted,
+    sync_calc_entry_to_concentration,
 )
-from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -634,102 +631,25 @@ async def populate_concentration_entries(
     
     try:
         for calc_entry in calculation_entries:
-            entry_invoice_id = str(
-                getattr(calc_entry, "current_invoice_id", None) or ""
-            ).strip()
-            if not entry_invoice_id:
+            if calc_entry.section_number not in section_to_concentration_sheet:
+                logger.warning(
+                    f"No concentration sheet found for section {calc_entry.section_number}"
+                )
                 continue
 
-            # Find the corresponding concentration sheet for this entry
-            if calc_entry.section_number not in section_to_concentration_sheet:
-                logger.warning(f"No concentration sheet found for section {calc_entry.section_number}")
-                continue
-            
-            concentration_sheet = section_to_concentration_sheet[calc_entry.section_number]
-            
-            # Get existing concentration entries for this specific sheet to check for duplicates
-            existing_entries = db.query(models.ConcentrationEntry).filter(
-                models.ConcentrationEntry.concentration_sheet_id == concentration_sheet.id
-            ).all()
-            
-            # Check if entry already exists with the same section + Calculation Sheet No
-            existing_concentration_entry = None
-            for entry in existing_entries:
-                if (entry.section_number == calc_entry.section_number and
-                    entry.calculation_sheet_no == calculation_sheet.calculation_sheet_no):
-                    existing_concentration_entry = entry
-                    break
-            
-            if existing_concentration_entry:
-                if concentration_entry_quantities_differ(
-                    existing_concentration_entry,
-                    calc_entry,
-                    drawing_no=entry_invoice_id,
-                ):
-                    was_incorrectly_manual = existing_concentration_entry.is_manual
-                    apply_calculation_entry_quantities(
-                        existing_concentration_entry,
-                        calc_entry,
-                        drawing_no=entry_invoice_id,
-                    )
-                    existing_concentration_entry.description = calculation_sheet.description
-                    existing_concentration_entry.notes = calc_entry.notes or f"Auto-updated from calculation sheet {calculation_sheet.calculation_sheet_no}"
-                    existing_concentration_entry.is_manual = False
-                    entries_created += 1
-                    boq_items_to_export.add(concentration_sheet.boq_item_id)
-                    if was_incorrectly_manual:
-                        logger.info(
-                            f"Corrected is_manual flag and updated entry for section {calc_entry.section_number} "
-                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Invoice No {entry_invoice_id}"
-                        )
-                    else:
-                        logger.info(
-                            f"Updated existing auto-generated entry for section {calc_entry.section_number} "
-                            f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Invoice No {entry_invoice_id} "
-                            f"in sheet {concentration_sheet.sheet_name}"
-                        )
-                elif existing_concentration_entry.is_manual:
-                    existing_concentration_entry.is_manual = False
-                    existing_concentration_entry.drawing_no = entry_invoice_id
-                    entries_skipped += 1
-                    logger.info(
-                        f"Corrected is_manual flag for section {calc_entry.section_number} "
-                        f"(quantities unchanged)"
-                    )
-                else:
-                    entries_skipped += 1
-                    logger.info(
-                        f"Skipped unchanged entry for section {calc_entry.section_number} "
-                        f"with Calculation Sheet No {calculation_sheet.calculation_sheet_no} and Invoice No {entry_invoice_id}"
-                    )
-            else:
-                estimated = float(calc_entry.estimated_quantity or 0)
-                submitted = float(calc_entry.quantity_submitted or 0)
-                # Create new concentration entry
-                new_concentration_entry = models.ConcentrationEntry(
-                    concentration_sheet_id=concentration_sheet.id,
-                    section_number=calc_entry.section_number,  # Use section number from calculation entry
-                    description=calculation_sheet.description,  # Use calculation sheet description
-                    calculation_sheet_no=calculation_sheet.calculation_sheet_no,
-                    drawing_no=entry_invoice_id,
-                    estimated_quantity=estimated,
-                    quantity_submitted=submitted,
-                    submission_percentage=compute_submission_percentage(
-                        estimated, submitted
-                    ),
-                    submission_breakdown=getattr(
-                        calc_entry, "submission_breakdown", None
-                    ),
-                    internal_quantity=0.0,
-                    approved_by_project_manager=0.0,
-                    notes=calc_entry.notes or f"Auto-populated from calculation sheet {calculation_sheet.calculation_sheet_no}",
-                    is_manual=False  # Mark as auto-generated
-                )
-                
-                db.add(new_concentration_entry)
+            boq_item_id = sync_calc_entry_to_concentration(
+                db, calc_entry, calculation_sheet
+            )
+            if boq_item_id is not None:
                 entries_created += 1
-                boq_items_to_export.add(concentration_sheet.boq_item_id)
-                logger.info(f"Created entry for section {calc_entry.section_number} in concentration sheet {concentration_sheet.sheet_name}")
+                boq_items_to_export.add(boq_item_id)
+                logger.info(
+                    f"Synced entry for section {calc_entry.section_number} "
+                    f"in concentration sheet "
+                    f"{section_to_concentration_sheet[calc_entry.section_number].sheet_name}"
+                )
+            else:
+                entries_skipped += 1
         
         db.commit()
         
