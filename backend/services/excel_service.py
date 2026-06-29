@@ -315,7 +315,7 @@ class ExcelService:
             from utils.calculation_sheet_utils import (
                 collect_sheet_periods,
                 compute_submission_breakdown,
-                read_entry_current_invoice_id,
+                read_entry_submitted_invoice_id,
                 validate_calculation_sheet_header_fields,
             )
 
@@ -349,9 +349,13 @@ class ExcelService:
                     estimated_quantity = df.iloc[5, col_index]
                     estimated_quantity = float(estimated_quantity) if pd.notna(estimated_quantity) else 0.0
 
-                    entry_current_invoice_id = read_entry_current_invoice_id(
-                        df, col_index, drawing_no
+                    entry_current_invoice_id = read_entry_submitted_invoice_id(
+                        df, col_index
                     )
+                    if not entry_current_invoice_id:
+                        col_index += 1
+                        continue
+
                     submission_breakdown, quantity_submitted = compute_submission_breakdown(
                         df, col_index, entry_current_invoice_id, sheet_periods=sheet_periods
                     )

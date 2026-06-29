@@ -316,9 +316,12 @@ class SyncService:
                     
                     # For each calculation entry, find and update the corresponding concentration entry
                     for calc_entry in calculation_entries:
-                        entry_invoice_id = resolve_calc_entry_current_invoice_id(
-                            calc_entry, calculation_sheet
-                        )
+                        entry_invoice_id = str(
+                            getattr(calc_entry, "current_invoice_id", None) or ""
+                        ).strip()
+                        if not entry_invoice_id:
+                            continue
+
                         concentration_entry = self.db.query(models.ConcentrationEntry).filter(
                             models.ConcentrationEntry.section_number == calc_entry.section_number,
                             models.ConcentrationEntry.calculation_sheet_no == calculation_sheet.calculation_sheet_no,

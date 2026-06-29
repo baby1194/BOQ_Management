@@ -16,7 +16,11 @@ from schemas import schemas
 from services.excel_service import ExcelService
 from routers.calculation_sheets import refresh_calculation_sheet_from_disk
 from services.calculation_sheet_sync import run_auto_sync_after_calculation_sheet_changes
-from utils.concentration_utils import compute_quantity_submitted, entry_cumulative_submitted
+from utils.concentration_utils import (
+    compute_quantity_submitted,
+    entry_cumulative_submitted,
+    remove_orphan_concentration_entries,
+)
 from fatina_paths import (
     copy_files_to_calc_sheet_dir,
     remove_file_from_calc_sheet_dir,
@@ -32,6 +36,22 @@ def _sync_quantity_submitted(entry: models.ConcentrationEntry) -> None:
         entry.estimated_quantity,
         entry.submission_percentage if entry.submission_percentage is not None else 100.0,
     )
+
+
+async def _purge_orphan_concentration_entries(
+    db: Session, sheet_id: int | None = None
+) -> int:
+    """Remove concentration entries whose calc sheet no longer exists; refresh BOQ totals."""
+    removed, affected_boq_item_ids = remove_orphan_concentration_entries(db, sheet_id)
+    for boq_item_id in affected_boq_item_ids:
+        await _update_boq_item_totals(boq_item_id, db)
+    if removed:
+        logger.info(
+            "Removed %s orphan concentration entries (sheet_id=%s)",
+            removed,
+            sheet_id,
+        )
+    return removed
 
 
 def _normalize_drawing_files(value) -> List[str]:
@@ -158,6 +178,8 @@ async def get_concentration_sheets_with_boq_data(
 ):
     """Get all concentration sheets with their associated BOQ item data including latest contract updates"""
     try:
+        await _purge_orphan_concentration_entries(db)
+
         # Get all concentration sheets with their BOQ items in a single query using joinedload
         sheets = db.query(models.ConcentrationSheet).options(
             joinedload(models.ConcentrationSheet.boq_item)
@@ -503,6 +525,8 @@ async def track_concentration_sheet_calculation_sheets(
 async def get_concentration_entries(sheet_id: int, db: Session = Depends(get_db)):
     """Get all entries for a concentration sheet"""
     try:
+        await _purge_orphan_concentration_entries(db, sheet_id=sheet_id)
+
         entries = db.query(models.ConcentrationEntry).filter(
             models.ConcentrationEntry.concentration_sheet_id == sheet_id
         ).order_by(models.ConcentrationEntry.id).all()

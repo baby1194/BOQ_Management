@@ -6,6 +6,7 @@ from utils.calculation_sheet_utils import (
     collect_sheet_periods,
     compute_submission_breakdown,
     read_entry_current_invoice_id,
+    read_entry_submitted_invoice_id,
 )
 
 
@@ -321,6 +322,15 @@ def test_read_entry_current_invoice_id_falls_back_to_sheet_c2():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10
     assert read_entry_current_invoice_id(df, col, "06") == "06"
+
+
+def test_read_entry_submitted_invoice_id_requires_row_2():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    assert read_entry_submitted_invoice_id(df, col) is None
+
+    df.iloc[1, col] = "07"
+    assert read_entry_submitted_invoice_id(df, col) == "07"
 
 
 def test_compute_submission_breakdown_uses_per_entry_invoice_id():

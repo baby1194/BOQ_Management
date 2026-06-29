@@ -38,6 +38,9 @@ def push_calculation_sheet_to_concentration_entries(
 
     updated = 0
     for calc_entry in calculation_entries:
+        if not str(getattr(calc_entry, "current_invoice_id", None) or "").strip():
+            continue
+
         concentration_entry = (
             db.query(models.ConcentrationEntry)
             .filter(

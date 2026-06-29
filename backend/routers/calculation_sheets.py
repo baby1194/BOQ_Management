@@ -634,9 +634,12 @@ async def populate_concentration_entries(
     
     try:
         for calc_entry in calculation_entries:
-            entry_invoice_id = resolve_calc_entry_current_invoice_id(
-                calc_entry, calculation_sheet
-            )
+            entry_invoice_id = str(
+                getattr(calc_entry, "current_invoice_id", None) or ""
+            ).strip()
+            if not entry_invoice_id:
+                continue
+
             # Find the corresponding concentration sheet for this entry
             if calc_entry.section_number not in section_to_concentration_sheet:
                 logger.warning(f"No concentration sheet found for section {calc_entry.section_number}")

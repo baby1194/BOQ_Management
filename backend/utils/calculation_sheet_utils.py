@@ -144,16 +144,24 @@ def period_quantity(breakdown: Optional[Dict[str, Any]], period: str) -> float:
     return float(periods.get(period, 0.0) or 0.0)
 
 
-def read_entry_current_invoice_id(
-    df, col_index: int, sheet_drawing_no: str = ""
-) -> str:
-    """Read current invoice id from row 2 of an item column; fall back to sheet C2."""
+def read_entry_submitted_invoice_id(df, col_index: int) -> Optional[str]:
+    """Read item invoice id from row 2 only; None means the item was not submitted."""
     if col_index < df.shape[1]:
         cell = df.iloc[INVOICE_ID_ROW, col_index]
         if pd.notna(cell):
             text = str(cell).strip()
             if text and text.lower() not in _INVALID_PERIOD_STRINGS:
                 return text
+    return None
+
+
+def read_entry_current_invoice_id(
+    df, col_index: int, sheet_drawing_no: str = ""
+) -> str:
+    """Read current invoice id from row 2 of an item column; fall back to sheet C2."""
+    submitted = read_entry_submitted_invoice_id(df, col_index)
+    if submitted:
+        return submitted
     return str(sheet_drawing_no or "").strip()
 
 
