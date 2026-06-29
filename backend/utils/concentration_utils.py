@@ -104,6 +104,70 @@ def remove_orphan_concentration_entries(db, sheet_id: int | None = None) -> Tupl
     return removed, affected_boq_item_ids
 
 
+def prune_stale_concentration_entries_for_calc_sheet(
+    db,
+    calculation_sheet,
+    *,
+    lookup_calculation_sheet_no: str | None = None,
+) -> Tuple[int, Set[int]]:
+    """
+    Remove auto-synced concentration entries linked to this calc sheet whose section
+    is no longer a submitted item on the sheet (e.g. row 2 invoice id cleared).
+    Returns (removed_count, affected_boq_item_ids). Does not commit.
+    """
+    from models import models
+
+    lookup_no = (
+        lookup_calculation_sheet_no or calculation_sheet.calculation_sheet_no
+    )
+    calc_sheet_nos = {
+        str(no).strip()
+        for no in (lookup_no, calculation_sheet.calculation_sheet_no)
+        if no and str(no).strip()
+    }
+    if not calc_sheet_nos:
+        return 0, set()
+
+    calculation_entries = (
+        db.query(models.CalculationEntry)
+        .filter(
+            models.CalculationEntry.calculation_sheet_id == calculation_sheet.id
+        )
+        .all()
+    )
+    active_sections = {
+        entry.section_number
+        for entry in calculation_entries
+        if str(getattr(entry, "current_invoice_id", None) or "").strip()
+    }
+
+    linked_entries = (
+        db.query(models.ConcentrationEntry)
+        .filter(models.ConcentrationEntry.calculation_sheet_no.in_(calc_sheet_nos))
+        .filter(models.ConcentrationEntry.is_manual.is_(False))
+        .all()
+    )
+
+    affected_boq_item_ids: Set[int] = set()
+    removed = 0
+    for entry in linked_entries:
+        if entry.section_number in active_sections:
+            continue
+
+        concentration_sheet = (
+            db.query(models.ConcentrationSheet)
+            .filter(models.ConcentrationSheet.id == entry.concentration_sheet_id)
+            .first()
+        )
+        if concentration_sheet:
+            affected_boq_item_ids.add(concentration_sheet.boq_item_id)
+
+        db.delete(entry)
+        removed += 1
+
+    return removed, affected_boq_item_ids
+
+
 def concentration_entry_quantities_differ(
     concentration_entry, calc_entry, *, drawing_no: str | None = None
 ) -> bool:

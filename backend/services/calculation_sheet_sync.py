@@ -11,7 +11,10 @@ from database.database import get_project_export_dir
 from models import models
 from services.pdf_service import PDFService
 from services.sync_service import SyncService
-from utils.concentration_utils import apply_calculation_entry_quantities
+from utils.concentration_utils import (
+    apply_calculation_entry_quantities,
+    prune_stale_concentration_entries_for_calc_sheet,
+)
 from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
 logger = logging.getLogger(__name__)
@@ -60,6 +63,24 @@ def push_calculation_sheet_to_concentration_entries(
         concentration_entry.description = calculation_sheet.description
         concentration_entry.is_manual = False
         updated += 1
+
+    removed, affected_boq_item_ids = prune_stale_concentration_entries_for_calc_sheet(
+        db,
+        calculation_sheet,
+        lookup_calculation_sheet_no=lookup_no,
+    )
+
+    if removed:
+        logger.info(
+            "Removed %s stale concentration entries for calc sheet %s",
+            removed,
+            calculation_sheet.calculation_sheet_no,
+        )
+
+    if affected_boq_item_ids:
+        sync_service = SyncService(db)
+        for boq_item_id in affected_boq_item_ids:
+            sync_service._update_boq_item_totals(boq_item_id)
 
     if updated:
         logger.info(

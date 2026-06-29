@@ -14,6 +14,7 @@ from utils.concentration_utils import (
     compute_submission_percentage,
     concentration_entry_quantities_differ,
     entry_cumulative_submitted,
+    prune_stale_concentration_entries_for_calc_sheet,
 )
 from utils.calculation_sheet_utils import resolve_calc_entry_current_invoice_id
 
@@ -310,10 +311,7 @@ class SyncService:
                     calculation_entries = self.db.query(models.CalculationEntry).filter(
                         models.CalculationEntry.calculation_sheet_id == calculation_sheet.id
                     ).all()
-                    
-                    if not calculation_entries:
-                        continue
-                    
+
                     # For each calculation entry, find and update the corresponding concentration entry
                     for calc_entry in calculation_entries:
                         entry_invoice_id = str(
@@ -407,17 +405,36 @@ class SyncService:
                                     total_entries_updated += 1
                                     boq_items_to_export.add(boq_item.id)
                                     logger.info(f"Created new concentration entry for section {calc_entry.section_number}")
-                    
+
+                    removed, pruned_boq_item_ids = (
+                        prune_stale_concentration_entries_for_calc_sheet(
+                            self.db, calculation_sheet
+                        )
+                    )
+                    if removed:
+                        total_entries_updated += removed
+                        logger.info(
+                            "Removed %s stale concentration entries for calc sheet %s",
+                            removed,
+                            calculation_sheet.calculation_sheet_no,
+                        )
+
                     # Update BOQ items for this sheet
-                    section_numbers = [entry.section_number for entry in calculation_entries]
+                    section_numbers = [
+                        entry.section_number for entry in calculation_entries
+                    ]
                     matching_boq_items = self.db.query(models.BOQItem).filter(
                         models.BOQItem.section_number.in_(section_numbers)
-                    ).all()
-                    
-                    for boq_item in matching_boq_items:
-                        updated = self._update_boq_item_totals(boq_item.id)
+                    ).all() if section_numbers else []
+
+                    boq_ids_to_update = pruned_boq_item_ids | {
+                        boq_item.id for boq_item in matching_boq_items
+                    }
+                    for boq_item_id in boq_ids_to_update:
+                        updated = self._update_boq_item_totals(boq_item_id)
                         if updated:
                             total_boq_items_updated += 1
+                            boq_items_to_export.add(boq_item_id)
                     
                     processed_sheets += 1
                     
