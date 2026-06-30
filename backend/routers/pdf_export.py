@@ -1272,6 +1272,93 @@ async def export_boq_items_excel(
             detail="Internal server error"
         )
 
+
+@router.post("/non-boq-items/pdf", response_model=schemas.PDFExportResponse)
+async def export_non_boq_items_pdf(
+    request: schemas.NonBoqExportRequest,
+    db: Session = Depends(get_db),
+    pdf_service: PDFService = Depends(get_pdf_service),
+):
+    """Export non-BOQ items list to PDF."""
+    try:
+        from services.non_boq_service import (
+            build_non_boq_export_rows,
+            list_non_boq_items_with_calc_sheets,
+        )
+
+        items = list_non_boq_items_with_calc_sheets(db)
+        if not items:
+            return schemas.PDFExportResponse(
+                success=False,
+                message="No non-BOQ items found to export",
+                sheets_exported=0,
+            )
+
+        rows = build_non_boq_export_rows(items)
+        language = request.language or "en"
+        pdf_path = pdf_service.export_non_boq_items(rows, db, language)
+        filename = (
+            pdf_path.split("/")[-1]
+            if "/" in pdf_path
+            else pdf_path.split("\\")[-1]
+        )
+        return schemas.PDFExportResponse(
+            success=True,
+            message="Successfully exported non-BOQ items to PDF",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(rows),
+        )
+    except Exception as e:
+        logger.error("Error exporting non-BOQ items to PDF: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.post("/non-boq-items/excel", response_model=schemas.PDFExportResponse)
+async def export_non_boq_items_excel(
+    request: schemas.NonBoqExportRequest,
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
+):
+    """Export non-BOQ items list to Excel."""
+    try:
+        from services.non_boq_service import (
+            build_non_boq_export_rows,
+            list_non_boq_items_with_calc_sheets,
+        )
+
+        items = list_non_boq_items_with_calc_sheets(db)
+        if not items:
+            return schemas.PDFExportResponse(
+                success=False,
+                message="No non-BOQ items found to export",
+                sheets_exported=0,
+            )
+
+        rows = build_non_boq_export_rows(items)
+        language = request.language or "en"
+        excel_path = excel_service.export_non_boq_items(rows, language)
+        filename = (
+            excel_path.split("/")[-1]
+            if "/" in excel_path
+            else excel_path.split("\\")[-1]
+        )
+        return schemas.PDFExportResponse(
+            success=True,
+            message="Successfully exported non-BOQ items to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(rows),
+        )
+    except Exception as e:
+        logger.error("Error exporting non-BOQ items to Excel: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
 @router.get("/download/{filename}")
 async def download_file(
     filename: str,

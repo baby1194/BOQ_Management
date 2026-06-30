@@ -695,6 +695,20 @@ export const exportApi = {
       })
       .then((res) => res.data),
 
+  exportNonBoqItemsPDF: (language?: string) =>
+    api
+      .post<PDFExportResponse>("/export/non-boq-items/pdf", {
+        language: language || "en",
+      })
+      .then((res) => res.data),
+
+  exportNonBoqItemsExcel: (language?: string) =>
+    api
+      .post<PDFExportResponse>("/export/non-boq-items/excel", {
+        language: language || "en",
+      })
+      .then((res) => res.data),
+
   listPDFs: () => api.get<string[]>("/export/list").then((res) => res.data),
 
   downloadPDF: (filename: string) =>

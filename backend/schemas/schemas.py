@@ -639,9 +639,14 @@ class NonBoqItem(BaseModel):
     section_number: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    calculation_sheet_nos: List[str] = []
 
     class Config:
         from_attributes = True
+
+
+class NonBoqExportRequest(BaseModel):
+    language: Optional[str] = "en"
 
 
 # Workspace project schemas (multi-project support)

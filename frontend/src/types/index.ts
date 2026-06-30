@@ -279,6 +279,7 @@ export interface PopulateConcentrationEntriesResponse {
 export interface NonBoqItem {
   id: number;
   section_number: string;
+  calculation_sheet_nos: string[];
   created_at: string;
   updated_at?: string;
 }

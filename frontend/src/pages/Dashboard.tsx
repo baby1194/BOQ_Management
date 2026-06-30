@@ -8,6 +8,7 @@ import {
   concentrationApi,
   calculationSheetsApi,
   nonBoqApi,
+  exportApi,
 } from "../services/api";
 import {
   BarChart3,
@@ -31,6 +32,7 @@ import {
   Eye,
   Plus,
   Settings,
+  FileSpreadsheet,
 } from "lucide-react";
 import { formatCurrency } from "../utils/format";
 import { useProject } from "../contexts/ProjectContext";
@@ -64,6 +66,9 @@ const Dashboard: React.FC = () => {
   >(null);
   const [nonBoqItems, setNonBoqItems] = useState<NonBoqItem[]>([]);
   const [removingNonBoqId, setRemovingNonBoqId] = useState<number | null>(null);
+  const [exportingNonBoq, setExportingNonBoq] = useState<"pdf" | "excel" | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -208,6 +213,37 @@ const Dashboard: React.FC = () => {
     navigate(
       `/boq?addSection=${encodeURIComponent(sectionNumber)}`,
     );
+  };
+
+  const handleExportNonBoqItems = async (format: "pdf" | "excel") => {
+    if (nonBoqItems.length === 0) {
+      return;
+    }
+
+    setExportingNonBoq(format);
+    try {
+      const language = isRTL ? "he" : "en";
+      const response =
+        format === "pdf"
+          ? await exportApi.exportNonBoqItemsPDF(language)
+          : await exportApi.exportNonBoqItemsExcel(language);
+
+      if (response.success && response.pdf_path) {
+        await exportApi.downloadExportFile(response.pdf_path);
+      }
+    } catch (error) {
+      console.error(`Failed to export non-BOQ items as ${format}:`, error);
+    } finally {
+      setExportingNonBoq(null);
+    }
+  };
+
+  const formatNonBoqCalcSheets = (item: NonBoqItem) => {
+    const sheetNos = item.calculation_sheet_nos?.filter(Boolean) ?? [];
+    if (sheetNos.length === 0) {
+      return null;
+    }
+    return sheetNos.join(", ");
   };
 
   // Main statistics cards
@@ -527,19 +563,61 @@ const Dashboard: React.FC = () => {
       {/* Non-BOQ Items from Calculation Sheets */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2
-            className={`text-lg font-semibold text-gray-900 flex items-center ${
+          <div
+            className={`flex items-start justify-between gap-4 ${
               isRTL ? "flex-row-reverse" : ""
             }`}
           >
-            <AlertTriangle
-              className={`h-5 w-5 text-amber-600 ${isRTL ? "ml-2" : "mr-2"}`}
-            />
-            <span>{t("dashboard.nonBoqItems")}</span>
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
-            {t("dashboard.nonBoqItemsDescription")}
-          </p>
+            <div>
+              <h2
+                className={`text-lg font-semibold text-gray-900 flex items-center ${
+                  isRTL ? "flex-row-reverse" : ""
+                }`}
+              >
+                <AlertTriangle
+                  className={`h-5 w-5 text-amber-600 ${isRTL ? "ml-2" : "mr-2"}`}
+                />
+                <span>{t("dashboard.nonBoqItems")}</span>
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {t("dashboard.nonBoqItemsDescription")}
+              </p>
+            </div>
+            {nonBoqItems.length > 0 && (
+              <div
+                className={`flex items-center gap-2 shrink-0 ${
+                  isRTL ? "flex-row-reverse" : ""
+                }`}
+              >
+                <button
+                  onClick={() => handleExportNonBoqItems("pdf")}
+                  disabled={exportingNonBoq !== null}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  title={t("dashboard.exportNonBoqPdf")}
+                >
+                  <Download className="h-4 w-4" />
+                  <span>
+                    {exportingNonBoq === "pdf"
+                      ? t("dashboard.exportingNonBoqItems")
+                      : t("dashboard.exportNonBoqPdf")}
+                  </span>
+                </button>
+                <button
+                  onClick={() => handleExportNonBoqItems("excel")}
+                  disabled={exportingNonBoq !== null}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  title={t("dashboard.exportNonBoqExcel")}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>
+                    {exportingNonBoq === "excel"
+                      ? t("dashboard.exportingNonBoqItems")
+                      : t("dashboard.exportNonBoqExcel")}
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="p-6">
           {nonBoqItems.length > 0 ? (
@@ -553,7 +631,16 @@ const Dashboard: React.FC = () => {
                 >
                   <div>
                     <p className="font-medium text-gray-900">
-                      {item.section_number}
+                      {t("boq.sectionNumber")}: {item.section_number}
+                      {formatNonBoqCalcSheets(item) && (
+                        <>
+                          <span className="mx-2 text-gray-400">·</span>
+                          <span className="font-normal text-gray-700">
+                            {t("concentration.calcSheetNo")}:{" "}
+                            {formatNonBoqCalcSheets(item)}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div

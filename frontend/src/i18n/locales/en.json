@@ -558,7 +558,14 @@
     "noNonBoqItems": "No unknown section numbers found",
     "addToBoqList": "Add to BOQ items list",
     "removeFromList": "Remove from list",
-    "removingNonBoqItem": "Removing..."
+    "removingNonBoqItem": "Removing...",
+    "exportNonBoqItems": "Export non-BOQ items",
+    "exportNonBoqPdf": "Export PDF",
+    "exportNonBoqExcel": "Export Excel",
+    "exportingNonBoqItems": "Exporting...",
+    "nonBoqExportSuccess": "Non-BOQ items exported successfully",
+    "nonBoqExportFailed": "Failed to export non-BOQ items",
+    "noNonBoqItemsToExport": "No non-BOQ items to export"
   },
   "calculationSheets": {
     "title": "Calculation Sheets",

@@ -2659,3 +2659,88 @@ class PDFService:
             logger.info(f"Using standard page size: {optimal_name} ({optimal_size[0]}x{optimal_size[1]} points)")
         
         return optimal_size, optimal_name, column_max_widths
+
+    def export_non_boq_items(self, rows, db_session=None, language="en"):
+        """Export non-BOQ items list to PDF."""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"non_boq_items_{timestamp}.pdf"
+            filepath = self.exports_dir / filename
+
+            if not rows:
+                raise ValueError("No data to export")
+
+            project_name = self._get_project_name(db_session)
+
+            if language == "he":
+                title_text = "פריטים שאינם ב-BOQ"
+                headers = ["מס'", "מספר סעיף", "מס' דף חישוב"]
+            else:
+                title_text = "Non-BOQ Items"
+                headers = ["No", "Item No", "Calc. Sheet No"]
+
+            doc = SimpleDocTemplate(str(filepath), pagesize=landscape(A4))
+            story = []
+            styles = getSampleStyleSheet()
+
+            title_style = ParagraphStyle(
+                "NonBoqTitle",
+                parent=styles["Heading1"],
+                fontSize=16,
+                spaceAfter=12,
+                alignment=1,
+            )
+            subtitle_style = ParagraphStyle(
+                "NonBoqSubtitle",
+                parent=styles["Normal"],
+                fontSize=10,
+                spaceAfter=20,
+                alignment=1,
+            )
+
+            story.append(Paragraph(title_text, title_style))
+            story.append(Paragraph(project_name, subtitle_style))
+
+            data = [headers]
+            for row in rows:
+                data.append(
+                    [
+                        str(row.get("no", "")),
+                        str(row.get("item_no", "")),
+                        str(row.get("calc_sheet_no", "")),
+                    ]
+                )
+
+            table = Table(data, repeatRows=1)
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#366092")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 9),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F5F5")]),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            story.append(table)
+
+            doc.build(
+                story,
+                onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(
+                    canvas, doc, project_name, language
+                ),
+                onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(
+                    canvas, doc, project_name, language
+                ),
+            )
+            logger.info(f"Generated non-BOQ items PDF: {filepath}")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"Error generating non-BOQ items PDF: {str(e)}")
+            raise

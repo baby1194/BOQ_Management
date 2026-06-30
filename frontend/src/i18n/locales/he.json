@@ -559,7 +559,14 @@
     "noNonBoqItems": "לא נמצאו מספרי סעיפים לא מוכרים",
     "addToBoqList": "הוסף לרשימת פריטי BOQ",
     "removeFromList": "הסר מהרשימה",
-    "removingNonBoqItem": "מסיר..."
+    "removingNonBoqItem": "מסיר...",
+    "exportNonBoqItems": "ייצוא פריטים שאינם ב-BOQ",
+    "exportNonBoqPdf": "ייצוא PDF",
+    "exportNonBoqExcel": "ייצוא Excel",
+    "exportingNonBoqItems": "מייצא...",
+    "nonBoqExportSuccess": "פריטים שאינם ב-BOQ יוצאו בהצלחה",
+    "nonBoqExportFailed": "ייצוא פריטים שאינם ב-BOQ נכשל",
+    "noNonBoqItemsToExport": "אין פריטים שאינם ב-BOQ לייצוא"
   },
   "calculationSheets": {
     "title": "דפי חישוב",

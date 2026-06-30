@@ -1454,4 +1454,60 @@ class ExcelService:
             
         except Exception as e:
             logger.error(f"Error generating BOQ items Excel: {str(e)}")
+            raise
+
+    def export_non_boq_items(self, rows, language="en"):
+        """Export non-BOQ items list to Excel."""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"non_boq_items_{timestamp}.xlsx"
+            filepath = self.exports_dir / filename
+
+            if not rows:
+                raise ValueError("No data to export")
+
+            if language == "he":
+                column_labels = {
+                    "no": "מס'",
+                    "item_no": "מספר סעיף",
+                    "calc_sheet_no": "מס' דף חישוב",
+                }
+                sheet_title = "פריטים שאינם ב-BOQ"
+            else:
+                column_labels = {
+                    "no": "No",
+                    "item_no": "Item No",
+                    "calc_sheet_no": "Calc. Sheet No",
+                }
+                sheet_title = "Non-BOQ Items"
+
+            ordered_keys = ["no", "item_no", "calc_sheet_no"]
+            export_data = [
+                {column_labels[key]: row[key] for key in ordered_keys}
+                for row in rows
+            ]
+            df = pd.DataFrame(export_data)
+
+            with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name=sheet_title[:31])
+                worksheet = writer.sheets[sheet_title[:31]]
+
+                from openpyxl.styles import Font, PatternFill, Alignment
+
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(
+                    start_color="366092", end_color="366092", fill_type="solid"
+                )
+                header_alignment = Alignment(horizontal="center", vertical="center")
+
+                for cell in worksheet[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+
+            logger.info(f"Generated non-BOQ items Excel: {filepath}")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"Error generating non-BOQ items Excel: {str(e)}")
             raise 

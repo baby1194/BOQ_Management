@@ -6,6 +6,7 @@ import logging
 from database.database import get_db
 from models import models
 from schemas import schemas
+from services.non_boq_service import list_non_boq_items_with_calc_sheets
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -15,11 +16,7 @@ router = APIRouter()
 async def list_non_boq_items(db: Session = Depends(get_db)):
     """List section numbers from calculation sheets that are not in the BOQ list."""
     try:
-        return (
-            db.query(models.NonBoqItem)
-            .order_by(models.NonBoqItem.section_number.asc())
-            .all()
-        )
+        return list_non_boq_items_with_calc_sheets(db)
     except Exception as e:
         logger.error("Error fetching non-BOQ items: %s", e)
         raise HTTPException(
