@@ -356,6 +356,14 @@ export const calculationSheetsApi = {
       )
       .then((res) => res.data),
 
+  openSourceFileByNo: (calculationSheetNo: string) =>
+    api
+      .post<{ success: boolean; message: string }>(
+        `/calculation-sheets/open-source-file-by-no`,
+        { calculation_sheet_no: calculationSheetNo }
+      )
+      .then((res) => res.data),
+
   // Entries
   getEntries: (sheetId: number) =>
     api

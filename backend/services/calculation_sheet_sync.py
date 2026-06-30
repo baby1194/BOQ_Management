@@ -1,9 +1,10 @@
-"""Run full calculation-sheet → concentration → BOQ synchronization."""
+"""Run calculation-sheet → concentration → BOQ synchronization."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Set
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable, Set
 
 from sqlalchemy.orm import Session
 
@@ -19,12 +20,31 @@ from utils.concentration_utils import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class CalcSheetPushResult:
+    entries_updated: int = 0
+    affected_boq_item_ids: Set[int] = field(default_factory=set)
+
+    def merge(self, other: "CalcSheetPushResult") -> "CalcSheetPushResult":
+        return CalcSheetPushResult(
+            entries_updated=self.entries_updated + other.entries_updated,
+            affected_boq_item_ids=self.affected_boq_item_ids | other.affected_boq_item_ids,
+        )
+
+
+def merge_push_results(results: Iterable[CalcSheetPushResult]) -> CalcSheetPushResult:
+    merged = CalcSheetPushResult()
+    for result in results:
+        merged = merged.merge(result)
+    return merged
+
+
 def push_calculation_sheet_to_concentration_entries(
     db: Session,
     calculation_sheet: models.CalculationSheet,
     *,
     lookup_calculation_sheet_no: str | None = None,
-) -> int:
+) -> CalcSheetPushResult:
     """
     Copy estimated/submitted quantities from calc entries to matching concentration entries.
     Used immediately after import or track so concentration values stay in sync.
@@ -76,7 +96,50 @@ def push_calculation_sheet_to_concentration_entries(
             calculation_sheet.calculation_sheet_no,
             updated,
         )
-    return updated
+    return CalcSheetPushResult(
+        entries_updated=updated,
+        affected_boq_item_ids=affected_boq_item_ids,
+    )
+
+
+def export_pdfs_for_boq_items(
+    db: Session, project_id: str, boq_item_ids: Set[int]
+) -> int:
+    """Export concentration sheet PDFs for the given BOQ items."""
+    if not boq_item_ids:
+        return 0
+    pdf_service = PDFService(exports_dir=get_project_export_dir(project_id))
+    return pdf_service.export_concentration_sheets_for_boq_items(
+        list(boq_item_ids), db
+    )
+
+
+def finalize_calculation_sheet_changes(
+    db: Session,
+    project_id: str,
+    base_message: str,
+    push_result: CalcSheetPushResult,
+) -> str:
+    """
+    After a calc sheet push, export PDFs only for affected BOQ items.
+    Does not re-sync unrelated calculation sheets (use sync-all for that).
+    """
+    if not push_result.entries_updated and not push_result.affected_boq_item_ids:
+        return base_message
+
+    try:
+        pdfs_exported = export_pdfs_for_boq_items(
+            db, project_id, push_result.affected_boq_item_ids
+        )
+    except Exception as e:
+        logger.error("PDF export after calc sheet push failed: %s", e)
+        return f"{base_message} PDF export failed: {e}."
+
+    boq_count = len(push_result.affected_boq_item_ids)
+    return (
+        f"{base_message} Updated {push_result.entries_updated} concentration "
+        f"entries, {boq_count} BOQ item(s), exported {pdfs_exported} concentration sheet PDF(s)."
+    )
 
 
 def perform_sync_all_calculation_sheets(
@@ -104,9 +167,8 @@ def perform_sync_all_calculation_sheets(
     concentration_sheets_exported = 0
     boq_items_to_export = result.get("boq_items_to_export") or []
     if boq_items_to_export:
-        pdf_service = PDFService(exports_dir=get_project_export_dir(project_id))
-        concentration_sheets_exported = pdf_service.export_concentration_sheets_for_boq_items(
-            boq_items_to_export, db
+        concentration_sheets_exported = export_pdfs_for_boq_items(
+            db, project_id, set(boq_items_to_export)
         )
 
     return {
@@ -122,14 +184,14 @@ def perform_sync_all_calculation_sheets(
 
 
 def append_sync_summary_message(base_message: str, sync_result: Dict[str, Any]) -> str:
-    """Append a human-readable sync summary to an import/track message."""
+    """Append a human-readable sync summary to a sync-all message."""
     if not sync_result.get("success"):
         logger.warning(
-            "Auto-sync after import/track failed: %s",
+            "Sync-all failed: %s",
             sync_result.get("message"),
         )
         return (
-            f"{base_message} Auto-sync failed: "
+            f"{base_message} Sync failed: "
             f"{sync_result.get('message', 'unknown error')}."
         )
 
@@ -139,11 +201,3 @@ def append_sync_summary_message(base_message: str, sync_result: Dict[str, Any]) 
         f"entries updated, {details.get('boq_items_updated', 0)} BOQ items updated, "
         f"{details.get('concentration_sheets_exported', 0)} concentration sheet PDFs exported."
     )
-
-
-def run_auto_sync_after_calculation_sheet_changes(
-    db: Session, project_id: str, base_message: str
-) -> str:
-    """Run full sync and return message with summary appended."""
-    sync_result = perform_sync_all_calculation_sheets(db, project_id)
-    return append_sync_summary_message(base_message, sync_result)

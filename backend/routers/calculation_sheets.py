@@ -3,14 +3,19 @@ from sqlalchemy.orm import Session
 from typing import List
 from pathlib import Path
 import logging
+import os
+import platform
+import subprocess
 from database.database import get_db, get_project_id, get_project_upload_dir, get_project_export_dir
 from fatina_paths import resolve_calculation_sheet_open_path
 from models import models
 from schemas import schemas
 from services.calculation_sheet_sync import (
+    CalcSheetPushResult,
+    finalize_calculation_sheet_changes,
+    merge_push_results,
     perform_sync_all_calculation_sheets,
     push_calculation_sheet_to_concentration_entries,
-    run_auto_sync_after_calculation_sheet_changes,
 )
 from services.sync_service import SyncService
 from services.excel_service import ExcelService
@@ -25,22 +30,32 @@ from utils.concentration_utils import (
 logger = logging.getLogger(__name__)
 
 
+def open_file_in_default_application(file_path: str) -> None:
+    """Open a file with the OS default application."""
+    if platform.system() == "Windows":
+        os.startfile(file_path)
+    elif platform.system() == "Darwin":
+        subprocess.call(["open", file_path])
+    else:
+        subprocess.call(["xdg-open", file_path])
+
+
 def refresh_calculation_sheet_from_disk(
     sheet: models.CalculationSheet,
     excel_service: ExcelService,
     db: Session,
-) -> tuple[int, str | None]:
+) -> tuple[int, str | None, CalcSheetPushResult]:
     """
     Reread one calculation sheet from its source file path.
-    Returns (entries_refreshed, error_message_or_none).
+    Returns (entries_refreshed, error_message_or_none, push_result).
     """
     label = f"{sheet.calculation_sheet_no} / {sheet.drawing_no}"
     if not sheet.source_file_path:
-        return 0, f"{label} - No source file path saved"
+        return 0, f"{label} - No source file path saved", CalcSheetPushResult()
 
     file_path = Path(sheet.source_file_path)
     if not file_path.is_file():
-        return 0, f"{label} - Source file not found: {sheet.source_file_path}"
+        return 0, f"{label} - Source file not found: {sheet.source_file_path}", CalcSheetPushResult()
 
     try:
         sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
@@ -71,18 +86,18 @@ def refresh_calculation_sheet_from_disk(
 
         register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
 
-        push_calculation_sheet_to_concentration_entries(
+        push_result = push_calculation_sheet_to_concentration_entries(
             db,
             sheet,
             lookup_calculation_sheet_no=previous_calculation_sheet_no,
         )
 
         logger.info(f"Tracked calculation sheet {label} from {file_path}")
-        return entries_refreshed, None
+        return entries_refreshed, None, push_result
     except Exception as e:
         error_msg = f"{label} - {file_path.name}: {str(e)}"
         logger.error(error_msg)
-        return 0, error_msg
+        return 0, error_msg, CalcSheetPushResult()
 
 
 router = APIRouter()
@@ -193,6 +208,50 @@ async def update_calculation_sheet_source_file_path(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating calculation sheet source file path: {str(e)}")
 
+@router.post("/open-source-file-by-no")
+async def open_source_file_by_no(
+    body: schemas.OpenSourceFileByNoRequest,
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """Open a calculation sheet source file by its sheet number."""
+    normalized_no = body.calculation_sheet_no.strip()
+    if not normalized_no:
+        raise HTTPException(status_code=400, detail="Calculation sheet number is required")
+
+    sheet = (
+        db.query(models.CalculationSheet)
+        .filter(models.CalculationSheet.calculation_sheet_no == normalized_no)
+        .first()
+    )
+    if not sheet:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Calculation sheet {normalized_no} not found",
+        )
+
+    upload_root = get_project_upload_dir(project_id)
+    file_path = resolve_calculation_sheet_open_path(sheet, db, upload_root)
+    if not file_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Source file path not set for this calculation sheet",
+        )
+
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source file not found at path: {file_path}",
+        )
+
+    try:
+        open_file_in_default_application(file_path)
+        return {"success": True, "message": f"Opening file: {file_path}"}
+    except Exception as e:
+        logger.error(f"Error opening file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error opening file: {str(e)}")
+
+
 @router.post("/{sheet_id}/open-source-file")
 async def open_source_file(
     sheet_id: int,
@@ -202,10 +261,6 @@ async def open_source_file(
     """
     Open the source Excel file in the default application (Windows)
     """
-    import os
-    import platform
-    import subprocess
-    
     sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
     if not sheet:
         raise HTTPException(status_code=404, detail="Calculation sheet not found")
@@ -219,14 +274,7 @@ async def open_source_file(
         raise HTTPException(status_code=404, detail=f"Source file not found at path: {file_path}")
     
     try:
-        # Open file based on operating system
-        if platform.system() == 'Windows':
-            os.startfile(file_path)
-        elif platform.system() == 'Darwin':  # macOS
-            subprocess.call(['open', file_path])
-        else:  # Linux
-            subprocess.call(['xdg-open', file_path])
-        
+        open_file_in_default_application(file_path)
         return {"success": True, "message": f"Opening file: {file_path}"}
     except Exception as e:
         logger.error(f"Error opening file: {str(e)}")
@@ -246,7 +294,7 @@ async def track_calculation_sheet(
         raise HTTPException(status_code=404, detail="Calculation sheet not found")
 
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
-    entries_refreshed, error = refresh_calculation_sheet_from_disk(
+    entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
         sheet, excel_service, db
     )
 
@@ -267,7 +315,9 @@ async def track_calculation_sheet(
         f"Updated calculation sheet {sheet.calculation_sheet_no} "
         f"({entries_refreshed} entries refreshed from disk)"
     )
-    message = run_auto_sync_after_calculation_sheet_changes(db, project_id, message)
+    message = finalize_calculation_sheet_changes(
+        db, project_id, message, push_result
+    )
     return schemas.CalculationSheetsTrackResponse(
         success=True,
         message=message,
@@ -481,9 +531,10 @@ async def track_calculation_sheets(
     sheets_skipped = 0
     entries_updated = 0
     errors: List[str] = []
+    push_results: List[CalcSheetPushResult] = []
 
     for sheet in sheets:
-        entries_refreshed, error = refresh_calculation_sheet_from_disk(
+        entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
             sheet, excel_service, db
         )
         if error:
@@ -492,6 +543,7 @@ async def track_calculation_sheets(
         else:
             sheets_updated += 1
             entries_updated += entries_refreshed
+            push_results.append(push_result)
 
     db.commit()
 
@@ -503,8 +555,8 @@ async def track_calculation_sheets(
         message += f". Skipped {sheets_skipped} sheet(s)."
 
     if sheets_updated > 0:
-        message = run_auto_sync_after_calculation_sheet_changes(
-            db, project_id, message
+        message = finalize_calculation_sheet_changes(
+            db, project_id, message, merge_push_results(push_results)
         )
 
     return schemas.CalculationSheetsTrackResponse(

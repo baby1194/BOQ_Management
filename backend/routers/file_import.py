@@ -16,8 +16,10 @@ from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
 from services.calculation_sheet_sync import (
+    CalcSheetPushResult,
+    finalize_calculation_sheet_changes,
+    merge_push_results,
     push_calculation_sheet_to_concentration_entries,
-    run_auto_sync_after_calculation_sheet_changes,
 )
 from services.non_boq_service import register_non_boq_items_from_calculation_entries
 from services.auth_service import get_current_user_from_cookie, verify_password
@@ -61,10 +63,10 @@ def import_calculation_sheet_from_disk(
     file_path: Path,
     db: Session,
     excel_service: ExcelService,
-) -> tuple[int, int, bool]:
+) -> tuple[int, int, bool, CalcSheetPushResult]:
     """
     Import or update one calculation sheet from a file on disk.
-    Returns (entries_created, fatina_folders_saved, was_existing_update).
+    Returns (entries_created, fatina_folders_saved, was_existing_update, push_result).
     """
     sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
     source_file_path = str(file_path.resolve())
@@ -124,7 +126,7 @@ def import_calculation_sheet_from_disk(
 
     register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
 
-    push_calculation_sheet_to_concentration_entries(
+    push_result = push_calculation_sheet_to_concentration_entries(
         db,
         current_sheet,
         lookup_calculation_sheet_no=previous_calculation_sheet_no,
@@ -143,7 +145,7 @@ def import_calculation_sheet_from_disk(
         f"Successfully {action} calculation sheet {file_path.name} with {entries_created} entries "
         f"(source: {source_file_path}). Saved to {files_saved_count} item folder(s)."
     )
-    return entries_created, files_saved_count, was_existing
+    return entries_created, files_saved_count, was_existing, push_result
 
 
 def save_calculation_sheet_to_item_folders(
@@ -675,6 +677,7 @@ async def import_calculation_sheets_from_paths(
     total_sheets_imported = 0
     total_entries_imported = 0
     all_errors = []
+    push_results: list[CalcSheetPushResult] = []
 
     for path_str in request.file_paths:
         file_path = Path(path_str)
@@ -685,11 +688,12 @@ async def import_calculation_sheets_from_paths(
             all_errors.append(f"{file_path.name} - Not an .xlsx file")
             continue
         try:
-            entries_created, _, _ = import_calculation_sheet_from_disk(
+            entries_created, _, _, push_result = import_calculation_sheet_from_disk(
                 file_path, db, excel_service
             )
             total_sheets_imported += 1
             total_entries_imported += entries_created
+            push_results.append(push_result)
         except Exception as e:
             error_msg = f"{file_path.name} - Error processing file: {str(e)}"
             logger.error(error_msg)
@@ -713,8 +717,8 @@ async def import_calculation_sheets_from_paths(
         f"with {total_entries_imported} entries"
     )
     if total_sheets_imported > 0:
-        success_message = run_auto_sync_after_calculation_sheet_changes(
-            db, project_id, success_message
+        success_message = finalize_calculation_sheet_changes(
+            db, project_id, success_message, merge_push_results(push_results)
         )
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
@@ -744,15 +748,17 @@ async def import_calculation_sheets_from_folder(
     total_sheets_imported = 0
     total_entries_imported = 0
     all_errors = []
+    push_results: list[CalcSheetPushResult] = []
 
     for path_str in excel_files:
         file_path = Path(path_str)
         try:
-            entries_created, _, _ = import_calculation_sheet_from_disk(
+            entries_created, _, _, push_result = import_calculation_sheet_from_disk(
                 file_path, db, excel_service
             )
             total_sheets_imported += 1
             total_entries_imported += entries_created
+            push_results.append(push_result)
         except Exception as e:
             error_msg = f"{file_path.name} - Error processing file: {str(e)}"
             logger.error(error_msg)
@@ -765,8 +771,8 @@ async def import_calculation_sheets_from_folder(
         f"with {total_entries_imported} entries"
     )
     if total_sheets_imported > 0:
-        success_message = run_auto_sync_after_calculation_sheet_changes(
-            db, project_id, success_message
+        success_message = finalize_calculation_sheet_changes(
+            db, project_id, success_message, merge_push_results(push_results)
         )
 
     return schemas.CalculationImportResponse(
@@ -802,6 +808,7 @@ async def import_calculation_sheets(
         total_sheets_imported = 0
         total_entries_imported = 0
         all_errors = []
+        push_results: list[CalcSheetPushResult] = []
         relative_paths_map: Dict[str, str] = {}
         if file_relative_paths:
             try:
@@ -905,11 +912,12 @@ async def import_calculation_sheets(
                     db, sheet_data["entries"]
                 )
 
-                push_calculation_sheet_to_concentration_entries(
+                push_result = push_calculation_sheet_to_concentration_entries(
                     db,
                     current_sheet,
                     lookup_calculation_sheet_no=previous_calculation_sheet_no,
                 )
+                push_results.append(push_result)
                 
                 # Save the calculation sheet Excel file to all related contract item folders
                 # Use the original filename (file.filename) to preserve the original name even if it was renamed during upload
@@ -966,8 +974,8 @@ async def import_calculation_sheets(
         
         success_message = f"Successfully processed {total_sheets_imported} calculation sheets with {total_entries_imported} entries (updated existing sheets and added new ones as needed)"
         if total_sheets_imported > 0:
-            success_message = run_auto_sync_after_calculation_sheet_changes(
-                db, project_id, success_message
+            success_message = finalize_calculation_sheet_changes(
+                db, project_id, success_message, merge_push_results(push_results)
             )
         
         return schemas.CalculationImportResponse(

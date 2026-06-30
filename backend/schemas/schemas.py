@@ -327,6 +327,9 @@ class CalculationSheetSourceFilePathUpdate(BaseModel):
     class Config:
         from_attributes = True
 
+class OpenSourceFileByNoRequest(BaseModel):
+    calculation_sheet_no: str = Field(..., min_length=1)
+
 # Calculation Entry Schemas
 class CalculationEntryBase(BaseModel):
     section_number: str = Field(..., min_length=1, max_length=100)

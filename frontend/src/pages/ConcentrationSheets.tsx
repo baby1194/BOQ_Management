@@ -238,17 +238,7 @@ const ConcentrationSheets: React.FC = () => {
         return;
       }
 
-      const allSheets = await calculationSheetsApi.getAll();
-      const sheet = allSheets.find(
-        (s) => s.calculation_sheet_no === normalizedNo
-      );
-
-      if (!sheet) {
-        setError(`Calculation sheet ${normalizedNo} not found`);
-        return;
-      }
-
-      await calculationSheetsApi.openSourceFile(sheet.id);
+      await calculationSheetsApi.openSourceFileByNo(normalizedNo);
     } catch (err: any) {
       console.error("Error opening calculation sheet:", err);
       setError(

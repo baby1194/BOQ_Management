@@ -15,7 +15,11 @@ from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
 from routers.calculation_sheets import refresh_calculation_sheet_from_disk
-from services.calculation_sheet_sync import run_auto_sync_after_calculation_sheet_changes
+from services.calculation_sheet_sync import (
+    CalcSheetPushResult,
+    finalize_calculation_sheet_changes,
+    merge_push_results,
+)
 from utils.concentration_utils import (
     compute_quantity_submitted,
     entry_cumulative_submitted,
@@ -504,13 +508,14 @@ async def track_concentration_sheet_calculation_sheets(
     sheets_skipped = 0
     entries_updated = 0
     errors: List[str] = []
+    push_results: List[CalcSheetPushResult] = []
 
     for calc_no in sorted(calculation_sheet_nos - found_nos):
         sheets_skipped += 1
         errors.append(f"{calc_no} - Calculation sheet not found in database")
 
     for calc_sheet in calculation_sheets:
-        entries_refreshed, error = refresh_calculation_sheet_from_disk(
+        entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
             calc_sheet, excel_service, db
         )
         if error:
@@ -519,6 +524,7 @@ async def track_concentration_sheet_calculation_sheets(
         else:
             sheets_updated += 1
             entries_updated += entries_refreshed
+            push_results.append(push_result)
 
     db.commit()
 
@@ -530,8 +536,8 @@ async def track_concentration_sheet_calculation_sheets(
         message += f". Skipped {sheets_skipped} sheet(s)."
 
     if sheets_updated > 0:
-        message = run_auto_sync_after_calculation_sheet_changes(
-            db, project_id, message
+        message = finalize_calculation_sheet_changes(
+            db, project_id, message, merge_push_results(push_results)
         )
 
     return schemas.CalculationSheetsTrackResponse(
