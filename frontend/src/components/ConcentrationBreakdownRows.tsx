@@ -1,8 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Paperclip } from "lucide-react";
 import { ConcentrationEntry } from "../types";
 import { formatNumber } from "../utils/format";
+import ConcentrationDrawingFilesCell from "./ConcentrationDrawingFilesCell";
 import {
   breakdownTotalsForEntry,
   getBreakdownPeriodRows,
@@ -37,7 +37,11 @@ interface ConcentrationBreakdownRowsProps {
   onCancelPeriodEdit: () => void;
   onAttachDrawing: (entryId: number, period: string) => void;
   onOpenDrawing: (entryId: number, path: string) => void;
-  onRemoveDrawing: (entryId: number, period: string, path: string) => void;
+  onRemoveDrawing: (
+    entryId: number,
+    path: string,
+    invoiceNo?: string
+  ) => void;
   onToggleDrawingExpanded: (key: string) => void;
   drawingFileName: (path: string) => string;
 }
@@ -94,7 +98,6 @@ export const ConcentrationBreakdownPastRows: React.FC<
         const drawingFiles = getPeriodDrawingFiles(entry, row.period);
         const key = drawingKey(entry.id, row.period);
         const isUploading = uploadingDrawingKey === key;
-        const showToggle = drawingFiles.length > 1;
         const isDrawingExpanded = expandedDrawingKeys.has(key);
 
         return (
@@ -116,84 +119,21 @@ export const ConcentrationBreakdownPastRows: React.FC<
               <span className="font-medium text-gray-700">{row.period}</span>
             </td>
             <td className="px-3 py-1 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
-              <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
-                {drawingFiles.length === 0 ? (
-                  <div className="flex justify-center w-full">
-                    <button
-                      type="button"
-                      onClick={() => onAttachDrawing(entry.id, row.period)}
-                      onDoubleClick={(e) => e.stopPropagation()}
-                      disabled={isUploading}
-                      className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      <Paperclip className="h-3.5 w-3.5" />
-                      <span>
-                        {isUploading
-                          ? t("concentration.uploadingDrawings")
-                          : t("concentration.attachDrawings")}
-                      </span>
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {(isDrawingExpanded ? drawingFiles : drawingFiles.slice(0, 1)).map(
-                      (filePath) => (
-                        <div
-                          key={filePath}
-                          className={`flex items-center gap-1 rounded bg-gray-50 border border-gray-200 px-2 py-1 min-w-0 ${
-                            isRTL ? "flex-row-reverse" : ""
-                          }`}
-                        >
-                          <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                          <button
-                            type="button"
-                            onClick={() => onOpenDrawing(entry.id, filePath)}
-                            onDoubleClick={(e) => e.stopPropagation()}
-                            className="flex-1 min-w-0 text-blue-600 hover:text-blue-800 hover:underline truncate text-xs text-left"
-                            title={filePath}
-                          >
-                            {drawingFileName(filePath)}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onRemoveDrawing(entry.id, row.period, filePath)
-                            }
-                            onDoubleClick={(e) => e.stopPropagation()}
-                            className="shrink-0 text-red-500 hover:text-red-700 text-sm leading-none px-0.5"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )
-                    )}
-                    <div className="flex items-center gap-1">
-                      {showToggle && (
-                        <button
-                          type="button"
-                          onClick={() => onToggleDrawingExpanded(key)}
-                          onDoubleClick={(e) => e.stopPropagation()}
-                          className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-sky-100 text-sky-800 border-sky-200"
-                        >
-                          {isDrawingExpanded
-                          ? t("concentration.showLessDrawings")
-                          : t("concentration.showMoreDrawings")}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onAttachDrawing(entry.id, row.period)}
-                        onDoubleClick={(e) => e.stopPropagation()}
-                        disabled={isUploading}
-                        className="inline-flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
-                      >
-                        <Paperclip className="h-3.5 w-3.5" />
-                        {t("concentration.attachDrawings")}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <ConcentrationDrawingFilesCell
+                drawingFiles={drawingFiles}
+                isRTL={isRTL}
+                isUploading={isUploading}
+                isExpanded={
+                  isDrawingExpanded && drawingFiles.length > 1
+                }
+                onAttach={() => onAttachDrawing(entry.id, row.period)}
+                onOpen={(path) => onOpenDrawing(entry.id, path)}
+                onRemove={(path) =>
+                  onRemoveDrawing(entry.id, path, row.period)
+                }
+                onToggleExpanded={() => onToggleDrawingExpanded(key)}
+                drawingFileName={drawingFileName}
+              />
             </td>
             <td className="px-3 py-1" />
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
