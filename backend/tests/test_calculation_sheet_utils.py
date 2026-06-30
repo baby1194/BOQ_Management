@@ -3,17 +3,22 @@
 import pandas as pd
 
 from utils.calculation_sheet_utils import (
-    collect_sheet_periods,
+    collect_entry_periods,
     compute_submission_breakdown,
     read_entry_current_invoice_id,
     read_entry_submitted_invoice_id,
 )
 
 
+def _period_col(item_col: int) -> int:
+    return item_col - 1
+
+
 def test_compute_submission_breakdown_groups_by_period():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
 
     col = 10
+    period_col = _period_col(col)
     rows = {
         27: ("01", 460),
         28: ("01", 24),
@@ -31,12 +36,12 @@ def test_compute_submission_breakdown_groups_by_period():
         40: (None, 24),
     }
     for row_idx, (period, qty) in rows.items():
-        df.iloc[row_idx, 1] = period
+        df.iloc[row_idx, period_col] = period
         df.iloc[row_idx, col] = qty
 
-    sheet_periods = collect_sheet_periods(df)
+    entry_periods = collect_entry_periods(df, col)
     breakdown, current = compute_submission_breakdown(
-        df, col, "05", sheet_periods=sheet_periods
+        df, col, "05", sheet_periods=entry_periods
     )
 
     assert current == 548.0
@@ -50,20 +55,21 @@ def test_compute_submission_breakdown_groups_by_period():
     assert breakdown["left_submitted"] == 284.0
 
 
-def test_nan_column_b_goes_to_left_not_period():
+def test_empty_period_column_goes_to_left_not_period():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10
+    period_col = _period_col(col)
 
-    df.iloc[27, 1] = "01"
+    df.iloc[27, period_col] = "01"
     df.iloc[27, col] = 100.0
-    df.iloc[28, 1] = float("nan")
+    df.iloc[28, period_col] = float("nan")
     df.iloc[28, col] = 50.0
-    df.iloc[29, 1] = None
+    df.iloc[29, period_col] = None
     df.iloc[29, col] = 25.0
 
-    sheet_periods = collect_sheet_periods(df)
+    entry_periods = collect_entry_periods(df, col)
     breakdown, current = compute_submission_breakdown(
-        df, col, "01", sheet_periods=sheet_periods
+        df, col, "01", sheet_periods=entry_periods
     )
 
     assert current == 100.0
@@ -71,20 +77,21 @@ def test_nan_column_b_goes_to_left_not_period():
     assert breakdown["left_submitted"] == 75.0
 
 
-def test_all_sheet_periods_included_even_when_item_qty_is_zero():
+def test_all_entry_periods_included_even_when_item_qty_is_zero():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10
+    period_col = _period_col(col)
 
     for row_idx, period in enumerate(["01", "02", "03"], start=27):
-        df.iloc[row_idx, 1] = period
+        df.iloc[row_idx, period_col] = period
         df.iloc[row_idx, col] = 0.0
 
-    df.iloc[30, 1] = "04"
+    df.iloc[30, period_col] = "04"
     df.iloc[30, col] = 12.0
 
-    sheet_periods = collect_sheet_periods(df)
+    entry_periods = collect_entry_periods(df, col)
     breakdown, current = compute_submission_breakdown(
-        df, col, "04", sheet_periods=sheet_periods
+        df, col, "04", sheet_periods=entry_periods
     )
 
     assert current == 12.0
@@ -93,7 +100,7 @@ def test_all_sheet_periods_included_even_when_item_qty_is_zero():
     assert breakdown["periods"]["02"] == 0.0
     assert breakdown["periods"]["03"] == 0.0
     assert breakdown["periods"]["04"] == 12.0
-    assert len(breakdown["periods"]) == len(sheet_periods)
+    assert len(breakdown["periods"]) == len(entry_periods)
 
 
 def test_collect_export_past_period_keys_excludes_current():
@@ -148,12 +155,13 @@ def test_collect_export_past_period_keys_excludes_current():
 def test_reads_quantities_beyond_row_100():
     df = pd.DataFrame([[None] * 12 for _ in range(150)])
     col = 10
-    df.iloc[120, 1] = "01"
+    period_col = _period_col(col)
+    df.iloc[120, period_col] = "01"
     df.iloc[120, col] = 99.0
 
-    sheet_periods = collect_sheet_periods(df)
+    entry_periods = collect_entry_periods(df, col)
     breakdown, current = compute_submission_breakdown(
-        df, col, "01", sheet_periods=sheet_periods
+        df, col, "01", sheet_periods=entry_periods
     )
 
     assert current == 99.0
@@ -353,17 +361,44 @@ def test_calc_entry_is_submitted_requires_invoice_and_quantity():
 def test_compute_submission_breakdown_uses_per_entry_invoice_id():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10
-    df.iloc[27, 1] = "05"
+    period_col = _period_col(col)
+    df.iloc[27, period_col] = "05"
     df.iloc[27, col] = 100.0
-    df.iloc[28, 1] = "06"
+    df.iloc[28, period_col] = "06"
     df.iloc[28, col] = 50.0
 
-    sheet_periods = collect_sheet_periods(df)
+    entry_periods = collect_entry_periods(df, col)
     breakdown, current = compute_submission_breakdown(
-        df, col, "06", sheet_periods=sheet_periods
+        df, col, "06", sheet_periods=entry_periods
     )
 
     assert current == 50.0
     assert breakdown["current_drawing_no"] == "06"
     assert breakdown["periods"]["05"] == 100.0
     assert breakdown["periods"]["06"] == 50.0
+
+
+def test_each_item_uses_its_own_prior_column_for_periods():
+    df = pd.DataFrame([[None] * 14 for _ in range(100)])
+
+    col_a = 10
+    period_col_a = _period_col(col_a)
+    df.iloc[27, period_col_a] = "01"
+    df.iloc[27, col_a] = 100.0
+    df.iloc[28, period_col_a] = "02"
+    df.iloc[28, col_a] = 50.0
+
+    col_b = 12
+    period_col_b = _period_col(col_b)
+    df.iloc[27, period_col_b] = "03"
+    df.iloc[27, col_b] = 200.0
+    df.iloc[28, period_col_b] = "04"
+    df.iloc[28, col_b] = 75.0
+
+    breakdown_a, current_a = compute_submission_breakdown(df, col_a, "02")
+    breakdown_b, current_b = compute_submission_breakdown(df, col_b, "04")
+
+    assert current_a == 50.0
+    assert breakdown_a["periods"] == {"01": 100.0, "02": 50.0}
+    assert current_b == 75.0
+    assert breakdown_b["periods"] == {"03": 200.0, "04": 75.0}

@@ -313,7 +313,6 @@ class ExcelService:
         """
         try:
             from utils.calculation_sheet_utils import (
-                collect_sheet_periods,
                 compute_submission_breakdown,
                 read_entry_submitted_invoice_id,
                 validate_calculation_sheet_header_fields,
@@ -334,8 +333,6 @@ class ExcelService:
                 file_name,
             )
 
-            sheet_periods = collect_sheet_periods(df)
-            
             entries = []
             
             col_index = 4
@@ -354,7 +351,7 @@ class ExcelService:
                     )
                     if entry_current_invoice_id:
                         submission_breakdown, quantity_submitted = compute_submission_breakdown(
-                            df, col_index, entry_current_invoice_id, sheet_periods=sheet_periods
+                            df, col_index, entry_current_invoice_id
                         )
                     else:
                         submission_breakdown = None

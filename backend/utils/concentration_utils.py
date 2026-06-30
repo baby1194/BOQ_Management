@@ -164,6 +164,8 @@ def sync_calc_entry_to_concentration(
     estimated = float(calc_entry.estimated_quantity or 0)
 
     if concentration_entry:
+        if getattr(concentration_entry, "is_manual", False):
+            return None
         if submitted:
             invoice_id = str(calc_entry.current_invoice_id or "").strip()
             apply_calculation_entry_quantities(
@@ -211,7 +213,8 @@ def sync_calc_entry_to_concentration(
 
 def remove_orphan_concentration_entries(db, sheet_id: int | None = None) -> Tuple[int, Set[int]]:
     """
-    Delete concentration entries whose calculation_sheet_no is not in the DB.
+    Delete auto-synced concentration entries whose calculation_sheet_no is not in the DB.
+    Manual entries are kept even when the calculation sheet number is unknown.
     Returns (removed_count, affected_boq_item_ids).
     """
     from models import models
@@ -235,6 +238,8 @@ def remove_orphan_concentration_entries(db, sheet_id: int | None = None) -> Tupl
     affected_boq_item_ids: Set[int] = set()
     removed = 0
     for entry in entries:
+        if getattr(entry, "is_manual", False):
+            continue
         calc_no = str(entry.calculation_sheet_no or "").strip()
         if not calc_no or calc_no in existing_calc_nos:
             continue

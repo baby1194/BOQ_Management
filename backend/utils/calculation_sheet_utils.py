@@ -10,7 +10,11 @@ import pandas as pd
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
-PERIOD_COLUMN_INDEX = 1  # Column B
+
+
+def entry_period_column_index(item_col_index: int) -> int:
+    """Column immediately before the item column holds past submission invoice ids (row 28+)."""
+    return item_col_index - 1
 
 _INVALID_PERIOD_STRINGS = frozenset({"nan", "none", "<na>", "nat"})
 
@@ -99,12 +103,16 @@ def _sort_period_keys(periods: Iterable[str]) -> List[str]:
     return sorted(set(periods), key=lambda key: (len(key), key))
 
 
-def collect_sheet_periods(df) -> List[str]:
-    """Collect all unique non-empty column B values from detail rows (row 28+)."""
+def collect_entry_periods(df, col_index: int) -> List[str]:
+    """Collect unique non-empty past invoice ids from the column before the item column (row 28+)."""
+    period_col = entry_period_column_index(col_index)
+    if period_col < 0 or period_col >= df.shape[1]:
+        return []
+
     periods: set[str] = set()
     row_limit = get_detail_row_end_exclusive(df)
     for row_idx in range(DETAIL_START_ROW, row_limit):
-        period = _normalize_period_value(df.iloc[row_idx, PERIOD_COLUMN_INDEX])
+        period = _normalize_period_value(df.iloc[row_idx, period_col])
         if period:
             periods.add(period)
     return _sort_period_keys(periods)
@@ -188,12 +196,14 @@ def compute_submission_breakdown(
     """
     Sum submitted quantities from detail rows (row 28 through last sheet row with data).
 
-    Every unique column B period on the sheet gets a row (0 when no qty for this item).
-    Rows with empty/invalid column B accumulate into left_submitted.
+    Past invoice ids are read from the column immediately before the item column.
+    Every unique period for this item gets a row (0 when no qty). Rows with
+    empty/invalid invoice ids in that column accumulate into left_submitted.
     """
     current_drawing_no = str(current_drawing_no or "").strip()
+    period_col = entry_period_column_index(col_index)
     if sheet_periods is None:
-        sheet_periods = collect_sheet_periods(df)
+        sheet_periods = collect_entry_periods(df, col_index)
 
     period_keys = list(sheet_periods)
     if current_drawing_no and current_drawing_no not in period_keys:
@@ -208,7 +218,9 @@ def compute_submission_breakdown(
             break
 
         qty = _safe_float(df.iloc[row_idx, col_index])
-        period = _normalize_period_value(df.iloc[row_idx, PERIOD_COLUMN_INDEX])
+        period = None
+        if 0 <= period_col < df.shape[1]:
+            period = _normalize_period_value(df.iloc[row_idx, period_col])
 
         if period is None:
             left_submitted += qty
