@@ -34,11 +34,20 @@ import {
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
 import {
-  SubmissionBreakdownPastRows,
-  SubmissionBreakdownTotalRow,
-  SubmissionBreakdownToggle,
-} from "../components/SubmissionBreakdownPanel";
+  ConcentrationBreakdownPastRows,
+  ConcentrationBreakdownTotalRow,
+  PeriodEditDraft,
+} from "../components/ConcentrationBreakdownRows";
+import { SubmissionBreakdownToggle } from "../components/SubmissionBreakdownPanel";
 import { concentrationEntriesQuantitySubmittedTotal } from "../utils/submissionBreakdown";
+import {
+  entryTotalApprovedQuantity,
+  entryTotalInternalQuantity,
+  getCurrentPeriodFields,
+  getPeriodDetail,
+  getPeriodDrawingFiles,
+  resolveCurrentPeriod,
+} from "../utils/periodDetails";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 /** Draft state for inline row editing (mirrors EntryForm fields). */
@@ -72,7 +81,7 @@ function drawingFileName(path: string): string {
 function concentrationEntryToEditDraft(
   entry: ConcentrationEntry
 ): ConcentrationEntryEditDraft {
-  const submissionPercentage = entry.submission_percentage ?? 100;
+  const currentFields = getCurrentPeriodFields(entry);
   const estimatedQuantity = entry.estimated_quantity ?? 0;
   return {
     section_number: entry.section_number || "",
@@ -80,15 +89,15 @@ function concentrationEntryToEditDraft(
     calculation_sheet_no: entry.calculation_sheet_no || "",
     drawing_no: entry.drawing_no || "",
     estimated_quantity: estimatedQuantity,
-    submission_percentage: submissionPercentage,
-    quantity_submitted: computeQuantitySubmitted(
+    submission_percentage: currentFields.submission_percentage,
+    quantity_submitted: entry.quantity_submitted ?? computeQuantitySubmitted(
       estimatedQuantity,
-      submissionPercentage
+      currentFields.submission_percentage
     ),
-    internal_quantity: entry.internal_quantity ?? 0,
-    approved_by_project_manager: entry.approved_by_project_manager ?? 0,
-    notes: entry.notes || "",
-    supervisor_notes: entry.supervisor_notes || "",
+    internal_quantity: currentFields.internal_quantity,
+    approved_by_project_manager: currentFields.approved_by_project_manager,
+    notes: currentFields.notes,
+    supervisor_notes: currentFields.supervisor_notes,
     is_manual: entry.is_manual,
   };
 }
@@ -144,15 +153,21 @@ const ConcentrationSheets: React.FC = () => {
   const [populateListLoading, setPopulateListLoading] = useState(false);
   const [populateSubmitting, setPopulateSubmitting] = useState(false);
   const drawingFileInputRef = useRef<HTMLInputElement>(null);
-  const [attachTargetEntryId, setAttachTargetEntryId] = useState<number | null>(
-    null
-  );
-  const [uploadingDrawingEntryId, setUploadingDrawingEntryId] = useState<
-    number | null
+  const [attachTarget, setAttachTarget] = useState<{
+    entryId: number;
+    invoiceNo?: string;
+  } | null>(null);
+  const [uploadingDrawingKey, setUploadingDrawingKey] = useState<
+    string | null
   >(null);
-  const [expandedDrawingEntryIds, setExpandedDrawingEntryIds] = useState<
-    Set<number>
-  >(new Set());
+  const [expandedDrawingKeys, setExpandedDrawingKeys] = useState<Set<string>>(
+    new Set()
+  );
+  const [periodEdit, setPeriodEdit] = useState<{
+    entryId: number;
+    period: string;
+    draft: PeriodEditDraft;
+  } | null>(null);
   const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
   >(new Set());
@@ -253,15 +268,18 @@ const ConcentrationSheets: React.FC = () => {
 
   const handleAttachDrawingFiles = async (
     entryId: number,
-    fileList: FileList | null
+    fileList: FileList | null,
+    invoiceNo?: string
   ) => {
     if (!fileList?.length) return;
+    const key = `${entryId}:${invoiceNo || "current"}`;
     try {
-      setUploadingDrawingEntryId(entryId);
+      setUploadingDrawingKey(key);
       setError(null);
       const updated = await concentrationApi.uploadDrawingFiles(
         entryId,
-        Array.from(fileList)
+        Array.from(fileList),
+        invoiceNo
       );
       setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
     } catch (err: any) {
@@ -270,8 +288,8 @@ const ConcentrationSheets: React.FC = () => {
         err.response?.data?.detail || t("concentration.failedToAttachDrawings")
       );
     } finally {
-      setUploadingDrawingEntryId(null);
-      setAttachTargetEntryId(null);
+      setUploadingDrawingKey(null);
+      setAttachTarget(null);
     }
   };
 
@@ -287,11 +305,19 @@ const ConcentrationSheets: React.FC = () => {
     }
   };
 
-  const handleRemoveDrawingFile = async (entryId: number, path: string) => {
+  const handleRemoveDrawingFile = async (
+    entryId: number,
+    path: string,
+    invoiceNo?: string
+  ) => {
     if (!confirm(t("concentration.confirmRemoveDrawing"))) return;
     try {
       setError(null);
-      const updated = await concentrationApi.removeDrawingFile(entryId, path);
+      const updated = await concentrationApi.removeDrawingFile(
+        entryId,
+        path,
+        invoiceNo
+      );
       setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
     } catch (err: any) {
       console.error("Error removing drawing file:", err);
@@ -301,13 +327,13 @@ const ConcentrationSheets: React.FC = () => {
     }
   };
 
-  const toggleDrawingFilesExpanded = (entryId: number) => {
-    setExpandedDrawingEntryIds((prev) => {
+  const toggleDrawingFilesExpanded = (key: string) => {
+    setExpandedDrawingKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(entryId)) {
-        next.delete(entryId);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(entryId);
+        next.add(key);
       }
       return next;
     });
@@ -325,8 +351,8 @@ const ConcentrationSheets: React.FC = () => {
     });
   };
 
-  const triggerAttachDrawings = (entryId: number) => {
-    setAttachTargetEntryId(entryId);
+  const triggerAttachDrawings = (entryId: number, invoiceNo?: string) => {
+    setAttachTarget({ entryId, invoiceNo });
     drawingFileInputRef.current?.click();
   };
 
@@ -804,18 +830,90 @@ const ConcentrationSheets: React.FC = () => {
 
   // Start editing entry
   const startEditing = (entry: ConcentrationEntry) => {
+    setPeriodEdit(null);
     setEditingEntry(entry);
     setEditDraft(concentrationEntryToEditDraft(entry));
     setShowAddForm(false);
   };
 
+  const startPeriodEditing = (entry: ConcentrationEntry, period: string) => {
+    setEditingEntry(null);
+    setEditDraft(null);
+    const breakdown = entry.submission_breakdown;
+    const periods = breakdown?.periods || breakdown?.past_months || {};
+    const qty =
+      period === resolveCurrentPeriod(entry, breakdown)
+        ? entry.quantity_submitted || 0
+        : periods[period] || 0;
+    const detail = getPeriodDetail(breakdown, period);
+    setPeriodEdit({
+      entryId: entry.id,
+      period,
+      draft: {
+        submission_percentage:
+          detail.submission_percentage ??
+          (entry.estimated_quantity
+            ? (qty / entry.estimated_quantity) * 100
+            : 100),
+        internal_quantity: detail.internal_quantity ?? 0,
+        approved_by_project_manager: detail.approved_by_project_manager ?? 0,
+        notes: detail.notes || "",
+        supervisor_notes: detail.supervisor_notes || "",
+      },
+    });
+  };
+
+  const cancelPeriodEdit = useCallback(() => {
+    setPeriodEdit(null);
+  }, []);
+
+  const savePeriodEdit = async () => {
+    if (!periodEdit) return;
+    try {
+      setSaving(true);
+      const updatedEntry = await concentrationApi.updateEntry(periodEdit.entryId, {
+        invoice_no: periodEdit.period,
+        submission_percentage: periodEdit.draft.submission_percentage,
+        internal_quantity: periodEdit.draft.internal_quantity,
+        approved_by_project_manager: periodEdit.draft.approved_by_project_manager,
+        notes: periodEdit.draft.notes,
+        supervisor_notes: periodEdit.draft.supervisor_notes,
+      });
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === periodEdit.entryId ? updatedEntry : entry
+        )
+      );
+      setPeriodEdit(null);
+      setError(null);
+    } catch (err) {
+      console.error("Error updating period entry:", err);
+      setError(t("auth.failedToUpdateEntry"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const cancelInlineEdit = useCallback(() => {
     setEditingEntry(null);
     setEditDraft(null);
+    setPeriodEdit(null);
   }, []);
 
   const saveInlineEdit = async () => {
     if (!editingEntry || !editDraft) return;
+    const invoiceNo = resolveCurrentPeriod(
+      editingEntry,
+      editingEntry.submission_breakdown
+    );
+    const periodFields = {
+      invoice_no: invoiceNo || undefined,
+      submission_percentage: editDraft.submission_percentage,
+      internal_quantity: editDraft.internal_quantity,
+      approved_by_project_manager: editDraft.approved_by_project_manager,
+      notes: editDraft.notes,
+      supervisor_notes: editDraft.supervisor_notes,
+    };
     if (editDraft.is_manual) {
       await updateEntry(editingEntry.id, {
         section_number: editDraft.section_number,
@@ -823,21 +921,11 @@ const ConcentrationSheets: React.FC = () => {
         calculation_sheet_no: editDraft.calculation_sheet_no,
         drawing_no: editDraft.drawing_no,
         estimated_quantity: editDraft.estimated_quantity,
-        submission_percentage: editDraft.submission_percentage,
-        internal_quantity: editDraft.internal_quantity,
-        approved_by_project_manager: editDraft.approved_by_project_manager,
-        notes: editDraft.notes,
-        supervisor_notes: editDraft.supervisor_notes,
+        ...periodFields,
         is_manual: true,
       });
     } else {
-      await updateEntry(editingEntry.id, {
-        submission_percentage: editDraft.submission_percentage,
-        internal_quantity: editDraft.internal_quantity,
-        approved_by_project_manager: editDraft.approved_by_project_manager,
-        notes: editDraft.notes,
-        supervisor_notes: editDraft.supervisor_notes,
-      });
+      await updateEntry(editingEntry.id, periodFields);
     }
   };
 
@@ -878,6 +966,7 @@ const ConcentrationSheets: React.FC = () => {
     if (target.closest("button, a, input, textarea, select")) return;
     if (saving || populateSubmitting) return;
     if (editingEntry?.id === entry.id) return;
+    setPeriodEdit(null);
     startEditing(entry);
   };
 
@@ -1011,8 +1100,12 @@ const ConcentrationSheets: React.FC = () => {
         multiple
         className="hidden"
         onChange={(e) => {
-          if (attachTargetEntryId !== null) {
-            void handleAttachDrawingFiles(attachTargetEntryId, e.target.files);
+          if (attachTarget !== null) {
+            void handleAttachDrawingFiles(
+              attachTarget.entryId,
+              e.target.files,
+              attachTarget.invoiceNo
+            );
           }
           e.target.value = "";
         }}
@@ -1609,22 +1702,45 @@ const ConcentrationSheets: React.FC = () => {
 
                                 const isBreakdownExpanded =
                                   expandedBreakdownEntryIds.has(entry.id);
+                                const currentFields = getCurrentPeriodFields(entry);
+                                const currentPeriod = resolveCurrentPeriod(
+                                  entry,
+                                  entry.submission_breakdown
+                                );
+                                const currentDrawingKey = `${entry.id}:${
+                                  currentPeriod || "current"
+                                }`;
 
                                 return (
                                   <React.Fragment key={entry.id}>
                                     {isBreakdownExpanded && (
-                                      <SubmissionBreakdownPastRows
-                                        breakdown={entry.submission_breakdown}
-                                        quantitySubmitted={
-                                          entry.quantity_submitted
-                                        }
-                                        estimatedQuantity={
-                                          entry.estimated_quantity
-                                        }
+                                      <ConcentrationBreakdownPastRows
+                                        entry={entry}
                                         columnCount={13}
-                                        invoiceColumnIndex={3}
-                                        qtyColumnIndex={7}
-                                        percentageColumnIndex={6}
+                                        isRTL={isRTL}
+                                        saving={saving}
+                                        periodEdit={periodEdit}
+                                        uploadingDrawingKey={uploadingDrawingKey}
+                                        expandedDrawingKeys={expandedDrawingKeys}
+                                        onStartPeriodEdit={startPeriodEditing}
+                                        onPeriodDraftChange={(draft) =>
+                                          setPeriodEdit((current) =>
+                                            current
+                                              ? { ...current, draft }
+                                              : null
+                                          )
+                                        }
+                                        onSavePeriodEdit={() =>
+                                          void savePeriodEdit()
+                                        }
+                                        onCancelPeriodEdit={cancelPeriodEdit}
+                                        onAttachDrawing={triggerAttachDrawings}
+                                        onOpenDrawing={handleOpenDrawingFile}
+                                        onRemoveDrawing={handleRemoveDrawingFile}
+                                        onToggleDrawingExpanded={
+                                          toggleDrawingFilesExpanded
+                                        }
+                                        drawingFileName={drawingFileName}
                                       />
                                     )}
                                     <tr
@@ -1764,14 +1880,16 @@ const ConcentrationSheets: React.FC = () => {
                                       <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
                                         <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
                                           {(() => {
-                                            const drawingFiles =
-                                              entry.drawing_files || [];
+                                            const drawingFiles = getPeriodDrawingFiles(
+                                              entry,
+                                              currentPeriod
+                                            );
                                             const showToggle =
                                               drawingFiles.length > 1;
                                             const isExpanded =
                                               showToggle &&
-                                              expandedDrawingEntryIds.has(
-                                                entry.id
+                                              expandedDrawingKeys.has(
+                                                currentDrawingKey
                                               );
 
                                             const renderDrawingFile = (
@@ -1807,7 +1925,8 @@ const ConcentrationSheets: React.FC = () => {
                                                   onClick={() =>
                                                     handleRemoveDrawingFile(
                                                       entry.id,
-                                                      filePath
+                                                      filePath,
+                                                      currentPeriod || undefined
                                                     )
                                                   }
                                                   onDoubleClick={(e) =>
@@ -1831,22 +1950,23 @@ const ConcentrationSheets: React.FC = () => {
                                                 type="button"
                                                 onClick={() =>
                                                   triggerAttachDrawings(
-                                                    entry.id
+                                                    entry.id,
+                                                    currentPeriod || undefined
                                                   )
                                                 }
                                                 onDoubleClick={(e) =>
                                                   e.stopPropagation()
                                                 }
                                                 disabled={
-                                                  uploadingDrawingEntryId ===
-                                                  entry.id
+                                                  uploadingDrawingKey ===
+                                                  currentDrawingKey
                                                 }
                                                 className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
                                               >
                                                 <Paperclip className="h-3.5 w-3.5" />
                                                 <span>
-                                                  {uploadingDrawingEntryId ===
-                                                  entry.id
+                                                  {uploadingDrawingKey ===
+                                                  currentDrawingKey
                                                     ? t(
                                                         "concentration.uploadingDrawings"
                                                       )
@@ -1884,7 +2004,7 @@ const ConcentrationSheets: React.FC = () => {
                                                       type="button"
                                                       onClick={() =>
                                                         toggleDrawingFilesExpanded(
-                                                          entry.id
+                                                          currentDrawingKey
                                                         )
                                                       }
                                                       onDoubleClick={(e) =>
@@ -1915,7 +2035,7 @@ const ConcentrationSheets: React.FC = () => {
                                                     type="button"
                                                     onClick={() =>
                                                       toggleDrawingFilesExpanded(
-                                                        entry.id
+                                                        currentDrawingKey
                                                       )
                                                     }
                                                     onDoubleClick={(e) =>
@@ -2010,7 +2130,7 @@ const ConcentrationSheets: React.FC = () => {
                                           </div>
                                         ) : (
                                           `${formatNumber(
-                                            entry.submission_percentage ?? 100
+                                            currentFields.submission_percentage
                                           )}%`
                                         )}
                                       </td>
@@ -2049,7 +2169,7 @@ const ConcentrationSheets: React.FC = () => {
                                             disabled={saving}
                                           />
                                         ) : (
-                                          formatNumber(entry.internal_quantity)
+                                          formatNumber(currentFields.internal_quantity)
                                         )}
                                       </td>
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
@@ -2078,7 +2198,7 @@ const ConcentrationSheets: React.FC = () => {
                                           />
                                         ) : (
                                           formatNumber(
-                                            entry.approved_by_project_manager
+                                            currentFields.approved_by_project_manager
                                           )
                                         )}
                                       </td>
@@ -2103,9 +2223,9 @@ const ConcentrationSheets: React.FC = () => {
                                         ) : (
                                           <div
                                             className="truncate py-1"
-                                            title={entry.notes || ""}
+                                            title={currentFields.notes || ""}
                                           >
-                                            {entry.notes || "-"}
+                                            {currentFields.notes || "-"}
                                           </div>
                                         )}
                                       </td>
@@ -2131,9 +2251,9 @@ const ConcentrationSheets: React.FC = () => {
                                         ) : (
                                           <div
                                             className="truncate py-1"
-                                            title={entry.supervisor_notes || ""}
+                                            title={currentFields.supervisor_notes || ""}
                                           >
-                                            {entry.supervisor_notes || "-"}
+                                            {currentFields.supervisor_notes || "-"}
                                           </div>
                                         )}
                                       </td>
@@ -2222,18 +2342,9 @@ const ConcentrationSheets: React.FC = () => {
                                       </td>
                                     </tr>
                                     {isBreakdownExpanded && (
-                                      <SubmissionBreakdownTotalRow
-                                        breakdown={entry.submission_breakdown}
-                                        quantitySubmitted={
-                                          entry.quantity_submitted
-                                        }
-                                        estimatedQuantity={
-                                          entry.estimated_quantity
-                                        }
+                                      <ConcentrationBreakdownTotalRow
+                                        entry={entry}
                                         columnCount={13}
-                                        invoiceColumnIndex={3}
-                                        qtyColumnIndex={7}
-                                        percentageColumnIndex={6}
                                       />
                                     )}
                                   </React.Fragment>
@@ -2278,7 +2389,7 @@ const ConcentrationSheets: React.FC = () => {
                                   {formatNumber(
                                     visibleEntries.reduce(
                                       (sum, entry) =>
-                                        sum + entry.internal_quantity,
+                                        sum + entryTotalInternalQuantity(entry),
                                       0
                                     )
                                   )}
@@ -2287,7 +2398,8 @@ const ConcentrationSheets: React.FC = () => {
                                   {formatNumber(
                                     visibleEntries.reduce(
                                       (sum, entry) =>
-                                        sum + entry.approved_by_project_manager,
+                                        sum +
+                                        entryTotalApprovedQuantity(entry),
                                       0
                                     )
                                   )}

@@ -3,6 +3,11 @@
 from typing import Iterable, List, Optional, Set, Tuple, TypeVar
 
 from utils.calculation_sheet_utils import breakdowns_equal, entry_cumulative_submitted_quantity
+from utils.period_details_utils import (
+    apply_current_period_to_entry_fields,
+    merge_breakdown_preserve_period_details,
+    migrate_entry_period_details,
+)
 
 T = TypeVar("T")
 
@@ -57,11 +62,15 @@ def apply_calculation_entry_quantities(
     concentration_entry.submission_percentage = compute_submission_percentage(
         estimated, submitted
     )
-    concentration_entry.submission_breakdown = getattr(
-        calc_entry, "submission_breakdown", None
+    old_breakdown = getattr(concentration_entry, "submission_breakdown", None)
+    new_breakdown = getattr(calc_entry, "submission_breakdown", None)
+    concentration_entry.submission_breakdown = merge_breakdown_preserve_period_details(
+        old_breakdown, new_breakdown
     )
     if drawing_no is not None:
         concentration_entry.drawing_no = drawing_no
+    migrate_entry_period_details(concentration_entry)
+    apply_current_period_to_entry_fields(concentration_entry)
 
 
 def apply_calculation_entry_estimated_only(

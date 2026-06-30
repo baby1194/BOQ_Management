@@ -237,7 +237,10 @@ export const concentrationApi = {
       .post<ConcentrationEntry>(`/concentration/${sheetId}/entries`, entry)
       .then((res) => res.data),
 
-  updateEntry: (entryId: number, updates: Partial<ConcentrationEntry>) =>
+  updateEntry: (
+    entryId: number,
+    updates: Partial<ConcentrationEntry> & { invoice_no?: string }
+  ) =>
     api
       .put<ConcentrationEntry>(`/concentration/entries/${entryId}`, updates)
       .then((res) => res.data),
@@ -256,12 +259,15 @@ export const concentrationApi = {
       )
       .then((res) => res.data),
 
-  uploadDrawingFiles: (entryId: number, files: File[]) => {
+  uploadDrawingFiles: (entryId: number, files: File[], invoiceNo?: string) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    const query = invoiceNo
+      ? `?invoice_no=${encodeURIComponent(invoiceNo)}`
+      : "";
     return api
       .post<ConcentrationEntry>(
-        `/concentration/entries/${entryId}/drawing-files`,
+        `/concentration/entries/${entryId}/drawing-files${query}`,
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       )
@@ -276,11 +282,11 @@ export const concentrationApi = {
       )
       .then((res) => res.data),
 
-  removeDrawingFile: (entryId: number, path: string) =>
+  removeDrawingFile: (entryId: number, path: string, invoiceNo?: string) =>
     api
       .delete<ConcentrationEntry>(
         `/concentration/entries/${entryId}/drawing-files`,
-        { data: { path } }
+        { data: { path, invoice_no: invoiceNo } }
       )
       .then((res) => res.data),
 

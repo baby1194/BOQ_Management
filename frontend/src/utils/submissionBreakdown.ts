@@ -115,6 +115,18 @@ interface ConcentrationEntrySubmittedLike {
   drawing_no?: string;
 }
 
+export const computeSubmissionPercentage = (
+  estimatedQuantity: number,
+  submittedQuantity: number
+): number => {
+  const estimated = estimatedQuantity || 0;
+  const submitted = submittedQuantity || 0;
+  if (estimated > 0) {
+    return (submitted / estimated) * 100;
+  }
+  return 100;
+};
+
 export const concentrationEntriesQuantitySubmittedTotal = (
   entries: ConcentrationEntrySubmittedLike[],
   expandedEntryIds: Set<number>,

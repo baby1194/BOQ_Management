@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional, Set
@@ -20,6 +20,17 @@ from utils.concentration_utils import (
     compute_quantity_submitted,
     entry_cumulative_submitted,
     remove_orphan_concentration_entries,
+)
+from utils.period_details_utils import (
+    apply_current_period_to_entry_fields,
+    entry_all_drawing_files,
+    entry_total_approved_quantity,
+    entry_total_internal_quantity,
+    find_period_for_drawing_path,
+    get_period_detail,
+    hydrate_entry_period_details,
+    resolve_entry_current_period,
+    set_period_detail_fields,
 )
 from fatina_paths import (
     copy_files_to_calc_sheet_dir,
@@ -115,7 +126,7 @@ def _fatina_drawing_still_referenced(
         other_section = _entry_boq_section_number(other, db)
         if other_section != section_number:
             continue
-        for path in _normalize_drawing_files(other.drawing_files):
+        for path in entry_all_drawing_files(other):
             if Path(path).name == filename:
                 return True
     return False
@@ -129,7 +140,7 @@ def _drawing_path_still_referenced(
         models.ConcentrationEntry.id != exclude_entry_id
     ).all()
     for other in others:
-        for path in _normalize_drawing_files(other.drawing_files):
+        for path in entry_all_drawing_files(other):
             try:
                 if str(Path(path).resolve()) == resolved_path:
                     return True
@@ -144,13 +155,26 @@ def _sync_entry_drawing_files_to_fatina(
     section_number = _entry_boq_section_number(db_entry, db)
     if not section_number or not db_entry.calculation_sheet_no:
         return
-    paths = _normalize_drawing_files(db_entry.drawing_files)
+    paths = entry_all_drawing_files(db_entry)
     if paths:
         copy_files_to_calc_sheet_dir(
             section_number,
             db_entry.calculation_sheet_no,
             paths,
         )
+
+
+def _hydrate_entry_response(db_entry: models.ConcentrationEntry) -> None:
+    hydrate_entry_period_details(db_entry)
+
+
+def _entry_drawing_paths_for_period(
+    db_entry: models.ConcentrationEntry, invoice_no: Optional[str]
+) -> List[str]:
+    if invoice_no:
+        detail = get_period_detail(db_entry.submission_breakdown, invoice_no)
+        return _normalize_drawing_files(detail.get("drawing_files"))
+    return _normalize_drawing_files(db_entry.drawing_files)
 
 
 @router.get("/", response_model=List[schemas.ConcentrationSheet])
@@ -530,6 +554,8 @@ async def get_concentration_entries(sheet_id: int, db: Session = Depends(get_db)
         entries = db.query(models.ConcentrationEntry).filter(
             models.ConcentrationEntry.concentration_sheet_id == sheet_id
         ).order_by(models.ConcentrationEntry.id).all()
+        for entry in entries:
+            _hydrate_entry_response(entry)
         return entries
     except Exception as e:
         logger.error(f"Error fetching concentration entries: {str(e)}")
@@ -609,6 +635,31 @@ async def update_concentration_entry(
         # Update fields if provided
         update_data = entry_update.dict(exclude_unset=True)
         update_data.pop("quantity_submitted", None)
+        invoice_no = (update_data.pop("invoice_no", None) or "").strip() or None
+
+        _hydrate_entry_response(db_entry)
+        has_breakdown = bool(
+            isinstance(db_entry.submission_breakdown, dict)
+            and db_entry.submission_breakdown.get("periods")
+        )
+        target_period = invoice_no or (
+            resolve_entry_current_period(db_entry) if has_breakdown else None
+        )
+
+        period_field_names = {
+            "notes",
+            "supervisor_notes",
+            "internal_quantity",
+            "approved_by_project_manager",
+            "submission_percentage",
+        }
+        period_updates = {}
+        if has_breakdown and target_period:
+            for field in list(period_field_names):
+                if field in update_data:
+                    period_updates[field] = update_data.pop(field)
+            if period_updates:
+                set_period_detail_fields(db_entry, target_period, period_updates)
 
         if not db_entry.is_manual:
             allowed_for_auto = {
@@ -625,11 +676,21 @@ async def update_concentration_entry(
         for field, value in update_data.items():
             setattr(db_entry, field, value)
 
-        if db_entry.is_manual or "submission_percentage" in update_data:
+        should_sync_qty = (
+            db_entry.is_manual
+            or "submission_percentage" in period_updates
+            or "submission_percentage" in update_data
+        )
+        if should_sync_qty and (
+            not has_breakdown
+            or not target_period
+            or target_period == resolve_entry_current_period(db_entry)
+        ):
             _sync_quantity_submitted(db_entry)
         
         db.commit()
         db.refresh(db_entry)
+        _hydrate_entry_response(db_entry)
         
         # Update BOQ Item totals
         src_sheet = db.query(models.ConcentrationSheet).filter(
@@ -835,10 +896,11 @@ async def copy_concentration_entry_to_boq_items(
 async def upload_entry_drawing_files(
     entry_id: int,
     files: List[UploadFile] = File(...),
+    invoice_no: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
 ):
-    """Attach one or more drawing files to a concentration entry."""
+    """Attach one or more drawing files to a concentration entry (optionally per invoice)."""
     db_entry = db.query(models.ConcentrationEntry).filter(
         models.ConcentrationEntry.id == entry_id
     ).first()
@@ -847,11 +909,16 @@ async def upload_entry_drawing_files(
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
 
+    _hydrate_entry_response(db_entry)
+    target_period = (invoice_no or resolve_entry_current_period(db_entry) or "").strip()
+
     upload_root = get_project_upload_dir(project_id)
     dest_dir = upload_root / "drawing-files" / str(entry_id)
+    if target_period:
+        dest_dir = dest_dir / target_period.replace("/", "_")
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    stored_paths = _normalize_drawing_files(db_entry.drawing_files)
+    stored_paths = _entry_drawing_paths_for_period(db_entry, target_period or None)
     added = 0
 
     for upload in files:
@@ -880,9 +947,15 @@ async def upload_entry_drawing_files(
     if added == 0:
         raise HTTPException(status_code=400, detail="No valid files uploaded")
 
-    db_entry.drawing_files = stored_paths
+    if target_period:
+        set_period_detail_fields(
+            db_entry, target_period, {"drawing_files": stored_paths}
+        )
+    else:
+        db_entry.drawing_files = stored_paths
     db.commit()
     db.refresh(db_entry)
+    _hydrate_entry_response(db_entry)
     _sync_entry_drawing_files_to_fatina(db_entry, db)
     return db_entry
 
@@ -900,7 +973,8 @@ async def open_entry_drawing_file(
     if not db_entry:
         raise HTTPException(status_code=404, detail="Concentration entry not found")
 
-    stored_paths = _normalize_drawing_files(db_entry.drawing_files)
+    _hydrate_entry_response(db_entry)
+    stored_paths = entry_all_drawing_files(db_entry)
     if not _drawing_path_is_listed(stored_paths, body.path):
         raise HTTPException(status_code=403, detail="File path not attached to this entry")
 
@@ -938,7 +1012,8 @@ async def remove_entry_drawing_file(
     if not db_entry:
         raise HTTPException(status_code=404, detail="Concentration entry not found")
 
-    stored_paths = _normalize_drawing_files(db_entry.drawing_files)
+    _hydrate_entry_response(db_entry)
+    stored_paths = entry_all_drawing_files(db_entry)
     if not _drawing_path_is_listed(stored_paths, body.path):
         raise HTTPException(status_code=404, detail="File not attached to this entry")
 
@@ -951,12 +1026,28 @@ async def remove_entry_drawing_file(
     section_number = _entry_boq_section_number(db_entry, db)
     calculation_sheet_no = db_entry.calculation_sheet_no
 
-    db_entry.drawing_files = [
-        p for p in stored_paths
-        if str(Path(p).resolve()) != requested_resolved
-    ]
+    target_period = (body.invoice_no or "").strip()
+    if not target_period:
+        target_period = find_period_for_drawing_path(db_entry, requested_resolved) or ""
+    if not target_period:
+        target_period = resolve_entry_current_period(db_entry)
+    if target_period:
+        period_paths = _entry_drawing_paths_for_period(db_entry, target_period)
+        period_paths = [
+            p for p in period_paths
+            if str(Path(p).resolve()) != requested_resolved
+        ]
+        set_period_detail_fields(
+            db_entry, target_period, {"drawing_files": period_paths}
+        )
+    else:
+        db_entry.drawing_files = [
+            p for p in _normalize_drawing_files(db_entry.drawing_files)
+            if str(Path(p).resolve()) != requested_resolved
+        ]
     db.commit()
     db.refresh(db_entry)
+    _hydrate_entry_response(db_entry)
 
     still_referenced = _drawing_path_still_referenced(
         db, exclude_entry_id=entry_id, resolved_path=requested_resolved
@@ -1020,8 +1111,8 @@ async def _update_boq_item_totals(boq_item_id: int, db: Session):
         # Calculate totals (even if no entries, totals will be 0)
         total_estimated = sum(entry.estimated_quantity for entry in entries)
         total_submitted = sum(entry_cumulative_submitted(entry) for entry in entries)
-        total_internal = sum(entry.internal_quantity for entry in entries)
-        total_approved = sum(entry.approved_by_project_manager for entry in entries)
+        total_internal = sum(entry_total_internal_quantity(entry) for entry in entries)
+        total_approved = sum(entry_total_approved_quantity(entry) for entry in entries)
         
         # Update BOQ Item (always update, even if totals are 0)
         boq_item.estimated_quantity = total_estimated

@@ -161,6 +161,11 @@ class ConcentrationEntryUpdate(BaseModel):
     approved_by_project_manager: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
     supervisor_notes: Optional[str] = None
+    invoice_no: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Invoice period to update when submission breakdown exists",
+    )
 
 class ConcentrationEntry(ConcentrationEntryBase):
     id: int
@@ -174,6 +179,11 @@ class ConcentrationEntry(ConcentrationEntryBase):
 
 class DrawingFilePathRequest(BaseModel):
     path: str = Field(..., min_length=1)
+    invoice_no: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Invoice period the drawing belongs to",
+    )
 
 class CopyConcentrationEntryToBOQItemsRequest(BaseModel):
     boq_item_ids: List[int] = Field(..., min_length=1)

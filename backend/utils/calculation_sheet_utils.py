@@ -443,23 +443,33 @@ def build_concentration_export_row_values(
     notes_value: str = "",
 ) -> Dict[str, Any]:
     """Build header-keyed values for one concentration entry export row."""
+    from utils.period_details_utils import (
+        get_period_detail,
+        period_submission_percentage,
+        resolve_entry_current_period,
+    )
+
     breakdown = getattr(entry, "submission_breakdown", None) or {}
     current_drawing_no = _entry_current_drawing_no(entry, breakdown)
+    current_detail = get_period_detail(breakdown, current_drawing_no)
+    current_qty = float(entry.quantity_submitted or 0)
     row = {
         "Description": entry.description or "",
         "Calculation Sheet No": entry.calculation_sheet_no or "",
         "Invoice No": entry.drawing_no or "",
         "Estimated Quantity": float(entry.estimated_quantity or 0),
-        "Submission Percentage": float(
-            getattr(entry, "submission_percentage", 100.0) or 100.0
+        "Submission Percentage": period_submission_percentage(
+            entry, breakdown, current_drawing_no, current_qty
         ),
-        "Quantity Submitted": float(entry.quantity_submitted or 0),
-        "Internal Quantity": float(entry.internal_quantity or 0),
+        "Quantity Submitted": current_qty,
+        "Internal Quantity": float(current_detail.get("internal_quantity") or 0),
         "Approved by Project Manager": float(
-            entry.approved_by_project_manager or 0
+            current_detail.get("approved_by_project_manager") or 0
         ),
-        "Notes": notes_value or entry.notes or "",
-        "Supervisor Notes": getattr(entry, "supervisor_notes", None) or "",
+        "Notes": notes_value or current_detail.get("notes") or entry.notes or "",
+        "Supervisor Notes": current_detail.get("supervisor_notes")
+        or getattr(entry, "supervisor_notes", None)
+        or "",
     }
     for period in period_keys:
         header = period_header_key(period)
@@ -504,15 +514,28 @@ def build_concentration_export_subrow_values(
     filtered_headers: List[str],
 ) -> Dict[str, Any]:
     """One past-invoice subrow aligned with concentration entry table columns."""
+    from utils.period_details_utils import get_period_detail, period_submission_percentage
+
+    detail = get_period_detail(getattr(entry, "submission_breakdown", None), period)
     row: Dict[str, Any] = {header: None for header in filtered_headers}
     if "Invoice No" in filtered_headers:
         row["Invoice No"] = period
     if "Submission Percentage" in filtered_headers:
-        row["Submission Percentage"] = _export_submission_percentage(
-            getattr(entry, "estimated_quantity", 0), qty
+        row["Submission Percentage"] = period_submission_percentage(
+            entry, getattr(entry, "submission_breakdown", None), period, qty
         )
     if "Quantity Submitted" in filtered_headers:
         row["Quantity Submitted"] = float(qty)
+    if "Internal Quantity" in filtered_headers:
+        row["Internal Quantity"] = float(detail.get("internal_quantity") or 0)
+    if "Approved by Project Manager" in filtered_headers:
+        row["Approved by Project Manager"] = float(
+            detail.get("approved_by_project_manager") or 0
+        )
+    if "Notes" in filtered_headers:
+        row["Notes"] = detail.get("notes") or ""
+    if "Supervisor Notes" in filtered_headers:
+        row["Supervisor Notes"] = detail.get("supervisor_notes") or ""
     return row
 
 
@@ -807,9 +830,15 @@ def build_concentration_export_totals_row(
                     float(entry.quantity_submitted or 0) for entry in entries
                 )
         elif header == "Internal Quantity":
-            totals[header] = sum(float(entry.internal_quantity or 0) for entry in entries)
-        elif header == "Approved by Project Manager":
+            from utils.period_details_utils import entry_total_internal_quantity
+
             totals[header] = sum(
-                float(entry.approved_by_project_manager or 0) for entry in entries
+                entry_total_internal_quantity(entry) for entry in entries
+            )
+        elif header == "Approved by Project Manager":
+            from utils.period_details_utils import entry_total_approved_quantity
+
+            totals[header] = sum(
+                entry_total_approved_quantity(entry) for entry in entries
             )
     return totals

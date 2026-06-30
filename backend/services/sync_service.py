@@ -14,6 +14,10 @@ from utils.concentration_utils import (
     prune_stale_concentration_entries_for_calc_sheet,
     sync_calc_entry_to_concentration,
 )
+from utils.period_details_utils import (
+    entry_total_approved_quantity,
+    entry_total_internal_quantity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -246,8 +250,8 @@ class SyncService:
             # Calculate totals (even if no entries, totals will be 0)
             total_estimated = sum(entry.estimated_quantity for entry in entries)
             total_submitted = sum(entry_cumulative_submitted(entry) for entry in entries)
-            total_internal = sum(entry.internal_quantity for entry in entries)
-            total_approved = sum(entry.approved_by_project_manager for entry in entries)
+            total_internal = sum(entry_total_internal_quantity(entry) for entry in entries)
+            total_approved = sum(entry_total_approved_quantity(entry) for entry in entries)
             
             # Update BOQ Item (always update, even if totals are 0)
             boq_item.estimated_quantity = total_estimated

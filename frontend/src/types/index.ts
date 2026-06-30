@@ -103,12 +103,22 @@ export interface ConcentrationSheetWithBOQData extends ConcentrationSheet {
   boq_item: BOQItemWithLatestContractUpdate;
 }
 
+export interface PeriodDetail {
+  internal_quantity?: number;
+  approved_by_project_manager?: number;
+  submission_percentage?: number;
+  notes?: string;
+  supervisor_notes?: string;
+  drawing_files?: string[];
+}
+
 export interface SubmissionBreakdown {
   current_drawing_no?: string;
   periods?: Record<string, number>;
   /** @deprecated Legacy shape; use periods instead */
   past_months?: Record<string, number>;
   left_submitted?: number;
+  period_details?: Record<string, PeriodDetail>;
 }
 
 export interface ConcentrationEntry {
