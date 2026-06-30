@@ -463,7 +463,9 @@ class ExcelService:
         try:
             from utils.concentration_utils import filter_concentration_entries_for_export
 
-            entries = filter_concentration_entries_for_export(entries or [])
+            entries = filter_concentration_entries_for_export(
+                entries or [], entry_columns
+            )
 
             link_section = (
                 str(boq_item.section_number).strip()
@@ -679,7 +681,9 @@ class ExcelService:
             logger.error(f"Error generating concentration sheet Excel: {str(e)}")
             raise
 
-    def export_all_concentration_sheets(self, sheets, db_session):
+    def export_all_concentration_sheets(
+        self, sheets, db_session, entry_columns=None
+    ):
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
             from utils.concentration_utils import filter_concentration_entries_for_export
@@ -708,7 +712,9 @@ class ExcelService:
                 entries = db_session.query(models.ConcentrationEntry).filter(
                     models.ConcentrationEntry.concentration_sheet_id == sheet.id
                 ).order_by(models.ConcentrationEntry.id).all()
-                entries = filter_concentration_entries_for_export(entries)
+                entries = filter_concentration_entries_for_export(
+                    entries, entry_columns
+                )
 
                 folder_name = sanitize_folder_name(link_section)
                 base_dir = FATINA_BASE_DIR / folder_name

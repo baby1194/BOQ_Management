@@ -865,7 +865,9 @@ class PDFService:
         try:
             from utils.concentration_utils import filter_concentration_entries_for_export
 
-            entries = filter_concentration_entries_for_export(entries or [])
+            entries = filter_concentration_entries_for_export(
+                entries or [], entry_columns
+            )
 
             if db_session and boq_item and boq_item.section_number:
                 from routers.file_import import (

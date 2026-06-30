@@ -284,7 +284,12 @@ async def export_all_concentration_sheets_excel(
             )
         
         # Generate Excel files - saved to C:/Fatina/{section_number}/ directories
-        excel_path = excel_service.export_all_concentration_sheets(sheets, db)
+        entry_columns = None
+        if request.entry_columns is not None:
+            entry_columns = request.entry_columns.dict()
+        excel_path = excel_service.export_all_concentration_sheets(
+            sheets, db, entry_columns=entry_columns
+        )
 
         # Files are saved server-side to C:/Fatina/{section_number}/, no download needed
         return schemas.PDFExportResponse(

@@ -19,13 +19,29 @@ def entry_cumulative_submitted(entry) -> float:
     return entry_cumulative_submitted_quantity(entry)
 
 
-def filter_concentration_entries_for_export(entries: Iterable[T]) -> List[T]:
-    """Exclude entries with zero estimated quantity from concentration sheet exports."""
-    return [
-        entry
-        for entry in entries
-        if float(getattr(entry, "estimated_quantity", 0) or 0) != 0
-    ]
+def filter_concentration_entries_for_export(
+    entries: Iterable[T],
+    entry_columns: Optional[dict] = None,
+) -> List[T]:
+    """Filter concentration entries for PDF/Excel export.
+
+    When Estimated Quantity is included (default), exclude rows with zero estimated qty.
+    When Estimated Quantity is excluded, exclude rows with zero submitted qty instead.
+    """
+    include_estimated = True
+    if entry_columns is not None:
+        include_estimated = entry_columns.get("include_estimated_quantity", True)
+
+    filtered: List[T] = []
+    for entry in entries:
+        estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
+        submitted = entry_cumulative_submitted(entry)
+        if include_estimated:
+            if estimated != 0:
+                filtered.append(entry)
+        elif submitted != 0:
+            filtered.append(entry)
+    return filtered
 
 
 def calc_entry_is_submitted(calc_entry) -> bool:
