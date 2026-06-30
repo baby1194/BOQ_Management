@@ -7,6 +7,8 @@ from utils.period_details_utils import (
     apply_current_period_to_entry_fields,
     merge_breakdown_preserve_period_details,
     migrate_entry_period_details,
+    persist_entry_level_fields_to_period,
+    resolve_entry_current_period,
 )
 
 T = TypeVar("T")
@@ -63,6 +65,16 @@ def apply_calculation_entry_quantities(
         estimated, submitted
     )
     old_breakdown = getattr(concentration_entry, "submission_breakdown", None)
+    outgoing_period = (
+        str(concentration_entry.drawing_no or "").strip()
+        or resolve_entry_current_period(concentration_entry)
+    )
+    if outgoing_period:
+        persist_entry_level_fields_to_period(
+            concentration_entry, outgoing_period, old_breakdown
+        )
+        old_breakdown = getattr(concentration_entry, "submission_breakdown", None)
+
     new_breakdown = getattr(calc_entry, "submission_breakdown", None)
     concentration_entry.submission_breakdown = merge_breakdown_preserve_period_details(
         old_breakdown, new_breakdown

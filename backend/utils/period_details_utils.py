@@ -114,9 +114,53 @@ def merge_breakdown_preserve_period_details(
     return merged
 
 
+def _entry_level_period_detail_snapshot(entry: Any) -> Dict[str, Any]:
+    return normalize_period_detail(
+        {
+            "internal_quantity": getattr(entry, "internal_quantity", 0),
+            "approved_by_project_manager": getattr(
+                entry, "approved_by_project_manager", 0
+            ),
+            "submission_percentage": getattr(entry, "submission_percentage", None),
+            "notes": getattr(entry, "notes", None) or "",
+            "supervisor_notes": getattr(entry, "supervisor_notes", None) or "",
+            "drawing_files": getattr(entry, "drawing_files", None),
+        }
+    )
+
+
+def persist_entry_level_fields_to_period(
+    entry: Any, period: str, breakdown: Any | None = None
+) -> bool:
+    """
+    Save top-level editable fields onto a specific invoice period when that period
+    does not already have stored details. Used before switching to a new invoice.
+    Returns True when submission_breakdown was modified.
+    """
+    period = str(period or "").strip()
+    if not period:
+        return False
+
+    breakdown = dict(_normalize_breakdown(breakdown or getattr(entry, "submission_breakdown", None)))
+    if not breakdown:
+        return False
+
+    details = get_period_details_map(breakdown)
+    if period in details:
+        return False
+
+    details[period] = _entry_level_period_detail_snapshot(entry)
+    breakdown["period_details"] = details
+    entry.submission_breakdown = breakdown
+    return True
+
+
 def migrate_entry_period_details(entry: Any) -> bool:
     """
-    Move legacy entry-level editable fields into period_details for the current invoice.
+    Ensure the current invoice has a period_details row.
+
+    - Legacy entries (no period_details yet): lift top-level fields once.
+    - New invoice periods after tracking: start with empty editable fields.
     Returns True when submission_breakdown was modified.
     """
     breakdown = _normalize_breakdown(getattr(entry, "submission_breakdown", None))
@@ -131,18 +175,10 @@ def migrate_entry_period_details(entry: Any) -> bool:
     changed = False
 
     if period not in details:
-        details[period] = normalize_period_detail(
-            {
-                "internal_quantity": getattr(entry, "internal_quantity", 0),
-                "approved_by_project_manager": getattr(
-                    entry, "approved_by_project_manager", 0
-                ),
-                "submission_percentage": getattr(entry, "submission_percentage", None),
-                "notes": getattr(entry, "notes", None) or "",
-                "supervisor_notes": getattr(entry, "supervisor_notes", None) or "",
-                "drawing_files": getattr(entry, "drawing_files", None),
-            }
-        )
+        if details:
+            details[period] = _empty_period_detail()
+        else:
+            details[period] = _entry_level_period_detail_snapshot(entry)
         changed = True
     else:
         detail = normalize_period_detail(details[period])

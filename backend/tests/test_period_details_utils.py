@@ -1,11 +1,13 @@
 from types import SimpleNamespace
 
+from utils.concentration_utils import apply_calculation_entry_quantities
 from utils.period_details_utils import (
     apply_current_period_to_entry_fields,
     entry_total_approved_quantity,
     entry_total_internal_quantity,
     merge_breakdown_preserve_period_details,
     migrate_entry_period_details,
+    persist_entry_level_fields_to_period,
     set_period_detail_fields,
 )
 
@@ -88,6 +90,113 @@ def test_migrate_legacy_entry_fields_into_current_period():
     assert details["internal_quantity"] == 3.0
     assert details["notes"] == "legacy"
     assert details["drawing_files"] == ["/tmp/a.pdf"]
+
+
+def test_new_invoice_period_starts_with_empty_editable_fields():
+    entry = SimpleNamespace(
+        drawing_no="02",
+        internal_quantity=8.0,
+        approved_by_project_manager=6.0,
+        notes="stale top-level",
+        supervisor_notes="",
+        submission_percentage=100.0,
+        drawing_files=[],
+        submission_breakdown={
+            "current_drawing_no": "02",
+            "periods": {"01": 10.0, "02": 5.0},
+            "period_details": {
+                "01": {
+                    "internal_quantity": 8.0,
+                    "approved_by_project_manager": 6.0,
+                    "notes": "invoice 01",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                }
+            },
+        },
+    )
+
+    migrate_entry_period_details(entry)
+    apply_current_period_to_entry_fields(entry)
+
+    assert entry.submission_breakdown["period_details"]["02"]["approved_by_project_manager"] == 0.0
+    assert entry.submission_breakdown["period_details"]["02"]["internal_quantity"] == 0.0
+    assert entry.approved_by_project_manager == 0.0
+    assert entry.internal_quantity == 0.0
+    assert entry_total_approved_quantity(entry) == 6.0
+
+
+def test_apply_calculation_entry_quantities_resets_new_invoice_approved_qty():
+    concentration_entry = SimpleNamespace(
+        drawing_no="01",
+        estimated_quantity=100.0,
+        quantity_submitted=10.0,
+        submission_percentage=10.0,
+        internal_quantity=8.0,
+        approved_by_project_manager=6.0,
+        notes="invoice 01",
+        supervisor_notes="",
+        drawing_files=[],
+        submission_breakdown={
+            "current_drawing_no": "01",
+            "periods": {"01": 10.0},
+            "period_details": {
+                "01": {
+                    "internal_quantity": 8.0,
+                    "approved_by_project_manager": 6.0,
+                    "notes": "invoice 01",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                }
+            },
+        },
+    )
+    calc_entry = SimpleNamespace(
+        estimated_quantity=100.0,
+        quantity_submitted=5.0,
+        submission_breakdown={
+            "current_drawing_no": "02",
+            "periods": {"01": 10.0, "02": 5.0},
+        },
+    )
+
+    apply_calculation_entry_quantities(
+        concentration_entry, calc_entry, drawing_no="02"
+    )
+
+    assert concentration_entry.drawing_no == "02"
+    assert concentration_entry.approved_by_project_manager == 0.0
+    assert (
+        concentration_entry.submission_breakdown["period_details"]["01"][
+            "approved_by_project_manager"
+        ]
+        == 6.0
+    )
+    assert (
+        concentration_entry.submission_breakdown["period_details"]["02"][
+            "approved_by_project_manager"
+        ]
+        == 0.0
+    )
+
+
+def test_persist_entry_level_fields_to_period_before_invoice_switch():
+    entry = SimpleNamespace(
+        drawing_no="01",
+        internal_quantity=3.0,
+        approved_by_project_manager=2.0,
+        notes="invoice 01",
+        supervisor_notes="",
+        submission_percentage=100.0,
+        drawing_files=[],
+        submission_breakdown={
+            "current_drawing_no": "01",
+            "periods": {"01": 10.0},
+        },
+    )
+
+    assert persist_entry_level_fields_to_period(entry, "01") is True
+    assert entry.submission_breakdown["period_details"]["01"]["approved_by_project_manager"] == 2.0
 
 
 def test_set_period_detail_fields_updates_current_top_level():
