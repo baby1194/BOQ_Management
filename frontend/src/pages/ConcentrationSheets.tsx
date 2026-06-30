@@ -230,29 +230,21 @@ const ConcentrationSheets: React.FC = () => {
     setPendingExportAction(null);
   };
 
-  const handleOpenCalculationSheet = async (
-    calculationSheetNo: string,
-    drawingNo?: string | null
-  ) => {
+  const handleOpenCalculationSheet = async (calculationSheetNo: string) => {
     try {
+      const normalizedNo = calculationSheetNo.trim();
+      if (!normalizedNo) {
+        setError("Calculation sheet number is required");
+        return;
+      }
+
       const allSheets = await calculationSheetsApi.getAll();
-      const normalizedDrawing = drawingNo?.trim() || "";
-      const sheet = allSheets.find((s) => {
-        if (s.calculation_sheet_no !== calculationSheetNo) {
-          return false;
-        }
-        if (!normalizedDrawing) {
-          return true;
-        }
-        return s.drawing_no === normalizedDrawing;
-      });
+      const sheet = allSheets.find(
+        (s) => s.calculation_sheet_no === normalizedNo
+      );
 
       if (!sheet) {
-        setError(
-          normalizedDrawing
-            ? `Calculation sheet ${calculationSheetNo} / ${normalizedDrawing} not found`
-            : `Calculation sheet ${calculationSheetNo} not found`
-        );
+        setError(`Calculation sheet ${normalizedNo} not found`);
         return;
       }
 
@@ -1811,14 +1803,12 @@ const ConcentrationSheets: React.FC = () => {
                                               className="min-w-0 flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                               disabled={saving}
                                             />
-                                            {editDraft.calculation_sheet_no &&
-                                            editDraft.drawing_no ? (
+                                            {editDraft.calculation_sheet_no ? (
                                               <button
                                                 type="button"
                                                 onClick={() =>
                                                   handleOpenCalculationSheet(
-                                                    editDraft.calculation_sheet_no,
-                                                    editDraft.drawing_no
+                                                    editDraft.calculation_sheet_no
                                                   )
                                                 }
                                                 onDoubleClick={(e) =>
@@ -1837,8 +1827,7 @@ const ConcentrationSheets: React.FC = () => {
                                             type="button"
                                             onClick={() =>
                                               handleOpenCalculationSheet(
-                                                entry.calculation_sheet_no!,
-                                                entry.drawing_no
+                                                entry.calculation_sheet_no!
                                               )
                                             }
                                             onDoubleClick={(e) =>
