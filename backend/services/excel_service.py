@@ -314,6 +314,7 @@ class ExcelService:
         try:
             from utils.calculation_sheet_utils import (
                 compute_submission_breakdown,
+                count_calculation_sheet_items,
                 read_entry_submitted_invoice_id,
                 validate_calculation_sheet_header_fields,
             )
@@ -333,6 +334,8 @@ class ExcelService:
                 file_name,
             )
 
+            item_count = count_calculation_sheet_items(df)
+
             entries = []
             
             col_index = 4
@@ -351,7 +354,7 @@ class ExcelService:
                     )
                     if entry_current_invoice_id:
                         submission_breakdown, quantity_submitted = compute_submission_breakdown(
-                            df, col_index, entry_current_invoice_id
+                            df, col_index, entry_current_invoice_id, item_count=item_count
                         )
                     else:
                         submission_breakdown = None

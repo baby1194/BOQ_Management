@@ -10,11 +10,26 @@ import pandas as pd
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
+SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
+SHARED_PERIOD_COLUMN_INDEX = 1  # Column B — past invoices when the sheet has one item
+FIRST_ITEM_COLUMN_INDEX = 4
 
 
-def entry_period_column_index(item_col_index: int) -> int:
-    """Column immediately before the item column holds past submission invoice ids (row 28+)."""
+def period_column_index(item_col_index: int, item_count: int) -> int:
+    """Past submission invoice column: column B for a single item, prior column otherwise."""
+    if item_count <= 1:
+        return SHARED_PERIOD_COLUMN_INDEX
     return item_col_index - 1
+
+
+def count_calculation_sheet_items(df, start_col: int = FIRST_ITEM_COLUMN_INDEX) -> int:
+    """Count item columns with a non-empty section number in row 5."""
+    count = 0
+    for col_index in range(start_col, df.shape[1]):
+        section_number = df.iloc[SECTION_NUMBER_ROW, col_index]
+        if pd.notna(section_number) and str(section_number).strip():
+            count += 1
+    return count
 
 _INVALID_PERIOD_STRINGS = frozenset({"nan", "none", "<na>", "nat"})
 
@@ -103,9 +118,9 @@ def _sort_period_keys(periods: Iterable[str]) -> List[str]:
     return sorted(set(periods), key=lambda key: (len(key), key))
 
 
-def collect_entry_periods(df, col_index: int) -> List[str]:
-    """Collect unique non-empty past invoice ids from the column before the item column (row 28+)."""
-    period_col = entry_period_column_index(col_index)
+def collect_entry_periods(df, col_index: int, item_count: int = 1) -> List[str]:
+    """Collect unique non-empty past invoice ids for an item (row 28+)."""
+    period_col = period_column_index(col_index, item_count)
     if period_col < 0 or period_col >= df.shape[1]:
         return []
 
@@ -192,18 +207,20 @@ def compute_submission_breakdown(
     col_index: int,
     current_drawing_no: str,
     sheet_periods: Optional[List[str]] = None,
+    item_count: int = 1,
 ) -> Tuple[Dict[str, Any], float]:
     """
     Sum submitted quantities from detail rows (row 28 through last sheet row with data).
 
-    Past invoice ids are read from the column immediately before the item column.
-    Every unique period for this item gets a row (0 when no qty). Rows with
-    empty/invalid invoice ids in that column accumulate into left_submitted.
+    Past invoice ids come from column B when the sheet has one item, otherwise from
+    the column immediately before the item column. Every unique period for this item
+    gets a row (0 when no qty). Rows with empty/invalid invoice ids accumulate into
+    left_submitted.
     """
     current_drawing_no = str(current_drawing_no or "").strip()
-    period_col = entry_period_column_index(col_index)
+    period_col = period_column_index(col_index, item_count)
     if sheet_periods is None:
-        sheet_periods = collect_entry_periods(df, col_index)
+        sheet_periods = collect_entry_periods(df, col_index, item_count)
 
     period_keys = list(sheet_periods)
     if current_drawing_no and current_drawing_no not in period_keys:

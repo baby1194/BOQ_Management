@@ -3,15 +3,18 @@
 import pandas as pd
 
 from utils.calculation_sheet_utils import (
+    SHARED_PERIOD_COLUMN_INDEX,
     collect_entry_periods,
     compute_submission_breakdown,
+    count_calculation_sheet_items,
+    period_column_index,
     read_entry_current_invoice_id,
     read_entry_submitted_invoice_id,
 )
 
 
-def _period_col(item_col: int) -> int:
-    return item_col - 1
+def _period_col(item_col: int, item_count: int = 2) -> int:
+    return period_column_index(item_col, item_count)
 
 
 def test_compute_submission_breakdown_groups_by_period():
@@ -39,9 +42,9 @@ def test_compute_submission_breakdown_groups_by_period():
         df.iloc[row_idx, period_col] = period
         df.iloc[row_idx, col] = qty
 
-    entry_periods = collect_entry_periods(df, col)
+    entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
-        df, col, "05", sheet_periods=entry_periods
+        df, col, "05", sheet_periods=entry_periods, item_count=2
     )
 
     assert current == 548.0
@@ -67,9 +70,9 @@ def test_empty_period_column_goes_to_left_not_period():
     df.iloc[29, period_col] = None
     df.iloc[29, col] = 25.0
 
-    entry_periods = collect_entry_periods(df, col)
+    entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
-        df, col, "01", sheet_periods=entry_periods
+        df, col, "01", sheet_periods=entry_periods, item_count=2
     )
 
     assert current == 100.0
@@ -89,9 +92,9 @@ def test_all_entry_periods_included_even_when_item_qty_is_zero():
     df.iloc[30, period_col] = "04"
     df.iloc[30, col] = 12.0
 
-    entry_periods = collect_entry_periods(df, col)
+    entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
-        df, col, "04", sheet_periods=entry_periods
+        df, col, "04", sheet_periods=entry_periods, item_count=2
     )
 
     assert current == 12.0
@@ -159,9 +162,9 @@ def test_reads_quantities_beyond_row_100():
     df.iloc[120, period_col] = "01"
     df.iloc[120, col] = 99.0
 
-    entry_periods = collect_entry_periods(df, col)
+    entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
-        df, col, "01", sheet_periods=entry_periods
+        df, col, "01", sheet_periods=entry_periods, item_count=2
     )
 
     assert current == 99.0
@@ -367,9 +370,9 @@ def test_compute_submission_breakdown_uses_per_entry_invoice_id():
     df.iloc[28, period_col] = "06"
     df.iloc[28, col] = 50.0
 
-    entry_periods = collect_entry_periods(df, col)
+    entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
-        df, col, "06", sheet_periods=entry_periods
+        df, col, "06", sheet_periods=entry_periods, item_count=2
     )
 
     assert current == 50.0
@@ -395,10 +398,42 @@ def test_each_item_uses_its_own_prior_column_for_periods():
     df.iloc[28, period_col_b] = "04"
     df.iloc[28, col_b] = 75.0
 
-    breakdown_a, current_a = compute_submission_breakdown(df, col_a, "02")
-    breakdown_b, current_b = compute_submission_breakdown(df, col_b, "04")
+    breakdown_a, current_a = compute_submission_breakdown(
+        df, col_a, "02", item_count=2
+    )
+    breakdown_b, current_b = compute_submission_breakdown(
+        df, col_b, "04", item_count=2
+    )
 
     assert current_a == 50.0
     assert breakdown_a["periods"] == {"01": 100.0, "02": 50.0}
     assert current_b == 75.0
     assert breakdown_b["periods"] == {"03": 200.0, "04": 75.0}
+
+
+def test_single_item_uses_column_b_for_periods():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    period_col = SHARED_PERIOD_COLUMN_INDEX
+
+    df.iloc[27, period_col] = "01"
+    df.iloc[27, col] = 100.0
+    df.iloc[28, period_col] = "02"
+    df.iloc[28, col] = 50.0
+
+    entry_periods = collect_entry_periods(df, col, item_count=1)
+    breakdown, current = compute_submission_breakdown(
+        df, col, "02", sheet_periods=entry_periods, item_count=1
+    )
+
+    assert current == 50.0
+    assert breakdown["periods"] == {"01": 100.0, "02": 50.0}
+
+
+def test_count_calculation_sheet_items():
+    df = pd.DataFrame([[None] * 14 for _ in range(10)])
+    df.iloc[4, 10] = "A"
+    assert count_calculation_sheet_items(df) == 1
+
+    df.iloc[4, 12] = "B"
+    assert count_calculation_sheet_items(df) == 2
