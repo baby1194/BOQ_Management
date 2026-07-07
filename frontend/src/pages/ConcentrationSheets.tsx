@@ -77,6 +77,16 @@ function drawingFileName(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
+function expandedBreakdownIdsForEntries(
+  entryList: ConcentrationEntry[]
+): Set<number> {
+  return new Set(
+    entryList
+      .filter((entry) => (entry.estimated_quantity ?? 0) !== 0)
+      .map((entry) => entry.id)
+  );
+}
+
 function concentrationEntryToEditDraft(
   entry: ConcentrationEntry
 ): ConcentrationEntryEditDraft {
@@ -180,6 +190,12 @@ const ConcentrationSheets: React.FC = () => {
         visibleEntries,
         expandedBreakdownEntryIds,
       ),
+    [visibleEntries, expandedBreakdownEntryIds],
+  );
+  const allBreakdownsExpanded = useMemo(
+    () =>
+      visibleEntries.length > 0 &&
+      visibleEntries.every((entry) => expandedBreakdownEntryIds.has(entry.id)),
     [visibleEntries, expandedBreakdownEntryIds],
   );
 
@@ -330,6 +346,14 @@ const ConcentrationSheets: React.FC = () => {
       }
       return next;
     });
+  };
+
+  const toggleAllBreakdownsExpanded = () => {
+    if (allBreakdownsExpanded) {
+      setExpandedBreakdownEntryIds(new Set());
+    } else {
+      setExpandedBreakdownEntryIds(expandedBreakdownIdsForEntries(visibleEntries));
+    }
   };
 
   const triggerAttachDrawings = (entryId: number, invoiceNo?: string) => {
@@ -714,9 +738,11 @@ const ConcentrationSheets: React.FC = () => {
   const fetchEntries = async (sheetId: number) => {
     try {
       setEntriesLoading(true);
-      setExpandedBreakdownEntryIds(new Set());
       const sheetEntries = await concentrationApi.getEntries(sheetId);
       setEntries(sheetEntries);
+      setExpandedBreakdownEntryIds(
+        expandedBreakdownIdsForEntries(sheetEntries)
+      );
     } catch (err) {
       console.error("Error fetching entries:", err);
       setEntries([]);
@@ -1569,17 +1595,40 @@ const ConcentrationSheets: React.FC = () => {
                     <h3 className="text-lg font-medium text-gray-900">
                       {t("concentration.concentrationEntries")}
                     </h3>
-                    <button
-                      onClick={() => {
-                        setEditingEntry(null);
-                        setEditDraft(null);
-                        setShowAddForm(true);
-                      }}
-                      disabled={saving}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    <div
+                      className={`flex items-center gap-2 ${
+                        isRTL ? "flex-row-reverse" : ""
+                      }`}
                     >
-                      {t("auth.addEntry")}
-                    </button>
+                      {visibleEntries.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={toggleAllBreakdownsExpanded}
+                          disabled={entriesLoading || saving}
+                          className="bg-gray-100 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
+                          title={
+                            allBreakdownsExpanded
+                              ? t("submissionBreakdown.collapseAllBreakdowns")
+                              : t("submissionBreakdown.expandAllBreakdowns")
+                          }
+                        >
+                          {allBreakdownsExpanded
+                            ? t("submissionBreakdown.collapseAllBreakdowns")
+                            : t("submissionBreakdown.expandAllBreakdowns")}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setEditingEntry(null);
+                          setEditDraft(null);
+                          setShowAddForm(true);
+                        }}
+                        disabled={saving}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        {t("auth.addEntry")}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Add new entry form (edit is inline in the table) */}

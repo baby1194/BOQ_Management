@@ -685,6 +685,8 @@
     "cumulativeSubmittedHint": "Cumulative submitted quantity (excludes left submitted)",
     "exportPastMonthsColumnMode": "Past months submitted (column mode)",
     "exportPastMonthsSubrowMode": "Past months submitted (subrow mode)",
-    "exportLeftSubmitted": "Left submitted"
+    "exportLeftSubmitted": "Left submitted",
+    "expandAllBreakdowns": "Expand all breakdowns",
+    "collapseAllBreakdowns": "Collapse all breakdowns"
   }
 }

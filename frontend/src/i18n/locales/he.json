@@ -686,6 +686,8 @@
     "cumulativeSubmittedHint": "כמות מוגשת מצטברת (לא כולל כמות שנותרה)",
     "exportPastMonthsColumnMode": "כמויות מוגשות של חודשים קודמים (מצב עמודות)",
     "exportPastMonthsSubrowMode": "כמויות מוגשות של חודשים קודמים (מצב תת-שורות)",
-    "exportLeftSubmitted": "כמות שנותרה"
+    "exportLeftSubmitted": "כמות שנותרה",
+    "expandAllBreakdowns": "הרחב את כל הפירוטים",
+    "collapseAllBreakdowns": "כווץ את כל הפירוטים"
   }
 }
