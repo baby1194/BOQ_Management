@@ -93,6 +93,11 @@ async def export_concentration_sheets(
                 message="No concentration sheets found to export",
                 sheets_exported=0
             )
+
+        from utils.concentration_utils import (
+            concentration_sheet_cumulative_submitted_equals_approved,
+            filter_concentration_entries_for_export,
+        )
         
         # Generate individual PDF files for each concentration sheet
         export_records = []  # (pdf_path, section_number) — preserves order when sheets are skipped
@@ -110,6 +115,15 @@ async def export_concentration_sheets(
             entries = db.query(models.ConcentrationEntry).filter(
                 models.ConcentrationEntry.concentration_sheet_id == sheet.id
             ).order_by(models.ConcentrationEntry.id).all()
+
+            if skip_fully_approved_calc_sheet_folders:
+                filtered_entries = filter_concentration_entries_for_export(
+                    entries, entry_columns
+                )
+                if concentration_sheet_cumulative_submitted_equals_approved(
+                    filtered_entries
+                ):
+                    continue
 
             # Generate individual PDF for this sheet with entry columns configuration and language
             try:

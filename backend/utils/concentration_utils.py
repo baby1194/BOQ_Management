@@ -64,6 +64,20 @@ def calc_sheet_nos_submitted_equals_approved(entries: Iterable[T]) -> Set[str]:
     return skip
 
 
+def concentration_sheet_cumulative_submitted_equals_approved(
+    entries: Iterable[T],
+) -> bool:
+    """True when total submitted qty equals total approved qty across all entries."""
+    from utils.period_details_utils import entry_total_approved_quantity
+
+    total_submitted = 0.0
+    total_approved = 0.0
+    for entry in entries:
+        total_submitted += entry_cumulative_submitted_quantity(entry)
+        total_approved += entry_total_approved_quantity(entry)
+    return round(total_submitted, 2) == round(total_approved, 2)
+
+
 def calc_entry_is_submitted(calc_entry) -> bool:
     """True when a calc entry has an invoice id and non-zero submitted quantity."""
     if not str(getattr(calc_entry, "current_invoice_id", None) or "").strip():

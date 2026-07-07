@@ -22,6 +22,40 @@ def test_calc_sheet_nos_submitted_equals_approved_matches_equal_totals():
     assert calc_sheet_nos_submitted_equals_approved(entries) == {"20/1"}
 
 
+def test_concentration_sheet_cumulative_submitted_equals_approved():
+    from utils.concentration_utils import (
+        concentration_sheet_cumulative_submitted_equals_approved,
+    )
+
+    fully_approved = [
+        SimpleNamespace(
+            calculation_sheet_no="20/1",
+            quantity_submitted=100.0,
+            approved_by_project_manager=60.0,
+            submission_breakdown=None,
+        ),
+        SimpleNamespace(
+            calculation_sheet_no="20/2",
+            quantity_submitted=50.0,
+            approved_by_project_manager=90.0,
+            submission_breakdown=None,
+        ),
+    ]
+    partially_approved = [
+        SimpleNamespace(
+            calculation_sheet_no="20/1",
+            quantity_submitted=100.0,
+            approved_by_project_manager=50.0,
+            submission_breakdown=None,
+        ),
+    ]
+
+    assert concentration_sheet_cumulative_submitted_equals_approved(fully_approved)
+    assert not concentration_sheet_cumulative_submitted_equals_approved(
+        partially_approved
+    )
+
+
 def test_calc_sheet_nos_submitted_equals_approved_sums_multiple_entries_per_sheet():
     entries = [
         SimpleNamespace(

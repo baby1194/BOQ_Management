@@ -463,6 +463,7 @@ class ExcelService:
         try:
             from utils.concentration_utils import (
                 calc_sheet_nos_submitted_equals_approved,
+                concentration_sheet_cumulative_submitted_equals_approved,
                 filter_concentration_entries_for_export,
             )
 
@@ -703,6 +704,7 @@ class ExcelService:
         try:
             from utils.concentration_utils import (
                 calc_sheet_nos_submitted_equals_approved,
+                concentration_sheet_cumulative_submitted_equals_approved,
                 filter_concentration_entries_for_export,
             )
 
@@ -729,6 +731,14 @@ class ExcelService:
                 entries = filter_concentration_entries_for_export(
                     entries, entry_columns
                 )
+
+                if (
+                    skip_fully_approved_calc_sheet_folders
+                    and concentration_sheet_cumulative_submitted_equals_approved(
+                        entries
+                    )
+                ):
+                    continue
 
                 skip_calc_sheet_nos = (
                     calc_sheet_nos_submitted_equals_approved(entries)
