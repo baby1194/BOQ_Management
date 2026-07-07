@@ -217,6 +217,27 @@ def test_concentration_export_totals_row_leaves_percentage_blank():
     assert formatted[pct_idx] == ""
 
 
+def test_concentration_export_pdf_formats_zero_numeric_as_empty():
+    from utils.calculation_sheet_utils import format_concentration_export_row_for_pdf
+
+    headers = [
+        "Description",
+        "Quantity Submitted",
+        "Approved by Project Manager",
+    ]
+    formatted = format_concentration_export_row_for_pdf(
+        {
+            "Description": "DC-29",
+            "Quantity Submitted": 674.8,
+            "Approved by Project Manager": 0,
+        },
+        headers,
+    )
+    assert formatted[0] == "DC-29"
+    assert formatted[1] == "674.80"
+    assert formatted[2] == ""
+
+
 def test_cumulative_submitted_quantity_excludes_left_submitted():
     breakdown = {
         "current_drawing_no": "03",

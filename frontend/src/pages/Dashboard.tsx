@@ -145,7 +145,7 @@ const Dashboard: React.FC = () => {
       0
     );
     const totalApprovedValue = boqItems.reduce(
-      (sum, item) => sum + (item.total_approved_by_project_manager || 0),
+      (sum, item) => sum + (item.approved_signed_total || 0),
       0
     );
 

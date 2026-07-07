@@ -803,7 +803,8 @@ def format_concentration_export_row_for_pdf(
         elif value in ("", None):
             formatted.append("")
         else:
-            formatted.append(f"{float(value or 0):,.2f}")
+            numeric = float(value or 0)
+            formatted.append("" if numeric == 0 else f"{numeric:,.2f}")
     return formatted
 
 
