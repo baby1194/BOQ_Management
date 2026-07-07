@@ -44,6 +44,26 @@ def filter_concentration_entries_for_export(
     return filtered
 
 
+def calc_sheet_nos_submitted_equals_approved(entries: Iterable[T]) -> Set[str]:
+    """Return calc sheet numbers whose total submitted qty equals total approved qty."""
+    from utils.period_details_utils import entry_total_approved_quantity
+
+    totals: dict[str, dict[str, float]] = {}
+    for entry in entries:
+        calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
+        if not calc_no:
+            continue
+        bucket = totals.setdefault(calc_no, {"submitted": 0.0, "approved": 0.0})
+        bucket["submitted"] += entry_cumulative_submitted_quantity(entry)
+        bucket["approved"] += entry_total_approved_quantity(entry)
+
+    skip: Set[str] = set()
+    for calc_no, bucket in totals.items():
+        if round(bucket["submitted"], 2) == round(bucket["approved"], 2):
+            skip.add(calc_no)
+    return skip
+
+
 def calc_entry_is_submitted(calc_entry) -> bool:
     """True when a calc entry has an invoice id and non-zero submitted quantity."""
     if not str(getattr(calc_entry, "current_invoice_id", None) or "").strip():

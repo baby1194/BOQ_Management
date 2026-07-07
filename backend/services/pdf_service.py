@@ -860,10 +860,13 @@ class PDFService:
             # Fallback to A4 size
             return (8.5*72, 11*72)
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en"):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en", skip_fully_approved_calc_sheet_folders=False):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
-            from utils.concentration_utils import filter_concentration_entries_for_export
+            from utils.concentration_utils import (
+                calc_sheet_nos_submitted_equals_approved,
+                filter_concentration_entries_for_export,
+            )
 
             entries = filter_concentration_entries_for_export(
                 entries or [], entry_columns
@@ -876,9 +879,21 @@ class PDFService:
                 )
 
                 link_section = str(boq_item.section_number).strip()
-                copy_calculation_sheets_to_item_folder(db_session, link_section)
+                skip_calc_sheet_nos = (
+                    calc_sheet_nos_submitted_equals_approved(entries)
+                    if skip_fully_approved_calc_sheet_folders
+                    else None
+                )
+                copy_calculation_sheets_to_item_folder(
+                    db_session,
+                    link_section,
+                    skip_calc_sheet_nos=skip_calc_sheet_nos,
+                )
                 copy_concentration_entry_drawing_files_to_fatina(
-                    db_session, link_section, entries=entries
+                    db_session,
+                    link_section,
+                    entries=entries,
+                    skip_calc_sheet_nos=skip_calc_sheet_nos,
                 )
 
             # Use section number in filename if available, otherwise use sheet ID

@@ -188,6 +188,8 @@ export interface PDFExportRequest {
   export_non_empty_only: boolean;
   /** Bulk concentration export: BOQ items with PSQ ≠ 0 and quantity_submitted > 0 */
   export_non_zero_psq_only?: boolean;
+  /** Bulk export: skip calc sheet subfolders when submitted qty equals approved qty */
+  skip_fully_approved_calc_sheet_folders?: boolean;
 }
 
 export interface ConcentrationEntryExportRequest {
@@ -208,6 +210,8 @@ export interface ConcentrationEntryExportRequest {
   export_non_empty_only?: boolean;
   /** When exporting all sheets: BOQ items with PSQ ≠ 0 and quantity_submitted > 0 */
   export_non_zero_psq_only?: boolean;
+  /** When exporting all sheets: skip calc sheet folders where submitted equals approved */
+  skip_fully_approved_calc_sheet_folders?: boolean;
 }
 
 export interface PDFExportResponse {

@@ -527,6 +527,8 @@ const ConcentrationSheets: React.FC = () => {
         entryColumnRequest.export_non_empty_only ?? false;
       const exportNonZeroPsqOnly =
         entryColumnRequest.export_non_zero_psq_only ?? false;
+      const skipFullyApprovedCalcSheetFolders =
+        entryColumnRequest.skip_fully_approved_calc_sheet_folders ?? false;
 
       const response =
         format === "pdf"
@@ -537,6 +539,8 @@ const ConcentrationSheets: React.FC = () => {
                 export_all: true,
                 export_non_empty_only: exportNonEmptyOnly,
                 export_non_zero_psq_only: exportNonZeroPsqOnly,
+                skip_fully_approved_calc_sheet_folders:
+                  skipFullyApprovedCalcSheetFolders,
               },
               entryColumnRequest,
               isRTL ? "he" : "en"
@@ -548,6 +552,8 @@ const ConcentrationSheets: React.FC = () => {
                 export_all: true,
                 export_non_empty_only: exportNonEmptyOnly,
                 export_non_zero_psq_only: exportNonZeroPsqOnly,
+                skip_fully_approved_calc_sheet_folders:
+                  skipFullyApprovedCalcSheetFolders,
               },
               entryColumnRequest
             );

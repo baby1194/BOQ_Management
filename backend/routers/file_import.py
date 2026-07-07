@@ -233,7 +233,11 @@ def save_calculation_sheet_to_item_folders(
         return 0
 
 
-def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> int:
+def copy_calculation_sheets_to_item_folder(
+    db: Session,
+    section_number: str,
+    skip_calc_sheet_nos: set[str] | None = None,
+) -> int:
     """
     Copy all calculation sheet files related to the given section_number to the item folder.
     Used when exporting concentration sheets so the destination folder has both the
@@ -281,6 +285,12 @@ def copy_calculation_sheets_to_item_folder(db: Session, section_number: str) -> 
                     f"Skipping Fatina copy for sheet id {sheet.id}: no calculation_sheet_no"
                 )
                 continue
+            if skip_calc_sheet_nos and sheet.calculation_sheet_no in skip_calc_sheet_nos:
+                logger.info(
+                    "Skipping Fatina calc sheet folder for %s (submitted equals approved)",
+                    sheet.calculation_sheet_no,
+                )
+                continue
             FATINA_BASE_DIR.mkdir(parents=True, exist_ok=True)
             dest_dir = fatina_calculation_sheet_dir(
                 section_number, sheet.calculation_sheet_no
@@ -304,6 +314,7 @@ def copy_concentration_entry_drawing_files_to_fatina(
     section_number: str,
     entries: List[models.ConcentrationEntry] | None = None,
     sheet_id: int | None = None,
+    skip_calc_sheet_nos: set[str] | None = None,
 ) -> int:
     """Copy drawing files attached to concentration entries into Fatina calc sheet folders."""
     from fatina_paths import copy_files_to_calc_sheet_dir
@@ -331,6 +342,8 @@ def copy_concentration_entry_drawing_files_to_fatina(
             except json.JSONDecodeError:
                 paths = []
         if not paths or not entry.calculation_sheet_no:
+            continue
+        if skip_calc_sheet_nos and entry.calculation_sheet_no in skip_calc_sheet_nos:
             continue
         copied += copy_files_to_calc_sheet_dir(
             section_number,

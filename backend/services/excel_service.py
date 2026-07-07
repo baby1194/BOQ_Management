@@ -456,12 +456,15 @@ class ExcelService:
             errors.append(error_msg)
             return items, errors 
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None, db_session=None):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None, db_session=None, skip_fully_approved_calc_sheet_folders=False):
         """Export a single concentration sheet to Excel with specific format: 3 tables.
         entry_columns: optional dict with include_* keys to filter which columns to include.
         db_session: optional DB session to resolve Calculation Sheet No -> file link under C:/Fatina."""
         try:
-            from utils.concentration_utils import filter_concentration_entries_for_export
+            from utils.concentration_utils import (
+                calc_sheet_nos_submitted_equals_approved,
+                filter_concentration_entries_for_export,
+            )
 
             entries = filter_concentration_entries_for_export(
                 entries or [], entry_columns
@@ -478,9 +481,21 @@ class ExcelService:
                     copy_concentration_entry_drawing_files_to_fatina,
                 )
 
-                copy_calculation_sheets_to_item_folder(db_session, link_section)
+                skip_calc_sheet_nos = (
+                    calc_sheet_nos_submitted_equals_approved(entries)
+                    if skip_fully_approved_calc_sheet_folders
+                    else None
+                )
+                copy_calculation_sheets_to_item_folder(
+                    db_session,
+                    link_section,
+                    skip_calc_sheet_nos=skip_calc_sheet_nos,
+                )
                 copy_concentration_entry_drawing_files_to_fatina(
-                    db_session, link_section, entries=entries
+                    db_session,
+                    link_section,
+                    entries=entries,
+                    skip_calc_sheet_nos=skip_calc_sheet_nos,
                 )
 
             folder_key = link_section if link_section else str(sheet.id)
@@ -682,11 +697,14 @@ class ExcelService:
             raise
 
     def export_all_concentration_sheets(
-        self, sheets, db_session, entry_columns=None
+        self, sheets, db_session, entry_columns=None, skip_fully_approved_calc_sheet_folders=False
     ):
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
-            from utils.concentration_utils import filter_concentration_entries_for_export
+            from utils.concentration_utils import (
+                calc_sheet_nos_submitted_equals_approved,
+                filter_concentration_entries_for_export,
+            )
 
             exported_paths = []
             from routers.file_import import (
@@ -703,10 +721,6 @@ class ExcelService:
                     continue
 
                 link_section = str(boq_item.section_number).strip()
-                copy_calculation_sheets_to_item_folder(db_session, link_section)
-                copy_concentration_entry_drawing_files_to_fatina(
-                    db_session, link_section, sheet_id=sheet.id
-                )
 
                 # Get all entries for this concentration sheet
                 entries = db_session.query(models.ConcentrationEntry).filter(
@@ -714,6 +728,23 @@ class ExcelService:
                 ).order_by(models.ConcentrationEntry.id).all()
                 entries = filter_concentration_entries_for_export(
                     entries, entry_columns
+                )
+
+                skip_calc_sheet_nos = (
+                    calc_sheet_nos_submitted_equals_approved(entries)
+                    if skip_fully_approved_calc_sheet_folders
+                    else None
+                )
+                copy_calculation_sheets_to_item_folder(
+                    db_session,
+                    link_section,
+                    skip_calc_sheet_nos=skip_calc_sheet_nos,
+                )
+                copy_concentration_entry_drawing_files_to_fatina(
+                    db_session,
+                    link_section,
+                    entries=entries,
+                    skip_calc_sheet_nos=skip_calc_sheet_nos,
                 )
 
                 folder_name = sanitize_folder_name(link_section)

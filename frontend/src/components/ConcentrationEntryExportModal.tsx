@@ -106,13 +106,20 @@ const ConcentrationEntryExportModal: React.FC<
     (key) => exportRequest[key] === true,
   );
 
-  type AllSheetsMode = "all_items" | "non_empty" | "non_zero_psq";
+  type AllSheetsMode =
+    | "all_items"
+    | "non_empty"
+    | "non_zero_psq"
+    | "non_zero_psq_skip_approved_folders";
 
   const handleExport = (mode?: AllSheetsMode) => {
     const request: ConcentrationEntryExportRequest = { ...exportRequest };
     if (exportScope === "all" && mode !== undefined) {
       request.export_non_empty_only = mode === "non_empty";
-      request.export_non_zero_psq_only = mode === "non_zero_psq";
+      request.export_non_zero_psq_only =
+        mode === "non_zero_psq" || mode === "non_zero_psq_skip_approved_folders";
+      request.skip_fully_approved_calc_sheet_folders =
+        mode === "non_zero_psq_skip_approved_folders";
     }
     onExport(request);
   };
@@ -348,47 +355,62 @@ const ConcentrationEntryExportModal: React.FC<
           </div>
         </div>
 
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex flex-col gap-3">
           {exportScope === "all" ? (
             <>
+              <div className="flex gap-3 flex-wrap">
+                <button
+                  onClick={() => handleExport("all_items")}
+                  disabled={loading || !hasAtLeastOneColumn}
+                  className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    exportFormat === "pdf"
+                      ? "bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                      : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                  }`}
+                >
+                  {loading
+                    ? t("common.exporting")
+                    : t("concentration.exportAllItems")}
+                </button>
+                <button
+                  onClick={() => handleExport("non_empty")}
+                  disabled={loading || !hasAtLeastOneColumn}
+                  className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    exportFormat === "pdf"
+                      ? "bg-red-500 hover:bg-red-600 focus:ring-red-500"
+                      : "bg-green-500 hover:bg-green-600 focus:ring-green-500"
+                  }`}
+                >
+                  {loading
+                    ? t("common.exporting")
+                    : t("concentration.exportWithoutEmptyItems")}
+                </button>
+                <button
+                  onClick={() => handleExport("non_zero_psq")}
+                  disabled={loading || !hasAtLeastOneColumn}
+                  className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    exportFormat === "pdf"
+                      ? "bg-red-400 hover:bg-red-500 focus:ring-red-400"
+                      : "bg-green-400 hover:bg-green-500 focus:ring-green-400"
+                  }`}
+                >
+                  {loading
+                    ? t("common.exporting")
+                    : t("concentration.exportNonZeroPsqItems")}
+                </button>
+              </div>
               <button
-                onClick={() => handleExport("all_items")}
+                onClick={() => handleExport("non_zero_psq_skip_approved_folders")}
                 disabled={loading || !hasAtLeastOneColumn}
-                className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`w-full px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   exportFormat === "pdf"
-                    ? "bg-red-600 hover:bg-red-700 focus:ring-red-500"
-                    : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                    ? "bg-red-300 hover:bg-red-400 focus:ring-red-300"
+                    : "bg-green-300 hover:bg-green-400 focus:ring-green-300"
                 }`}
               >
                 {loading
                   ? t("common.exporting")
-                  : t("concentration.exportAllItems")}
-              </button>
-              <button
-                onClick={() => handleExport("non_empty")}
-                disabled={loading || !hasAtLeastOneColumn}
-                className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  exportFormat === "pdf"
-                    ? "bg-red-500 hover:bg-red-600 focus:ring-red-500"
-                    : "bg-green-500 hover:bg-green-600 focus:ring-green-500"
-                }`}
-              >
-                {loading
-                  ? t("common.exporting")
-                  : t("concentration.exportWithoutEmptyItems")}
-              </button>
-              <button
-                onClick={() => handleExport("non_zero_psq")}
-                disabled={loading || !hasAtLeastOneColumn}
-                className={`flex-1 min-w-[140px] px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  exportFormat === "pdf"
-                    ? "bg-red-400 hover:bg-red-500 focus:ring-red-400"
-                    : "bg-green-400 hover:bg-green-500 focus:ring-green-400"
-                }`}
-              >
-                {loading
-                  ? t("common.exporting")
-                  : t("concentration.exportNonZeroPsqItems")}
+                  : t("concentration.exportNonZeroPsqSkipApprovedFolders")}
               </button>
             </>
           ) : (

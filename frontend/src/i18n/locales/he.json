@@ -288,6 +288,7 @@
     "exportAllItems": "ייצא את כל הפריטים",
     "exportWithoutEmptyItems": "ייצא ללא פריטים ריקים",
     "exportNonZeroPsqItems": "ייצוא פריטים עם כמות מוגש חלקי ≠ 0",
+    "exportNonZeroPsqSkipApprovedFolders": "ייצוא כמות מוגש חלקי ≠ 0 (ללא תיקיות דפי חישוב מאושרים)",
     "noSheetSelected": "לא נבחר דף ריכוז לייצוא",
     "trackTooltip": "קרא מחדש את דפי החישוב המקושרים לדף ריכוז זה מנתיבי קבצי המקור שלהם ורענן ערכי רשומות",
     "failedToTrack": "נכשל במעקב אחר דפי חישוב מהדיסק",

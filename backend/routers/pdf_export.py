@@ -83,6 +83,10 @@ async def export_concentration_sheets(
         if export_non_zero_psq_only:
             sheets = _filter_sheets_with_non_zero_boq_psq(sheets, db)
 
+        skip_fully_approved_calc_sheet_folders = request.get(
+            "skip_fully_approved_calc_sheet_folders", False
+        )
+
         if not sheets:
             return schemas.PDFExportResponse(
                 success=False,
@@ -109,7 +113,15 @@ async def export_concentration_sheets(
 
             # Generate individual PDF for this sheet with entry columns configuration and language
             try:
-                pdf_path = pdf_service.export_single_concentration_sheet(sheet, boq_item, entries, db, entry_columns, language)
+                pdf_path = pdf_service.export_single_concentration_sheet(
+                    sheet,
+                    boq_item,
+                    entries,
+                    db,
+                    entry_columns,
+                    language,
+                    skip_fully_approved_calc_sheet_folders=skip_fully_approved_calc_sheet_folders,
+                )
                 export_records.append((pdf_path, str(boq_item.section_number).strip()))
             except Exception as e:
                 error_message = str(e)
@@ -276,6 +288,10 @@ async def export_all_concentration_sheets_excel(
         if request.export_non_zero_psq_only:
             sheets = _filter_sheets_with_non_zero_boq_psq(sheets, db)
 
+        skip_fully_approved_calc_sheet_folders = getattr(
+            request, "skip_fully_approved_calc_sheet_folders", False
+        )
+
         if not sheets:
             return schemas.PDFExportResponse(
                 success=False,
@@ -288,7 +304,10 @@ async def export_all_concentration_sheets_excel(
         if request.entry_columns is not None:
             entry_columns = request.entry_columns.dict()
         excel_path = excel_service.export_all_concentration_sheets(
-            sheets, db, entry_columns=entry_columns
+            sheets,
+            db,
+            entry_columns=entry_columns,
+            skip_fully_approved_calc_sheet_folders=skip_fully_approved_calc_sheet_folders,
         )
 
         # Files are saved server-side to C:/Fatina/{section_number}/, no download needed
