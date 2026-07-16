@@ -462,7 +462,7 @@ class ExcelService:
         db_session: optional DB session to resolve Calculation Sheet No -> file link under C:/Fatina."""
         try:
             from utils.concentration_utils import (
-                calc_sheet_nos_submitted_equals_approved,
+                calc_sheet_nos_to_skip_for_selective_export,
                 concentration_sheet_cumulative_submitted_equals_approved,
                 filter_concentration_entries_for_export,
             )
@@ -483,7 +483,9 @@ class ExcelService:
                 )
 
                 skip_calc_sheet_nos = (
-                    calc_sheet_nos_submitted_equals_approved(entries)
+                    calc_sheet_nos_to_skip_for_selective_export(
+                        entries, db_session, link_section
+                    )
                     if skip_fully_approved_calc_sheet_folders
                     else None
                 )
@@ -703,7 +705,7 @@ class ExcelService:
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
             from utils.concentration_utils import (
-                calc_sheet_nos_submitted_equals_approved,
+                calc_sheet_nos_to_skip_for_selective_export,
                 concentration_sheet_cumulative_submitted_equals_approved,
                 filter_concentration_entries_for_export,
             )
@@ -741,7 +743,9 @@ class ExcelService:
                     continue
 
                 skip_calc_sheet_nos = (
-                    calc_sheet_nos_submitted_equals_approved(entries)
+                    calc_sheet_nos_to_skip_for_selective_export(
+                        entries, db_session, link_section
+                    )
                     if skip_fully_approved_calc_sheet_folders
                     else None
                 )

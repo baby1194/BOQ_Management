@@ -64,6 +64,63 @@ def calc_sheet_nos_submitted_equals_approved(entries: Iterable[T]) -> Set[str]:
     return skip
 
 
+def calc_sheet_nos_not_submitted(entries: Iterable[T]) -> Set[str]:
+    """Return calc sheet numbers with no invoice id on the concentration entry."""
+    not_submitted: Set[str] = set()
+    for entry in entries:
+        calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
+        if not calc_no:
+            continue
+        invoice_id = str(getattr(entry, "drawing_no", "") or "").strip()
+        if not invoice_id:
+            not_submitted.add(calc_no)
+    return not_submitted
+
+
+def calc_sheet_nos_not_submitted_for_section(db, section_number: str) -> Set[str]:
+    """Return calc sheet numbers with no invoice id on their calculation entry."""
+    from models import models
+
+    if not section_number or not str(section_number).strip():
+        return set()
+
+    section_number = str(section_number).strip()
+    rows = (
+        db.query(
+            models.CalculationSheet.calculation_sheet_no,
+            models.CalculationEntry.current_invoice_id,
+        )
+        .join(
+            models.CalculationSheet,
+            models.CalculationSheet.id == models.CalculationEntry.calculation_sheet_id,
+        )
+        .filter(models.CalculationEntry.section_number == section_number)
+        .all()
+    )
+
+    not_submitted: Set[str] = set()
+    for calc_no, invoice_id in rows:
+        calc_no = str(calc_no or "").strip()
+        if not calc_no:
+            continue
+        if not str(invoice_id or "").strip():
+            not_submitted.add(calc_no)
+    return not_submitted
+
+
+def calc_sheet_nos_to_skip_for_selective_export(
+    entries: Iterable[T],
+    db=None,
+    section_number: str | None = None,
+) -> Set[str]:
+    """Calc sheet folders to skip for selective non-zero PSQ export."""
+    skip = calc_sheet_nos_submitted_equals_approved(entries)
+    skip |= calc_sheet_nos_not_submitted(entries)
+    if db is not None and section_number:
+        skip |= calc_sheet_nos_not_submitted_for_section(db, section_number)
+    return skip
+
+
 def concentration_sheet_cumulative_submitted_equals_approved(
     entries: Iterable[T],
 ) -> bool:

@@ -287,7 +287,7 @@ def copy_calculation_sheets_to_item_folder(
                 continue
             if skip_calc_sheet_nos and sheet.calculation_sheet_no in skip_calc_sheet_nos:
                 logger.info(
-                    "Skipping Fatina calc sheet folder for %s (submitted equals approved)",
+                    "Skipping Fatina calc sheet folder for %s (selective export)",
                     sheet.calculation_sheet_no,
                 )
                 continue

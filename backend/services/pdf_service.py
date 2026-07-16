@@ -864,7 +864,7 @@ class PDFService:
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
             from utils.concentration_utils import (
-                calc_sheet_nos_submitted_equals_approved,
+                calc_sheet_nos_to_skip_for_selective_export,
                 filter_concentration_entries_for_export,
             )
 
@@ -880,7 +880,9 @@ class PDFService:
 
                 link_section = str(boq_item.section_number).strip()
                 skip_calc_sheet_nos = (
-                    calc_sheet_nos_submitted_equals_approved(entries)
+                    calc_sheet_nos_to_skip_for_selective_export(
+                        entries, db_session, link_section
+                    )
                     if skip_fully_approved_calc_sheet_folders
                     else None
                 )
