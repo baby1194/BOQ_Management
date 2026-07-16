@@ -555,12 +555,6 @@ def build_concentration_export_subrow_values(
         )
     if "Quantity Submitted" in filtered_headers:
         row["Quantity Submitted"] = float(qty)
-    if "Internal Quantity" in filtered_headers:
-        row["Internal Quantity"] = float(detail.get("internal_quantity") or 0)
-    if "Approved by Project Manager" in filtered_headers:
-        row["Approved by Project Manager"] = float(
-            detail.get("approved_by_project_manager") or 0
-        )
     if "Notes" in filtered_headers:
         row["Notes"] = detail.get("notes") or ""
     if "Supervisor Notes" in filtered_headers:

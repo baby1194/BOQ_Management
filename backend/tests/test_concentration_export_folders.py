@@ -200,3 +200,55 @@ def test_copy_drawing_files_to_fatina_skips_when_only_subrow_has_files(monkeypat
 
     assert count == 1
     assert copied_paths == [["C:/uploads/past-only.pdf"]]
+
+
+def test_fatina_invoice_folder_name():
+    from fatina_paths import fatina_invoice_folder_name
+
+    assert fatina_invoice_folder_name("05") == "05_m"
+    assert fatina_invoice_folder_name(" 06 ") == "06_m"
+
+
+def test_copy_drawing_files_to_fatina_copies_to_invoice_folder_when_no_calc_sheet_no(
+    monkeypatch,
+):
+    from routers.file_import import copy_concentration_entry_drawing_files_to_fatina
+
+    copied_calc: list[tuple[str, str, list[str]]] = []
+    copied_invoice: list[tuple[str, str, list[str]]] = []
+
+    def fake_copy_calc(section_number, calculation_sheet_no, paths):
+        copied_calc.append((section_number, calculation_sheet_no, list(paths)))
+        return len(paths)
+
+    def fake_copy_invoice(section_number, invoice_no, paths):
+        copied_invoice.append((section_number, invoice_no, list(paths)))
+        return len(paths)
+
+    monkeypatch.setattr("fatina_paths.copy_files_to_calc_sheet_dir", fake_copy_calc)
+    monkeypatch.setattr("fatina_paths.copy_files_to_invoice_dir", fake_copy_invoice)
+
+    entry = SimpleNamespace(
+        calculation_sheet_no="",
+        drawing_files=["C:/uploads/a.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "01",
+            "period_details": {
+                "01": {"drawing_files": ["C:/uploads/b.pdf"]},
+                "05": {"drawing_files": ["C:/uploads/c.pdf"]},
+            },
+        },
+    )
+
+    count = copy_concentration_entry_drawing_files_to_fatina(
+        db=None,
+        section_number="Section A",
+        entries=[entry],
+    )
+
+    assert count == 3
+    assert copied_calc == []
+    assert copied_invoice == [
+        ("Section A", "01", ["C:/uploads/b.pdf", "C:/uploads/a.pdf"]),
+        ("Section A", "05", ["C:/uploads/c.pdf"]),
+    ]

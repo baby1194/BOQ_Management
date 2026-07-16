@@ -317,8 +317,8 @@ def copy_concentration_entry_drawing_files_to_fatina(
     skip_calc_sheet_nos: set[str] | None = None,
 ) -> int:
     """Copy drawing files attached to concentration entries into Fatina calc sheet folders."""
-    from fatina_paths import copy_files_to_calc_sheet_dir
-    from utils.period_details_utils import entry_all_drawing_files
+    from fatina_paths import copy_files_to_calc_sheet_dir, copy_files_to_invoice_dir
+    from utils.period_details_utils import entry_drawing_files_by_invoice
 
     if not section_number or not str(section_number).strip():
         return 0
@@ -335,16 +335,22 @@ def copy_concentration_entry_drawing_files_to_fatina(
 
     copied = 0
     for entry in entries:
-        paths = entry_all_drawing_files(entry)
-        if not paths or not entry.calculation_sheet_no:
+        calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
+        if calc_no:
+            from utils.period_details_utils import entry_all_drawing_files
+
+            paths = entry_all_drawing_files(entry)
+            if not paths:
+                continue
+            if skip_calc_sheet_nos and calc_no in skip_calc_sheet_nos:
+                continue
+            copied += copy_files_to_calc_sheet_dir(section_number, calc_no, paths)
             continue
-        if skip_calc_sheet_nos and entry.calculation_sheet_no in skip_calc_sheet_nos:
-            continue
-        copied += copy_files_to_calc_sheet_dir(
-            section_number,
-            entry.calculation_sheet_no,
-            paths,
-        )
+
+        for invoice_no, paths in entry_drawing_files_by_invoice(entry).items():
+            if not paths:
+                continue
+            copied += copy_files_to_invoice_dir(section_number, invoice_no, paths)
     return copied
 
 

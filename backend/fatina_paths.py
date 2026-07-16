@@ -53,6 +53,22 @@ def fatina_calculation_sheet_dir(section_number: str, calculation_sheet_no: str)
     return fatina_section_dir(section_number) / sanitize_folder_name(calculation_sheet_no)
 
 
+def fatina_invoice_folder_name(invoice_no: str) -> str:
+    """Invoice folder name under an item folder, e.g. invoice 05 -> 05_m."""
+    base = sanitize_folder_name(str(invoice_no or "").strip())
+    if not base:
+        return ""
+    return f"{base}_m"
+
+
+def fatina_invoice_dir(section_number: str, invoice_no: str) -> Path:
+    """Item folder sub-directory for drawings when there is no calc sheet number."""
+    folder_name = fatina_invoice_folder_name(invoice_no)
+    if not folder_name:
+        return fatina_section_dir(section_number)
+    return fatina_section_dir(section_number) / folder_name
+
+
 def calculation_file_path(
     section_number: str,
     file_name: str,
@@ -127,6 +143,64 @@ def copy_files_to_calc_sheet_dir(
         except (PermissionError, OSError) as exc:
             logger.error(f"Failed to copy {src} -> {dest}: {exc}")
     return copied
+
+
+def copy_files_to_invoice_dir(
+    section_number: str,
+    invoice_no: str,
+    source_paths: list[str],
+) -> int:
+    """Copy files into C:/Fatina/{section}/{invoice_no}_m/."""
+    if not section_number or not invoice_no or not source_paths:
+        return 0
+
+    dest_dir = fatina_invoice_dir(section_number, invoice_no)
+    if not fatina_invoice_folder_name(invoice_no):
+        return 0
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for src_str in source_paths:
+        if not src_str:
+            continue
+        src = Path(src_str)
+        if not src.is_file():
+            logger.warning(f"Drawing file not found, skipping copy: {src}")
+            continue
+        dest = dest_dir / src.name
+        try:
+            shutil.copy2(src, dest)
+            copied += 1
+            logger.info(f"Copied file to Fatina: {dest}")
+        except (PermissionError, OSError) as exc:
+            logger.error(f"Failed to copy {src} -> {dest}: {exc}")
+    return copied
+
+
+def remove_file_from_invoice_dir(
+    section_number: str,
+    invoice_no: str,
+    file_path: str,
+) -> bool:
+    """Delete a file from C:/Fatina/{section}/{invoice_no}_m/ by basename."""
+    if not section_number or not invoice_no or not file_path:
+        return False
+
+    filename = Path(file_path).name
+    if not filename:
+        return False
+
+    dest = fatina_invoice_dir(section_number, invoice_no) / filename
+    if not dest.is_file():
+        return False
+
+    try:
+        dest.unlink()
+        logger.info(f"Removed file from Fatina: {dest}")
+        return True
+    except OSError as exc:
+        logger.error(f"Failed to remove {dest}: {exc}")
+        return False
 
 
 def remove_file_from_calc_sheet_dir(

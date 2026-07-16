@@ -28,6 +28,7 @@ from utils.concentration_utils import (
 from utils.period_details_utils import (
     apply_current_period_to_entry_fields,
     entry_all_drawing_files,
+    entry_drawing_files_by_invoice,
     entry_total_approved_quantity,
     entry_total_internal_quantity,
     find_period_for_drawing_path,
@@ -38,7 +39,9 @@ from utils.period_details_utils import (
 )
 from fatina_paths import (
     copy_files_to_calc_sheet_dir,
+    copy_files_to_invoice_dir,
     remove_file_from_calc_sheet_dir,
+    remove_file_from_invoice_dir,
     is_upload_copy_path,
 )
 
@@ -153,19 +156,49 @@ def _drawing_path_still_referenced(
     return False
 
 
+def _fatina_invoice_drawing_still_referenced(
+    db: Session,
+    *,
+    exclude_entry_id: int,
+    section_number: str,
+    invoice_no: str,
+    filename: str,
+) -> bool:
+    """True if another entry without a calc sheet still uses this invoice folder file."""
+    others = db.query(models.ConcentrationEntry).filter(
+        models.ConcentrationEntry.id != exclude_entry_id,
+    ).all()
+    for other in others:
+        if str(getattr(other, "calculation_sheet_no", "") or "").strip():
+            continue
+        other_section = _entry_boq_section_number(other, db)
+        if other_section != section_number:
+            continue
+        for period, paths in entry_drawing_files_by_invoice(other).items():
+            if period != invoice_no:
+                continue
+            for path in paths:
+                if Path(path).name == filename:
+                    return True
+    return False
+
+
 def _sync_entry_drawing_files_to_fatina(
     db_entry: models.ConcentrationEntry, db: Session
 ) -> None:
     section_number = _entry_boq_section_number(db_entry, db)
-    if not section_number or not db_entry.calculation_sheet_no:
+    if not section_number:
         return
-    paths = entry_all_drawing_files(db_entry)
-    if paths:
-        copy_files_to_calc_sheet_dir(
-            section_number,
-            db_entry.calculation_sheet_no,
-            paths,
-        )
+    calc_no = str(getattr(db_entry, "calculation_sheet_no", "") or "").strip()
+    if calc_no:
+        paths = entry_all_drawing_files(db_entry)
+        if paths:
+            copy_files_to_calc_sheet_dir(section_number, calc_no, paths)
+        return
+
+    for invoice_no, paths in entry_drawing_files_by_invoice(db_entry).items():
+        if paths:
+            copy_files_to_invoice_dir(section_number, invoice_no, paths)
 
 
 def _hydrate_entry_response(db_entry: models.ConcentrationEntry) -> None:
@@ -1086,6 +1119,25 @@ async def remove_entry_drawing_file(
         remove_file_from_calc_sheet_dir(
             section_number,
             calculation_sheet_no,
+            body.path,
+        )
+    elif (
+        not still_referenced
+        and section_number
+        and not calculation_sheet_no
+        and target_period
+        and filename
+        and not _fatina_invoice_drawing_still_referenced(
+            db,
+            exclude_entry_id=entry_id,
+            section_number=section_number,
+            invoice_no=target_period,
+            filename=filename,
+        )
+    ):
+        remove_file_from_invoice_dir(
+            section_number,
+            target_period,
             body.path,
         )
 

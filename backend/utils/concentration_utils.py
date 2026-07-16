@@ -173,7 +173,7 @@ def apply_calculation_entry_quantities(
     )
     old_breakdown = getattr(concentration_entry, "submission_breakdown", None)
     outgoing_period = (
-        str(concentration_entry.drawing_no or "").strip()
+        str(getattr(concentration_entry, "drawing_no", "") or "").strip()
         or resolve_entry_current_period(concentration_entry)
     )
     if outgoing_period:

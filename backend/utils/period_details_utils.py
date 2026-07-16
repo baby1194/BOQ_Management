@@ -280,6 +280,33 @@ def entry_all_drawing_files(entry: Any) -> List[str]:
     return paths
 
 
+def entry_drawing_files_by_invoice(entry: Any) -> Dict[str, List[str]]:
+    """Map invoice no -> drawing file paths for Fatina export without a calc sheet."""
+    grouped: Dict[str, List[str]] = {}
+    seen_by_period: Dict[str, set[str]] = {}
+
+    def add(period: str, paths_to_add: Iterable[str]) -> None:
+        period = str(period or "").strip()
+        if not period:
+            return
+        bucket = grouped.setdefault(period, [])
+        seen = seen_by_period.setdefault(period, set())
+        for path in paths_to_add:
+            if path and path not in seen:
+                seen.add(path)
+                bucket.append(path)
+
+    breakdown = getattr(entry, "submission_breakdown", None)
+    for period, detail in get_period_details_map(breakdown).items():
+        add(period, detail.get("drawing_files") or [])
+
+    current = resolve_entry_current_period(entry) or str(
+        getattr(entry, "drawing_no", "") or ""
+    ).strip()
+    add(current, _normalize_drawing_files(getattr(entry, "drawing_files", None)))
+    return grouped
+
+
 def find_period_for_drawing_path(entry: Any, resolved_path: str) -> Optional[str]:
     for period, detail in get_period_details_map(
         getattr(entry, "submission_breakdown", None)
