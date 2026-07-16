@@ -567,7 +567,9 @@
     "exportingNonBoqItems": "מייצא...",
     "nonBoqExportSuccess": "פריטים שאינם ב-BOQ יוצאו בהצלחה",
     "nonBoqExportFailed": "ייצוא פריטים שאינם ב-BOQ נכשל",
-    "noNonBoqItemsToExport": "אין פריטים שאינם ב-BOQ לייצוא"
+    "noNonBoqItemsToExport": "אין פריטים שאינם ב-BOQ לייצוא",
+    "expandNonBoqItems": "הרחב פריטים שאינם ב-BOQ",
+    "collapseNonBoqItems": "כווץ פריטים שאינם ב-BOQ"
   },
   "calculationSheets": {
     "title": "דפי חישוב",

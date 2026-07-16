@@ -5,6 +5,7 @@ from utils.period_details_utils import (
     apply_current_period_to_entry_fields,
     entry_total_approved_quantity,
     entry_total_internal_quantity,
+    hydrate_entry_period_details,
     merge_breakdown_preserve_period_details,
     migrate_entry_period_details,
     persist_entry_level_fields_to_period,
@@ -225,3 +226,67 @@ def test_set_period_detail_fields_updates_current_top_level():
     )
     assert entry.internal_quantity == 6.0
     assert entry.notes == "saved"
+
+
+def test_set_period_detail_fields_seeds_from_entry_when_creating_period():
+    """Drawing-file-only updates must not wipe existing top-level quantities."""
+    entry = SimpleNamespace(
+        drawing_no="01",
+        internal_quantity=33.0,
+        approved_by_project_manager=22.0,
+        notes="keep",
+        supervisor_notes="sup",
+        submission_percentage=100.0,
+        drawing_files=[],
+        submission_breakdown=None,
+        current_invoice_id=None,
+    )
+    set_period_detail_fields(
+        entry,
+        "01",
+        {"drawing_files": ["/tmp/a.png"]},
+    )
+    assert entry.internal_quantity == 33.0
+    assert entry.approved_by_project_manager == 22.0
+    assert entry.notes == "keep"
+    detail = entry.submission_breakdown["period_details"]["01"]
+    assert detail["internal_quantity"] == 33.0
+    assert detail["approved_by_project_manager"] == 22.0
+    assert detail["drawing_files"] == ["/tmp/a.png"]
+
+
+def test_hydrate_preserves_qty_update_when_only_period_details_exist():
+    """Qty edits must write period_details even when periods key is missing."""
+    entry = SimpleNamespace(
+        drawing_no="01",
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes="",
+        supervisor_notes="",
+        submission_percentage=100.0,
+        drawing_files=[],
+        current_invoice_id=None,
+        submission_breakdown={
+            "period_details": {
+                "01": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 0.0,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": ["/tmp/a.png"],
+                }
+            }
+        },
+    )
+    set_period_detail_fields(
+        entry,
+        "01",
+        {"internal_quantity": 50.0, "approved_by_project_manager": 40.0},
+    )
+    hydrate_entry_period_details(entry)
+    assert entry.internal_quantity == 50.0
+    assert entry.approved_by_project_manager == 40.0
+    assert (
+        entry.submission_breakdown["period_details"]["01"]["internal_quantity"]
+        == 50.0
+    )

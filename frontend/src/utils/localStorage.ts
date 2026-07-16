@@ -53,6 +53,7 @@ const APP_STORAGE_KEYS = [
   "boq-export-columns",
   "summary-export-columns",
   "concentration-entry-export-columns",
+  "dashboard-non-boq-expanded",
 ];
 
 /**

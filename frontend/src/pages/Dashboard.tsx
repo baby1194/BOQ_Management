@@ -33,10 +33,12 @@ import {
   Plus,
   Settings,
   FileSpreadsheet,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { formatCurrency } from "../utils/format";
 import { useProject } from "../contexts/ProjectContext";
-import { getActiveProjectId } from "../utils/localStorage";
+import { getActiveProjectId, getProjectItem, setProjectItem } from "../utils/localStorage";
 import { setActiveProjectIdForApi } from "../services/api";
 import {
   BOQItem,
@@ -69,8 +71,19 @@ const Dashboard: React.FC = () => {
   const [exportingNonBoq, setExportingNonBoq] = useState<"pdf" | "excel" | null>(
     null,
   );
+  const [nonBoqExpanded, setNonBoqExpanded] = useState(() => {
+    const saved = getProjectItem("dashboard-non-boq-expanded");
+    return saved === null ? true : saved === "true";
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProjectItem(
+      "dashboard-non-boq-expanded",
+      nonBoqExpanded ? "true" : "false",
+    );
+  }, [nonBoqExpanded]);
 
   useEffect(() => {
     if (!projectId) {
@@ -568,21 +581,53 @@ const Dashboard: React.FC = () => {
               isRTL ? "flex-row-reverse" : ""
             }`}
           >
-            <div>
+            <button
+              type="button"
+              onClick={() => setNonBoqExpanded((prev) => !prev)}
+              className={`flex-1 text-left ${isRTL ? "text-right" : ""}`}
+              aria-expanded={nonBoqExpanded}
+              title={
+                nonBoqExpanded
+                  ? t("dashboard.collapseNonBoqItems")
+                  : t("dashboard.expandNonBoqItems")
+              }
+            >
               <h2
                 className={`text-lg font-semibold text-gray-900 flex items-center ${
                   isRTL ? "flex-row-reverse" : ""
                 }`}
               >
+                {nonBoqExpanded ? (
+                  <ChevronDown
+                    className={`h-5 w-5 text-gray-500 ${isRTL ? "ml-2" : "mr-2"}`}
+                  />
+                ) : (
+                  <ChevronRight
+                    className={`h-5 w-5 text-gray-500 ${
+                      isRTL ? "ml-2 rotate-180" : "mr-2"
+                    }`}
+                  />
+                )}
                 <AlertTriangle
                   className={`h-5 w-5 text-amber-600 ${isRTL ? "ml-2" : "mr-2"}`}
                 />
                 <span>{t("dashboard.nonBoqItems")}</span>
+                {nonBoqItems.length > 0 && (
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 text-xs font-medium rounded-full bg-amber-100 text-amber-800 ${
+                      isRTL ? "mr-2" : "ml-2"
+                    }`}
+                  >
+                    {nonBoqItems.length}
+                  </span>
+                )}
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {t("dashboard.nonBoqItemsDescription")}
-              </p>
-            </div>
+              {nonBoqExpanded && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {t("dashboard.nonBoqItemsDescription")}
+                </p>
+              )}
+            </button>
             {nonBoqItems.length > 0 && (
               <div
                 className={`flex items-center gap-2 shrink-0 ${
@@ -619,61 +664,65 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="p-6">
-          {nonBoqItems.length > 0 ? (
-            <div className="space-y-3">
-              {nonBoqItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between gap-4 p-3 bg-amber-50 rounded-lg border border-amber-200 ${
-                    isRTL ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {t("boq.sectionNumber")}: {item.section_number}
-                      {formatNonBoqCalcSheets(item) && (
-                        <>
-                          <span className="mx-2 text-gray-400">·</span>
-                          <span className="font-normal text-gray-700">
-                            {t("concentration.calcSheetNo")}:{" "}
-                            {formatNonBoqCalcSheets(item)}
-                          </span>
-                        </>
-                      )}
-                    </p>
-                  </div>
+        {nonBoqExpanded && (
+          <div className="p-6">
+            {nonBoqItems.length > 0 ? (
+              <div className="space-y-3">
+                {nonBoqItems.map((item) => (
                   <div
-                    className={`flex items-center gap-2 shrink-0 ${
+                    key={item.id}
+                    className={`flex items-center justify-between gap-4 p-3 bg-amber-50 rounded-lg border border-amber-200 ${
                       isRTL ? "flex-row-reverse" : ""
                     }`}
                   >
-                    <button
-                      onClick={() => handleAddNonBoqToBoq(item.section_number)}
-                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {t("boq.sectionNumber")}: {item.section_number}
+                        {formatNonBoqCalcSheets(item) && (
+                          <>
+                            <span className="mx-2 text-gray-400">·</span>
+                            <span className="font-normal text-gray-700">
+                              {t("concentration.calcSheetNo")}:{" "}
+                              {formatNonBoqCalcSheets(item)}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <div
+                      className={`flex items-center gap-2 shrink-0 ${
+                        isRTL ? "flex-row-reverse" : ""
+                      }`}
                     >
-                      {t("dashboard.addToBoqList")}
-                    </button>
-                    <button
-                      onClick={() => handleRemoveNonBoqItem(item)}
-                      disabled={removingNonBoqId === item.id}
-                      className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
-                    >
-                      {removingNonBoqId === item.id
-                        ? t("dashboard.removingNonBoqItem")
-                        : t("dashboard.removeFromList")}
-                    </button>
+                      <button
+                        onClick={() =>
+                          handleAddNonBoqToBoq(item.section_number)
+                        }
+                        className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        {t("dashboard.addToBoqList")}
+                      </button>
+                      <button
+                        onClick={() => handleRemoveNonBoqItem(item)}
+                        disabled={removingNonBoqId === item.id}
+                        className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        {removingNonBoqId === item.id
+                          ? t("dashboard.removingNonBoqItem")
+                          : t("dashboard.removeFromList")}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-gray-500 py-8">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-300" />
-              <p>{t("dashboard.noNonBoqItems")}</p>
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-300" />
+                <p>{t("dashboard.noNonBoqItems")}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary Charts Section */}

@@ -290,7 +290,7 @@ export const concentrationApi = {
       )
       .then((res) => res.data),
 
-  trackCalculationSheets: (sheetId: number) =>
+  trackCalculationSheets: (sheetId: number, language?: string) =>
     api
       .post<{
         success: boolean;
@@ -299,7 +299,9 @@ export const concentrationApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
-      }>(`/concentration/${sheetId}/track-calculation-sheets`)
+      }>(`/concentration/${sheetId}/track-calculation-sheets`, undefined, {
+        params: { language: language || "en" },
+      })
       .then((res) => res.data),
 };
 
@@ -383,21 +385,25 @@ export const calculationSheetsApi = {
       )
       .then((res) => res.data),
 
-  populateConcentrationEntries: (sheetId: number) =>
+  populateConcentrationEntries: (sheetId: number, language?: string) =>
     api
       .post<PopulateConcentrationEntriesResponse>(
-        `/calculation-sheets/${sheetId}/populate-concentration-entries`
+        `/calculation-sheets/${sheetId}/populate-concentration-entries`,
+        undefined,
+        { params: { language: language || "en" } }
       )
       .then((res) => res.data),
 
-  syncAll: () =>
+  syncAll: (language?: string) =>
     api
       .post<{ success: boolean; message: string; details: any }>(
-        `/calculation-sheets/sync-all`
+        `/calculation-sheets/sync-all`,
+        undefined,
+        { params: { language: language || "en" } }
       )
       .then((res) => res.data),
 
-  track: () =>
+  track: (language?: string) =>
     api
       .post<{
         success: boolean;
@@ -406,10 +412,12 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
-      }>("/calculation-sheets/track")
+      }>("/calculation-sheets/track", undefined, {
+        params: { language: language || "en" },
+      })
       .then((res) => res.data),
 
-  trackSheet: (sheetId: number) =>
+  trackSheet: (sheetId: number, language?: string) =>
     api
       .post<{
         success: boolean;
@@ -418,7 +426,9 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
-      }>(`/calculation-sheets/${sheetId}/track`)
+      }>(`/calculation-sheets/${sheetId}/track`, undefined, {
+        params: { language: language || "en" },
+      })
       .then((res) => res.data),
 };
 
@@ -494,13 +504,14 @@ export const importApi = {
       .then((res) => res.data);
   },
 
-  importCalculationSheets: (files: FormData) => {
+  importCalculationSheets: (files: FormData, language?: string) => {
     return api
       .post<CalculationImportResponse>(
         "/file-import/import-calculation-sheets/",
         files,
         {
           headers: { "Content-Type": "multipart/form-data" },
+          params: { language: language || "en" },
         }
       )
       .then((res) => res.data);
@@ -514,15 +525,20 @@ export const importApi = {
       )
       .then((res) => res.data),
 
-  importCalculationSheetsFromPaths: (filePaths: string[]) =>
+  importCalculationSheetsFromPaths: (filePaths: string[], language?: string) =>
     api
       .post<CalculationImportResponse>(
         "/file-import/import-calculation-sheets-from-paths/",
-        { file_paths: filePaths }
+        { file_paths: filePaths },
+        { params: { language: language || "en" } }
       )
       .then((res) => res.data),
 
-  importCalculationSheetsFromFolder: (folderPath: string, recursive = true) => {
+  importCalculationSheetsFromFolder: (
+    folderPath: string,
+    recursive = true,
+    language?: string
+  ) => {
     const request = {
       folder_path: folderPath,
       recursive: recursive,
@@ -530,7 +546,8 @@ export const importApi = {
     return api
       .post<CalculationImportResponse>(
         "/file-import/import-calculation-sheets-from-folder/",
-        request
+        request,
+        { params: { language: language || "en" } }
       )
       .then((res) => res.data);
   },

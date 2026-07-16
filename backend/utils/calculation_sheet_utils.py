@@ -473,14 +473,30 @@ def build_concentration_export_row_values(
 ) -> Dict[str, Any]:
     """Build header-keyed values for one concentration entry export row."""
     from utils.period_details_utils import (
-        get_period_detail,
+        get_period_details_map,
         period_submission_percentage,
-        resolve_entry_current_period,
     )
 
     breakdown = getattr(entry, "submission_breakdown", None) or {}
     current_drawing_no = _entry_current_drawing_no(entry, breakdown)
-    current_detail = get_period_detail(breakdown, current_drawing_no)
+    details_map = get_period_details_map(breakdown)
+    # Prefer per-invoice period_details when present; otherwise use top-level columns
+    # (manual entries often have qty only on the entry, with no breakdown).
+    if current_drawing_no and current_drawing_no in details_map:
+        current_detail = details_map[current_drawing_no]
+        internal_quantity = float(current_detail.get("internal_quantity") or 0)
+        approved_qty = float(
+            current_detail.get("approved_by_project_manager") or 0
+        )
+        detail_notes = current_detail.get("notes") or ""
+        detail_supervisor_notes = current_detail.get("supervisor_notes") or ""
+    else:
+        internal_quantity = float(getattr(entry, "internal_quantity", 0) or 0)
+        approved_qty = float(
+            getattr(entry, "approved_by_project_manager", 0) or 0
+        )
+        detail_notes = ""
+        detail_supervisor_notes = ""
     current_qty = float(entry.quantity_submitted or 0)
     row = {
         "Description": entry.description or "",
@@ -491,12 +507,10 @@ def build_concentration_export_row_values(
             entry, breakdown, current_drawing_no, current_qty
         ),
         "Quantity Submitted": current_qty,
-        "Internal Quantity": float(current_detail.get("internal_quantity") or 0),
-        "Approved by Project Manager": float(
-            current_detail.get("approved_by_project_manager") or 0
-        ),
-        "Notes": notes_value or current_detail.get("notes") or entry.notes or "",
-        "Supervisor Notes": current_detail.get("supervisor_notes")
+        "Internal Quantity": internal_quantity,
+        "Approved by Project Manager": approved_qty,
+        "Notes": notes_value or detail_notes or entry.notes or "",
+        "Supervisor Notes": detail_supervisor_notes
         or getattr(entry, "supervisor_notes", None)
         or "",
     }

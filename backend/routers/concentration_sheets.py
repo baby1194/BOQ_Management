@@ -500,6 +500,7 @@ async def track_concentration_sheet_calculation_sheets(
     sheet_id: int,
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """Reread calculation sheets linked to this concentration sheet from disk."""
     sheet = db.query(models.ConcentrationSheet).filter(
@@ -570,7 +571,11 @@ async def track_concentration_sheet_calculation_sheets(
 
     if sheets_updated > 0:
         message = finalize_calculation_sheet_changes(
-            db, project_id, message, merge_push_results(push_results)
+            db,
+            project_id,
+            message,
+            merge_push_results(push_results),
+            language=language,
         )
 
     return schemas.CalculationSheetsTrackResponse(
@@ -677,12 +682,18 @@ async def update_concentration_entry(
         invoice_no = (update_data.pop("invoice_no", None) or "").strip() or None
 
         _hydrate_entry_response(db_entry)
-        has_breakdown = bool(
-            isinstance(db_entry.submission_breakdown, dict)
-            and db_entry.submission_breakdown.get("periods")
+        breakdown = (
+            db_entry.submission_breakdown
+            if isinstance(db_entry.submission_breakdown, dict)
+            else None
+        )
+        # period_details alone (e.g. after drawing upload) must still route qty updates
+        has_period_storage = bool(
+            breakdown
+            and (breakdown.get("periods") or breakdown.get("period_details"))
         )
         target_period = invoice_no or (
-            resolve_entry_current_period(db_entry) if has_breakdown else None
+            resolve_entry_current_period(db_entry) if has_period_storage else None
         )
 
         period_field_names = {
@@ -693,7 +704,7 @@ async def update_concentration_entry(
             "submission_percentage",
         }
         period_updates = {}
-        if has_breakdown and target_period:
+        if has_period_storage and target_period:
             for field in list(period_field_names):
                 if field in update_data:
                     period_updates[field] = update_data.pop(field)
@@ -721,7 +732,7 @@ async def update_concentration_entry(
             or "submission_percentage" in update_data
         )
         if should_sync_qty and (
-            not has_breakdown
+            not has_period_storage
             or not target_period
             or target_period == resolve_entry_current_period(db_entry)
         ):

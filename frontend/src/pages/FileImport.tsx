@@ -54,7 +54,11 @@ const FileImport: React.FC = () => {
   );
 
   const calculationImportMutation = useMutation(
-    importApi.importCalculationSheetsFromPaths,
+    (filePaths: string[]) =>
+      importApi.importCalculationSheetsFromPaths(
+        filePaths,
+        isRTL ? "he" : "en"
+      ),
     {
       onSuccess: (data) => {
         setCalculationImportResult(data);

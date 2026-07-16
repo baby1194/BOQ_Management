@@ -458,3 +458,66 @@ def test_count_calculation_sheet_items():
 
     df.iloc[4, 12] = "B"
     assert count_calculation_sheet_items(df) == 2
+
+
+def test_build_concentration_export_row_falls_back_to_top_level_qty():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import build_concentration_export_row_values
+
+    entry = SimpleNamespace(
+        description="manual",
+        calculation_sheet_no="",
+        drawing_no="01",
+        estimated_quantity=100.0,
+        submission_percentage=100.0,
+        quantity_submitted=100.0,
+        internal_quantity=33.0,
+        approved_by_project_manager=22.0,
+        notes="n",
+        supervisor_notes="s",
+        submission_breakdown=None,
+        current_invoice_id=None,
+    )
+    row = build_concentration_export_row_values(entry, [])
+    assert row["Internal Quantity"] == 33.0
+    assert row["Approved by Project Manager"] == 22.0
+    assert row["Notes"] == "n"
+    assert row["Supervisor Notes"] == "s"
+
+
+def test_build_concentration_export_row_uses_period_details_when_present():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import build_concentration_export_row_values
+
+    entry = SimpleNamespace(
+        description="auto",
+        calculation_sheet_no="7",
+        drawing_no="06",
+        estimated_quantity=100.0,
+        submission_percentage=10.0,
+        quantity_submitted=10.0,
+        internal_quantity=99.0,
+        approved_by_project_manager=88.0,
+        notes="top",
+        supervisor_notes="top-s",
+        current_invoice_id=None,
+        submission_breakdown={
+            "current_drawing_no": "06",
+            "periods": {"06": 10.0},
+            "period_details": {
+                "06": {
+                    "internal_quantity": 5.0,
+                    "approved_by_project_manager": 4.0,
+                    "notes": "period",
+                    "supervisor_notes": "period-s",
+                    "drawing_files": [],
+                }
+            },
+        },
+    )
+    row = build_concentration_export_row_values(entry, ["06"])
+    assert row["Internal Quantity"] == 5.0
+    assert row["Approved by Project Manager"] == 4.0
+    assert row["Notes"] == "period"

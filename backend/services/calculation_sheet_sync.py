@@ -103,14 +103,17 @@ def push_calculation_sheet_to_concentration_entries(
 
 
 def export_pdfs_for_boq_items(
-    db: Session, project_id: str, boq_item_ids: Set[int]
+    db: Session,
+    project_id: str,
+    boq_item_ids: Set[int],
+    language: str = "en",
 ) -> int:
     """Export concentration sheet PDFs for the given BOQ items."""
     if not boq_item_ids:
         return 0
     pdf_service = PDFService(exports_dir=get_project_export_dir(project_id))
     return pdf_service.export_concentration_sheets_for_boq_items(
-        list(boq_item_ids), db
+        list(boq_item_ids), db, language=language
     )
 
 
@@ -119,6 +122,7 @@ def finalize_calculation_sheet_changes(
     project_id: str,
     base_message: str,
     push_result: CalcSheetPushResult,
+    language: str = "en",
 ) -> str:
     """
     After a calc sheet push, export PDFs only for affected BOQ items.
@@ -129,7 +133,7 @@ def finalize_calculation_sheet_changes(
 
     try:
         pdfs_exported = export_pdfs_for_boq_items(
-            db, project_id, push_result.affected_boq_item_ids
+            db, project_id, push_result.affected_boq_item_ids, language=language
         )
     except Exception as e:
         logger.error("PDF export after calc sheet push failed: %s", e)
@@ -143,7 +147,7 @@ def finalize_calculation_sheet_changes(
 
 
 def perform_sync_all_calculation_sheets(
-    db: Session, project_id: str
+    db: Session, project_id: str, language: str = "en"
 ) -> Dict[str, Any]:
     """
     Same work as POST /calculation-sheets/sync-all:
@@ -168,7 +172,7 @@ def perform_sync_all_calculation_sheets(
     boq_items_to_export = result.get("boq_items_to_export") or []
     if boq_items_to_export:
         concentration_sheets_exported = export_pdfs_for_boq_items(
-            db, project_id, set(boq_items_to_export)
+            db, project_id, set(boq_items_to_export), language=language
         )
 
     return {

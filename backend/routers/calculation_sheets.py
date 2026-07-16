@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
 from pathlib import Path
@@ -285,6 +285,7 @@ async def track_calculation_sheet(
     sheet_id: int,
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """Reread one calculation sheet from its saved source file path on disk."""
     sheet = db.query(models.CalculationSheet).filter(
@@ -316,7 +317,7 @@ async def track_calculation_sheet(
         f"({entries_refreshed} entries refreshed from disk)"
     )
     message = finalize_calculation_sheet_changes(
-        db, project_id, message, push_result
+        db, project_id, message, push_result, language=language
     )
     return schemas.CalculationSheetsTrackResponse(
         success=True,
@@ -519,6 +520,7 @@ async def update_calculation_entry(
 async def track_calculation_sheets(
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """
     Reread all calculation sheets from their saved source file paths on disk
@@ -556,7 +558,11 @@ async def track_calculation_sheets(
 
     if sheets_updated > 0:
         message = finalize_calculation_sheet_changes(
-            db, project_id, message, merge_push_results(push_results)
+            db,
+            project_id,
+            message,
+            merge_push_results(push_results),
+            language=language,
         )
 
     return schemas.CalculationSheetsTrackResponse(
@@ -573,12 +579,15 @@ async def track_calculation_sheets(
 async def sync_all_calculation_sheets(
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """
     Synchronize all calculation sheets with concentration sheets and BOQ items
     """
     try:
-        result = perform_sync_all_calculation_sheets(db, project_id)
+        result = perform_sync_all_calculation_sheets(
+            db, project_id, language=language
+        )
 
         if result["success"]:
             return {
@@ -600,6 +609,7 @@ async def populate_concentration_entries(
     sheet_id: int,
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """
     Populate concentration entries from calculation sheet entries
@@ -750,7 +760,7 @@ async def populate_concentration_entries(
         if boq_items_to_export:
             pdf_service = PDFService(exports_dir=get_project_export_dir(project_id))
             concentration_sheets_exported = pdf_service.export_concentration_sheets_for_boq_items(
-                boq_items_to_export, db
+                boq_items_to_export, db, language=language
             )
             logger.info(
                 f"Exported {concentration_sheets_exported} concentration sheet PDF(s) to Fatina "

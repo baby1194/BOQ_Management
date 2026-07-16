@@ -18,9 +18,11 @@ export function resolveCurrentPeriod(
   entry: ConcentrationEntry,
   breakdown?: SubmissionBreakdown | null
 ): string {
+  // Match backend _entry_current_drawing_no: breakdown current period wins over
+  // the editable drawing_no / invoice field so qty edits land on the right period.
   return (
-    entry.drawing_no?.trim() ||
     breakdown?.current_drawing_no?.trim() ||
+    entry.drawing_no?.trim() ||
     ""
   );
 }
@@ -105,7 +107,11 @@ export function getPeriodDrawingFiles(
 
 export function getCurrentPeriodFields(entry: ConcentrationEntry) {
   const period = resolveCurrentPeriod(entry, entry.submission_breakdown);
-  if (!period || !entry.submission_breakdown?.periods) {
+  const detailsMap = getPeriodDetailsMap(entry.submission_breakdown);
+  const hasPeriodDetail = Boolean(period && detailsMap[period]);
+  const hasPeriods = Boolean(entry.submission_breakdown?.periods);
+
+  if (!period || (!hasPeriods && !hasPeriodDetail)) {
     return {
       internal_quantity: entry.internal_quantity ?? 0,
       approved_by_project_manager: entry.approved_by_project_manager ?? 0,

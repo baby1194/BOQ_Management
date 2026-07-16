@@ -612,7 +612,8 @@ const ConcentrationSheets: React.FC = () => {
       setTrackingCalculationSheets(true);
       setError(null);
       const response = await concentrationApi.trackCalculationSheets(
-        selectedSheet.id
+        selectedSheet.id,
+        isRTL ? "he" : "en"
       );
 
       if (response.success) {

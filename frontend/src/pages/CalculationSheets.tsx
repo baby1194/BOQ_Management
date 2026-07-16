@@ -368,7 +368,8 @@ const CalculationSheets: React.FC = () => {
       setError(null);
 
       const response = await calculationSheetsApi.populateConcentrationEntries(
-        selectedSheet.id
+        selectedSheet.id,
+        isRTL ? "he" : "en"
       );
 
       // Show success message
@@ -449,7 +450,10 @@ const CalculationSheets: React.FC = () => {
     try {
       setTrackingSheetId(selectedSheet.id);
       setError(null);
-      const response = await calculationSheetsApi.trackSheet(selectedSheet.id);
+      const response = await calculationSheetsApi.trackSheet(
+        selectedSheet.id,
+        isRTL ? "he" : "en"
+      );
 
       if (response.success) {
         const refreshedSheets = await calculationSheetsApi.getAll(0, 10000);
@@ -496,7 +500,7 @@ const CalculationSheets: React.FC = () => {
     try {
       setSyncingAll(true);
       setError(null);
-      const response = await calculationSheetsApi.syncAll();
+      const response = await calculationSheetsApi.syncAll(isRTL ? "he" : "en");
 
       if (response.success) {
         setError(null);
@@ -531,7 +535,7 @@ const CalculationSheets: React.FC = () => {
     try {
       setTracking(true);
       setError(null);
-      const response = await calculationSheetsApi.track();
+      const response = await calculationSheetsApi.track(isRTL ? "he" : "en");
 
       alert(
         `${response.success ? "✅" : "⚠️"} ${

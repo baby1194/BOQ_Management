@@ -566,7 +566,9 @@
     "exportingNonBoqItems": "Exporting...",
     "nonBoqExportSuccess": "Non-BOQ items exported successfully",
     "nonBoqExportFailed": "Failed to export non-BOQ items",
-    "noNonBoqItemsToExport": "No non-BOQ items to export"
+    "noNonBoqItemsToExport": "No non-BOQ items to export",
+    "expandNonBoqItems": "Expand non-BOQ items",
+    "collapseNonBoqItems": "Collapse non-BOQ items"
   },
   "calculationSheets": {
     "title": "Calculation Sheets",

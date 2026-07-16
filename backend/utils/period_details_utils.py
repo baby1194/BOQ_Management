@@ -218,9 +218,18 @@ def apply_current_period_to_entry_fields(entry: Any) -> None:
 def set_period_detail_fields(
     entry: Any, period: str, updates: Dict[str, Any]
 ) -> None:
+    period = str(period or "").strip()
+    if not period:
+        return
+
     breakdown = dict(_normalize_breakdown(getattr(entry, "submission_breakdown", None)))
     details = get_period_details_map(breakdown)
-    current = normalize_period_detail(details.get(period, {}))
+    # New period rows must start from top-level fields so partial updates
+    # (e.g. drawing_files only) do not wipe existing internal/approved qty.
+    if period in details:
+        current = normalize_period_detail(details[period])
+    else:
+        current = _entry_level_period_detail_snapshot(entry)
 
     for field in PERIOD_DETAIL_FIELDS:
         if field not in updates:

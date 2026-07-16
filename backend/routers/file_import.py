@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, Request, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, Request, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Dict, Optional
@@ -685,6 +685,7 @@ async def import_calculation_sheets_from_paths(
     request: schemas.CalculationSheetsImportPathsRequest,
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """Import calculation sheets directly from absolute file paths on disk."""
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
@@ -732,7 +733,11 @@ async def import_calculation_sheets_from_paths(
     )
     if total_sheets_imported > 0:
         success_message = finalize_calculation_sheet_changes(
-            db, project_id, success_message, merge_push_results(push_results)
+            db,
+            project_id,
+            success_message,
+            merge_push_results(push_results),
+            language=language,
         )
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
@@ -749,6 +754,7 @@ async def import_calculation_sheets_from_folder(
     request: schemas.ImportRequest,
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """
     Import calculation sheet Excel files from a folder path
@@ -786,7 +792,11 @@ async def import_calculation_sheets_from_folder(
     )
     if total_sheets_imported > 0:
         success_message = finalize_calculation_sheet_changes(
-            db, project_id, success_message, merge_push_results(push_results)
+            db,
+            project_id,
+            success_message,
+            merge_push_results(push_results),
+            language=language,
         )
 
     return schemas.CalculationImportResponse(
@@ -807,6 +817,7 @@ async def import_calculation_sheets(
     file_relative_paths: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
 ):
     """
     Import multiple calculation sheet Excel files (uploaded via form).
@@ -989,7 +1000,11 @@ async def import_calculation_sheets(
         success_message = f"Successfully processed {total_sheets_imported} calculation sheets with {total_entries_imported} entries (updated existing sheets and added new ones as needed)"
         if total_sheets_imported > 0:
             success_message = finalize_calculation_sheet_changes(
-                db, project_id, success_message, merge_push_results(push_results)
+                db,
+                project_id,
+                success_message,
+                merge_push_results(push_results),
+                language=language,
             )
         
         return schemas.CalculationImportResponse(
