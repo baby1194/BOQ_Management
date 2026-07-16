@@ -127,3 +127,76 @@ def test_calc_sheet_nos_submitted_equals_approved_sums_multiple_entries_per_shee
     ]
 
     assert calc_sheet_nos_submitted_equals_approved(entries) == {"20/3"}
+
+
+def test_copy_drawing_files_to_fatina_includes_all_periods(monkeypatch):
+    from routers.file_import import copy_concentration_entry_drawing_files_to_fatina
+
+    copied_paths: list[list[str]] = []
+
+    def fake_copy(section_number, calculation_sheet_no, paths):
+        copied_paths.append(list(paths))
+        return len(paths)
+
+    monkeypatch.setattr(
+        "fatina_paths.copy_files_to_calc_sheet_dir",
+        fake_copy,
+    )
+
+    entry = SimpleNamespace(
+        calculation_sheet_no="20/1",
+        drawing_files=["C:/uploads/current.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "02",
+            "period_details": {
+                "01": {"drawing_files": ["C:/uploads/past-period.pdf"]},
+                "02": {"drawing_files": ["C:/uploads/current.pdf"]},
+            },
+        },
+    )
+
+    count = copy_concentration_entry_drawing_files_to_fatina(
+        db=None,
+        section_number="Section A",
+        entries=[entry],
+    )
+
+    assert count == 2
+    assert copied_paths == [
+        ["C:/uploads/current.pdf", "C:/uploads/past-period.pdf"],
+    ]
+
+
+def test_copy_drawing_files_to_fatina_skips_when_only_subrow_has_files(monkeypatch):
+    from routers.file_import import copy_concentration_entry_drawing_files_to_fatina
+
+    copied_paths: list[list[str]] = []
+
+    def fake_copy(section_number, calculation_sheet_no, paths):
+        copied_paths.append(list(paths))
+        return len(paths)
+
+    monkeypatch.setattr(
+        "fatina_paths.copy_files_to_calc_sheet_dir",
+        fake_copy,
+    )
+
+    entry = SimpleNamespace(
+        calculation_sheet_no="20/1",
+        drawing_files=[],
+        submission_breakdown={
+            "current_drawing_no": "02",
+            "period_details": {
+                "01": {"drawing_files": ["C:/uploads/past-only.pdf"]},
+            },
+        },
+    )
+
+    count = copy_concentration_entry_drawing_files_to_fatina(
+        db=None,
+        section_number="Section A",
+        entries=[entry],
+    )
+
+    assert count == 1
+    assert copied_paths == [["C:/uploads/past-only.pdf"]]

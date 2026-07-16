@@ -318,6 +318,7 @@ def copy_concentration_entry_drawing_files_to_fatina(
 ) -> int:
     """Copy drawing files attached to concentration entries into Fatina calc sheet folders."""
     from fatina_paths import copy_files_to_calc_sheet_dir
+    from utils.period_details_utils import entry_all_drawing_files
 
     if not section_number or not str(section_number).strip():
         return 0
@@ -334,13 +335,7 @@ def copy_concentration_entry_drawing_files_to_fatina(
 
     copied = 0
     for entry in entries:
-        paths = entry.drawing_files
-        if isinstance(paths, str):
-            import json
-            try:
-                paths = json.loads(paths)
-            except json.JSONDecodeError:
-                paths = []
+        paths = entry_all_drawing_files(entry)
         if not paths or not entry.calculation_sheet_no:
             continue
         if skip_calc_sheet_nos and entry.calculation_sheet_no in skip_calc_sheet_nos:
