@@ -56,7 +56,6 @@ export const ConcentrationBreakdownPastRows: React.FC<
   ConcentrationBreakdownRowsProps
 > = ({
   entry,
-  columnCount,
   isRTL,
   saving,
   periodEdit,
@@ -75,17 +74,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
   const { t } = useTranslation();
   const rows = getBreakdownPeriodRows(entry).filter((row) => !row.isCurrent);
 
-  if (!entry.submission_breakdown) {
-    return (
-      <tr className="bg-gray-50/70">
-        <td colSpan={columnCount} className="px-3 py-2 text-sm text-gray-600">
-          {t("submissionBreakdown.retrackToLoad")}
-        </td>
-      </tr>
-    );
-  }
-
-  if (rows.length === 0) {
+  if (!entry.submission_breakdown || rows.length === 0) {
     return null;
   }
 

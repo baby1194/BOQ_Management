@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { systemsApi, exportApi, contractUpdatesApi } from "../services/api";
@@ -10,7 +10,14 @@ import {
 import { formatCurrency } from "../utils/format";
 import ExportModal from "../components/ExportModal";
 import ColumnSettingsModal from "../components/ColumnSettingsModal";
+import FilterDropdown from "../components/FilterDropdown";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
+import {
+  getSummaryFilterInputClass,
+  summaryDecreases,
+  summaryIncreases,
+  useSummaryTableFilters,
+} from "../utils/summaryTableFilters";
 
 const SummaryOfSystems: React.FC = () => {
   const { t } = useTranslation();
@@ -60,6 +67,30 @@ const SummaryOfSystems: React.FC = () => {
 
   // Column settings modal state
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+
+  const getSummaryKey = useCallback(
+    (summary: SystemSummary) => summary.system || "",
+    []
+  );
+  const {
+    filters,
+    filteredRows,
+    uniqueKeys,
+    dropdownSelected,
+    dropdownOpen,
+    activeFiltersCount,
+    handleFilterChange,
+    handleContractUpdateFilterChange,
+    handleClearFilters,
+    handleDropdownSelectionChange,
+    handleClearDropdownFilter,
+    handleToggleDropdown,
+    handleCloseDropdown,
+  } = useSummaryTableFilters(
+    "systems-summary",
+    systemSummaries,
+    getSummaryKey
+  );
 
   // Save column visibility preferences to localStorage
   useEffect(() => {
@@ -279,55 +310,50 @@ const SummaryOfSystems: React.FC = () => {
     }
   };
 
-  // Calculate grand totals
-  const grandTotals = systemSummaries.reduce(
-    (acc, summary) => {
-      const summaryDecreases =
-        summary.total_estimate < summary.total_contract_sum
-          ? summary.total_contract_sum - summary.total_estimate
-          : 0;
-      const summaryIncreases =
-        summary.total_estimate > summary.total_contract_sum
-          ? summary.total_estimate - summary.total_contract_sum
-          : 0;
-      const newAcc = {
-        totalDecreases: acc.totalDecreases + summaryDecreases,
-        totalIncreases: acc.totalIncreases + summaryIncreases,
-        totalContractSum: acc.totalContractSum + summary.total_contract_sum,
-        contractUpdateSums: { ...acc.contractUpdateSums },
-        totalEstimate: acc.totalEstimate + summary.total_estimate,
-        totalSubmitted: acc.totalSubmitted + summary.total_submitted,
-        internalTotal: acc.internalTotal + summary.internal_total,
-        totalApproved: acc.totalApproved + summary.total_approved,
-        approvedSignedTotal:
-          acc.approvedSignedTotal + summary.approved_signed_total,
-        partialSubmittedTotal:
-          acc.partialSubmittedTotal + summary.partial_submitted_total,
-      };
+  // Calculate grand totals from filtered rows
+  const grandTotals = useMemo(
+    () =>
+      filteredRows.reduce(
+        (acc, summary) => {
+          const newAcc = {
+            totalDecreases: acc.totalDecreases + summaryDecreases(summary),
+            totalIncreases: acc.totalIncreases + summaryIncreases(summary),
+            totalContractSum: acc.totalContractSum + summary.total_contract_sum,
+            contractUpdateSums: { ...acc.contractUpdateSums },
+            totalEstimate: acc.totalEstimate + summary.total_estimate,
+            totalSubmitted: acc.totalSubmitted + summary.total_submitted,
+            internalTotal: acc.internalTotal + summary.internal_total,
+            totalApproved: acc.totalApproved + summary.total_approved,
+            approvedSignedTotal:
+              acc.approvedSignedTotal + summary.approved_signed_total,
+            partialSubmittedTotal:
+              acc.partialSubmittedTotal + summary.partial_submitted_total,
+          };
 
-      // Add contract update sums
-      Object.entries(summary.contract_update_sums).forEach(
-        ([updateId, sum]) => {
-          const id = parseInt(updateId);
-          newAcc.contractUpdateSums[id] =
-            (newAcc.contractUpdateSums[id] || 0) + sum;
+          Object.entries(summary.contract_update_sums).forEach(
+            ([updateId, sum]) => {
+              const id = parseInt(updateId);
+              newAcc.contractUpdateSums[id] =
+                (newAcc.contractUpdateSums[id] || 0) + sum;
+            }
+          );
+
+          return newAcc;
+        },
+        {
+          totalDecreases: 0,
+          totalIncreases: 0,
+          totalContractSum: 0,
+          contractUpdateSums: {} as Record<number, number>,
+          totalEstimate: 0,
+          totalSubmitted: 0,
+          internalTotal: 0,
+          totalApproved: 0,
+          approvedSignedTotal: 0,
+          partialSubmittedTotal: 0,
         }
-      );
-
-      return newAcc;
-    },
-    {
-      totalDecreases: 0,
-      totalIncreases: 0,
-      totalContractSum: 0,
-      contractUpdateSums: {} as Record<number, number>,
-      totalEstimate: 0,
-      totalSubmitted: 0,
-      internalTotal: 0,
-      totalApproved: 0,
-      approvedSignedTotal: 0,
-      partialSubmittedTotal: 0,
-    }
+      ),
+    [filteredRows]
   );
 
   // Fetch contract updates
@@ -380,7 +406,10 @@ const SummaryOfSystems: React.FC = () => {
             {t("summary.title")} - {t("summary.system")}
           </h1>
           <p className="mt-2 text-gray-600">
-            {t("summary.subtitle")} ({systemSummaries.length}{" "}
+            {t("summary.subtitle")} ({filteredRows.length}
+            {activeFiltersCount > 0
+              ? ` / ${systemSummaries.length}`
+              : ""}{" "}
             {t("summary.system").toLowerCase()})
           </p>
           <p className="mt-1 text-sm text-gray-500">
@@ -388,6 +417,15 @@ const SummaryOfSystems: React.FC = () => {
           </p>
         </div>
         <div className="flex space-x-3">
+          {activeFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              {t("common.clearFilter")}
+            </button>
+          )}
           <button
             onClick={() => setShowColumnSettings(true)}
             className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -423,15 +461,37 @@ const SummaryOfSystems: React.FC = () => {
 
       {/* Summary Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        {activeFiltersCount > 0 && (
+          <div className="px-4 py-2 bg-green-50 border-b border-green-200">
+            <span className="text-sm text-green-700">
+              <strong>
+                {activeFiltersCount} {t("common.filter").toLowerCase()}(s)
+              </strong>{" "}
+              — {filteredRows.length} / {systemSummaries.length}
+            </span>
+          </div>
+        )}
+        <div className="overflow-auto max-h-[70vh]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
+            <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+              <tr className="bg-gray-50 border-b border-gray-200">
                 {columnVisibility.system && (
                   <th
                     className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider`}
                   >
-                    {t("summary.system")}
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{t("summary.system")}</span>
+                      <FilterDropdown
+                        columnName={t("summary.system")}
+                        values={uniqueKeys}
+                        selectedValues={dropdownSelected}
+                        onSelectionChange={handleDropdownSelectionChange}
+                        onClearFilter={handleClearDropdownFilter}
+                        isOpen={dropdownOpen}
+                        onToggle={handleToggleDropdown}
+                        onClose={handleCloseDropdown}
+                      />
+                    </div>
                   </th>
                 )}
                 {columnVisibility.system_description && (
@@ -521,9 +581,226 @@ const SummaryOfSystems: React.FC = () => {
                   {t("common.itemCount")}
                 </th>
               </tr>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {columnVisibility.system && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.key}
+                      onChange={(e) =>
+                        handleFilterChange("key", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(filters.key)}
+                    />
+                  </th>
+                )}
+                {columnVisibility.system_description && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.description}
+                      onChange={(e) =>
+                        handleFilterChange("description", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.description
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_decreases && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.total_decreases}
+                      onChange={(e) =>
+                        handleFilterChange("total_decreases", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.total_decreases
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_increases && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.total_increases}
+                      onChange={(e) =>
+                        handleFilterChange("total_increases", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.total_increases
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_contract_sum && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.total_contract_sum}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "total_contract_sum",
+                          e.target.value
+                        )
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.total_contract_sum
+                      )}
+                    />
+                  </th>
+                )}
+                {contractUpdates.map((update) =>
+                  columnVisibility[`updated_contract_sum_${update.id}`] ? (
+                    <th key={update.id} className="px-3 py-2">
+                      <input
+                        type="text"
+                        value={filters.contract_updates[update.id] || ""}
+                        onChange={(e) =>
+                          handleContractUpdateFilterChange(
+                            update.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder={`${t("common.filter")}...`}
+                        className={getSummaryFilterInputClass(
+                          filters.contract_updates[update.id] || ""
+                        )}
+                      />
+                    </th>
+                  ) : null
+                )}
+                {columnVisibility.total_estimate && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.total_estimate}
+                      onChange={(e) =>
+                        handleFilterChange("total_estimate", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.total_estimate
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_submitted && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.total_submitted}
+                      onChange={(e) =>
+                        handleFilterChange("total_submitted", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.total_submitted
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.internal_total && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.internal_total}
+                      onChange={(e) =>
+                        handleFilterChange("internal_total", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.internal_total
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.total_approved_by_project_manager && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.total_approved}
+                      onChange={(e) =>
+                        handleFilterChange("total_approved", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.total_approved
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.approved_signed_total && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.approved_signed_total}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "approved_signed_total",
+                          e.target.value
+                        )
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.approved_signed_total
+                      )}
+                    />
+                  </th>
+                )}
+                {columnVisibility.partial_submitted_total && (
+                  <th className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={filters.partial_submitted_total}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "partial_submitted_total",
+                          e.target.value
+                        )
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(
+                        filters.partial_submitted_total
+                      )}
+                    />
+                  </th>
+                )}
+                <th className="px-3 py-2">
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={filters.item_count}
+                      onChange={(e) =>
+                        handleFilterChange("item_count", e.target.value)
+                      }
+                      placeholder={`${t("common.filter")}...`}
+                      className={getSummaryFilterInputClass(filters.item_count)}
+                    />
+                    {activeFiltersCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-500"
+                        title={t("common.clearFilter")}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </th>
+              </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {systemSummaries.map((summary) => (
+              {filteredRows.map((summary) => (
                 <tr key={summary.system} className="table-row-hover">
                   {columnVisibility.system && (
                     <td
@@ -582,20 +859,12 @@ const SummaryOfSystems: React.FC = () => {
                   )}
                   {columnVisibility.total_decreases && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(
-                        summary.total_estimate < summary.total_contract_sum
-                          ? summary.total_contract_sum - summary.total_estimate
-                          : 0
-                      )}
+                      {formatCurrency(summaryDecreases(summary))}
                     </td>
                   )}
                   {columnVisibility.total_increases && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(
-                        summary.total_estimate > summary.total_contract_sum
-                          ? summary.total_estimate - summary.total_contract_sum
-                          : 0
-                      )}
+                      {formatCurrency(summaryIncreases(summary))}
                     </td>
                   )}
                   {columnVisibility.total_contract_sum && (
@@ -652,7 +921,7 @@ const SummaryOfSystems: React.FC = () => {
               ))}
             </tbody>
             {/* Grand Totals Row */}
-            <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+            <tfoot className="sticky bottom-0 z-10 bg-gray-100 border-t-2 border-gray-300 shadow-sm">
               <tr>
                 {columnVisibility.system && (
                   <td className="px-6 py-4 text-sm font-bold text-gray-900">
@@ -720,7 +989,7 @@ const SummaryOfSystems: React.FC = () => {
                   </td>
                 )}
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                  {systemSummaries.reduce(
+                  {filteredRows.reduce(
                     (sum, summary) => sum + summary.item_count,
                     0
                   )}

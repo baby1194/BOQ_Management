@@ -469,7 +469,7 @@ def filter_concentration_export_headers(
 def build_concentration_export_row_values(
     entry: Any,
     period_keys: List[str],
-    notes_value: str = "",
+    notes_value: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build header-keyed values for one concentration entry export row."""
     from utils.period_details_utils import (
@@ -498,6 +498,12 @@ def build_concentration_export_row_values(
         detail_notes = ""
         detail_supervisor_notes = ""
     current_qty = float(entry.quantity_submitted or 0)
+    if notes_value is not None:
+        # Explicit override (e.g. PDF notes_getter). Empty string clears auto notes
+        # without falling back to entry.notes.
+        resolved_notes = notes_value or detail_notes or ""
+    else:
+        resolved_notes = detail_notes or entry.notes or ""
     row = {
         "Description": entry.description or "",
         "Calculation Sheet No": entry.calculation_sheet_no or "",
@@ -509,7 +515,7 @@ def build_concentration_export_row_values(
         "Quantity Submitted": current_qty,
         "Internal Quantity": internal_quantity,
         "Approved by Project Manager": approved_qty,
-        "Notes": notes_value or detail_notes or entry.notes or "",
+        "Notes": resolved_notes,
         "Supervisor Notes": detail_supervisor_notes
         or getattr(entry, "supervisor_notes", None)
         or "",
@@ -598,7 +604,7 @@ def build_concentration_export_rows_for_entry(
     period_keys: List[str],
     filtered_headers: List[str],
     entry_columns: Optional[Dict[str, Any]] = None,
-    notes_value: str = "",
+    notes_value: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Main entry row plus optional past-invoice subrows placed before it."""
     rows: List[Dict[str, Any]] = []
@@ -626,7 +632,9 @@ def build_all_concentration_export_rows(
 ) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     for entry in entries:
-        notes = notes_getter(entry) if notes_getter else (getattr(entry, "notes", None) or "")
+        # None lets row builder resolve notes from period details / entry.notes.
+        # notes_getter may return "" to intentionally clear auto-generated notes.
+        notes = notes_getter(entry) if notes_getter else None
         result.extend(
             build_concentration_export_rows_for_entry(
                 entry, period_keys, filtered_headers, entry_columns, notes
@@ -807,7 +815,10 @@ def format_concentration_export_row_for_pdf(
             else:
                 formatted.append(f"{float(value):,.1f}%")
         elif header in text_headers:
-            formatted.append(str(value or ""))
+            text = str(value or "")
+            if header == "Notes" and text.lstrip().startswith("Auto-"):
+                text = ""
+            formatted.append(text)
         elif value in ("", None):
             formatted.append("")
         else:
