@@ -365,7 +365,7 @@ CONCENTRATION_BASE_HEADERS = [
     "Description",
     "Calculation Sheet No",
     "Invoice No",
-    "Invoice Description",
+    "Work Description",
     "Estimated Quantity",
     "Submission Percentage",
     "Quantity Submitted",
@@ -456,7 +456,7 @@ def filter_concentration_export_headers(
         if entry_columns.get("include_drawing_no", True):
             filtered_headers.append("Invoice No")
         if entry_columns.get("include_invoice_description", True):
-            filtered_headers.append("Invoice Description")
+            filtered_headers.append("Work Description")
         if entry_columns.get("include_estimated_quantity", True):
             filtered_headers.append("Estimated Quantity")
         if entry_columns.get("include_submission_percentage", True):
@@ -523,7 +523,7 @@ def build_concentration_export_row_values(
         "Description": entry.description or "",
         "Calculation Sheet No": entry.calculation_sheet_no or "",
         "Invoice No": entry.drawing_no or "",
-        "Invoice Description": getattr(entry, "invoice_description", None) or "",
+        "Work Description": getattr(entry, "invoice_description", None) or "",
         "Estimated Quantity": float(entry.estimated_quantity or 0),
         "Submission Percentage": period_submission_percentage(
             entry, breakdown, current_drawing_no, current_qty
@@ -585,6 +585,8 @@ def build_concentration_export_subrow_values(
     row: Dict[str, Any] = {header: None for header in filtered_headers}
     if "Invoice No" in filtered_headers:
         row["Invoice No"] = period
+    if "Work Description" in filtered_headers:
+        row["Work Description"] = detail.get("invoice_description") or ""
     if "Submission Percentage" in filtered_headers:
         row["Submission Percentage"] = period_submission_percentage(
             entry, getattr(entry, "submission_breakdown", None), period, qty
@@ -785,7 +787,7 @@ def concentration_export_header_translations(language: str) -> Dict[str, str]:
             "Description": "תיאור:",
             "Calculation Sheet No": "מס' דף חישוב",
             "Invoice No": "חן מס'",
-            "Invoice Description": "תיאור חשבונית",
+            "Work Description": "תיאור העבודה",
             "Estimated Quantity": "כמות מחושבת",
             "Submission Percentage": "אחוז הגשה",
             "Quantity Submitted": "כמות מוגשת",
@@ -800,7 +802,7 @@ def concentration_export_header_translations(language: str) -> Dict[str, str]:
             "Description": "Description:",
             "Calculation Sheet No": "Calc. Sheet No",
             "Invoice No": "Invoice No",
-            "Invoice Description": "Invoice Description",
+            "Work Description": "Work Description",
             "Estimated Quantity": "Est. Quantity",
             "Submission Percentage": "Percentage",
             "Quantity Submitted": "Qty Submitted",
@@ -821,7 +823,7 @@ def format_concentration_export_row_for_pdf(
         "Description",
         "Calculation Sheet No",
         "Invoice No",
-        "Invoice Description",
+        "Work Description",
         "Notes",
         "Supervisor Notes",
     }

@@ -107,7 +107,14 @@ export const ConcentrationBreakdownPastRows: React.FC<
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               <span className="font-medium text-gray-700">{row.period}</span>
             </td>
-            <td className="px-3 py-1" />
+            <td className="px-3 py-1 text-sm text-gray-600 align-top max-w-[14rem]">
+              <div
+                className="truncate py-1"
+                title={row.detail.invoice_description || ""}
+              >
+                {row.detail.invoice_description || "-"}
+              </div>
+            </td>
             <td className="px-3 py-1 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
               <ConcentrationDrawingFilesCell
                 drawingFiles={drawingFiles}

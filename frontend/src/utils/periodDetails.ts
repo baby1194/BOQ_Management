@@ -35,6 +35,7 @@ export function emptyPeriodDetail(): PeriodDetail {
     notes: "",
     supervisor_notes: "",
     drawing_files: [],
+    invoice_description: "",
   };
 }
 
@@ -119,6 +120,7 @@ export function getCurrentPeriodFields(entry: ConcentrationEntry) {
       notes: entry.notes || "",
       supervisor_notes: entry.supervisor_notes || "",
       drawing_files: entry.drawing_files || [],
+      invoice_description: entry.invoice_description || "",
     };
   }
   const detail = getPeriodDetail(entry.submission_breakdown, period);
@@ -135,6 +137,8 @@ export function getCurrentPeriodFields(entry: ConcentrationEntry) {
     notes: detail.notes || "",
     supervisor_notes: detail.supervisor_notes || "",
     drawing_files: getPeriodDrawingFiles(entry, period),
+    invoice_description:
+      detail.invoice_description || entry.invoice_description || "",
   };
 }
 

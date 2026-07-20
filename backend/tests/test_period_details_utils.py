@@ -184,6 +184,7 @@ def test_apply_calculation_entry_quantities_resets_new_invoice_approved_qty():
 def test_persist_entry_level_fields_to_period_before_invoice_switch():
     entry = SimpleNamespace(
         drawing_no="01",
+        invoice_description="work for 01",
         internal_quantity=3.0,
         approved_by_project_manager=2.0,
         notes="invoice 01",
@@ -198,6 +199,91 @@ def test_persist_entry_level_fields_to_period_before_invoice_switch():
 
     assert persist_entry_level_fields_to_period(entry, "01") is True
     assert entry.submission_breakdown["period_details"]["01"]["approved_by_project_manager"] == 2.0
+    assert entry.submission_breakdown["period_details"]["01"]["invoice_description"] == "work for 01"
+
+
+def test_persist_refreshes_work_description_on_existing_period_details():
+    entry = SimpleNamespace(
+        drawing_no="06",
+        invoice_description="xxx",
+        internal_quantity=1.0,
+        approved_by_project_manager=0.0,
+        notes="",
+        supervisor_notes="",
+        submission_percentage=100.0,
+        drawing_files=[],
+        submission_breakdown={
+            "current_drawing_no": "06",
+            "periods": {"06": 10.0},
+            "period_details": {
+                "06": {
+                    "internal_quantity": 1.0,
+                    "approved_by_project_manager": 0.0,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                    "invoice_description": "",
+                }
+            },
+        },
+    )
+
+    assert persist_entry_level_fields_to_period(entry, "06") is True
+    assert (
+        entry.submission_breakdown["period_details"]["06"]["invoice_description"]
+        == "xxx"
+    )
+
+
+def test_invoice_switch_preserves_outgoing_work_description():
+    from utils.concentration_utils import apply_calculation_entry_quantities
+
+    concentration_entry = SimpleNamespace(
+        drawing_no="06",
+        invoice_description="xxx",
+        estimated_quantity=100.0,
+        quantity_submitted=10.0,
+        submission_percentage=10.0,
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes="",
+        supervisor_notes="",
+        drawing_files=[],
+        submission_breakdown={
+            "current_drawing_no": "06",
+            "periods": {"06": 10.0},
+            "period_details": {
+                "06": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 0.0,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                    "invoice_description": "",
+                }
+            },
+        },
+    )
+    calc_entry = SimpleNamespace(
+        estimated_quantity=100.0,
+        quantity_submitted=5.0,
+        invoice_description="yyy",
+        submission_breakdown={
+            "current_drawing_no": "07",
+            "periods": {"06": 10.0, "07": 5.0},
+        },
+    )
+
+    apply_calculation_entry_quantities(
+        concentration_entry, calc_entry, drawing_no="07"
+    )
+
+    assert (
+        concentration_entry.submission_breakdown["period_details"]["06"][
+            "invoice_description"
+        ]
+        == "xxx"
+    )
 
 
 def test_set_period_detail_fields_updates_current_top_level():

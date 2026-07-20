@@ -22,6 +22,7 @@ PERIOD_DETAIL_FIELDS = (
     "notes",
     "supervisor_notes",
     "drawing_files",
+    "invoice_description",
 )
 
 
@@ -41,6 +42,7 @@ def _empty_period_detail() -> Dict[str, Any]:
         "notes": "",
         "supervisor_notes": "",
         "drawing_files": [],
+        "invoice_description": "",
     }
 
 
@@ -64,6 +66,7 @@ def normalize_period_detail(detail: Any) -> Dict[str, Any]:
     result["notes"] = str(detail.get("notes") or "")
     result["supervisor_notes"] = str(detail.get("supervisor_notes") or "")
     result["drawing_files"] = _normalize_drawing_files(detail.get("drawing_files"))
+    result["invoice_description"] = str(detail.get("invoice_description") or "")
     return result
 
 
@@ -125,6 +128,7 @@ def _entry_level_period_detail_snapshot(entry: Any) -> Dict[str, Any]:
             "notes": getattr(entry, "notes", None) or "",
             "supervisor_notes": getattr(entry, "supervisor_notes", None) or "",
             "drawing_files": getattr(entry, "drawing_files", None),
+            "invoice_description": getattr(entry, "invoice_description", None) or "",
         }
     )
 
@@ -135,6 +139,9 @@ def persist_entry_level_fields_to_period(
     """
     Save top-level editable fields onto a specific invoice period when that period
     does not already have stored details. Used before switching to a new invoice.
+
+    Work description (invoice_description) is always refreshed from the top-level
+    field so the outgoing invoice keeps the description that was current for it.
     Returns True when submission_breakdown was modified.
     """
     period = str(period or "").strip()
@@ -146,13 +153,23 @@ def persist_entry_level_fields_to_period(
         return False
 
     details = get_period_details_map(breakdown)
-    if period in details:
-        return False
+    changed = False
+    incoming_desc = str(getattr(entry, "invoice_description", None) or "")
 
-    details[period] = _entry_level_period_detail_snapshot(entry)
-    breakdown["period_details"] = details
-    entry.submission_breakdown = breakdown
-    return True
+    if period not in details:
+        details[period] = _entry_level_period_detail_snapshot(entry)
+        changed = True
+    else:
+        detail = normalize_period_detail(details[period])
+        if str(detail.get("invoice_description") or "") != incoming_desc:
+            detail["invoice_description"] = incoming_desc
+            details[period] = detail
+            changed = True
+
+    if changed:
+        breakdown["period_details"] = details
+        entry.submission_breakdown = breakdown
+    return changed
 
 
 def migrate_entry_period_details(entry: Any) -> bool:
@@ -213,6 +230,7 @@ def apply_current_period_to_entry_fields(entry: Any) -> None:
     entry.notes = detail["notes"] or None
     entry.supervisor_notes = detail["supervisor_notes"] or None
     entry.drawing_files = detail["drawing_files"]
+    entry.invoice_description = detail["invoice_description"] or None
 
 
 def set_period_detail_fields(
@@ -237,7 +255,7 @@ def set_period_detail_fields(
         value = updates[field]
         if field == "drawing_files":
             current[field] = _normalize_drawing_files(value)
-        elif field in ("notes", "supervisor_notes"):
+        elif field in ("notes", "supervisor_notes", "invoice_description"):
             current[field] = str(value or "")
         elif field == "submission_percentage":
             current[field] = float(value) if value is not None else None

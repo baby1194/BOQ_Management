@@ -110,6 +110,7 @@ export interface PeriodDetail {
   notes?: string;
   supervisor_notes?: string;
   drawing_files?: string[];
+  invoice_description?: string;
 }
 
 export interface SubmissionBreakdown {
@@ -129,7 +130,7 @@ export interface ConcentrationEntry {
   description?: string; // Manual Description
   calculation_sheet_no?: string; // Calculation Sheet No
   drawing_no?: string; // Drawing No
-  invoice_description?: string; // Invoice Description
+  invoice_description?: string; // Work Description (Excel row 3)
   estimated_quantity: number; // Estimated Quantity
   submission_percentage: number; // Submission percentage (default 100%)
   quantity_submitted: number; // Quantity Submitted (current month from calculation sheet)

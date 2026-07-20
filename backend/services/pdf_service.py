@@ -2449,6 +2449,8 @@ class PDFService:
             'חן מס\'': 0.06,  # Hebrew translation
             'Invoice Description': 0.09,
             'תיאור חשבונית': 0.09,
+            'Work Description': 0.09,
+            'תיאור העבודה': 0.09,
             'Est. Quantity': 0.06,  # English translation
             'כמות מחושבת': 0.06,  # Hebrew translation
             'Percentage': 0.05,  # English translation

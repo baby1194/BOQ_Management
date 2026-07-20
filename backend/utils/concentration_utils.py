@@ -9,6 +9,7 @@ from utils.period_details_utils import (
     migrate_entry_period_details,
     persist_entry_level_fields_to_period,
     resolve_entry_current_period,
+    set_period_detail_fields,
 )
 
 T = TypeVar("T")
@@ -263,9 +264,16 @@ def sync_calc_entry_to_concentration(
             apply_calculation_entry_quantities(
                 concentration_entry, calc_entry, drawing_no=invoice_id
             )
-            concentration_entry.invoice_description = (
+            invoice_description = (
                 getattr(calc_entry, "invoice_description", None) or None
             )
+            concentration_entry.invoice_description = invoice_description
+            if invoice_id:
+                set_period_detail_fields(
+                    concentration_entry,
+                    invoice_id,
+                    {"invoice_description": invoice_description or ""},
+                )
         else:
             apply_calculation_entry_estimated_only(concentration_entry, calc_entry)
         concentration_entry.calculation_sheet_no = sheet_no
