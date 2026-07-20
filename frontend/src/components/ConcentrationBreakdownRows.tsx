@@ -107,6 +107,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               <span className="font-medium text-gray-700">{row.period}</span>
             </td>
+            <td className="px-3 py-1" />
             <td className="px-3 py-1 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
               <ConcentrationDrawingFilesCell
                 drawingFiles={drawingFiles}
@@ -298,6 +299,7 @@ export const ConcentrationBreakdownTotalRow: React.FC<{
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
         <span className="font-semibold text-gray-800">{t("common.total")}</span>
       </td>
+      <td className="px-3 py-1.5" />
       <td className="px-3 py-1.5" />
       <td className="px-3 py-1.5" />
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">

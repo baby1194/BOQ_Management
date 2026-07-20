@@ -1072,6 +1072,9 @@ const CalculationSheets: React.FC = () => {
                                 {t("calculationSheets.currentInvoiceId")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {t("calculationSheets.invoiceDescription")}
+                              </th>
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("common.estimatedQuantity")}
                               </th>
                               <th
@@ -1092,7 +1095,7 @@ const CalculationSheets: React.FC = () => {
                             {visibleEntries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={7}
+                                  colSpan={8}
                                   className="px-3 py-8 text-center text-gray-500"
                                 >
                                   <p>No entries found</p>
@@ -1122,9 +1125,9 @@ const CalculationSheets: React.FC = () => {
                                         currentInvoiceId={
                                           entry.current_invoice_id
                                         }
-                                        columnCount={7}
+                                        columnCount={8}
                                         invoiceColumnIndex={2}
-                                        qtyColumnIndex={4}
+                                        qtyColumnIndex={5}
                                       />
                                     )}
                                     <tr className="table-row-hover">
@@ -1141,6 +1144,14 @@ const CalculationSheets: React.FC = () => {
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                         _
+                                      </td>
+                                      <td className="px-3 py-4 text-sm text-gray-500 max-w-[14rem]">
+                                        <div
+                                          className="truncate"
+                                          title={entry.invoice_description || ""}
+                                        >
+                                          {entry.invoice_description || "-"}
+                                        </div>
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {formatNumber(entry.estimated_quantity)}

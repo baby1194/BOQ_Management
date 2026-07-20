@@ -55,6 +55,7 @@ type ConcentrationEntryEditDraft = {
   description: string;
   calculation_sheet_no: string;
   drawing_no: string;
+  invoice_description: string;
   estimated_quantity: number;
   submission_percentage: number;
   quantity_submitted: number;
@@ -97,6 +98,7 @@ function concentrationEntryToEditDraft(
     description: entry.description || "",
     calculation_sheet_no: entry.calculation_sheet_no || "",
     drawing_no: entry.drawing_no || "",
+    invoice_description: entry.invoice_description || "",
     estimated_quantity: estimatedQuantity,
     submission_percentage: currentFields.submission_percentage,
     quantity_submitted: entry.quantity_submitted ?? computeQuantitySubmitted(
@@ -934,6 +936,7 @@ const ConcentrationSheets: React.FC = () => {
         description: editDraft.description,
         calculation_sheet_no: editDraft.calculation_sheet_no,
         drawing_no: editDraft.drawing_no,
+        invoice_description: editDraft.invoice_description,
         estimated_quantity: editDraft.estimated_quantity,
         ...periodFields,
         is_manual: true,
@@ -1680,6 +1683,9 @@ const ConcentrationSheets: React.FC = () => {
                                 {t("concentration.drawingNoLabel")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {t("concentration.invoiceDescriptionLabel")}
+                              </th>
+                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 {t("concentration.drawings")}
                               </th>
                               <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1717,7 +1723,7 @@ const ConcentrationSheets: React.FC = () => {
                             {visibleEntries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={13}
+                                  colSpan={14}
                                   className={`px-3 py-8 text-gray-500 ${
                                     isRTL ? "text-right" : "text-center"
                                   }`}
@@ -1753,7 +1759,7 @@ const ConcentrationSheets: React.FC = () => {
                                     {isBreakdownExpanded && (
                                       <ConcentrationBreakdownPastRows
                                         entry={entry}
-                                        columnCount={13}
+                                        columnCount={14}
                                         isRTL={isRTL}
                                         saving={saving}
                                         periodEdit={periodEdit}
@@ -1909,6 +1915,36 @@ const ConcentrationSheets: React.FC = () => {
                                           />
                                         ) : (
                                           entry.drawing_no || "-"
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-sm text-gray-500 align-top max-w-[14rem]">
+                                        {manualEditable ? (
+                                          <input
+                                            type="text"
+                                            value={editDraft.invoice_description}
+                                            onChange={(e) =>
+                                              setEditDraft((d) =>
+                                                d
+                                                  ? {
+                                                      ...d,
+                                                      invoice_description:
+                                                        e.target.value,
+                                                    }
+                                                  : null
+                                              )
+                                            }
+                                            className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={saving}
+                                          />
+                                        ) : (
+                                          <div
+                                            className="truncate py-1"
+                                            title={
+                                              entry.invoice_description || ""
+                                            }
+                                          >
+                                            {entry.invoice_description || "-"}
+                                          </div>
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
@@ -2246,7 +2282,7 @@ const ConcentrationSheets: React.FC = () => {
                                     {isBreakdownExpanded && (
                                       <ConcentrationBreakdownTotalRow
                                         entry={entry}
-                                        columnCount={13}
+                                        columnCount={14}
                                       />
                                     )}
                                   </React.Fragment>
@@ -2388,6 +2424,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
     description: entry?.description || "",
     calculation_sheet_no: entry?.calculation_sheet_no || "",
     drawing_no: entry?.drawing_no || "",
+    invoice_description: entry?.invoice_description || "",
     estimated_quantity: entry?.estimated_quantity || 0,
     submission_percentage: entry?.submission_percentage ?? 100,
     quantity_submitted: computeQuantitySubmitted(
@@ -2461,6 +2498,21 @@ const EntryForm: React.FC<EntryFormProps> = ({
             type="text"
             value={formData.drawing_no}
             onChange={(e) => handleChange("drawing_no", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={saving || fieldsLockedForAuto}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t("concentration.invoiceDescription")}
+          </label>
+          <input
+            type="text"
+            value={formData.invoice_description}
+            onChange={(e) =>
+              handleChange("invoice_description", e.target.value)
+            }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={saving || fieldsLockedForAuto}
           />

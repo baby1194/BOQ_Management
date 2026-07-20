@@ -2440,26 +2440,29 @@ class PDFService:
         # Special case: Concentration Sheet Entries table
         # Define fixed percentage widths for each known column type
         concentration_entry_columns = {
-            'Description:': 0.29,  # English translation with colon
-            'תיאור:': 0.29,  # Hebrew translation
-            'Calc. Sheet No': 0.08,  # English translation
-            'מס\' דף חישוב': 0.08,  # Hebrew translation
+            'Description:': 0.26,  # English translation with colon
+            'תיאור:': 0.26,  # Hebrew translation
+            'Calc. Sheet No': 0.07,  # English translation
+            'מס\' דף חישוב': 0.07,  # Hebrew translation
             'Invoice No': 0.06,  # English
-            'מס\' שרטוט': 0.06,  # Hebrew translation
-            'Est. Quantity': 0.07,  # English translation
-            'כמות מחושבת': 0.07,  # Hebrew translation
-            'Percentage': 0.06,  # English translation
-            'אחוז הגשה': 0.06,  # Hebrew translation
-            'Qty Submitted': 0.07,  # English translation
-            'כמות מוגשת': 0.07,  # Hebrew translation
-            'Internal Qty': 0.08,  # English translation
-            'כמות פנימית': 0.08,  # Hebrew translation
-            'Approved Qty': 0.08,  # English translation
-            'כמות מאושרת': 0.08,  # Hebrew translation
-            'Notes': 0.14,  # English
-            'הערות': 0.14,  # Hebrew translation
-            'Supervisor Notes': 0.11,
-            'הערות מפקח': 0.11,
+            'מס\' שרטוט': 0.06,  # Hebrew translation (legacy)
+            'חן מס\'': 0.06,  # Hebrew translation
+            'Invoice Description': 0.09,
+            'תיאור חשבונית': 0.09,
+            'Est. Quantity': 0.06,  # English translation
+            'כמות מחושבת': 0.06,  # Hebrew translation
+            'Percentage': 0.05,  # English translation
+            'אחוז הגשה': 0.05,  # Hebrew translation
+            'Qty Submitted': 0.06,  # English translation
+            'כמות מוגשת': 0.06,  # Hebrew translation
+            'Internal Qty': 0.07,  # English translation
+            'כמות פנימית': 0.07,  # Hebrew translation
+            'Approved Qty': 0.07,  # English translation
+            'כמות מאושרת': 0.07,  # Hebrew translation
+            'Notes': 0.12,  # English
+            'הערות': 0.12,  # Hebrew translation
+            'Supervisor Notes': 0.09,
+            'הערות מפקח': 0.09,
         }
         
         # Check if this looks like a concentration entries table

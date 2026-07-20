@@ -148,10 +148,10 @@ def test_collect_export_past_period_keys_excludes_current():
         entries,
     )
     assert period_keys == past_keys
-    assert headers.index("Quantity Submitted") == 5
-    assert headers.index(period_header_key("01")) == 6
-    assert headers.index(period_header_key("05")) == 10
-    assert headers.index("Internal Quantity") == 11
+    assert headers.index("Quantity Submitted") == 6
+    assert headers.index(period_header_key("01")) == 7
+    assert headers.index(period_header_key("05")) == 11
+    assert headers.index("Internal Quantity") == 12
     assert period_header_key("06") not in headers
 
 
@@ -363,6 +363,17 @@ def test_read_entry_submitted_invoice_id_requires_row_2():
 
     df.iloc[1, col] = "07"
     assert read_entry_submitted_invoice_id(df, col) == "07"
+
+
+def test_read_entry_invoice_description_from_row_3():
+    from utils.calculation_sheet_utils import read_entry_invoice_description
+
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    assert read_entry_invoice_description(df, col) is None
+
+    df.iloc[2, col] = "Invoice desc for 07"
+    assert read_entry_invoice_description(df, col) == "Invoice desc for 07"
 
 
 def test_calc_entry_is_submitted_requires_invoice_and_quantity():

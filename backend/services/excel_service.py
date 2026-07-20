@@ -315,6 +315,7 @@ class ExcelService:
             from utils.calculation_sheet_utils import (
                 compute_submission_breakdown,
                 count_calculation_sheet_items,
+                read_entry_invoice_description,
                 read_entry_submitted_invoice_id,
                 validate_calculation_sheet_header_fields,
             )
@@ -352,6 +353,9 @@ class ExcelService:
                     entry_current_invoice_id = read_entry_submitted_invoice_id(
                         df, col_index
                     )
+                    entry_invoice_description = read_entry_invoice_description(
+                        df, col_index
+                    )
                     if entry_current_invoice_id:
                         submission_breakdown, quantity_submitted = compute_submission_breakdown(
                             df, col_index, entry_current_invoice_id, item_count=item_count
@@ -366,6 +370,7 @@ class ExcelService:
                     entry = {
                         'section_number': section_number,
                         'current_invoice_id': entry_current_invoice_id,
+                        'invoice_description': entry_invoice_description,
                         'estimated_quantity': estimated_quantity,
                         'quantity_submitted': quantity_submitted,
                         'submission_breakdown': submission_breakdown,

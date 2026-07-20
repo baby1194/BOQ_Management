@@ -118,6 +118,7 @@ class ConcentrationEntryBase(BaseModel):
     description: Optional[str] = None  # Manual user input
     calculation_sheet_no: Optional[str] = Field(None, max_length=100)
     drawing_no: Optional[str] = Field(None, max_length=100)
+    invoice_description: Optional[str] = None
     estimated_quantity: float = Field(0.0, ge=0)
     submission_percentage: float = Field(100.0, ge=0, le=100)
     quantity_submitted: float = Field(0.0, ge=0)
@@ -154,6 +155,7 @@ class ConcentrationEntryUpdate(BaseModel):
     description: Optional[str] = None  # Manual user input
     calculation_sheet_no: Optional[str] = Field(None, max_length=100)
     drawing_no: Optional[str] = Field(None, max_length=100)
+    invoice_description: Optional[str] = None
     estimated_quantity: Optional[float] = Field(None, ge=0)
     submission_percentage: Optional[float] = Field(None, ge=0, le=100)
     quantity_submitted: Optional[float] = Field(None, ge=0)
@@ -198,6 +200,7 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_description: bool = True
     include_calculation_sheet_no: bool = True
     include_drawing_no: bool = True
+    include_invoice_description: bool = True
     include_estimated_quantity: bool = True
     include_submission_percentage: bool = True
     include_quantity_submitted: bool = True
@@ -335,6 +338,7 @@ class OpenSourceFileByNoRequest(BaseModel):
 class CalculationEntryBase(BaseModel):
     section_number: str = Field(..., min_length=1, max_length=100)
     current_invoice_id: Optional[str] = None
+    invoice_description: Optional[str] = None
     estimated_quantity: float = Field(0.0, ge=0)
     quantity_submitted: float = Field(0.0, ge=0)
     submission_breakdown: Optional[Dict[str, Any]] = None

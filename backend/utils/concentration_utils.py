@@ -202,6 +202,7 @@ def apply_calculation_entry_estimated_only(
     concentration_entry.submission_percentage = 0.0
     concentration_entry.submission_breakdown = None
     concentration_entry.drawing_no = None
+    concentration_entry.invoice_description = None
 
 
 def sync_calc_entry_to_concentration(
@@ -262,6 +263,9 @@ def sync_calc_entry_to_concentration(
             apply_calculation_entry_quantities(
                 concentration_entry, calc_entry, drawing_no=invoice_id
             )
+            concentration_entry.invoice_description = (
+                getattr(calc_entry, "invoice_description", None) or None
+            )
         else:
             apply_calculation_entry_estimated_only(concentration_entry, calc_entry)
         concentration_entry.calculation_sheet_no = sheet_no
@@ -278,12 +282,18 @@ def sync_calc_entry_to_concentration(
     invoice_id = (
         str(calc_entry.current_invoice_id or "").strip() if submitted else None
     )
+    invoice_description = (
+        (getattr(calc_entry, "invoice_description", None) or None)
+        if submitted
+        else None
+    )
     new_entry = models.ConcentrationEntry(
         concentration_sheet_id=concentration_sheet.id,
         section_number=calc_entry.section_number,
         description=calculation_sheet.description,
         calculation_sheet_no=sheet_no,
         drawing_no=invoice_id,
+        invoice_description=invoice_description,
         estimated_quantity=estimated,
         quantity_submitted=submitted_qty,
         submission_percentage=compute_submission_percentage(

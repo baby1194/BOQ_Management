@@ -129,6 +129,7 @@ export interface ConcentrationEntry {
   description?: string; // Manual Description
   calculation_sheet_no?: string; // Calculation Sheet No
   drawing_no?: string; // Drawing No
+  invoice_description?: string; // Invoice Description
   estimated_quantity: number; // Estimated Quantity
   submission_percentage: number; // Submission percentage (default 100%)
   quantity_submitted: number; // Quantity Submitted (current month from calculation sheet)
@@ -196,6 +197,7 @@ export interface ConcentrationEntryExportRequest {
   include_description: boolean;
   include_calculation_sheet_no: boolean;
   include_drawing_no: boolean;
+  include_invoice_description: boolean;
   include_estimated_quantity: boolean;
   include_submission_percentage: boolean;
   include_quantity_submitted: boolean;
@@ -249,6 +251,7 @@ export interface CalculationEntry {
   calculation_sheet_id: number;
   section_number: string;
   current_invoice_id?: string | null;
+  invoice_description?: string | null;
   estimated_quantity: number;
   quantity_submitted: number;
   submission_breakdown?: SubmissionBreakdown | null;

@@ -88,6 +88,7 @@ class ConcentrationEntry(Base):
     description = Column(Text, nullable=True)  # Manual user input
     calculation_sheet_no = Column(String(100), nullable=True)
     drawing_no = Column(String(100), nullable=True)
+    invoice_description = Column(Text, nullable=True)
     
     # Values
     estimated_quantity = Column(Float, default=0.0)
@@ -165,6 +166,7 @@ class CalculationEntry(Base):
     # Entry details
     section_number = Column(String(100), nullable=False)
     current_invoice_id = Column(String(100), nullable=True)
+    invoice_description = Column(Text, nullable=True)
     estimated_quantity = Column(Float, default=0.0)
     quantity_submitted = Column(Float, default=0.0)
     submission_breakdown = Column(JSON, nullable=True)

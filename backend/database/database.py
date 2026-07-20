@@ -271,6 +271,36 @@ def _ensure_calculation_entry_current_invoice_id_column(engine) -> None:
         conn.commit()
 
 
+def _ensure_invoice_description_columns(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        calc_columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(calculation_entries)"))
+        ]
+        if "invoice_description" not in calc_columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE calculation_entries "
+                    "ADD COLUMN invoice_description TEXT"
+                )
+            )
+
+        conc_columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(concentration_entries)"))
+        ]
+        if "invoice_description" not in conc_columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE concentration_entries "
+                    "ADD COLUMN invoice_description TEXT"
+                )
+            )
+        conn.commit()
+
+
 def init_project_database(project_id: str) -> None:
     from models import models
 
@@ -280,6 +310,7 @@ def init_project_database(project_id: str) -> None:
     _ensure_drawing_files_column(engine)
     _ensure_submission_breakdown_columns(engine)
     _ensure_calculation_entry_current_invoice_id_column(engine)
+    _ensure_invoice_description_columns(engine)
     _ensure_calculation_sheet_no_unique(engine)
 
 

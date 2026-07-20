@@ -76,6 +76,7 @@ def refresh_calculation_sheet_from_disk(
                     calculation_sheet_id=sheet.id,
                     section_number=entry_data["section_number"],
                     current_invoice_id=entry_data.get("current_invoice_id"),
+                    invoice_description=entry_data.get("invoice_description"),
                     estimated_quantity=entry_data["estimated_quantity"],
                     quantity_submitted=entry_data["quantity_submitted"],
                     submission_breakdown=entry_data.get("submission_breakdown"),

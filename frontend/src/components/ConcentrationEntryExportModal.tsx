@@ -23,6 +23,7 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_description",
   "include_calculation_sheet_no",
   "include_drawing_no",
+  "include_invoice_description",
   "include_estimated_quantity",
   "include_submission_percentage",
   "include_quantity_submitted",
@@ -40,6 +41,7 @@ const buildDefaultConcentrationEntryExportRequest =
     include_description: true,
     include_calculation_sheet_no: true,
     include_drawing_no: true,
+    include_invoice_description: true,
     include_estimated_quantity: true,
     include_submission_percentage: true,
     include_quantity_submitted: true,
@@ -213,6 +215,21 @@ const ConcentrationEntryExportModal: React.FC<
                 disabled={loading}
               />
               <span className="text-sm">{t("concentration.drawingNo")}</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_invoice_description}
+                onChange={() =>
+                  handleCheckboxChange("include_invoice_description")
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">
+                {t("concentration.invoiceDescription")}
+              </span>
             </label>
 
             <label className="flex items-center">

@@ -10,6 +10,7 @@ import pandas as pd
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
+INVOICE_DESCRIPTION_ROW = 2  # Excel row 3 (0-based)
 SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
 SHARED_PERIOD_COLUMN_INDEX = 1  # Column B — past invoices when the sheet has one item
 FIRST_ITEM_COLUMN_INDEX = 4
@@ -171,6 +172,17 @@ def read_entry_submitted_invoice_id(df, col_index: int) -> Optional[str]:
     """Read item invoice id from row 2 only; None means the item was not submitted."""
     if col_index < df.shape[1]:
         cell = df.iloc[INVOICE_ID_ROW, col_index]
+        if pd.notna(cell):
+            text = str(cell).strip()
+            if text and text.lower() not in _INVALID_PERIOD_STRINGS:
+                return text
+    return None
+
+
+def read_entry_invoice_description(df, col_index: int) -> Optional[str]:
+    """Read item invoice description from row 3 of an item column."""
+    if col_index < df.shape[1]:
+        cell = df.iloc[INVOICE_DESCRIPTION_ROW, col_index]
         if pd.notna(cell):
             text = str(cell).strip()
             if text and text.lower() not in _INVALID_PERIOD_STRINGS:
@@ -353,6 +365,7 @@ CONCENTRATION_BASE_HEADERS = [
     "Description",
     "Calculation Sheet No",
     "Invoice No",
+    "Invoice Description",
     "Estimated Quantity",
     "Submission Percentage",
     "Quantity Submitted",
@@ -442,6 +455,8 @@ def filter_concentration_export_headers(
             filtered_headers.append("Calculation Sheet No")
         if entry_columns.get("include_drawing_no", True):
             filtered_headers.append("Invoice No")
+        if entry_columns.get("include_invoice_description", True):
+            filtered_headers.append("Invoice Description")
         if entry_columns.get("include_estimated_quantity", True):
             filtered_headers.append("Estimated Quantity")
         if entry_columns.get("include_submission_percentage", True):
@@ -508,6 +523,7 @@ def build_concentration_export_row_values(
         "Description": entry.description or "",
         "Calculation Sheet No": entry.calculation_sheet_no or "",
         "Invoice No": entry.drawing_no or "",
+        "Invoice Description": getattr(entry, "invoice_description", None) or "",
         "Estimated Quantity": float(entry.estimated_quantity or 0),
         "Submission Percentage": period_submission_percentage(
             entry, breakdown, current_drawing_no, current_qty
@@ -769,6 +785,7 @@ def concentration_export_header_translations(language: str) -> Dict[str, str]:
             "Description": "תיאור:",
             "Calculation Sheet No": "מס' דף חישוב",
             "Invoice No": "חן מס'",
+            "Invoice Description": "תיאור חשבונית",
             "Estimated Quantity": "כמות מחושבת",
             "Submission Percentage": "אחוז הגשה",
             "Quantity Submitted": "כמות מוגשת",
@@ -783,6 +800,7 @@ def concentration_export_header_translations(language: str) -> Dict[str, str]:
             "Description": "Description:",
             "Calculation Sheet No": "Calc. Sheet No",
             "Invoice No": "Invoice No",
+            "Invoice Description": "Invoice Description",
             "Estimated Quantity": "Est. Quantity",
             "Submission Percentage": "Percentage",
             "Quantity Submitted": "Qty Submitted",
@@ -803,6 +821,7 @@ def format_concentration_export_row_for_pdf(
         "Description",
         "Calculation Sheet No",
         "Invoice No",
+        "Invoice Description",
         "Notes",
         "Supervisor Notes",
     }
