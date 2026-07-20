@@ -1340,73 +1340,92 @@ const ConcentrationSheets: React.FC = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
-                  {filteredSheets.map((sheet) => (
-                    <div
-                      key={sheet.id}
-                      id={`sheet-${sheet.id}`}
-                      className={`p-4 hover:bg-gray-50 transition-colors ${
-                        selectedSheet?.id === sheet.id
-                          ? navigatedFromBOQ &&
-                            searchParams.get("selectedItem") &&
-                            sheet.boq_item_id ===
-                              parseInt(searchParams.get("selectedItem")!)
-                            ? "bg-blue-100 border-r-4 border-blue-600 shadow-sm"
-                            : "bg-blue-50 border-r-4 border-blue-500"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className="flex-1 cursor-pointer"
-                          onClick={() => handleSheetSelect(sheet)}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-medium text-gray-900">
-                                  {sheet.boq_item.section_number}
-                                </h3>
-                                {sheet.boq_item.has_contract_updates && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {t("concentration.updatedQty")}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                {sheet.boq_item.description}
-                              </p>
-                              <div className="mt-2 text-xs text-gray-500">
-                                <div>
-                                  {t("concentration.unit")}{" "}
-                                  {sheet.boq_item.unit}
-                                </div>
-                                <div>
-                                  {t("concentration.qtyLabel")}{" "}
-                                  {formatNumber(
-                                    sheet.boq_item.latest_contract_quantity
-                                  )}
+                  {filteredSheets.map((sheet) => {
+                    const submittedQty =
+                      sheet.boq_item.quantity_submitted ?? 0;
+                    const approvedQty =
+                      sheet.boq_item.approved_by_project_manager ?? 0;
+                    const roundedSubmitted =
+                      Math.round(submittedQty * 100) / 100;
+                    const roundedApproved =
+                      Math.round(approvedQty * 100) / 100;
+                    const bothZero =
+                      roundedSubmitted === 0 && roundedApproved === 0;
+                    const qtyMismatch =
+                      !bothZero && roundedSubmitted !== roundedApproved;
+
+                    return (
+                      <div
+                        key={sheet.id}
+                        id={`sheet-${sheet.id}`}
+                        className={`p-4 hover:bg-gray-50 transition-colors ${
+                          selectedSheet?.id === sheet.id
+                            ? navigatedFromBOQ &&
+                              searchParams.get("selectedItem") &&
+                              sheet.boq_item_id ===
+                                parseInt(searchParams.get("selectedItem")!)
+                              ? "bg-blue-100 border-r-4 border-blue-600 shadow-sm"
+                              : "bg-blue-50 border-r-4 border-blue-500"
+                            : bothZero
+                              ? "bg-gray-100"
+                              : qtyMismatch
+                                ? "bg-yellow-100"
+                                : ""
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => handleSheetSelect(sheet)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-medium text-gray-900">
+                                    {sheet.boq_item.section_number}
+                                  </h3>
                                   {sheet.boq_item.has_contract_updates && (
-                                    <span
-                                      className={`text-blue-600 ${
-                                        isRTL ? "mr-1" : "ml-1"
-                                      }`}
-                                    >
-                                      ({t("concentration.updated")}{" "}
-                                      {sheet.boq_item.latest_update_index})
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                      {t("concentration.updatedQty")}
                                     </span>
                                   )}
                                 </div>
-                                <div>
-                                  {t("concentration.priceLabel")}{" "}
-                                  {formatCurrency(sheet.boq_item.price)}
+                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                  {sheet.boq_item.description}
+                                </p>
+                                <div className="mt-2 text-xs text-gray-500">
+                                  <div>
+                                    {t("concentration.unit")}{" "}
+                                    {sheet.boq_item.unit}
+                                  </div>
+                                  <div>
+                                    {t("concentration.qtyLabel")}{" "}
+                                    {formatNumber(
+                                      sheet.boq_item.latest_contract_quantity
+                                    )}
+                                    {sheet.boq_item.has_contract_updates && (
+                                      <span
+                                        className={`text-blue-600 ${
+                                          isRTL ? "mr-1" : "ml-1"
+                                        }`}
+                                      >
+                                        ({t("concentration.updated")}{" "}
+                                        {sheet.boq_item.latest_update_index})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div>
+                                    {t("concentration.priceLabel")}{" "}
+                                    {formatCurrency(sheet.boq_item.price)}
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
