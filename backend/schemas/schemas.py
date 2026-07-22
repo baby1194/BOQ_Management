@@ -212,6 +212,12 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_notes: bool = True
     include_supervisor_notes: bool = True
 
+
+class AutoExportColumnsRequest(BaseModel):
+    """Optional body for track/sync actions that auto-export Fatina PDFs."""
+    entry_columns: Optional[ConcentrationEntryExportRequest] = None
+
+
 # Search Schemas
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
@@ -388,6 +394,13 @@ class CalculationSheetsListResponse(BaseModel):
 
 class CalculationSheetsImportPathsRequest(BaseModel):
     file_paths: List[str] = Field(..., min_items=1)
+    entry_columns: Optional[ConcentrationEntryExportRequest] = None
+
+
+class CalculationSheetsImportFolderRequest(BaseModel):
+    folder_path: str = Field(..., min_length=1)
+    recursive: bool = True
+    entry_columns: Optional[ConcentrationEntryExportRequest] = None
 
 
 class CalculationSheetsTrackResponse(BaseModel):

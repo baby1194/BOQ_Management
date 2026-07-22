@@ -2327,6 +2327,9 @@ const ConcentrationSheets: React.FC = () => {
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                <td className="px-3 py-3 text-sm text-gray-500">
+                                  -
+                                </td>
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
                                     visibleEntries.reduce(

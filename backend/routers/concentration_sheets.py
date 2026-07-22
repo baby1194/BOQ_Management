@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional, Set
@@ -498,6 +498,7 @@ async def delete_concentration_sheet(sheet_id: int, db: Session = Depends(get_db
 )
 async def track_concentration_sheet_calculation_sheets(
     sheet_id: int,
+    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -569,6 +570,7 @@ async def track_concentration_sheet_calculation_sheets(
     if sheets_skipped:
         message += f". Skipped {sheets_skipped} sheet(s)."
 
+    entry_columns = body.entry_columns.dict() if body and body.entry_columns else None
     if sheets_updated > 0:
         message = finalize_calculation_sheet_changes(
             db,
@@ -576,6 +578,7 @@ async def track_concentration_sheet_calculation_sheets(
             message,
             merge_push_results(push_results),
             language=language,
+            entry_columns=entry_columns,
         )
 
     return schemas.CalculationSheetsTrackResponse(

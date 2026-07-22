@@ -739,6 +739,9 @@ async def import_calculation_sheets_from_paths(
             success_message,
             merge_push_results(push_results),
             language=language,
+            entry_columns=(
+                request.entry_columns.dict() if request.entry_columns else None
+            ),
         )
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
@@ -752,7 +755,7 @@ async def import_calculation_sheets_from_paths(
 
 @router.post("/import-calculation-sheets-from-folder/", response_model=schemas.CalculationImportResponse)
 async def import_calculation_sheets_from_folder(
-    request: schemas.ImportRequest,
+    request: schemas.CalculationSheetsImportFolderRequest,
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -798,6 +801,9 @@ async def import_calculation_sheets_from_folder(
             success_message,
             merge_push_results(push_results),
             language=language,
+            entry_columns=(
+                request.entry_columns.dict() if request.entry_columns else None
+            ),
         )
 
     return schemas.CalculationImportResponse(
@@ -816,6 +822,7 @@ async def import_calculation_sheets(
     files: List[UploadFile] = File(...),
     source_folder_path: Optional[str] = Form(None),
     file_relative_paths: Optional[str] = Form(None),
+    entry_columns: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -827,7 +834,17 @@ async def import_calculation_sheets(
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
-    
+
+    entry_columns_dict = None
+    if entry_columns:
+        try:
+            entry_columns_dict = schemas.ConcentrationEntryExportRequest(
+                **json.loads(entry_columns)
+            ).dict()
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid entry_columns JSON: {e}"
+            )
     try:
         upload_dir = get_project_upload_dir(project_id)
         excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
@@ -1007,6 +1024,7 @@ async def import_calculation_sheets(
                 success_message,
                 merge_push_results(push_results),
                 language=language,
+                entry_columns=entry_columns_dict,
             )
         
         return schemas.CalculationImportResponse(

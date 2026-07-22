@@ -1435,7 +1435,7 @@ class PDFService:
             raise
 
     def export_concentration_sheets_for_boq_items(
-        self, boq_item_ids, db_session, language="en"
+        self, boq_item_ids, db_session, language="en", entry_columns=None
     ) -> int:
         """Export concentration sheets for specific BOQ items to C:/Fatina/{section_number}/ as PDF."""
         if not boq_item_ids:
@@ -1461,7 +1461,12 @@ class PDFService:
             )
             try:
                 self.export_single_concentration_sheet(
-                    sheet, boq_item, entries, db_session, language=language
+                    sheet,
+                    boq_item,
+                    entries,
+                    db_session,
+                    entry_columns=entry_columns,
+                    language=language,
                 )
                 exported_count += 1
             except Exception as e:

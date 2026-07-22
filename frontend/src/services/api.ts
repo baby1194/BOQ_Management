@@ -48,8 +48,13 @@ import {
   clearAppLocalStorage,
   getActiveProjectId,
 } from "../utils/localStorage";
+import { getConcentrationEntryExportColumns } from "../utils/exportPreferences";
 
 let activeProjectId: string | null = getActiveProjectId();
+
+function autoExportColumnsBody() {
+  return { entry_columns: getConcentrationEntryExportColumns() };
+}
 
 /** FastAPI collection routes use a trailing slash; avoid 307 redirects through the dev proxy. */
 function withTrailingSlash(url: string): string {
@@ -299,7 +304,7 @@ export const concentrationApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
-      }>(`/concentration/${sheetId}/track-calculation-sheets`, undefined, {
+      }>(`/concentration/${sheetId}/track-calculation-sheets`, autoExportColumnsBody(), {
         params: { language: language || "en" },
       })
       .then((res) => res.data),
@@ -389,7 +394,7 @@ export const calculationSheetsApi = {
     api
       .post<PopulateConcentrationEntriesResponse>(
         `/calculation-sheets/${sheetId}/populate-concentration-entries`,
-        undefined,
+        autoExportColumnsBody(),
         { params: { language: language || "en" } }
       )
       .then((res) => res.data),
@@ -398,7 +403,7 @@ export const calculationSheetsApi = {
     api
       .post<{ success: boolean; message: string; details: any }>(
         `/calculation-sheets/sync-all`,
-        undefined,
+        autoExportColumnsBody(),
         { params: { language: language || "en" } }
       )
       .then((res) => res.data),
@@ -412,7 +417,7 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
-      }>("/calculation-sheets/track", undefined, {
+      }>("/calculation-sheets/track", autoExportColumnsBody(), {
         params: { language: language || "en" },
       })
       .then((res) => res.data),
@@ -426,7 +431,7 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
-      }>(`/calculation-sheets/${sheetId}/track`, undefined, {
+      }>(`/calculation-sheets/${sheetId}/track`, autoExportColumnsBody(), {
         params: { language: language || "en" },
       })
       .then((res) => res.data),
@@ -505,6 +510,10 @@ export const importApi = {
   },
 
   importCalculationSheets: (files: FormData, language?: string) => {
+    files.append(
+      "entry_columns",
+      JSON.stringify(getConcentrationEntryExportColumns())
+    );
     return api
       .post<CalculationImportResponse>(
         "/file-import/import-calculation-sheets/",
@@ -529,7 +538,10 @@ export const importApi = {
     api
       .post<CalculationImportResponse>(
         "/file-import/import-calculation-sheets-from-paths/",
-        { file_paths: filePaths },
+        {
+          file_paths: filePaths,
+          ...autoExportColumnsBody(),
+        },
         { params: { language: language || "en" } }
       )
       .then((res) => res.data),
@@ -542,6 +554,7 @@ export const importApi = {
     const request = {
       folder_path: folderPath,
       recursive: recursive,
+      ...autoExportColumnsBody(),
     };
     return api
       .post<CalculationImportResponse>(

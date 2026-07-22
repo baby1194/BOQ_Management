@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from pathlib import Path
 import logging
 import os
@@ -28,6 +28,16 @@ from utils.concentration_utils import (
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+
+def _entry_columns_dict(
+    body: Optional[schemas.AutoExportColumnsRequest] = None,
+    entry_columns: Optional[schemas.ConcentrationEntryExportRequest] = None,
+):
+    cols = entry_columns
+    if cols is None and body is not None:
+        cols = body.entry_columns
+    return cols.dict() if cols is not None else None
 
 
 def open_file_in_default_application(file_path: str) -> None:
@@ -284,6 +294,7 @@ async def open_source_file(
 @router.post("/{sheet_id}/track", response_model=schemas.CalculationSheetsTrackResponse)
 async def track_calculation_sheet(
     sheet_id: int,
+    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -318,7 +329,12 @@ async def track_calculation_sheet(
         f"({entries_refreshed} entries refreshed from disk)"
     )
     message = finalize_calculation_sheet_changes(
-        db, project_id, message, push_result, language=language
+        db,
+        project_id,
+        message,
+        push_result,
+        language=language,
+        entry_columns=_entry_columns_dict(body),
     )
     return schemas.CalculationSheetsTrackResponse(
         success=True,
@@ -519,6 +535,7 @@ async def update_calculation_entry(
 
 @router.post("/track", response_model=schemas.CalculationSheetsTrackResponse)
 async def track_calculation_sheets(
+    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -564,6 +581,7 @@ async def track_calculation_sheets(
             message,
             merge_push_results(push_results),
             language=language,
+            entry_columns=_entry_columns_dict(body),
         )
 
     return schemas.CalculationSheetsTrackResponse(
@@ -578,6 +596,7 @@ async def track_calculation_sheets(
 
 @router.post("/sync-all", response_model=dict)
 async def sync_all_calculation_sheets(
+    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -587,7 +606,10 @@ async def sync_all_calculation_sheets(
     """
     try:
         result = perform_sync_all_calculation_sheets(
-            db, project_id, language=language
+            db,
+            project_id,
+            language=language,
+            entry_columns=_entry_columns_dict(body),
         )
 
         if result["success"]:
@@ -608,6 +630,7 @@ async def sync_all_calculation_sheets(
 @router.post("/{sheet_id}/populate-concentration-entries", response_model=schemas.PopulateConcentrationEntriesResponse)
 async def populate_concentration_entries(
     sheet_id: int,
+    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
     db: Session = Depends(get_db),
     project_id: str = Depends(get_project_id),
     language: str = Query("en"),
@@ -615,6 +638,7 @@ async def populate_concentration_entries(
     """
     Populate concentration entries from calculation sheet entries
     """
+    entry_columns = _entry_columns_dict(body)
     # Get the calculation sheet
     calculation_sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
     if not calculation_sheet:
@@ -761,7 +785,7 @@ async def populate_concentration_entries(
         if boq_items_to_export:
             pdf_service = PDFService(exports_dir=get_project_export_dir(project_id))
             concentration_sheets_exported = pdf_service.export_concentration_sheets_for_boq_items(
-                boq_items_to_export, db, language=language
+                boq_items_to_export, db, language=language, entry_columns=entry_columns
             )
             logger.info(
                 f"Exported {concentration_sheets_exported} concentration sheet PDF(s) to Fatina "

@@ -4,6 +4,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { ConcentrationEntryExportRequest } from "../types";
 import {
   EXPORT_PREFS_KEYS,
+  buildDefaultConcentrationEntryExportRequest,
   loadExportColumnPrefs,
   saveExportColumnPrefs,
 } from "../utils/exportPreferences";
@@ -35,24 +36,6 @@ const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
   "include_notes",
   "include_supervisor_notes",
 ];
-
-const buildDefaultConcentrationEntryExportRequest =
-  (): ConcentrationEntryExportRequest => ({
-    include_description: true,
-    include_calculation_sheet_no: true,
-    include_drawing_no: true,
-    include_invoice_description: true,
-    include_estimated_quantity: true,
-    include_submission_percentage: true,
-    include_quantity_submitted: true,
-    include_past_months_submitted: false,
-    include_past_months_submitted_subrows: false,
-    include_left_submitted: false,
-    include_internal_quantity: true,
-    include_approved_by_project_manager: true,
-    include_notes: true,
-    include_supervisor_notes: true,
-  });
 
 const ConcentrationEntryExportModal: React.FC<
   ConcentrationEntryExportModalProps
