@@ -685,13 +685,12 @@ class NonBoqExportRequest(BaseModel):
 # Project Info Files (standalone reference files)
 class ProjectInfoFileCreate(BaseModel):
     no: Optional[int] = Field(None, ge=1, description="1-based insert position; omit to append")
-    category_en: str = Field(..., min_length=1, max_length=200)
-    category_he: str = Field(..., min_length=1, max_length=200)
     file_path: str = Field(..., min_length=1, max_length=1000)
     description: Optional[str] = None
 
 
 class ProjectInfoFileUpdate(BaseModel):
+    no: Optional[int] = Field(None, ge=1, description="1-based target position after save")
     file_path: Optional[str] = Field(None, min_length=1, max_length=1000)
     description: Optional[str] = None
 
@@ -699,8 +698,6 @@ class ProjectInfoFileUpdate(BaseModel):
 class ProjectInfoFile(BaseModel):
     id: int
     no: int
-    category_en: str
-    category_he: str
     file_name: str
     file_path: str
     description: Optional[str] = None

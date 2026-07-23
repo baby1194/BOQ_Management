@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { DraftingCompass, Plus, Pencil, Trash2 } from "lucide-react";
+import { DraftingCompass, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { drawingListApi } from "../services/api";
 import { DrawingListItem } from "../types";
@@ -130,6 +130,12 @@ const ListOfDrawings: React.FC = () => {
 
   const startEdit = (row: DrawingListItem) => {
     setEditing({ mode: "edit", id: row.id, draft: rowToDraft(row) });
+  };
+
+  const handleDuplicate = (row: DrawingListItem) => {
+    const draft = rowToDraft(row);
+    draft.no = "";
+    setEditing({ mode: "new", draft });
   };
 
   const cancelEdit = () => setEditing(null);
@@ -471,6 +477,17 @@ const ListOfDrawings: React.FC = () => {
           >
             <Pencil className={`h-3.5 w-3.5 ${isRTL ? "ml-1" : "mr-1"}`} />
             {t("common.edit")}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDuplicate(row)}
+            disabled={editing?.mode === "new"}
+            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded hover:bg-indigo-100 disabled:opacity-50 ${
+              isRTL ? "flex-row-reverse" : ""
+            }`}
+          >
+            <Copy className={`h-3.5 w-3.5 ${isRTL ? "ml-1" : "mr-1"}`} />
+            {t("listOfDrawings.duplicate")}
           </button>
           <button
             type="button"

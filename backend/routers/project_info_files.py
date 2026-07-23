@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import logging
 import os
 import platform
@@ -22,8 +22,6 @@ def _to_response(row: models.ProjectInfoFile) -> schemas.ProjectInfoFile:
     return schemas.ProjectInfoFile(
         id=row.id,
         no=row.display_order,
-        category_en=row.category_en,
-        category_he=row.category_he,
         file_name=_file_name_from_path(row.file_path),
         file_path=row.file_path,
         description=row.description,
@@ -32,8 +30,8 @@ def _to_response(row: models.ProjectInfoFile) -> schemas.ProjectInfoFile:
     )
 
 
-def _renumber(db: Session) -> None:
-    rows = (
+def _ordered_rows(db: Session) -> List[models.ProjectInfoFile]:
+    return (
         db.query(models.ProjectInfoFile)
         .order_by(
             models.ProjectInfoFile.display_order.asc(),
@@ -41,23 +39,32 @@ def _renumber(db: Session) -> None:
         )
         .all()
     )
+
+
+def _renumber(rows: List[models.ProjectInfoFile]) -> None:
     for index, row in enumerate(rows, start=1):
         row.display_order = index
+
+
+def _insert_at(
+    rows: List[models.ProjectInfoFile],
+    item: models.ProjectInfoFile,
+    target_no: Optional[int],
+) -> None:
+    """Place item at 1-based target_no; append if missing/invalid/too large."""
+    count = len(rows)
+    if target_no is None or target_no < 1 or target_no > count + 1:
+        rows.append(item)
+    else:
+        rows.insert(target_no - 1, item)
+    _renumber(rows)
 
 
 @router.get("/", response_model=List[schemas.ProjectInfoFile])
 async def list_project_info_files(db: Session = Depends(get_db)):
     """List all project info files ordered by No."""
     try:
-        rows = (
-            db.query(models.ProjectInfoFile)
-            .order_by(
-                models.ProjectInfoFile.display_order.asc(),
-                models.ProjectInfoFile.id.asc(),
-            )
-            .all()
-        )
-        return [_to_response(row) for row in rows]
+        return [_to_response(row) for row in _ordered_rows(db)]
     except Exception as e:
         logger.error("Error listing project info files: %s", e)
         raise HTTPException(
@@ -77,28 +84,15 @@ async def create_project_info_file(
 ):
     """Create a project info file row, optionally inserting at a given No."""
     try:
-        count = db.query(models.ProjectInfoFile).count()
-        requested_no = body.no
-
-        if requested_no is None or requested_no < 1 or requested_no > count:
-            display_order = count + 1
-        else:
-            display_order = requested_no
-            to_shift = (
-                db.query(models.ProjectInfoFile)
-                .filter(models.ProjectInfoFile.display_order >= display_order)
-                .all()
-            )
-            for row in to_shift:
-                row.display_order += 1
-
         db_item = models.ProjectInfoFile(
-            display_order=display_order,
-            category_en=body.category_en.strip(),
-            category_he=body.category_he.strip(),
+            display_order=1,
+            category_en="",
+            category_he="",
             file_path=body.file_path.strip(),
             description=(body.description or "").strip() or None,
         )
+        rows = _ordered_rows(db)
+        _insert_at(rows, db_item, body.no)
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
@@ -120,7 +114,7 @@ async def update_project_info_file(
     body: schemas.ProjectInfoFileUpdate,
     db: Session = Depends(get_db),
 ):
-    """Update file path and/or description for a project info file."""
+    """Update file path, description, and optionally reposition by No."""
     try:
         db_item = (
             db.query(models.ProjectInfoFile)
@@ -133,7 +127,7 @@ async def update_project_info_file(
                 detail="Project info file not found",
             )
 
-        update_data = body.model_dump(exclude_unset=True)
+        update_data = body.model_dump(exclude_unset=True, exclude={"no"})
         if "file_path" in update_data and update_data["file_path"] is not None:
             path = update_data["file_path"].strip()
             if not path:
@@ -145,6 +139,10 @@ async def update_project_info_file(
         if "description" in update_data:
             desc = update_data["description"]
             db_item.description = (desc or "").strip() or None
+
+        if body.no is not None and body.no != db_item.display_order:
+            rows = [r for r in _ordered_rows(db) if r.id != file_id]
+            _insert_at(rows, db_item, body.no)
 
         db.commit()
         db.refresh(db_item)
@@ -176,7 +174,7 @@ async def delete_project_info_file(file_id: int, db: Session = Depends(get_db)):
             )
         db.delete(db_item)
         db.flush()
-        _renumber(db)
+        _renumber(_ordered_rows(db))
         db.commit()
     except HTTPException:
         raise

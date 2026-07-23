@@ -8,28 +8,25 @@ import { ProjectInfoFile } from "../types";
 
 interface AddFormState {
   no: string;
-  category_en: string;
-  category_he: string;
   file_path: string;
   description: string;
 }
 
 interface EditDraft {
+  no: string;
   file_path: string;
   description: string;
 }
 
 const emptyAddForm = (): AddFormState => ({
   no: "",
-  category_en: "",
-  category_he: "",
   file_path: "",
   description: "",
 });
 
 const ProjectInfoFiles: React.FC = () => {
   const { t } = useTranslation();
-  const { isRTL, language } = useLanguage();
+  const { isRTL } = useLanguage();
   const [files, setFiles] = useState<ProjectInfoFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -37,6 +34,7 @@ const ProjectInfoFiles: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>({
+    no: "",
     file_path: "",
     description: "",
   });
@@ -61,9 +59,6 @@ const ProjectInfoFiles: React.FC = () => {
     loadFiles();
   }, [loadFiles]);
 
-  const categoryForRow = (row: ProjectInfoFile) =>
-    language === "he" ? row.category_he : row.category_en;
-
   const handleOpenAdd = () => {
     setAddForm(emptyAddForm());
     setShowAddForm(true);
@@ -72,12 +67,10 @@ const ProjectInfoFiles: React.FC = () => {
 
   const handleCreate = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const categoryEn = addForm.category_en.trim();
-    const categoryHe = addForm.category_he.trim();
     const filePath = addForm.file_path.trim();
 
-    if (!categoryEn || !categoryHe || !filePath) {
-      toast.error(t("projectInfoFiles.requiredFields"));
+    if (!filePath) {
+      toast.error(t("projectInfoFiles.filePathRequired"));
       return;
     }
 
@@ -96,8 +89,6 @@ const ProjectInfoFiles: React.FC = () => {
     try {
       await projectInfoFilesApi.create({
         no,
-        category_en: categoryEn,
-        category_he: categoryHe,
         file_path: filePath,
         description: addForm.description.trim() || null,
       });
@@ -119,6 +110,7 @@ const ProjectInfoFiles: React.FC = () => {
     setShowAddForm(false);
     setEditingId(row.id);
     setEditDraft({
+      no: String(row.no),
       file_path: row.file_path,
       description: row.description || "",
     });
@@ -126,7 +118,7 @@ const ProjectInfoFiles: React.FC = () => {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditDraft({ file_path: "", description: "" });
+    setEditDraft({ no: "", file_path: "", description: "" });
   };
 
   const saveEdit = async (id: number) => {
@@ -136,15 +128,29 @@ const ProjectInfoFiles: React.FC = () => {
       return;
     }
 
+    const noRaw = editDraft.no.trim();
+    let no: number | null = null;
+    if (noRaw === "") {
+      toast.error(t("projectInfoFiles.invalidNo"));
+      return;
+    }
+    const parsed = Number(noRaw);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      toast.error(t("projectInfoFiles.invalidNo"));
+      return;
+    }
+    no = parsed;
+
     setSaving(true);
     try {
-      const updated = await projectInfoFilesApi.update(id, {
+      await projectInfoFilesApi.update(id, {
+        no,
         file_path: filePath,
         description: editDraft.description.trim() || null,
       });
-      setFiles((prev) => prev.map((f) => (f.id === id ? updated : f)));
       setEditingId(null);
       toast.success(t("projectInfoFiles.updatedSuccessfully"));
+      await loadFiles();
     } catch (error: any) {
       console.error(error);
       toast.error(
@@ -155,10 +161,7 @@ const ProjectInfoFiles: React.FC = () => {
     }
   };
 
-  const handleEditKeyDown = (
-    e: React.KeyboardEvent,
-    id: number
-  ) => {
+  const handleEditKeyDown = (e: React.KeyboardEvent, id: number) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void saveEdit(id);
@@ -290,43 +293,6 @@ const ProjectInfoFiles: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t("projectInfoFiles.categoryEn")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={addForm.category_en}
-                onChange={(e) =>
-                  setAddForm((prev) => ({
-                    ...prev,
-                    category_en: e.target.value,
-                  }))
-                }
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t("projectInfoFiles.categoryHe")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={addForm.category_he}
-                onChange={(e) =>
-                  setAddForm((prev) => ({
-                    ...prev,
-                    category_he: e.target.value,
-                  }))
-                }
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                dir="rtl"
-              />
-            </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t("projectInfoFiles.description")}
@@ -345,9 +311,7 @@ const ProjectInfoFiles: React.FC = () => {
             </div>
           </div>
 
-          <div
-            className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
-          >
+          <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
             <button
               type="submit"
               disabled={saving}
@@ -385,9 +349,6 @@ const ProjectInfoFiles: React.FC = () => {
                     {t("projectInfoFiles.no")}
                   </th>
                   <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
-                    {t("projectInfoFiles.category")}
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
                     {t("projectInfoFiles.fileName")}
                   </th>
                   <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
@@ -407,10 +368,24 @@ const ProjectInfoFiles: React.FC = () => {
                   return (
                     <tr key={row.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
-                        {row.no}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
-                        {categoryForRow(row)}
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={1}
+                            value={editDraft.no}
+                            onChange={(e) =>
+                              setEditDraft((prev) => ({
+                                ...prev,
+                                no: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => handleEditKeyDown(e, row.id)}
+                            className="w-20 mx-auto px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          row.no
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
                         {row.file_name}
@@ -428,7 +403,6 @@ const ProjectInfoFiles: React.FC = () => {
                             }
                             onKeyDown={(e) => handleEditKeyDown(e, row.id)}
                             className="w-full min-w-[14rem] px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                            autoFocus
                           />
                         ) : (
                           <button

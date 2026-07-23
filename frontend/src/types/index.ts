@@ -479,8 +479,6 @@ export interface SignupAllowed {
 export interface ProjectInfoFile {
   id: number;
   no: number;
-  category_en: string;
-  category_he: string;
   file_name: string;
   file_path: string;
   description?: string | null;
@@ -490,13 +488,12 @@ export interface ProjectInfoFile {
 
 export interface ProjectInfoFileCreate {
   no?: number | null;
-  category_en: string;
-  category_he: string;
   file_path: string;
   description?: string | null;
 }
 
 export interface ProjectInfoFileUpdate {
+  no?: number | null;
   file_path?: string;
   description?: string | null;
 }
