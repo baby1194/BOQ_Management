@@ -317,16 +317,28 @@ class PDFService:
         
         return table_style, processed_data
     
-    def _create_robust_hebrew_table(self, data, headers, column_widths, repeat_rows=0, language="en"):
+    def _create_robust_hebrew_table(
+        self,
+        data,
+        headers,
+        column_widths,
+        repeat_rows=0,
+        language="en",
+        font_size=12,
+        cell_padding=None,
+    ):
         """Create a table with robust Hebrew support using Paragraph objects"""
         from reportlab.platypus import Paragraph
         from reportlab.lib.styles import ParagraphStyle
+
+        if cell_padding is None:
+            cell_padding = font_size
         
         # Create Hebrew-aware paragraph styles
         hebrew_style = ParagraphStyle(
             'HebrewStyle',
             fontName=self.hebrew_font,
-            fontSize=12,  # Same font size as other tables
+            fontSize=font_size,
             alignment=2,  # Right alignment for Hebrew text
             spaceAfter=0,
             spaceBefore=0,
@@ -338,7 +350,7 @@ class PDFService:
         english_style = ParagraphStyle(
             'EnglishStyle',
             fontName='Helvetica',
-            fontSize=12,  # Same font size as other tables
+            fontSize=font_size,
             alignment=0,  # Left alignment for English text
             spaceAfter=0,
             spaceBefore=0,
@@ -387,9 +399,9 @@ class PDFService:
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
             ('ALIGN', (0, 0), (-1, -1), align_mode),  # Alignment based on language
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as other tables - all cells
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table for all rows
-            ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table for all rows
+            ('FONTSIZE', (0, 0), (-1, -1), font_size),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
+            ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
             ('BACKGROUND', (0, 1), (-1, -2), colors.white),
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
@@ -605,7 +617,9 @@ class PDFService:
         
         canvas.restoreState()
     
-    def _add_concentration_header_footer(self, canvas, doc, title_text, language="en"):
+    def _add_concentration_header_footer(
+        self, canvas, doc, title_text, language="en", title_font_size=24
+    ):
         """Add header and footer to concentration sheet PDF pages with title"""
         canvas.saveState()
         
@@ -624,11 +638,11 @@ class PDFService:
                     display_title = f"{section_number} - {reversed_hebrew}"
                 else:
                     display_title = self._reverse_hebrew_text(title_text)
-                canvas.setFont(self.hebrew_font_bold, 24)
+                canvas.setFont(self.hebrew_font_bold, title_font_size)
                 canvas.drawRightString(doc.pagesize[0] - 0.5*inch, doc.pagesize[1] - 0.5*inch, display_title)
             else:
                 # English: left-aligned with regular font
-                canvas.setFont("Helvetica-Bold", 24)
+                canvas.setFont("Helvetica-Bold", title_font_size)
                 canvas.drawString(0.5*inch, doc.pagesize[1] - 0.5*inch, title_text)
         
         
@@ -1021,48 +1035,42 @@ class PDFService:
                 headers_translations.get(header, header) for header in filtered_headers
             ]
             
-            # Calculate optimal page size based on content
-            page_size = None
-            page_width = None
-            concentration_column_widths = None
+            # Calculate page size: user-selected A4/A3 (landscape), default A3
+            page_size_choice = "A3"
+            if isinstance(entry_columns, dict):
+                raw_choice = entry_columns.get("page_size")
+                if isinstance(raw_choice, str) and raw_choice.upper() in ("A4", "A3"):
+                    page_size_choice = raw_choice.upper()
+            elif entry_columns is not None and hasattr(entry_columns, "page_size"):
+                raw_choice = getattr(entry_columns, "page_size", None)
+                if isinstance(raw_choice, str) and raw_choice.upper() in ("A4", "A3"):
+                    page_size_choice = raw_choice.upper()
 
-            if entries:
-                # Prepare data for optimal page size calculation using translated headers
-                calc_data = [translated_headers]
-                sample_rows = build_all_concentration_export_rows(
-                    entries[:10],
-                    period_keys,
-                    filtered_headers,
-                    entry_columns,
-                    notes_getter=_notes_for_pdf_export,
-                )
-                for row_values in sample_rows:
-                    calc_data.append(
-                        format_concentration_export_row_for_pdf(
-                            row_values, filtered_headers
-                        )
-                    )
-                
-                # Add a sample totals row for calculation
-                calc_data.append([totals_text] + [""] * (len(translated_headers) - 1))
-                
-                # Calculate optimal page size using the same method as BOQ items
-                page_size, page_name, concentration_column_widths = self._calculate_optimal_page_size(
-                    translated_headers, calc_data, font_size=12
-                )
-                page_width = page_size[0]
-                logger.info(f"Calculated optimal page size: {page_name} for concentration sheet")
+            if page_size_choice == "A4":
+                page_size = landscape(A4)
+                # A4 landscape is ~70% of A3 width — scale type and padding down
+                font_size = 8
+                cell_padding = 5
+                title_font_size = 16
+                section_spacer = 12
             else:
-                # Default to A3 landscape if no entries
                 page_size = landscape(A3)
-                page_width = page_size[0]
+                font_size = 12
+                cell_padding = 12
+                title_font_size = 24
+                section_spacer = 20
+            page_width = page_size[0]
+            logger.info(
+                f"Using concentration sheet PDF page size: {page_size_choice} landscape "
+                f"({page_size[0]:.0f}x{page_size[1]:.0f}), font_size={font_size}"
+            )
             
             # Add smaller margins (0.75 inches each)
             doc = SimpleDocTemplate(str(filepath), pagesize=page_size, 
                                   leftMargin=54, rightMargin=54, topMargin=36, bottomMargin=36)
             story = []
             styles = getSampleStyleSheet()
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, section_spacer))
             # Combined Table: Project Information and BOQ Item Details (2 columns layout)
             # Left column: Project Name, Contract No, Section Number, Unit, Description
             # Right column: Contractor in Charge, Developer Name, Contract Quantity, Price
@@ -1124,7 +1132,9 @@ class PDFService:
             # Calculate column widths using the proper method
             # Create dummy headers for width calculation (4 columns: left_label, left_value, right_label, right_value)
             dummy_headers = ['Label', 'Value', 'Label', 'Value']
-            combined_col_widths = self._calculate_column_widths(combined_data, dummy_headers, page_width, 12, 12, language)
+            combined_col_widths = self._calculate_column_widths(
+                combined_data, dummy_headers, page_width, font_size, font_size, language
+            )
             
             # Don't use _create_hebrew_aware_table_style for combined table - build style from scratch
             # Process data manually for Hebrew text
@@ -1146,9 +1156,9 @@ class PDFService:
             align_mode = 'RIGHT' if language == "he" else 'LEFT'
             combined_table_style = [
                 ('ALIGN', (0, 0), (-1, -1), align_mode),  # All cells aligned based on language
-                ('FONTSIZE', (0, 0), (-1, -1), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                ('TOPPADDING', (0, 0), (-1, -1), 12),
+                ('FONTSIZE', (0, 0), (-1, -1), font_size),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
+                ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),   # Top alignment for multi-line content
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ]
@@ -1200,7 +1210,7 @@ class PDFService:
                     story.append(wrapper_table)
                 else:
                     story.append(combined_table)
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, section_spacer))
             
             # Second Table: Concentration Entries (following the order shown on concentration sheets page)
             if entries:
@@ -1208,7 +1218,11 @@ class PDFService:
                 entries_data = [translated_headers]
                 # Style for Calculation Sheet No link (absolute file URI under C:/Fatina)
                 link_style = ParagraphStyle(
-                    'CalcSheetLink', parent=styles['Normal'], fontSize=12, spaceAfter=0, spaceBefore=0
+                    'CalcSheetLink',
+                    parent=styles['Normal'],
+                    fontSize=font_size,
+                    spaceAfter=0,
+                    spaceBefore=0,
                 )
                 calc_sheet_col = filtered_headers.index('Calculation Sheet No') if 'Calculation Sheet No' in filtered_headers else -1
                 entry_groups = concentration_export_entry_row_groups(
@@ -1284,7 +1298,9 @@ class PDFService:
                     )
                 
                 # Calculate column widths based on current (possibly reversed) data
-                column_widths = self._calculate_column_widths(entries_data, current_headers, page_width, 12, 12, language)
+                column_widths = self._calculate_column_widths(
+                    entries_data, current_headers, page_width, font_size, font_size, language
+                )
                 
                 # Identify numerical columns (columns that contain quantities)
                 # Use the actual translated headers to identify numerical columns
@@ -1307,7 +1323,15 @@ class PDFService:
                 
                 # Try to use robust Hebrew table method first, fallback to regular table if it fails
                 try:
-                    entries_table = self._create_robust_hebrew_table(entries_data, current_headers, column_widths, repeat_rows=1, language=language)
+                    entries_table = self._create_robust_hebrew_table(
+                        entries_data,
+                        current_headers,
+                        column_widths,
+                        repeat_rows=1,
+                        language=language,
+                        font_size=font_size,
+                        cell_padding=cell_padding,
+                    )
                     logger.info("Successfully created robust Hebrew table for concentration entries with repeatRows")
                     # Override grey backgrounds - remove header and totals row grey backgrounds
                     # Recreate style with white backgrounds instead of grey
@@ -1317,9 +1341,9 @@ class PDFService:
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
                         ('ALIGN', (0, 0), (-1, -1), align_mode),  # All cells aligned based on language
                         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 12),  # All cells - consistent font size across all pages
-                        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                        ('TOPPADDING', (0, 0), (-1, -1), 12),
+                        ('FONTSIZE', (0, 0), (-1, -1), font_size),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
+                        ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
                         ('BACKGROUND', (0, 1), (-1, -2), colors.white),  # Data rows - white
                         ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - light grey
                         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
@@ -1345,9 +1369,9 @@ class PDFService:
                         # Hebrew mode: right-aligned content
                         entries_table_style.extend([
                             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # Default: all columns right-aligned for Hebrew
-                            ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as first table
-                            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
-                            ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
+                            ('FONTSIZE', (0, 0), (-1, -1), font_size),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
+                            ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
                             ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
                             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
@@ -1357,9 +1381,9 @@ class PDFService:
                         # English mode: left-aligned content
                         entries_table_style.extend([
                             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Default: all columns left-aligned for English
-                            ('FONTSIZE', (0, 0), (-1, -1), 12),  # Same font size as first table
-                            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
-                            ('TOPPADDING', (0, 0), (-1, -1), 12),  # Same padding as first table
+                            ('FONTSIZE', (0, 0), (-1, -1), font_size),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
+                            ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for multi-line content
                             ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
                             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
@@ -1416,8 +1440,16 @@ class PDFService:
                     else:
                         story.append(entries_table)
             
-            doc.build(story, onFirstPage=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, title_text, language), 
-                     onLaterPages=lambda canvas, doc: self._add_concentration_header_footer(canvas, doc, title_text, language))
+            def _draw_header_footer(canvas, doc):
+                self._add_concentration_header_footer(
+                    canvas,
+                    doc,
+                    title_text,
+                    language,
+                    title_font_size=title_font_size,
+                )
+
+            doc.build(story, onFirstPage=_draw_header_footer, onLaterPages=_draw_header_footer)
             logger.info(f"Generated concentration sheet PDF with RTL layout: {filepath}")
             return str(filepath)
             

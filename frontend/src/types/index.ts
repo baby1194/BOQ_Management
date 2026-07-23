@@ -222,6 +222,8 @@ export interface ConcentrationEntryExportRequest {
   include_approved_by_project_manager: boolean;
   include_notes: boolean;
   include_supervisor_notes: boolean;
+  /** PDF page size for concentration sheet export (landscape) */
+  page_size?: "A4" | "A3";
   /** When exporting all sheets: false = all items, true = exclude sheets with empty concentration entries */
   export_non_empty_only?: boolean;
   /** When exporting all sheets: BOQ items with PSQ ≠ 0 and quantity_submitted > 0 */

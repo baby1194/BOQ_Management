@@ -20,7 +20,16 @@ interface ConcentrationEntryExportModalProps {
   exportScope?: "single" | "all";
 }
 
-const COLUMN_KEYS: (keyof ConcentrationEntryExportRequest)[] = [
+type ConcentrationColumnKey = Exclude<
+  keyof ConcentrationEntryExportRequest,
+  | "page_size"
+  | "export_non_empty_only"
+  | "export_non_zero_psq_only"
+  | "export_estimated_gt_contract_only"
+  | "skip_fully_approved_calc_sheet_folders"
+>;
+
+const COLUMN_KEYS: ConcentrationColumnKey[] = [
   "include_description",
   "include_calculation_sheet_no",
   "include_drawing_no",
@@ -59,11 +68,14 @@ const ConcentrationEntryExportModal: React.FC<
     );
 
   useEffect(() => {
-    const columnPrefs: Record<string, boolean> = {};
+    const prefsToSave: Record<string, boolean | string> = {};
     COLUMN_KEYS.forEach((key) => {
-      columnPrefs[key] = exportRequest[key] === true;
+      prefsToSave[key] = exportRequest[key] === true;
     });
-    saveExportColumnPrefs(EXPORT_PREFS_KEYS.concentrationEntry, columnPrefs);
+    if (exportRequest.page_size === "A4" || exportRequest.page_size === "A3") {
+      prefsToSave.page_size = exportRequest.page_size;
+    }
+    saveExportColumnPrefs(EXPORT_PREFS_KEYS.concentrationEntry, prefsToSave);
   }, [exportRequest]);
 
   const handleCheckboxChange = (
@@ -75,16 +87,31 @@ const ConcentrationEntryExportModal: React.FC<
     }));
   };
 
+  const handlePageSizeChange = (pageSize: "A4" | "A3") => {
+    setExportRequest((prev) => ({
+      ...prev,
+      page_size: pageSize,
+    }));
+  };
+
   const handleSelectAll = () => {
-    setExportRequest(buildDefaultConcentrationEntryExportRequest());
+    setExportRequest((prev) => ({
+      ...buildDefaultConcentrationEntryExportRequest(),
+      page_size: prev.page_size === "A4" ? "A4" : "A3",
+    }));
   };
 
   const handleDeselectAll = () => {
-    const allOff = buildDefaultConcentrationEntryExportRequest();
-    COLUMN_KEYS.forEach((key) => {
-      allOff[key] = false;
+    setExportRequest((prev) => {
+      const allOff: ConcentrationEntryExportRequest = {
+        ...buildDefaultConcentrationEntryExportRequest(),
+        page_size: prev.page_size === "A4" ? "A4" : "A3",
+      };
+      for (const key of COLUMN_KEYS) {
+        allOff[key] = false;
+      }
+      return allOff;
     });
-    setExportRequest(allOff);
   };
 
   const hasAtLeastOneColumn = COLUMN_KEYS.some(
@@ -357,6 +384,59 @@ const ConcentrationEntryExportModal: React.FC<
             </label>
           </div>
         </div>
+
+        {exportFormat === "pdf" && (
+          <div className="mb-4">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              {t("concentration.pdfPageSize")}
+            </p>
+            <p className="text-xs text-gray-500 mb-3">
+              {t("concentration.pdfPageSizeDescription")}
+            </p>
+            <div className="flex gap-3">
+              <label
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 border rounded-md cursor-pointer transition-colors ${
+                  (exportRequest.page_size || "A3") === "A4"
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pdf-page-size"
+                  value="A4"
+                  checked={(exportRequest.page_size || "A3") === "A4"}
+                  onChange={() => handlePageSizeChange("A4")}
+                  className="sr-only"
+                  disabled={loading}
+                />
+                <span className="text-sm font-medium">
+                  {t("concentration.pageSizeA4")}
+                </span>
+              </label>
+              <label
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 border rounded-md cursor-pointer transition-colors ${
+                  (exportRequest.page_size || "A3") === "A3"
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pdf-page-size"
+                  value="A3"
+                  checked={(exportRequest.page_size || "A3") === "A3"}
+                  onChange={() => handlePageSizeChange("A3")}
+                  className="sr-only"
+                  disabled={loading}
+                />
+                <span className="text-sm font-medium">
+                  {t("concentration.pageSizeA3")}
+                </span>
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           {exportScope === "all" ? (

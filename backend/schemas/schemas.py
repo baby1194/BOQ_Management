@@ -211,6 +211,8 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_approved_by_project_manager: bool = True
     include_notes: bool = True
     include_supervisor_notes: bool = True
+    # PDF page size for concentration sheet export (landscape)
+    page_size: Optional[str] = Field("A3", pattern="^(A4|A3)$")
 
 
 class AutoExportColumnsRequest(BaseModel):

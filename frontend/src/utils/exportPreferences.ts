@@ -24,6 +24,7 @@ export const buildDefaultConcentrationEntryExportRequest =
     include_approved_by_project_manager: true,
     include_notes: true,
     include_supervisor_notes: true,
+    page_size: "A3",
   });
 
 /** Saved concentration-sheet PDF/Excel column prefs (same as Export modal). */
@@ -48,16 +49,30 @@ export function loadExportColumnPrefs<T extends object>(
     return defaults;
   }
   try {
-    const parsed = JSON.parse(saved) as Record<string, boolean>;
-    const merged = { ...defaults } as T & Record<string, boolean>;
+    const parsed = JSON.parse(saved) as Record<string, unknown>;
+    const merged = { ...defaults } as T & Record<string, unknown>;
     for (const key of Object.keys(defaults)) {
-      if (typeof parsed[key] === "boolean") {
-        merged[key] = parsed[key];
+      const value = parsed[key];
+      const defaultValue = (defaults as Record<string, unknown>)[key];
+      if (typeof value === "boolean" && typeof defaultValue === "boolean") {
+        (merged as Record<string, unknown>)[key] = value;
+      } else if (
+        typeof value === "string" &&
+        (typeof defaultValue === "string" || defaultValue === undefined)
+      ) {
+        if (key === "page_size" && value !== "A4" && value !== "A3") {
+          continue;
+        }
+        (merged as Record<string, unknown>)[key] = value;
       }
     }
     for (const key of Object.keys(parsed)) {
-      if (typeof parsed[key] === "boolean" && !(key in merged)) {
-        merged[key] = parsed[key];
+      const value = parsed[key];
+      if (
+        (typeof value === "boolean" || typeof value === "string") &&
+        !(key in merged)
+      ) {
+        (merged as Record<string, unknown>)[key] = value;
       }
     }
     return merged as T;
