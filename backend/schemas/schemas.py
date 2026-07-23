@@ -274,6 +274,18 @@ class ImportResponse(BaseModel):
     items_updated: int
     errors: List[str] = []
 
+
+class ApprovedSignedQtyImportResponse(BaseModel):
+    success: bool
+    message: str
+    items_in_pdf: int = 0
+    items_updated: int = 0
+    items_unchanged: int = 0
+    items_not_found: int = 0
+    not_found_section_numbers: List[str] = []
+    errors: List[str] = []
+
+
 # PDF Export Schemas
 class PDFExportRequest(BaseModel):
     item_codes: List[str] = []
@@ -281,6 +293,7 @@ class PDFExportRequest(BaseModel):
     export_all: bool = False
     export_non_empty_only: bool = True
     export_non_zero_psq_only: bool = False
+    export_estimated_gt_contract_only: bool = False
     skip_fully_approved_calc_sheet_folders: bool = False
     entry_columns: Optional[ConcentrationEntryExportRequest] = None
 

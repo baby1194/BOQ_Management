@@ -10,6 +10,7 @@ import {
   SearchResponse,
   SummaryResponse,
   ImportResponse,
+  ApprovedSignedQtyImportResponse,
   PDFExportRequest,
   PDFExportResponse,
   SummaryExportRequest,
@@ -495,6 +496,20 @@ export const importApi = {
       .post<ImportResponse>("/file-import/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
+      .then((res) => res.data);
+  },
+
+  importApprovedSignedQty: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api
+      .post<ApprovedSignedQtyImportResponse>(
+        "/file-import/approved-signed-qty/",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      )
       .then((res) => res.data);
   },
 

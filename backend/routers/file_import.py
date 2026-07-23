@@ -22,6 +22,7 @@ from services.calculation_sheet_sync import (
     push_calculation_sheet_to_concentration_entries,
 )
 from services.non_boq_service import register_non_boq_items_from_calculation_entries
+from services.approved_signed_qty_pdf_service import extract_approved_signed_quantities
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
@@ -1047,3 +1048,104 @@ async def import_calculation_sheets(
             entries_imported=0,
             errors=[error_msg]
         )
+
+
+@router.post(
+    "/approved-signed-qty/",
+    response_model=schemas.ApprovedSignedQtyImportResponse,
+)
+async def import_approved_signed_quantities_from_pdf(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Read approved signed quantities from an execution PDF report
+    (מק\"ט + כמות מצטברת לחשבון נוכחי) and update matching BOQ items.
+    """
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a PDF",
+        )
+
+    temp_path: Optional[Path] = None
+    try:
+        suffix = Path(filename).suffix or ".pdf"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            temp_path = Path(tmp.name)
+
+        quantities = extract_approved_signed_quantities(temp_path)
+        if not quantities:
+            return schemas.ApprovedSignedQtyImportResponse(
+                success=False,
+                message="No item quantities found in the PDF",
+                items_in_pdf=0,
+                items_updated=0,
+                items_unchanged=0,
+                items_not_found=0,
+                not_found_section_numbers=[],
+                errors=["No מק\"ט / quantity rows could be extracted from the PDF"],
+            )
+
+        items_updated = 0
+        items_unchanged = 0
+        not_found: List[str] = []
+
+        for section_number, quantity in quantities.items():
+            boq_item = (
+                db.query(models.BOQItem)
+                .filter(models.BOQItem.section_number == section_number)
+                .first()
+            )
+            if not boq_item:
+                not_found.append(section_number)
+                continue
+
+            current = float(boq_item.approved_signed_quantity or 0.0)
+            if abs(current - quantity) < 1e-9:
+                items_unchanged += 1
+                continue
+
+            boq_item.approved_signed_quantity = quantity
+            price = float(boq_item.price or 0.0)
+            boq_item.approved_signed_total = quantity * price
+            items_updated += 1
+
+        db.commit()
+
+        message = (
+            f"Updated approved signed quantity for {items_updated} item(s). "
+            f"PDF contained {len(quantities)} item(s); "
+            f"{items_unchanged} unchanged; "
+            f"{len(not_found)} not found in BOQ."
+        )
+        logger.info(message)
+
+        return schemas.ApprovedSignedQtyImportResponse(
+            success=True,
+            message=message,
+            items_in_pdf=len(quantities),
+            items_updated=items_updated,
+            items_unchanged=items_unchanged,
+            items_not_found=len(not_found),
+            not_found_section_numbers=not_found[:50],
+            errors=[],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        error_msg = f"Error importing approved signed quantities: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg,
+        )
+    finally:
+        if temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                logger.warning("Could not delete temp PDF %s", temp_path)

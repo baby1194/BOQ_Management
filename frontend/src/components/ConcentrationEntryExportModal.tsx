@@ -16,7 +16,7 @@ interface ConcentrationEntryExportModalProps {
   title: string;
   loading?: boolean;
   exportFormat: "pdf" | "excel";
-  /** When "all", show export modes: all items, without empty sheets, non-zero BOQ PSQ only */
+  /** When "all", show export modes: all items, without empty sheets, non-zero BOQ PSQ, estimated > contract */
   exportScope?: "single" | "all";
 }
 
@@ -95,7 +95,8 @@ const ConcentrationEntryExportModal: React.FC<
     | "all_items"
     | "non_empty"
     | "non_zero_psq"
-    | "non_zero_psq_skip_approved_folders";
+    | "non_zero_psq_skip_approved_folders"
+    | "estimated_gt_contract";
 
   const handleExport = (mode?: AllSheetsMode) => {
     const request: ConcentrationEntryExportRequest = { ...exportRequest };
@@ -105,6 +106,8 @@ const ConcentrationEntryExportModal: React.FC<
         mode === "non_zero_psq" || mode === "non_zero_psq_skip_approved_folders";
       request.skip_fully_approved_calc_sheet_folders =
         mode === "non_zero_psq_skip_approved_folders";
+      request.export_estimated_gt_contract_only =
+        mode === "estimated_gt_contract";
     }
     onExport(request);
   };
@@ -411,6 +414,19 @@ const ConcentrationEntryExportModal: React.FC<
                 {loading
                   ? t("common.exporting")
                   : t("concentration.exportNonZeroPsqSkipApprovedFolders")}
+              </button>
+              <button
+                onClick={() => handleExport("estimated_gt_contract")}
+                disabled={loading || !hasAtLeastOneColumn}
+                className={`w-full px-4 py-2 rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  exportFormat === "pdf"
+                    ? "bg-red-200 hover:bg-red-300 text-red-900 focus:ring-red-200"
+                    : "bg-green-200 hover:bg-green-300 text-green-900 focus:ring-green-200"
+                }`}
+              >
+                {loading
+                  ? t("common.exporting")
+                  : t("concentration.exportEstimatedGtContractItems")}
               </button>
             </>
           ) : (

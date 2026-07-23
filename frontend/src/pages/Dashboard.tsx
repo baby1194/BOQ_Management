@@ -35,6 +35,7 @@ import {
   FileSpreadsheet,
   ChevronDown,
   ChevronRight,
+  FileCheck,
 } from "lucide-react";
 import { formatCurrency } from "../utils/format";
 import { useProject } from "../contexts/ProjectContext";
@@ -46,7 +47,9 @@ import {
   CalculationSheet,
   SummaryResponse,
   NonBoqItem,
+  ApprovedSignedQtyImportResponse,
 } from "../types";
+import ReadApprovedSignedQtyModal from "../components/ReadApprovedSignedQtyModal";
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -77,6 +80,8 @@ const Dashboard: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showApprovedSignedQtyModal, setShowApprovedSignedQtyModal] =
+    useState(false);
 
   useEffect(() => {
     setProjectItem(
@@ -251,6 +256,35 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const reloadDashboardData = async () => {
+    if (!projectId) {
+      return;
+    }
+    try {
+      const [boq, summaryData, concentration, calculation, nonBoq] =
+        await Promise.all([
+          boqApi.getAll(),
+          searchApi.getSummary(),
+          concentrationApi.getAll(),
+          calculationSheetsApi.getAll(),
+          nonBoqApi.getAll(),
+        ]);
+      setBoqItems(boq);
+      setSummary(summaryData);
+      setConcentrationSheets(concentration);
+      setCalculationSheets(calculation);
+      setNonBoqItems(nonBoq);
+    } catch (error) {
+      console.error("Dashboard reload failed:", error);
+    }
+  };
+
+  const handleApprovedSignedQtySuccess = async (
+    _result: ApprovedSignedQtyImportResponse,
+  ) => {
+    await reloadDashboardData();
+  };
+
   const formatNonBoqCalcSheets = (item: NonBoqItem) => {
     const sheetNos = item.calculation_sheet_nos?.filter(Boolean) ?? [];
     if (sheetNos.length === 0) {
@@ -369,6 +403,13 @@ const Dashboard: React.FC = () => {
       icon: Upload,
       color: "bg-blue-600 hover:bg-blue-700",
       action: () => navigate("/import"),
+    },
+    {
+      name: t("dashboard.readApprovedSignedQty"),
+      description: t("dashboard.readApprovedSignedQtyActionDescription"),
+      icon: FileCheck,
+      color: "bg-teal-600 hover:bg-teal-700",
+      action: () => setShowApprovedSignedQtyModal(true),
     },
     {
       name: t("dashboard.viewBOQItems"),
@@ -938,7 +979,7 @@ const Dashboard: React.FC = () => {
           </h2>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
@@ -1146,6 +1187,12 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ReadApprovedSignedQtyModal
+        isOpen={showApprovedSignedQtyModal}
+        onClose={() => setShowApprovedSignedQtyModal(false)}
+        onSuccess={handleApprovedSignedQtySuccess}
+      />
     </div>
   );
 };

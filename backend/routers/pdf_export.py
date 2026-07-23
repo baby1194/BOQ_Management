@@ -47,6 +47,57 @@ def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
     }
     return [s for s in sheets if s.id in sheet_ids_with_psq]
 
+
+def _filter_sheets_with_estimated_gt_contract(sheets: List, db: Session) -> List:
+    """Keep sheets whose BOQ estimated_quantity > latest contract quantity.
+
+    Latest contract quantity uses the most recent contract quantity update when
+    present; otherwise original_contract_quantity. Values are rounded to 2
+    decimal places before comparison to match UI formatting.
+    """
+    from sqlalchemy import and_, desc, func
+
+    if not sheets:
+        return []
+
+    latest_contract_update = (
+        db.query(models.ContractQuantityUpdate)
+        .order_by(desc(models.ContractQuantityUpdate.update_index))
+        .first()
+    )
+
+    query = db.query(models.ConcentrationSheet.id).join(
+        models.BOQItem, models.BOQItem.id == models.ConcentrationSheet.boq_item_id
+    )
+
+    if latest_contract_update:
+        query = query.outerjoin(
+            models.BOQItemQuantityUpdate,
+            and_(
+                models.BOQItemQuantityUpdate.boq_item_id == models.BOQItem.id,
+                models.BOQItemQuantityUpdate.contract_update_id
+                == latest_contract_update.id,
+            ),
+        )
+        contract_qty = func.coalesce(
+            models.BOQItemQuantityUpdate.updated_contract_quantity,
+            models.BOQItem.original_contract_quantity,
+            0,
+        )
+    else:
+        contract_qty = func.coalesce(models.BOQItem.original_contract_quantity, 0)
+
+    estimated_qty = func.coalesce(models.BOQItem.estimated_quantity, 0)
+    sheet_ids = {
+        row[0]
+        for row in query.filter(
+            func.round(estimated_qty, 2) > func.round(contract_qty, 2)
+        )
+        .distinct()
+        .all()
+    }
+    return [s for s in sheets if s.id in sheet_ids]
+
 @router.post("/concentration-sheets", response_model=schemas.PDFExportResponse)
 async def export_concentration_sheets(
     request: dict,
@@ -82,6 +133,12 @@ async def export_concentration_sheets(
         export_non_zero_psq_only = request.get("export_non_zero_psq_only", False)
         if export_non_zero_psq_only:
             sheets = _filter_sheets_with_non_zero_boq_psq(sheets, db)
+
+        export_estimated_gt_contract_only = request.get(
+            "export_estimated_gt_contract_only", False
+        )
+        if export_estimated_gt_contract_only:
+            sheets = _filter_sheets_with_estimated_gt_contract(sheets, db)
 
         skip_fully_approved_calc_sheet_folders = request.get(
             "skip_fully_approved_calc_sheet_folders", False
@@ -301,6 +358,12 @@ async def export_all_concentration_sheets_excel(
 
         if request.export_non_zero_psq_only:
             sheets = _filter_sheets_with_non_zero_boq_psq(sheets, db)
+
+        export_estimated_gt_contract_only = getattr(
+            request, "export_estimated_gt_contract_only", False
+        )
+        if export_estimated_gt_contract_only:
+            sheets = _filter_sheets_with_estimated_gt_contract(sheets, db)
 
         skip_fully_approved_calc_sheet_folders = getattr(
             request, "skip_fully_approved_calc_sheet_folders", False

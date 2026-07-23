@@ -529,6 +529,8 @@ const ConcentrationSheets: React.FC = () => {
         entryColumnRequest.export_non_empty_only ?? false;
       const exportNonZeroPsqOnly =
         entryColumnRequest.export_non_zero_psq_only ?? false;
+      const exportEstimatedGtContractOnly =
+        entryColumnRequest.export_estimated_gt_contract_only ?? false;
       const skipFullyApprovedCalcSheetFolders =
         entryColumnRequest.skip_fully_approved_calc_sheet_folders ?? false;
 
@@ -541,6 +543,7 @@ const ConcentrationSheets: React.FC = () => {
                 export_all: true,
                 export_non_empty_only: exportNonEmptyOnly,
                 export_non_zero_psq_only: exportNonZeroPsqOnly,
+                export_estimated_gt_contract_only: exportEstimatedGtContractOnly,
                 skip_fully_approved_calc_sheet_folders:
                   skipFullyApprovedCalcSheetFolders,
               },
@@ -554,6 +557,7 @@ const ConcentrationSheets: React.FC = () => {
                 export_all: true,
                 export_non_empty_only: exportNonEmptyOnly,
                 export_non_zero_psq_only: exportNonZeroPsqOnly,
+                export_estimated_gt_contract_only: exportEstimatedGtContractOnly,
                 skip_fully_approved_calc_sheet_folders:
                   skipFullyApprovedCalcSheetFolders,
               },
