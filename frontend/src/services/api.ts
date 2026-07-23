@@ -40,6 +40,12 @@ import {
   SignupAllowed,
   WorkspaceProject,
   WorkspaceProjectCreate,
+  ProjectInfoFile,
+  ProjectInfoFileCreate,
+  ProjectInfoFileUpdate,
+  DrawingListItem,
+  DrawingListItemCreate,
+  DrawingListItemUpdate,
 } from "../types";
 import {
   filenameFromExportPath,
@@ -69,6 +75,8 @@ function withTrailingSlash(url: string): string {
     "/non-boq-items",
     "/contract-updates",
     "/project-info",
+    "/project-info-files",
+    "/drawing-list",
     "/search",
   ];
   if (collectionRoots.includes(path)) {
@@ -939,6 +947,52 @@ export const projectsApi = {
 
   create: (data: WorkspaceProjectCreate) =>
     api.post<WorkspaceProject>("/projects", data).then((res) => res.data),
+};
+
+export const projectInfoFilesApi = {
+  getAll: () =>
+    api.get<ProjectInfoFile[]>("/project-info-files").then((res) => res.data),
+
+  create: (data: ProjectInfoFileCreate) =>
+    api
+      .post<ProjectInfoFile>("/project-info-files", data)
+      .then((res) => res.data),
+
+  update: (id: number, data: ProjectInfoFileUpdate) =>
+    api
+      .put<ProjectInfoFile>(`/project-info-files/${id}`, data)
+      .then((res) => res.data),
+
+  delete: (id: number) =>
+    api.delete(`/project-info-files/${id}`).then((res) => res.data),
+
+  open: (id: number) =>
+    api
+      .post<{ success: boolean; message: string }>(
+        `/project-info-files/${id}/open`
+      )
+      .then((res) => res.data),
+};
+
+export const drawingListApi = {
+  getAll: () =>
+    api.get<DrawingListItem[]>("/drawing-list").then((res) => res.data),
+
+  create: (data: DrawingListItemCreate) =>
+    api.post<DrawingListItem>("/drawing-list", data).then((res) => res.data),
+
+  update: (id: number, data: DrawingListItemUpdate) =>
+    api
+      .put<DrawingListItem>(`/drawing-list/${id}`, data)
+      .then((res) => res.data),
+
+  delete: (id: number) =>
+    api.delete(`/drawing-list/${id}`).then((res) => res.data),
+
+  open: (id: number) =>
+    api
+      .post<{ success: boolean; message: string }>(`/drawing-list/${id}/open`)
+      .then((res) => res.data),
 };
 
 export default api;

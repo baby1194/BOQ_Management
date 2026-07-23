@@ -475,3 +475,69 @@ export interface AuthStatus {
 export interface SignupAllowed {
   signup_allowed: boolean;
 }
+
+export interface ProjectInfoFile {
+  id: number;
+  no: number;
+  category_en: string;
+  category_he: string;
+  file_name: string;
+  file_path: string;
+  description?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface ProjectInfoFileCreate {
+  no?: number | null;
+  category_en: string;
+  category_he: string;
+  file_path: string;
+  description?: string | null;
+}
+
+export interface ProjectInfoFileUpdate {
+  file_path?: string;
+  description?: string | null;
+}
+
+export type DrawingExecutionStatus = "to_be_executed" | "cancelled" | "";
+
+export interface DrawingListItem {
+  id: number;
+  no: number;
+  drawing_type?: string | null;
+  planning_office?: string | null;
+  drawing_name?: string | null;
+  cross_sections?: string | null;
+  element?: string | null;
+  sheet_name?: string | null;
+  edition?: string | null;
+  release_date?: string | null;
+  update_description?: string | null;
+  folder_date?: string | null;
+  file_path?: string | null;
+  notes?: string | null;
+  execution_status?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface DrawingListItemCreate {
+  no?: number | null;
+  drawing_type?: string | null;
+  planning_office?: string | null;
+  drawing_name?: string | null;
+  cross_sections?: string | null;
+  element?: string | null;
+  sheet_name?: string | null;
+  edition?: string | null;
+  release_date?: string | null;
+  update_description?: string | null;
+  folder_date?: string | null;
+  file_path?: string | null;
+  notes?: string | null;
+  execution_status?: string | null;
+}
+
+export interface DrawingListItemUpdate extends DrawingListItemCreate {}

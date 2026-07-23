@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
+import ProjectInfoFiles from "./pages/ProjectInfoFiles";
+import ListOfDrawings from "./pages/ListOfDrawings";
 import BOQItems from "./pages/BOQItems";
 import ConcentrationSheets from "./pages/ConcentrationSheets";
 import CalculationSheets from "./pages/CalculationSheets";
@@ -46,6 +48,14 @@ function App() {
               <Layout>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
+                  <Route
+                    path="/project-info-files"
+                    element={<ProjectInfoFiles />}
+                  />
+                  <Route
+                    path="/list-of-drawings"
+                    element={<ListOfDrawings />}
+                  />
                   <Route path="/boq" element={<BOQItems />} />
                   <Route
                     path="/concentration"

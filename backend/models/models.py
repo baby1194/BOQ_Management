@@ -247,6 +247,48 @@ class NonBoqItem(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+class ProjectInfoFile(Base):
+    """Standalone project reference files (not linked to BOQ / concentration)."""
+
+    __tablename__ = "project_info_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    display_order = Column(Integer, nullable=False, default=1, index=True)
+    category_en = Column(String(200), nullable=False)
+    category_he = Column(String(200), nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    description = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class DrawingListItem(Base):
+    """Standalone drawing list (not linked to concentration / calculation sheets)."""
+
+    __tablename__ = "drawing_list_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    display_order = Column(Integer, nullable=False, default=1, index=True)
+    drawing_type = Column(String(200), nullable=True)
+    planning_office = Column(String(200), nullable=True)
+    drawing_name = Column(String(300), nullable=True)
+    cross_sections = Column(String(300), nullable=True)
+    element = Column(String(200), nullable=True)
+    sheet_name = Column(String(200), nullable=True)
+    edition = Column(String(100), nullable=True)
+    release_date = Column(String(100), nullable=True)
+    update_description = Column(Text, nullable=True)
+    folder_date = Column(String(100), nullable=True)
+    file_path = Column(String(1000), nullable=True)
+    notes = Column(Text, nullable=True)
+    # "to_be_executed" | "cancelled"
+    execution_status = Column(String(50), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
     

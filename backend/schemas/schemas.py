@@ -682,6 +682,73 @@ class NonBoqExportRequest(BaseModel):
     language: Optional[str] = "en"
 
 
+# Project Info Files (standalone reference files)
+class ProjectInfoFileCreate(BaseModel):
+    no: Optional[int] = Field(None, ge=1, description="1-based insert position; omit to append")
+    category_en: str = Field(..., min_length=1, max_length=200)
+    category_he: str = Field(..., min_length=1, max_length=200)
+    file_path: str = Field(..., min_length=1, max_length=1000)
+    description: Optional[str] = None
+
+
+class ProjectInfoFileUpdate(BaseModel):
+    file_path: Optional[str] = Field(None, min_length=1, max_length=1000)
+    description: Optional[str] = None
+
+
+class ProjectInfoFile(BaseModel):
+    id: int
+    no: int
+    category_en: str
+    category_he: str
+    file_name: str
+    file_path: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# Drawing List (standalone drawing register)
+class DrawingListItemBase(BaseModel):
+    drawing_type: Optional[str] = Field(None, max_length=200)
+    planning_office: Optional[str] = Field(None, max_length=200)
+    drawing_name: Optional[str] = Field(None, max_length=300)
+    cross_sections: Optional[str] = Field(None, max_length=300)
+    element: Optional[str] = Field(None, max_length=200)
+    sheet_name: Optional[str] = Field(None, max_length=200)
+    edition: Optional[str] = Field(None, max_length=100)
+    release_date: Optional[str] = Field(None, max_length=100)
+    update_description: Optional[str] = None
+    folder_date: Optional[str] = Field(None, max_length=100)
+    file_path: Optional[str] = Field(None, max_length=1000)
+    notes: Optional[str] = None
+    execution_status: Optional[str] = Field(
+        None,
+        description='One of: "to_be_executed", "cancelled", or empty',
+    )
+
+
+class DrawingListItemCreate(DrawingListItemBase):
+    no: Optional[int] = Field(None, ge=1, description="1-based insert position; omit to append")
+
+
+class DrawingListItemUpdate(DrawingListItemBase):
+    no: Optional[int] = Field(None, ge=1, description="1-based target position after save")
+
+
+class DrawingListItem(DrawingListItemBase):
+    id: int
+    no: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 # Workspace project schemas (multi-project support)
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)

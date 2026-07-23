@@ -13,6 +13,8 @@ import {
   X,
   Plus,
   FolderKanban,
+  FolderOpen,
+  DraftingCompass,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../contexts/AuthContext";
@@ -72,6 +74,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: "/",
       icon: Home,
       key: "dashboard",
+    },
+    {
+      name: t("navigation.projectInfoFiles"),
+      href: "/project-info-files",
+      icon: FolderOpen,
+      key: "projectInfoFiles",
+    },
+    {
+      name: t("navigation.listOfDrawings"),
+      href: "/list-of-drawings",
+      icon: DraftingCompass,
+      key: "listOfDrawings",
     },
     {
       name: t("navigation.boqItems"),

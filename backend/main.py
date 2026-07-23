@@ -9,7 +9,7 @@ from pathlib import Path
 
 from database.database import init_system_database, init_project_database
 from database import project_registry
-from routers import boq, concentration_sheets, file_import, pdf_export, search, calculation_sheets, project_info, contract_updates, subsections, systems, structures, auth, projects, non_boq_items
+from routers import boq, concentration_sheets, file_import, pdf_export, search, calculation_sheets, project_info, contract_updates, subsections, systems, structures, auth, projects, non_boq_items, project_info_files, drawing_list
 
 # Initialize project registry and databases
 project_registry.migrate_legacy_db()
@@ -72,6 +72,8 @@ app.include_router(structures.router, prefix="/api/structures", tags=["Structure
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(non_boq_items.router, prefix="/api/non-boq-items", tags=["Non-BOQ Items"])
+app.include_router(project_info_files.router, prefix="/api/project-info-files", tags=["Project Info Files"])
+app.include_router(drawing_list.router, prefix="/api/drawing-list", tags=["Drawing List"])
 
 @app.get("/")
 async def root():
