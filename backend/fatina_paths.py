@@ -6,10 +6,126 @@ import os
 from pathlib import Path
 import shutil
 import logging
+from typing import Dict, List
 
 FATINA_BASE_DIR = Path("C:/Fatina")
 
 logger = logging.getLogger(__name__)
+
+
+def _is_final_submission_pdf(path: Path) -> bool:
+    """True for previously produced {section}_final.pdf outputs."""
+    name = path.name.lower()
+    return name.endswith("_final.pdf")
+
+
+def _append_pdf_pages(writer, pdf_path: Path) -> int:
+    """Append all pages from pdf_path into writer as-is (no resize). Returns page count."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(pdf_path))
+    for page in reader.pages:
+        writer.add_page(page)
+    return len(reader.pages)
+
+
+def produce_final_submission_pdfs(
+    base_dir: Path | None = None,
+) -> Dict[str, object]:
+    """
+    For each item folder under Fatina, merge PDFs into {section}_final.pdf.
+
+    Order:
+      1. Concentration sheet at item root: {section}.pdf
+      2. PDFs inside each immediate subfolder (calc sheet no / {invoice}_m),
+         subfolders sorted by name; PDFs within each folder sorted by name.
+
+    Pages are appended as-is. Existing *_final.pdf files are never used as inputs.
+    """
+    from pypdf import PdfWriter
+
+    root = Path(base_dir) if base_dir is not None else FATINA_BASE_DIR
+    produced: List[str] = []
+    skipped: List[str] = []
+    errors: List[str] = []
+
+    if not root.is_dir():
+        return {
+            "produced_count": 0,
+            "skipped_count": 0,
+            "produced_paths": produced,
+            "skipped": skipped,
+            "errors": [f"Fatina folder not found: {root}"],
+        }
+
+    item_dirs = sorted(
+        [p for p in root.iterdir() if p.is_dir()],
+        key=lambda p: p.name.lower(),
+    )
+
+    for item_dir in item_dirs:
+        section = item_dir.name
+        output_path = item_dir / f"{section}_final.pdf"
+        writer = PdfWriter()
+        pages_added = 0
+        sources: List[str] = []
+
+        try:
+            conc_pdf = item_dir / f"{section}.pdf"
+            if conc_pdf.is_file() and not _is_final_submission_pdf(conc_pdf):
+                pages_added += _append_pdf_pages(writer, conc_pdf)
+                sources.append(str(conc_pdf))
+
+            subdirs = sorted(
+                [p for p in item_dir.iterdir() if p.is_dir()],
+                key=lambda p: p.name.lower(),
+            )
+            for subdir in subdirs:
+                pdfs = sorted(
+                    [
+                        p
+                        for p in subdir.iterdir()
+                        if p.is_file()
+                        and p.suffix.lower() == ".pdf"
+                        and not _is_final_submission_pdf(p)
+                    ],
+                    key=lambda p: p.name.lower(),
+                )
+                for pdf_path in pdfs:
+                    pages_added += _append_pdf_pages(writer, pdf_path)
+                    sources.append(str(pdf_path))
+
+            if pages_added == 0:
+                skipped.append(section)
+                logger.info(
+                    "Skipping final submission for %s: no PDFs found", section
+                )
+                continue
+
+            with open(output_path, "wb") as out_f:
+                writer.write(out_f)
+
+            produced.append(str(output_path))
+            logger.info(
+                "Wrote final submission PDF %s (%s pages from %s source(s))",
+                output_path,
+                pages_added,
+                len(sources),
+            )
+        except Exception as exc:
+            msg = f"{section}: {exc}"
+            errors.append(msg)
+            logger.exception(
+                "Failed to produce final submission PDF for %s", section
+            )
+
+    return {
+        "produced_count": len(produced),
+        "skipped_count": len(skipped),
+        "produced_paths": produced,
+        "skipped": skipped,
+        "errors": errors,
+    }
 
 
 def get_downloads_dir() -> Path:

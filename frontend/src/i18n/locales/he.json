@@ -590,7 +590,12 @@
     "approvedSignedQtyImportFailed": "קריאת כמויות מאושרות וחתומות מה-PDF נכשלה",
     "itemsNotFoundInBoq": "לא נמצאו ב-BOQ",
     "itemsAlreadyUpToDate": "כבר מעודכנים",
-    "readApprovedSignedQtyActionDescription": "ייבוא כמויות מאושרות וחתומות מקובץ PDF"
+    "readApprovedSignedQtyActionDescription": "ייבוא כמויות מאושרות וחתומות מקובץ PDF",
+    "produceFinalSubmissionPdf": "הפקת PDF הגשה סופית",
+    "produceFinalSubmissionPdfDescription": "מיזוג כל תיקיית פריט ב-Fatina לקובץ PDF סופי אחד",
+    "producingFinalSubmissionPdf": "מפיק קובצי PDF להגשה סופית...",
+    "finalSubmissionPdfSuccess": "הופקו {{count}} קובצי PDF להגשה סופית",
+    "finalSubmissionPdfFailed": "הפקת קובצי PDF להגשה סופית נכשלה"
   },
   "calculationSheets": {
     "title": "דפי חישוב",

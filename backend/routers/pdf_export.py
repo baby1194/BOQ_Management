@@ -11,7 +11,12 @@ from models import models
 from schemas import schemas
 from services.pdf_service import PDFService
 from services.excel_service import ExcelService
-from fatina_paths import FATINA_BASE_DIR, get_downloads_dir, sanitize_folder_name
+from fatina_paths import (
+    FATINA_BASE_DIR,
+    get_downloads_dir,
+    produce_final_submission_pdfs,
+    sanitize_folder_name,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1449,6 +1454,50 @@ async def export_non_boq_items_excel(
         )
     except Exception as e:
         logger.error("Error exporting non-BOQ items to Excel: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.post("/final-submission", response_model=schemas.PDFExportResponse)
+async def produce_final_submission():
+    """
+    Merge Fatina item-folder PDFs into one {section}_final.pdf per item.
+
+    For each C:/Fatina/{section}/ folder: concentration sheet PDF first, then
+    PDFs from each subfolder in folder-name order (pages appended as-is).
+    """
+    try:
+        result = produce_final_submission_pdfs()
+        produced_count = int(result.get("produced_count") or 0)
+        skipped_count = int(result.get("skipped_count") or 0)
+        errors = list(result.get("errors") or [])
+
+        if errors and produced_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="; ".join(str(e) for e in errors[:5]),
+            )
+
+        parts = [
+            f"Produced {produced_count} final submission PDF(s) under C:/Fatina."
+        ]
+        if skipped_count:
+            parts.append(f"Skipped {skipped_count} folder(s) with no PDFs.")
+        if errors:
+            parts.append(f"{len(errors)} folder(s) failed.")
+
+        return schemas.PDFExportResponse(
+            success=True,
+            message=" ".join(parts),
+            pdf_path=str(FATINA_BASE_DIR),
+            sheets_exported=produced_count,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error producing final submission PDFs: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",

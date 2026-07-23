@@ -589,7 +589,12 @@
     "approvedSignedQtyImportFailed": "Failed to read approved signed quantities from PDF",
     "itemsNotFoundInBoq": "not found in BOQ",
     "itemsAlreadyUpToDate": "already up to date",
-    "readApprovedSignedQtyActionDescription": "Import approved signed quantities from PDF"
+    "readApprovedSignedQtyActionDescription": "Import approved signed quantities from PDF",
+    "produceFinalSubmissionPdf": "Produce Final Submission PDF",
+    "produceFinalSubmissionPdfDescription": "Merge each Fatina item folder into one final PDF",
+    "producingFinalSubmissionPdf": "Producing final submission PDFs...",
+    "finalSubmissionPdfSuccess": "Produced {{count}} final submission PDF(s)",
+    "finalSubmissionPdfFailed": "Failed to produce final submission PDFs"
   },
   "calculationSheets": {
     "title": "Calculation Sheets",

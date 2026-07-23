@@ -754,6 +754,11 @@ export const exportApi = {
       })
       .then((res) => res.data),
 
+  produceFinalSubmissionPDF: () =>
+    api
+      .post<PDFExportResponse>("/export/final-submission")
+      .then((res) => res.data),
+
   listPDFs: () => api.get<string[]>("/export/list").then((res) => res.data),
 
   downloadPDF: (filename: string) =>

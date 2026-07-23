@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
   boqApi,
@@ -36,6 +37,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileCheck,
+  Files,
 } from "lucide-react";
 import { formatCurrency } from "../utils/format";
 import { useProject } from "../contexts/ProjectContext";
@@ -82,6 +84,41 @@ const Dashboard: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showApprovedSignedQtyModal, setShowApprovedSignedQtyModal] =
     useState(false);
+  const [producingFinalSubmission, setProducingFinalSubmission] =
+    useState(false);
+
+  const handleProduceFinalSubmissionPdf = async () => {
+    if (producingFinalSubmission) return;
+    setProducingFinalSubmission(true);
+    const toastId = toast.loading(t("dashboard.producingFinalSubmissionPdf"));
+    try {
+      const result = await exportApi.produceFinalSubmissionPDF();
+      if (result.success) {
+        toast.success(
+          result.message ||
+            t("dashboard.finalSubmissionPdfSuccess", {
+              count: result.sheets_exported,
+            }),
+          { id: toastId },
+        );
+      } else {
+        toast.error(
+          result.message || t("dashboard.finalSubmissionPdfFailed"),
+          { id: toastId },
+        );
+      }
+    } catch (error: any) {
+      console.error("Final submission PDF failed:", error);
+      toast.error(
+        error?.response?.data?.detail ||
+          error?.message ||
+          t("dashboard.finalSubmissionPdfFailed"),
+        { id: toastId },
+      );
+    } finally {
+      setProducingFinalSubmission(false);
+    }
+  };
 
   useEffect(() => {
     setProjectItem(
@@ -410,6 +447,16 @@ const Dashboard: React.FC = () => {
       icon: FileCheck,
       color: "bg-teal-600 hover:bg-teal-700",
       action: () => setShowApprovedSignedQtyModal(true),
+    },
+    {
+      name: t("dashboard.produceFinalSubmissionPdf"),
+      description: t("dashboard.produceFinalSubmissionPdfDescription"),
+      icon: Files,
+      color: producingFinalSubmission
+        ? "bg-indigo-400 cursor-wait"
+        : "bg-indigo-600 hover:bg-indigo-700",
+      action: handleProduceFinalSubmissionPdf,
+      disabled: producingFinalSubmission,
     },
     {
       name: t("dashboard.viewBOQItems"),
@@ -979,14 +1026,15 @@ const Dashboard: React.FC = () => {
           </h2>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
                 <button
                   key={action.name}
                   onClick={action.action}
-                  className={`${action.color} text-white px-4 py-3 rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                  disabled={Boolean(action.disabled)}
+                  className={`${action.color} text-white px-4 py-3 rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:transform-none disabled:hover:scale-100`}
                 >
                   <div className="flex flex-col items-center text-center">
                     <Icon className="h-6 w-6 mb-2" />
