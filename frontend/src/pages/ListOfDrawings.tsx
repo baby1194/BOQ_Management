@@ -1,10 +1,17 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { DraftingCompass, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
+import FilterDropdown from "../components/FilterDropdown";
 import { drawingListApi } from "../services/api";
 import { DrawingListItem } from "../types";
+import {
+  filterCellValue,
+  matchesSelectedFilter,
+  sortUniqueValues,
+  useColumnDropdownFilters,
+} from "../utils/columnFilters";
 
 interface DraftFields {
   no: string;
@@ -89,6 +96,25 @@ const COLUMN_KEYS = [
   "action",
 ] as const;
 
+const FILTER_KEYS = [
+  "no",
+  "drawingType",
+  "planningOffice",
+  "drawingName",
+  "crossSections",
+  "element",
+  "sheetName",
+  "edition",
+  "releaseDate",
+  "updateDescription",
+  "folderDate",
+  "filePath",
+  "notes",
+  "executionStatus",
+] as const;
+
+type FilterKey = (typeof FILTER_KEYS)[number];
+
 const ListOfDrawings: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
@@ -97,6 +123,46 @@ const ListOfDrawings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<EditingState>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
+
+  const {
+    selected,
+    open,
+    activeFilterCount,
+    handleSelectionChange,
+    handleClear,
+    handleClearAll,
+    handleToggle,
+    handleClose,
+  } = useColumnDropdownFilters(FILTER_KEYS);
+
+  const statusFilterValue = useCallback(
+    (status?: string | null) => {
+      if (status === "to_be_executed") return t("listOfDrawings.toBeExecuted");
+      if (status === "cancelled") return t("listOfDrawings.cancelled");
+      return "";
+    },
+    [t]
+  );
+
+  const getRowFilterValues = useCallback(
+    (row: DrawingListItem): Record<FilterKey, string> => ({
+      no: filterCellValue(row.no),
+      drawingType: filterCellValue(row.drawing_type),
+      planningOffice: filterCellValue(row.planning_office),
+      drawingName: filterCellValue(row.drawing_name),
+      crossSections: filterCellValue(row.cross_sections),
+      element: filterCellValue(row.element),
+      sheetName: filterCellValue(row.sheet_name),
+      edition: filterCellValue(row.edition),
+      releaseDate: filterCellValue(row.release_date),
+      updateDescription: filterCellValue(row.update_description),
+      folderDate: filterCellValue(row.folder_date),
+      filePath: filterCellValue(row.file_path),
+      notes: filterCellValue(row.notes),
+      executionStatus: statusFilterValue(row.execution_status),
+    }),
+    [statusFilterValue]
+  );
 
   const loadItems = useCallback(async () => {
     try {
@@ -116,6 +182,28 @@ const ListOfDrawings: React.FC = () => {
   useEffect(() => {
     loadItems();
   }, [loadItems]);
+
+  const uniqueValues = useMemo(() => {
+    const buckets = Object.fromEntries(
+      FILTER_KEYS.map((key) => [key, [] as string[]])
+    ) as Record<FilterKey, string[]>;
+    items.forEach((row) => {
+      const values = getRowFilterValues(row);
+      FILTER_KEYS.forEach((key) => buckets[key].push(values[key]));
+    });
+    return Object.fromEntries(
+      FILTER_KEYS.map((key) => [key, sortUniqueValues(buckets[key])])
+    ) as Record<FilterKey, string[]>;
+  }, [items, getRowFilterValues]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter((row) => {
+      const values = getRowFilterValues(row);
+      return FILTER_KEYS.every((key) =>
+        matchesSelectedFilter(values[key], selected[key])
+      );
+    });
+  }, [items, selected, getRowFilterValues]);
 
   const updateDraft = (patch: Partial<DraftFields>) => {
     setEditing((prev) => (prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev));
@@ -254,6 +342,9 @@ const ListOfDrawings: React.FC = () => {
     if (status === "cancelled") return t("listOfDrawings.cancelled");
     return "—";
   };
+
+  const thClass =
+    "px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300 bg-gray-50";
 
   const renderDraftInputs = (draft: DraftFields) => (
     <>
@@ -519,17 +610,32 @@ const ListOfDrawings: React.FC = () => {
             {t("listOfDrawings.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleAddRow}
-          disabled={editing?.mode === "new"}
-          className={`inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 ${
+        <div
+          className={`flex flex-wrap items-center gap-2 ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
-          <Plus className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
-          {t("listOfDrawings.addDrawing")}
-        </button>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              {t("common.clearFilter")} ({activeFilterCount})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleAddRow}
+            disabled={editing?.mode === "new"}
+            className={`inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 ${
+              isRTL ? "flex-row-reverse" : ""
+            }`}
+          >
+            <Plus className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+            {t("listOfDrawings.addDrawing")}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -543,40 +649,77 @@ const ListOfDrawings: React.FC = () => {
             <p>{t("listOfDrawings.empty")}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse">
-              <thead className="bg-gray-50">
-                <tr>
-                  {COLUMN_KEYS.map((key) => (
-                    <th
-                      key={key}
-                      className="px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300"
-                    >
-                      {t(`listOfDrawings.${key}`)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white">
-                {items.map((row) => {
-                  const isEditing =
-                    editing?.mode === "edit" && editing.id === row.id;
-                  return (
-                    <tr key={row.id} className="hover:bg-gray-50">
-                      {isEditing && editing
-                        ? renderDraftInputs(editing.draft)
-                        : renderReadRow(row)}
-                    </tr>
-                  );
-                })}
-                {editing?.mode === "new" && (
-                  <tr className="bg-blue-50/40">
-                    {renderDraftInputs(editing.draft)}
+          <>
+            {activeFilterCount > 0 && (
+              <div className="px-4 py-2 text-sm text-gray-600 border-b border-gray-200 bg-gray-50">
+                {filteredItems.length} / {items.length} {t("common.items")}
+              </div>
+            )}
+            <div className="overflow-auto max-h-[70vh]">
+              <table className="min-w-full border-collapse">
+                <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+                  <tr>
+                    {COLUMN_KEYS.map((key) =>
+                      key === "action" ? (
+                        <th key={key} className={thClass}>
+                          {t(`listOfDrawings.${key}`)}
+                        </th>
+                      ) : (
+                        <th key={key} className={thClass}>
+                          <div className="flex items-center justify-center gap-1">
+                            <span>{t(`listOfDrawings.${key}`)}</span>
+                            <FilterDropdown
+                              columnName={t(`listOfDrawings.${key}`)}
+                              values={uniqueValues[key as FilterKey]}
+                              selectedValues={selected[key as FilterKey]}
+                              onSelectionChange={(values) =>
+                                handleSelectionChange(key as FilterKey, values)
+                              }
+                              onClearFilter={() =>
+                                handleClear(key as FilterKey)
+                              }
+                              isOpen={open[key as FilterKey]}
+                              onToggle={() => handleToggle(key as FilterKey)}
+                              onClose={() => handleClose(key as FilterKey)}
+                            />
+                          </div>
+                        </th>
+                      )
+                    )}
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white">
+                  {filteredItems.length === 0 && editing?.mode !== "new" ? (
+                    <tr>
+                      <td
+                        colSpan={COLUMN_KEYS.length}
+                        className="px-4 py-8 text-center text-sm text-gray-500 border border-gray-300"
+                      >
+                        {t("common.noValuesFound")}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredItems.map((row) => {
+                      const isEditing =
+                        editing?.mode === "edit" && editing.id === row.id;
+                      return (
+                        <tr key={row.id} className="hover:bg-gray-50">
+                          {isEditing && editing
+                            ? renderDraftInputs(editing.draft)
+                            : renderReadRow(row)}
+                        </tr>
+                      );
+                    })
+                  )}
+                  {editing?.mode === "new" && (
+                    <tr className="bg-blue-50/40">
+                      {renderDraftInputs(editing.draft)}
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

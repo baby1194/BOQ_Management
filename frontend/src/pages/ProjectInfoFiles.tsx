@@ -1,10 +1,17 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { FolderOpen, Plus, Pencil, Trash2, X } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
+import FilterDropdown from "../components/FilterDropdown";
 import { projectInfoFilesApi } from "../services/api";
 import { ProjectInfoFile } from "../types";
+import {
+  filterCellValue,
+  matchesSelectedFilter,
+  sortUniqueValues,
+  useColumnDropdownFilters,
+} from "../utils/columnFilters";
 
 interface AddFormState {
   no: string;
@@ -18,10 +25,20 @@ interface EditDraft {
   description: string;
 }
 
+const FILTER_KEYS = ["no", "fileName", "filePath", "description"] as const;
+type FilterKey = (typeof FILTER_KEYS)[number];
+
 const emptyAddForm = (): AddFormState => ({
   no: "",
   file_path: "",
   description: "",
+});
+
+const getRowFilterValues = (row: ProjectInfoFile): Record<FilterKey, string> => ({
+  no: filterCellValue(row.no),
+  fileName: filterCellValue(row.file_name),
+  filePath: filterCellValue(row.file_path),
+  description: filterCellValue(row.description),
 });
 
 const ProjectInfoFiles: React.FC = () => {
@@ -39,6 +56,17 @@ const ProjectInfoFiles: React.FC = () => {
     description: "",
   });
   const [openingId, setOpeningId] = useState<number | null>(null);
+
+  const {
+    selected,
+    open,
+    activeFilterCount,
+    handleSelectionChange,
+    handleClear,
+    handleClearAll,
+    handleToggle,
+    handleClose,
+  } = useColumnDropdownFilters(FILTER_KEYS);
 
   const loadFiles = useCallback(async () => {
     try {
@@ -58,6 +86,34 @@ const ProjectInfoFiles: React.FC = () => {
   useEffect(() => {
     loadFiles();
   }, [loadFiles]);
+
+  const uniqueValues = useMemo(() => {
+    const buckets: Record<FilterKey, string[]> = {
+      no: [],
+      fileName: [],
+      filePath: [],
+      description: [],
+    };
+    files.forEach((row) => {
+      const values = getRowFilterValues(row);
+      FILTER_KEYS.forEach((key) => buckets[key].push(values[key]));
+    });
+    return {
+      no: sortUniqueValues(buckets.no),
+      fileName: sortUniqueValues(buckets.fileName),
+      filePath: sortUniqueValues(buckets.filePath),
+      description: sortUniqueValues(buckets.description),
+    };
+  }, [files]);
+
+  const filteredFiles = useMemo(() => {
+    return files.filter((row) => {
+      const values = getRowFilterValues(row);
+      return FILTER_KEYS.every((key) =>
+        matchesSelectedFilter(values[key], selected[key])
+      );
+    });
+  }, [files, selected]);
 
   const handleOpenAdd = () => {
     setAddForm(emptyAddForm());
@@ -129,7 +185,6 @@ const ProjectInfoFiles: React.FC = () => {
     }
 
     const noRaw = editDraft.no.trim();
-    let no: number | null = null;
     if (noRaw === "") {
       toast.error(t("projectInfoFiles.invalidNo"));
       return;
@@ -139,12 +194,11 @@ const ProjectInfoFiles: React.FC = () => {
       toast.error(t("projectInfoFiles.invalidNo"));
       return;
     }
-    no = parsed;
 
     setSaving(true);
     try {
       await projectInfoFilesApi.update(id, {
-        no,
+        no: parsed,
         file_path: filePath,
         description: editDraft.description.trim() || null,
       });
@@ -205,6 +259,24 @@ const ProjectInfoFiles: React.FC = () => {
     }
   };
 
+  const renderFilterHeader = (key: FilterKey, label: string) => (
+    <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300 bg-gray-50">
+      <div className="flex items-center justify-center gap-1">
+        <span>{label}</span>
+        <FilterDropdown
+          columnName={label}
+          values={uniqueValues[key]}
+          selectedValues={selected[key]}
+          onSelectionChange={(values) => handleSelectionChange(key, values)}
+          onClearFilter={() => handleClear(key)}
+          isOpen={open[key]}
+          onToggle={() => handleToggle(key)}
+          onClose={() => handleClose(key)}
+        />
+      </div>
+    </th>
+  );
+
   return (
     <div className="space-y-6" dir={isRTL ? "rtl" : "ltr"}>
       <div
@@ -220,16 +292,31 @@ const ProjectInfoFiles: React.FC = () => {
             {t("projectInfoFiles.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className={`inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors ${
+        <div
+          className={`flex flex-wrap items-center gap-2 ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
-          <Plus className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
-          {t("projectInfoFiles.addNewFile")}
-        </button>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              {t("common.clearFilter")} ({activeFilterCount})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className={`inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors ${
+              isRTL ? "flex-row-reverse" : ""
+            }`}
+          >
+            <Plus className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+            {t("projectInfoFiles.addNewFile")}
+          </button>
+        </div>
       </div>
 
       {showAddForm && (
@@ -341,165 +428,184 @@ const ProjectInfoFiles: React.FC = () => {
             <p>{t("projectInfoFiles.empty")}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
-                    {t("projectInfoFiles.no")}
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
-                    {t("projectInfoFiles.fileName")}
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
-                    {t("projectInfoFiles.filePath")}
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center border border-gray-300">
-                    {t("projectInfoFiles.description")}
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300">
-                    {t("projectInfoFiles.action")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white">
-                {files.map((row) => {
-                  const isEditing = editingId === row.id;
-                  return (
-                    <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min={1}
-                            value={editDraft.no}
-                            onChange={(e) =>
-                              setEditDraft((prev) => ({
-                                ...prev,
-                                no: e.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => handleEditKeyDown(e, row.id)}
-                            className="w-20 mx-auto px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          row.no
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
-                        {row.file_name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 max-w-xs text-center border border-gray-300 align-middle">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editDraft.file_path}
-                            onChange={(e) =>
-                              setEditDraft((prev) => ({
-                                ...prev,
-                                file_path: e.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => handleEditKeyDown(e, row.id)}
-                            className="w-full min-w-[14rem] px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenFile(row)}
-                            disabled={openingId === row.id}
-                            className="text-blue-600 hover:text-blue-800 hover:underline break-all text-center"
-                            title={t("projectInfoFiles.openFile")}
-                          >
-                            {row.file_path}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 max-w-md text-center border border-gray-300 align-middle">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editDraft.description}
-                            onChange={(e) =>
-                              setEditDraft((prev) => ({
-                                ...prev,
-                                description: e.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => handleEditKeyDown(e, row.id)}
-                            className="w-full px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                          />
-                        ) : (
-                          <span className="whitespace-pre-wrap">
-                            {row.description || "—"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap text-center border border-gray-300 align-middle">
-                        <div
-                          className={`inline-flex items-center justify-center gap-2 ${
-                            isRTL ? "flex-row-reverse" : ""
-                          }`}
-                        >
-                          {isEditing ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => saveEdit(row.id)}
-                                disabled={saving}
-                                className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-                              >
-                                {t("common.save")}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelEdit}
-                                className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
-                              >
-                                {t("common.cancel")}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => startEdit(row)}
-                                className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 ${
-                                  isRTL ? "flex-row-reverse" : ""
-                                }`}
-                              >
-                                <Pencil
-                                  className={`h-3.5 w-3.5 ${
-                                    isRTL ? "ml-1" : "mr-1"
-                                  }`}
-                                />
-                                {t("common.edit")}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(row)}
-                                className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 ${
-                                  isRTL ? "flex-row-reverse" : ""
-                                }`}
-                              >
-                                <Trash2
-                                  className={`h-3.5 w-3.5 ${
-                                    isRTL ? "ml-1" : "mr-1"
-                                  }`}
-                                />
-                                {t("common.delete")}
-                              </button>
-                            </>
-                          )}
-                        </div>
+          <>
+            {activeFilterCount > 0 && (
+              <div className="px-4 py-2 text-sm text-gray-600 border-b border-gray-200 bg-gray-50">
+                {filteredFiles.length} / {files.length} {t("common.items")}
+              </div>
+            )}
+            <div className="overflow-auto max-h-[70vh]">
+              <table className="min-w-full border-collapse">
+                <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+                  <tr>
+                    {renderFilterHeader("no", t("projectInfoFiles.no"))}
+                    {renderFilterHeader(
+                      "fileName",
+                      t("projectInfoFiles.fileName")
+                    )}
+                    {renderFilterHeader(
+                      "filePath",
+                      t("projectInfoFiles.filePath")
+                    )}
+                    {renderFilterHeader(
+                      "description",
+                      t("projectInfoFiles.description")
+                    )}
+                    <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300 bg-gray-50">
+                      {t("projectInfoFiles.action")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white">
+                  {filteredFiles.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-sm text-gray-500 border border-gray-300"
+                      >
+                        {t("common.noValuesFound")}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    filteredFiles.map((row) => {
+                      const isEditing = editingId === row.id;
+                      return (
+                        <tr key={row.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min={1}
+                                value={editDraft.no}
+                                onChange={(e) =>
+                                  setEditDraft((prev) => ({
+                                    ...prev,
+                                    no: e.target.value,
+                                  }))
+                                }
+                                onKeyDown={(e) => handleEditKeyDown(e, row.id)}
+                                className="w-20 mx-auto px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                                autoFocus
+                              />
+                            ) : (
+                              row.no
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
+                            {row.file_name}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 max-w-xs text-center border border-gray-300 align-middle">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editDraft.file_path}
+                                onChange={(e) =>
+                                  setEditDraft((prev) => ({
+                                    ...prev,
+                                    file_path: e.target.value,
+                                  }))
+                                }
+                                onKeyDown={(e) => handleEditKeyDown(e, row.id)}
+                                className="w-full min-w-[14rem] px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenFile(row)}
+                                disabled={openingId === row.id}
+                                className="text-blue-600 hover:text-blue-800 hover:underline break-all text-center"
+                                title={t("projectInfoFiles.openFile")}
+                              >
+                                {row.file_path}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700 max-w-md text-center border border-gray-300 align-middle">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editDraft.description}
+                                onChange={(e) =>
+                                  setEditDraft((prev) => ({
+                                    ...prev,
+                                    description: e.target.value,
+                                  }))
+                                }
+                                onKeyDown={(e) => handleEditKeyDown(e, row.id)}
+                                className="w-full px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                              />
+                            ) : (
+                              <span className="whitespace-pre-wrap">
+                                {row.description || "—"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap text-center border border-gray-300 align-middle">
+                            <div
+                              className={`inline-flex items-center justify-center gap-2 ${
+                                isRTL ? "flex-row-reverse" : ""
+                              }`}
+                            >
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => saveEdit(row.id)}
+                                    disabled={saving}
+                                    className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    {t("common.save")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEdit}
+                                    className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                                  >
+                                    {t("common.cancel")}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(row)}
+                                    className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 ${
+                                      isRTL ? "flex-row-reverse" : ""
+                                    }`}
+                                  >
+                                    <Pencil
+                                      className={`h-3.5 w-3.5 ${
+                                        isRTL ? "ml-1" : "mr-1"
+                                      }`}
+                                    />
+                                    {t("common.edit")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(row)}
+                                    className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 ${
+                                      isRTL ? "flex-row-reverse" : ""
+                                    }`}
+                                  >
+                                    <Trash2
+                                      className={`h-3.5 w-3.5 ${
+                                        isRTL ? "ml-1" : "mr-1"
+                                      }`}
+                                    />
+                                    {t("common.delete")}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
