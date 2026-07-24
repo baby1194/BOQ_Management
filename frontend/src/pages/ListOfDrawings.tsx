@@ -114,7 +114,7 @@ const COLUMN_WIDTHS: Record<ColumnKey, string> = {
   filePath: "32rem",
   notes: "8rem",
   executionStatus: "11rem",
-  action: "16rem",
+  action: "22rem",
 };
 
 const colStyle = (key: ColumnKey): React.CSSProperties => ({
@@ -530,7 +530,7 @@ const ListOfDrawings: React.FC = () => {
       </td>
       <td className={cellClass} style={colStyle("action")}>
         <div
-          className={`inline-flex items-center justify-center gap-2 flex-wrap ${
+          className={`inline-flex items-center justify-center gap-2 whitespace-nowrap ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
@@ -538,7 +538,7 @@ const ListOfDrawings: React.FC = () => {
             type="button"
             onClick={() => void saveEditing()}
             disabled={saving}
-            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
           >
             {editing?.mode === "new"
               ? t("listOfDrawings.add")
@@ -547,7 +547,7 @@ const ListOfDrawings: React.FC = () => {
           <button
             type="button"
             onClick={cancelEdit}
-            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 whitespace-nowrap"
           >
             {t("common.cancel")}
           </button>
@@ -653,7 +653,7 @@ const ListOfDrawings: React.FC = () => {
       </td>
       <td className={cellClass} style={colStyle("action")}>
         <div
-          className={`inline-flex items-center justify-center gap-2 flex-wrap ${
+          className={`inline-flex items-center justify-center gap-2 whitespace-nowrap ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
@@ -661,7 +661,7 @@ const ListOfDrawings: React.FC = () => {
             type="button"
             onClick={() => startEdit(row)}
             disabled={editing?.mode === "new"}
-            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50 ${
+            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50 whitespace-nowrap ${
               isRTL ? "flex-row-reverse" : ""
             }`}
           >
@@ -672,7 +672,7 @@ const ListOfDrawings: React.FC = () => {
             type="button"
             onClick={() => handleDuplicate(row)}
             disabled={editing?.mode === "new"}
-            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded hover:bg-indigo-100 disabled:opacity-50 ${
+            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded hover:bg-indigo-100 disabled:opacity-50 whitespace-nowrap ${
               isRTL ? "flex-row-reverse" : ""
             }`}
           >
@@ -682,7 +682,7 @@ const ListOfDrawings: React.FC = () => {
           <button
             type="button"
             onClick={() => handleDelete(row)}
-            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 ${
+            className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 whitespace-nowrap ${
               isRTL ? "flex-row-reverse" : ""
             }`}
           >

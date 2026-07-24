@@ -13,7 +13,17 @@ FATINA_BASE_DIR = Path("C:/Fatina")
 logger = logging.getLogger(__name__)
 
 
-_FINAL_SUBMISSION_SOURCE_SUFFIXES = {".pdf", ".png"}
+_FINAL_SUBMISSION_IMAGE_SUFFIXES = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".webp",
+}
+_FINAL_SUBMISSION_SOURCE_SUFFIXES = {".pdf", *_FINAL_SUBMISSION_IMAGE_SUFFIXES}
 
 
 def _is_final_submission_pdf(path: Path) -> bool:
@@ -23,7 +33,7 @@ def _is_final_submission_pdf(path: Path) -> bool:
 
 
 def _is_final_submission_source(path: Path) -> bool:
-    """True for PDF/PNG inputs that should be merged into the final submission."""
+    """True for PDF/image inputs that should be merged into the final submission."""
     if not path.is_file():
         return False
     suffix = path.suffix.lower()
@@ -44,8 +54,8 @@ def _append_pdf_pages(writer, pdf_path: Path) -> int:
     return len(reader.pages)
 
 
-def _append_png_as_page(writer, png_path: Path) -> int:
-    """Append a PNG as a single PDF page sized to the image. Returns 1."""
+def _append_image_as_page(writer, image_path: Path) -> int:
+    """Append an image file as a single PDF page sized to the image. Returns 1."""
     from io import BytesIO
 
     from PIL import Image
@@ -53,7 +63,13 @@ def _append_png_as_page(writer, png_path: Path) -> int:
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen.canvas import Canvas
 
-    with Image.open(png_path) as img:
+    with Image.open(image_path) as img:
+        # Animated formats (e.g. GIF): use the first frame only.
+        try:
+            img.seek(0)
+        except EOFError:
+            pass
+
         if img.mode in ("RGBA", "LA"):
             background = Image.new("RGB", img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[-1])
@@ -92,12 +108,12 @@ def _append_png_as_page(writer, png_path: Path) -> int:
 
 
 def _append_source_file(writer, path: Path) -> int:
-    """Append a PDF or PNG source file; PNG becomes one page."""
+    """Append a PDF or image source file; each image becomes one page."""
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         return _append_pdf_pages(writer, path)
-    if suffix == ".png":
-        return _append_png_as_page(writer, path)
+    if suffix in _FINAL_SUBMISSION_IMAGE_SUFFIXES:
+        return _append_image_as_page(writer, path)
     return 0
 
 
@@ -105,13 +121,13 @@ def produce_final_submission_pdfs(
     base_dir: Path | None = None,
 ) -> Dict[str, object]:
     """
-    For each item folder under Fatina, merge PDFs/PNGs into {section}_final.pdf.
+    For each item folder under Fatina, merge PDFs/images into {section}_final.pdf.
 
     Order:
       1. Concentration sheet at item root: {section}.pdf
-      2. PDF/PNG files inside each immediate subfolder (calc sheet no / {invoice}_m),
+      2. PDF/image files inside each immediate subfolder (calc sheet no / {invoice}_m),
          subfolders sorted by name; files within each folder sorted by name.
-         Each PNG is treated as a single-page PDF.
+         Each image (png/jpg/jpeg/gif/bmp/tif/tiff/webp) is treated as a single-page PDF.
 
     PDF pages are appended as-is. Existing *_final.pdf files are never used as inputs.
     """
@@ -165,7 +181,7 @@ def produce_final_submission_pdfs(
             if pages_added == 0:
                 skipped.append(section)
                 logger.info(
-                    "Skipping final submission for %s: no PDF/PNG files found",
+                    "Skipping final submission for %s: no PDF/image files found",
                     section,
                 )
                 continue

@@ -16,6 +16,10 @@ def _write_png(path: Path, size=(40, 30)) -> None:
     Image.new("RGB", size, color=(20, 40, 60)).save(path)
 
 
+def _write_image(path: Path, fmt: str, size=(40, 30)) -> None:
+    Image.new("RGB", size, color=(20, 40, 60)).save(path, format=fmt)
+
+
 def test_produce_final_submission_pdfs_order(tmp_path: Path):
     from fatina_paths import produce_final_submission_pdfs
 
@@ -29,8 +33,10 @@ def test_produce_final_submission_pdfs_order(tmp_path: Path):
     _write_blank_pdf(calc_dir / "drawing_b.pdf", page_count=1)
     _write_blank_pdf(calc_dir / "drawing_a.pdf", page_count=1)
     _write_png(calc_dir / "drawing_c.png")
+    _write_image(calc_dir / "drawing_d.jpg", "JPEG")
     _write_blank_pdf(invoice_dir / "invoice.pdf", page_count=1)
     _write_png(invoice_dir / "photo.png")
+    _write_image(invoice_dir / "scan.webp", "WEBP")
     # Should be ignored as an input if re-run leftover exists
     _write_blank_pdf(item / "40.01.001_final.pdf", page_count=9)
 
@@ -46,8 +52,9 @@ def test_produce_final_submission_pdfs_order(tmp_path: Path):
     out = item / "40.01.001_final.pdf"
     assert out.is_file()
     reader = PdfReader(str(out))
-    # conc(2) + invoice.pdf(1) + photo.png(1) + drawing_a(1) + drawing_b(1) + drawing_c.png(1)
-    assert len(reader.pages) == 7
+    # conc(2) + invoice.pdf(1) + photo.png(1) + scan.webp(1)
+    # + drawing_a(1) + drawing_b(1) + drawing_c.png(1) + drawing_d.jpg(1)
+    assert len(reader.pages) == 9
 
 
 def test_produce_final_submission_skips_missing_fatina(tmp_path: Path):
