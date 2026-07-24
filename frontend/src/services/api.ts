@@ -304,6 +304,17 @@ export const concentrationApi = {
       )
       .then((res) => res.data),
 
+  deleteAllDrawingFiles: () =>
+    api
+      .delete<{
+        success: boolean;
+        message: string;
+        files_removed: number;
+        entries_cleared: number;
+        fatina_files_removed: number;
+      }>("/concentration/drawing-files/all")
+      .then((res) => res.data),
+
   trackCalculationSheets: (sheetId: number, language?: string) =>
     api
       .post<{

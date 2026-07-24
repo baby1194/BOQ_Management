@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { DraftingCompass, Plus, Pencil, Trash2, Copy } from "lucide-react";
@@ -74,7 +74,7 @@ const rowToDraft = (row: DrawingListItem): DraftFields => ({
 });
 
 const cellClass =
-  "px-2 py-2 text-sm text-gray-900 text-center border border-gray-300 align-middle";
+  "px-2 py-2 text-sm text-gray-900 text-center border-b border-r border-gray-300 align-middle";
 const inputClass =
   "w-full min-w-[5.5rem] px-1.5 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center";
 
@@ -123,6 +123,7 @@ const ListOfDrawings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<EditingState>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const {
     selected,
@@ -204,6 +205,13 @@ const ListOfDrawings: React.FC = () => {
       );
     });
   }, [items, selected, getRowFilterValues]);
+
+  // Keep scrollport LTR so sticky headers work in Hebrew; align to logical start.
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el || loading) return;
+    el.scrollLeft = isRTL ? el.scrollWidth - el.clientWidth : 0;
+  }, [isRTL, loading, items.length]);
 
   const updateDraft = (patch: Partial<DraftFields>) => {
     setEditing((prev) => (prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev));
@@ -344,7 +352,7 @@ const ListOfDrawings: React.FC = () => {
   };
 
   const thClass =
-    "px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300 bg-gray-50";
+    "sticky top-0 z-10 px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm";
 
   const renderDraftInputs = (draft: DraftFields) => (
     <>
@@ -655,9 +663,15 @@ const ListOfDrawings: React.FC = () => {
                 {filteredItems.length} / {items.length} {t("common.items")}
               </div>
             )}
-            <div className="overflow-auto max-h-[70vh]">
-              <table className="min-w-full border-collapse">
-                <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+            <div
+              ref={tableScrollRef}
+              className="overflow-auto max-h-[70vh]"
+              dir="ltr"
+            >              <table
+                className="min-w-full border-separate border-spacing-0 border-t border-l border-gray-300"
+                dir={isRTL ? "rtl" : "ltr"}
+              >
+                <thead className="bg-gray-50">
                   <tr>
                     {COLUMN_KEYS.map((key) =>
                       key === "action" ? (
@@ -693,7 +707,7 @@ const ListOfDrawings: React.FC = () => {
                     <tr>
                       <td
                         colSpan={COLUMN_KEYS.length}
-                        className="px-4 py-8 text-center text-sm text-gray-500 border border-gray-300"
+                        className="px-4 py-8 text-center text-sm text-gray-500 border-b border-r border-gray-300"
                       >
                         {t("common.noValuesFound")}
                       </td>

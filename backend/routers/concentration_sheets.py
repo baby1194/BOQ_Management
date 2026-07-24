@@ -33,6 +33,7 @@ from utils.period_details_utils import (
     entry_total_internal_quantity,
     find_period_for_drawing_path,
     get_period_detail,
+    get_period_details_map,
     hydrate_entry_period_details,
     resolve_entry_current_period,
     set_period_detail_fields,
@@ -1048,6 +1049,159 @@ async def open_entry_drawing_file(
     except Exception as exc:
         logger.error(f"Error opening drawing file: {exc}")
         raise HTTPException(status_code=500, detail=f"Error opening file: {exc}")
+
+
+@router.delete(
+    "/drawing-files/all",
+    response_model=schemas.DeleteAllDrawingFilesResponse,
+)
+async def delete_all_drawing_files(
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """Remove all attached drawing files from every entry, including upload and Fatina copies."""
+    try:
+        entries = db.query(models.ConcentrationEntry).all()
+        upload_root = get_project_upload_dir(project_id)
+
+        upload_paths: Set[str] = set()
+        fatina_calc: Set[tuple] = set()
+        fatina_invoice: Set[tuple] = set()
+        files_removed = 0
+        entries_cleared = 0
+
+        for db_entry in entries:
+            _hydrate_entry_response(db_entry)
+            paths = entry_all_drawing_files(db_entry)
+            if not paths:
+                continue
+
+            entries_cleared += 1
+            files_removed += len(paths)
+
+            section_number = _entry_boq_section_number(db_entry, db)
+            calc_no = str(
+                getattr(db_entry, "calculation_sheet_no", "") or ""
+            ).strip()
+            by_invoice = entry_drawing_files_by_invoice(db_entry)
+
+            for path in paths:
+                try:
+                    resolved = str(Path(path).resolve())
+                except OSError:
+                    resolved = path
+
+                if is_upload_copy_path(resolved, upload_root):
+                    upload_paths.add(resolved)
+
+                filename = Path(path).name
+                if not section_number or not filename:
+                    continue
+
+                if calc_no:
+                    fatina_calc.add((section_number, calc_no, filename))
+                else:
+                    matched_invoice = False
+                    for invoice_no, inv_paths in by_invoice.items():
+                        for inv_path in inv_paths:
+                            try:
+                                same = str(Path(inv_path).resolve()) == resolved
+                            except OSError:
+                                same = inv_path == path
+                            if same:
+                                fatina_invoice.add(
+                                    (section_number, invoice_no, filename)
+                                )
+                                matched_invoice = True
+                                break
+                        if matched_invoice:
+                            break
+                    if not matched_invoice:
+                        # Fallback when path isn't grouped by invoice yet
+                        period = (
+                            find_period_for_drawing_path(db_entry, resolved)
+                            or resolve_entry_current_period(db_entry)
+                        )
+                        if period:
+                            fatina_invoice.add(
+                                (section_number, period, filename)
+                            )
+
+            db_entry.drawing_files = []
+            for period in list(
+                get_period_details_map(db_entry.submission_breakdown).keys()
+            ):
+                set_period_detail_fields(
+                    db_entry, period, {"drawing_files": []}
+                )
+
+        db.commit()
+
+        for resolved in upload_paths:
+            try:
+                Path(resolved).unlink(missing_ok=True)
+                logger.info(f"Removed drawing upload file: {resolved}")
+            except OSError as exc:
+                logger.warning(
+                    f"Could not remove drawing upload file {resolved}: {exc}"
+                )
+
+        fatina_removed = 0
+        for section_number, calc_no, filename in fatina_calc:
+            if remove_file_from_calc_sheet_dir(
+                section_number, calc_no, filename
+            ):
+                fatina_removed += 1
+        for section_number, invoice_no, filename in fatina_invoice:
+            if remove_file_from_invoice_dir(
+                section_number, invoice_no, filename
+            ):
+                fatina_removed += 1
+
+        # Best-effort cleanup of empty per-entry drawing upload folders
+        drawing_root = upload_root / "drawing-files"
+        if drawing_root.is_dir():
+            for entry_dir in sorted(drawing_root.iterdir(), reverse=True):
+                if not entry_dir.is_dir():
+                    continue
+                for child in sorted(entry_dir.rglob("*"), reverse=True):
+                    if child.is_dir():
+                        try:
+                            child.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    entry_dir.rmdir()
+                except OSError:
+                    pass
+
+        message = (
+            f"Removed {files_removed} drawing file(s) from {entries_cleared} "
+            f"entr{'y' if entries_cleared == 1 else 'ies'}"
+            + (
+                f" ({fatina_removed} Fatina "
+                f"{'copy' if fatina_removed == 1 else 'copies'} deleted)"
+                if fatina_removed
+                else ""
+            )
+        )
+        if files_removed == 0:
+            message = "No attached drawing files found"
+
+        return schemas.DeleteAllDrawingFilesResponse(
+            success=True,
+            message=message,
+            files_removed=files_removed,
+            entries_cleared=entries_cleared,
+            fatina_files_removed=fatina_removed,
+        )
+    except Exception as e:
+        logger.error(f"Error deleting all drawing files: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete all drawing files",
+        )
 
 
 @router.delete(

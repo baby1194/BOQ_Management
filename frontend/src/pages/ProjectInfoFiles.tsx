@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { FolderOpen, Plus, Pencil, Trash2, X } from "lucide-react";
@@ -56,6 +56,7 @@ const ProjectInfoFiles: React.FC = () => {
     description: "",
   });
   const [openingId, setOpeningId] = useState<number | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const {
     selected,
@@ -114,6 +115,13 @@ const ProjectInfoFiles: React.FC = () => {
       );
     });
   }, [files, selected]);
+
+  // Keep scrollport LTR so sticky headers work in Hebrew; align to logical start.
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el || loading) return;
+    el.scrollLeft = isRTL ? el.scrollWidth - el.clientWidth : 0;
+  }, [isRTL, loading, files.length]);
 
   const handleOpenAdd = () => {
     setAddForm(emptyAddForm());
@@ -260,7 +268,7 @@ const ProjectInfoFiles: React.FC = () => {
   };
 
   const renderFilterHeader = (key: FilterKey, label: string) => (
-    <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300 bg-gray-50">
+    <th className="sticky top-0 z-10 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm">
       <div className="flex items-center justify-center gap-1">
         <span>{label}</span>
         <FilterDropdown
@@ -434,9 +442,15 @@ const ProjectInfoFiles: React.FC = () => {
                 {filteredFiles.length} / {files.length} {t("common.items")}
               </div>
             )}
-            <div className="overflow-auto max-h-[70vh]">
-              <table className="min-w-full border-collapse">
-                <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+            <div
+              ref={tableScrollRef}
+              className="overflow-auto max-h-[70vh]"
+              dir="ltr"
+            >              <table
+                className="min-w-full border-separate border-spacing-0 border-t border-l border-gray-300"
+                dir={isRTL ? "rtl" : "ltr"}
+              >
+                <thead className="bg-gray-50">
                   <tr>
                     {renderFilterHeader("no", t("projectInfoFiles.no"))}
                     {renderFilterHeader(
@@ -451,7 +465,7 @@ const ProjectInfoFiles: React.FC = () => {
                       "description",
                       t("projectInfoFiles.description")
                     )}
-                    <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border border-gray-300 bg-gray-50">
+                    <th className="sticky top-0 z-10 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm">
                       {t("projectInfoFiles.action")}
                     </th>
                   </tr>
@@ -461,7 +475,7 @@ const ProjectInfoFiles: React.FC = () => {
                     <tr>
                       <td
                         colSpan={5}
-                        className="px-4 py-8 text-center text-sm text-gray-500 border border-gray-300"
+                        className="px-4 py-8 text-center text-sm text-gray-500 border-b border-r border-gray-300"
                       >
                         {t("common.noValuesFound")}
                       </td>
@@ -471,7 +485,7 @@ const ProjectInfoFiles: React.FC = () => {
                       const isEditing = editingId === row.id;
                       return (
                         <tr key={row.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border-b border-r border-gray-300 align-middle">
                             {isEditing ? (
                               <input
                                 type="number"
@@ -491,10 +505,10 @@ const ProjectInfoFiles: React.FC = () => {
                               row.no
                             )}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border border-gray-300 align-middle">
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center border-b border-r border-gray-300 align-middle">
                             {row.file_name}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 max-w-xs text-center border border-gray-300 align-middle">
+                          <td className="px-4 py-3 text-sm text-gray-900 max-w-xs text-center border-b border-r border-gray-300 align-middle">
                             {isEditing ? (
                               <input
                                 type="text"
@@ -520,7 +534,7 @@ const ProjectInfoFiles: React.FC = () => {
                               </button>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-700 max-w-md text-center border border-gray-300 align-middle">
+                          <td className="px-4 py-3 text-sm text-gray-700 max-w-md text-center border-b border-r border-gray-300 align-middle">
                             {isEditing ? (
                               <input
                                 type="text"
@@ -540,7 +554,7 @@ const ProjectInfoFiles: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-sm whitespace-nowrap text-center border border-gray-300 align-middle">
+                          <td className="px-4 py-3 text-sm whitespace-nowrap text-center border-b border-r border-gray-300 align-middle">
                             <div
                               className={`inline-flex items-center justify-center gap-2 ${
                                 isRTL ? "flex-row-reverse" : ""

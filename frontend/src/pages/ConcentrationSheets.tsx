@@ -28,6 +28,7 @@ import {
   X,
   ExternalLink,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
@@ -174,6 +175,7 @@ const ConcentrationSheets: React.FC = () => {
   const [expandedDrawingKeys, setExpandedDrawingKeys] = useState<Set<string>>(
     new Set()
   );
+  const [deletingAllDrawings, setDeletingAllDrawings] = useState(false);
   const [periodEdit, setPeriodEdit] = useState<{
     entryId: number;
     period: string;
@@ -323,6 +325,30 @@ const ConcentrationSheets: React.FC = () => {
       setError(
         err.response?.data?.detail || t("concentration.failedToRemoveDrawing")
       );
+    }
+  };
+
+  const handleDeleteAllDrawingFiles = async () => {
+    if (!confirm(t("concentration.confirmDeleteAllDrawings"))) return;
+
+    try {
+      setDeletingAllDrawings(true);
+      setError(null);
+      const response = await concentrationApi.deleteAllDrawingFiles();
+      if (selectedSheet) {
+        await fetchEntries(selectedSheet.id);
+      }
+      alert(`✅ ${response.message}`);
+    } catch (err: any) {
+      console.error("Error deleting all drawing files:", err);
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        t("concentration.failedToDeleteAllDrawings");
+      setError(errorMessage);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setDeletingAllDrawings(false);
     }
   };
 
@@ -1172,6 +1198,24 @@ const ConcentrationSheets: React.FC = () => {
               {exportingAllExcel
                 ? t("concentration.exporting")
                 : t("concentration.exportAllExcel")}
+            </button>
+            <button
+              onClick={handleDeleteAllDrawingFiles}
+              disabled={deletingAllDrawings || sheets.length === 0}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+              title={t("concentration.deleteAllDrawingsTitle")}
+            >
+              {deletingAllDrawings ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  <span>{t("concentration.deletingAllDrawings")}</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  <span>{t("concentration.deleteAllDrawings")}</span>
+                </>
+              )}
             </button>
           </div>
 
