@@ -22,7 +22,10 @@ from services.calculation_sheet_sync import (
     push_calculation_sheet_to_concentration_entries,
 )
 from services.non_boq_service import register_non_boq_items_from_calculation_entries
-from services.approved_signed_qty_pdf_service import extract_approved_signed_quantities
+from services.approved_signed_qty_pdf_service import (
+    build_boq_section_number,
+    extract_approved_signed_quantities,
+)
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
@@ -1056,17 +1059,38 @@ async def import_calculation_sheets(
 )
 async def import_approved_signed_quantities_from_pdf(
     file: UploadFile = File(...),
+    section_column_name: str = Form(""),
+    qty_column_name: str = Form(""),
+    structure: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """
-    Read approved signed quantities from an execution PDF report
-    (מק\"ט + כמות מצטברת לחשבון נוכחי) and update matching BOQ items.
+    Read approved signed quantities from an execution PDF report and update
+    matching BOQ items.
+
+    BOQ lookup key = structure + '.' + PDF section number (when structure is set).
+    Column headers are matched using section_column_name / qty_column_name.
     """
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File must be a PDF",
+        )
+
+    section_column_name = (section_column_name or "").strip()
+    qty_column_name = (qty_column_name or "").strip()
+    structure = (structure or "").strip()
+
+    if not section_column_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Section number column name is required",
+        )
+    if not qty_column_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approved signed quantity column name is required",
         )
 
     temp_path: Optional[Path] = None
@@ -1076,7 +1100,11 @@ async def import_approved_signed_quantities_from_pdf(
             shutil.copyfileobj(file.file, tmp)
             temp_path = Path(tmp.name)
 
-        quantities = extract_approved_signed_quantities(temp_path)
+        quantities = extract_approved_signed_quantities(
+            temp_path,
+            section_column_name=section_column_name,
+            qty_column_name=qty_column_name,
+        )
         if not quantities:
             return schemas.ApprovedSignedQtyImportResponse(
                 success=False,
@@ -1086,14 +1114,18 @@ async def import_approved_signed_quantities_from_pdf(
                 items_unchanged=0,
                 items_not_found=0,
                 not_found_section_numbers=[],
-                errors=["No מק\"ט / quantity rows could be extracted from the PDF"],
+                errors=[
+                    "No section number / quantity rows could be extracted from the PDF "
+                    f"using columns {section_column_name!r} and {qty_column_name!r}"
+                ],
             )
 
         items_updated = 0
         items_unchanged = 0
         not_found: List[str] = []
 
-        for section_number, quantity in quantities.items():
+        for pdf_section, quantity in quantities.items():
+            section_number = build_boq_section_number(structure, pdf_section)
             boq_item = (
                 db.query(models.BOQItem)
                 .filter(models.BOQItem.section_number == section_number)

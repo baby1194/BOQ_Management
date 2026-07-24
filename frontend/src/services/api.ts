@@ -507,9 +507,19 @@ export const importApi = {
       .then((res) => res.data);
   },
 
-  importApprovedSignedQty: (file: File) => {
+  importApprovedSignedQty: (
+    file: File,
+    options: {
+      sectionColumnName: string;
+      qtyColumnName: string;
+      structure?: string;
+    },
+  ) => {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("section_column_name", options.sectionColumnName);
+    formData.append("qty_column_name", options.qtyColumnName);
+    formData.append("structure", options.structure || "");
     return api
       .post<ApprovedSignedQtyImportResponse>(
         "/file-import/approved-signed-qty/",

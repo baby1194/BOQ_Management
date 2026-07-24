@@ -1,15 +1,56 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { importApi } from "../services/api";
 import { ApprovedSignedQtyImportResponse } from "../types";
+import { getProjectItem, setProjectItem } from "../utils/localStorage";
 
 interface ReadApprovedSignedQtyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (result: ApprovedSignedQtyImportResponse) => void;
 }
+
+const PREFS_KEY = "approved-signed-qty-pdf-prefs";
+
+interface ApprovedSignedQtyPrefs {
+  sectionColumnName: string;
+  qtyColumnName: string;
+  structure: string;
+}
+
+const DEFAULT_PREFS: ApprovedSignedQtyPrefs = {
+  sectionColumnName: 'מק"ט',
+  qtyColumnName: "כמות מצטברת לחשבון נוכחי",
+  structure: "",
+};
+
+const loadPrefs = (): ApprovedSignedQtyPrefs => {
+  const saved = getProjectItem(PREFS_KEY);
+  if (!saved) {
+    return { ...DEFAULT_PREFS };
+  }
+  try {
+    const parsed = JSON.parse(saved) as Partial<ApprovedSignedQtyPrefs>;
+    return {
+      sectionColumnName:
+        typeof parsed.sectionColumnName === "string"
+          ? parsed.sectionColumnName
+          : DEFAULT_PREFS.sectionColumnName,
+      qtyColumnName:
+        typeof parsed.qtyColumnName === "string"
+          ? parsed.qtyColumnName
+          : DEFAULT_PREFS.qtyColumnName,
+      structure:
+        typeof parsed.structure === "string"
+          ? parsed.structure
+          : DEFAULT_PREFS.structure,
+    };
+  } catch {
+    return { ...DEFAULT_PREFS };
+  }
+};
 
 const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
   isOpen,
@@ -21,6 +62,23 @@ const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sectionColumnName, setSectionColumnName] = useState(
+    DEFAULT_PREFS.sectionColumnName,
+  );
+  const [qtyColumnName, setQtyColumnName] = useState(
+    DEFAULT_PREFS.qtyColumnName,
+  );
+  const [structure, setStructure] = useState(DEFAULT_PREFS.structure);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const prefs = loadPrefs();
+    setSectionColumnName(prefs.sectionColumnName);
+    setQtyColumnName(prefs.qtyColumnName);
+    setStructure(prefs.structure);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -67,10 +125,34 @@ const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
       toast.error(t("dashboard.selectPdfFirst"));
       return;
     }
+    const trimmedSection = sectionColumnName.trim();
+    const trimmedQty = qtyColumnName.trim();
+    if (!trimmedSection) {
+      toast.error(t("dashboard.sectionColumnNameRequired"));
+      return;
+    }
+    if (!trimmedQty) {
+      toast.error(t("dashboard.qtyColumnNameRequired"));
+      return;
+    }
+
+    const trimmedStructure = structure.trim();
+    setProjectItem(
+      PREFS_KEY,
+      JSON.stringify({
+        sectionColumnName: trimmedSection,
+        qtyColumnName: trimmedQty,
+        structure: trimmedStructure,
+      }),
+    );
 
     setIsSubmitting(true);
     try {
-      const result = await importApi.importApprovedSignedQty(selectedFile);
+      const result = await importApi.importApprovedSignedQty(selectedFile, {
+        sectionColumnName: trimmedSection,
+        qtyColumnName: trimmedQty,
+        structure: trimmedStructure,
+      });
       if (result.success) {
         let message = t("dashboard.approvedSignedQtyUpdated", {
           count: result.items_updated,
@@ -99,9 +181,13 @@ const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
     }
   };
 
+  const exampleSection = structure.trim()
+    ? `${structure.trim().replace(/^\.+|\.+$/g, "")}.02.01.0010`
+    : "02.01.0010";
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("dashboard.readApprovedSignedQty")}
@@ -121,6 +207,67 @@ const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
           <p className="text-sm text-gray-600">
             {t("dashboard.readApprovedSignedQtyDescription")}
           </p>
+
+          <div className="space-y-3">
+            <div>
+              <label
+                htmlFor="section-column-name"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                {t("dashboard.sectionColumnName")}
+              </label>
+              <input
+                id="section-column-name"
+                type="text"
+                value={sectionColumnName}
+                onChange={(e) => setSectionColumnName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder='מק"ט'
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="qty-column-name"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                {t("dashboard.qtyColumnName")}
+              </label>
+              <input
+                id="qty-column-name"
+                type="text"
+                value={qtyColumnName}
+                onChange={(e) => setQtyColumnName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="כמות מצטברת לחשבון נוכחי"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="structure-prefix"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                {t("dashboard.structurePrefix")}
+              </label>
+              <input
+                id="structure-prefix"
+                type="text"
+                value={structure}
+                onChange={(e) => setStructure(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="1"
+                disabled={isSubmitting}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {t("dashboard.structurePrefixHint", {
+                  example: exampleSection,
+                })}
+              </p>
+            </div>
+          </div>
 
           <div
             onDragOver={(e) => {
@@ -185,7 +332,12 @@ const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
             type="button"
             onClick={handleSubmit}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-            disabled={isSubmitting || !selectedFile}
+            disabled={
+              isSubmitting ||
+              !selectedFile ||
+              !sectionColumnName.trim() ||
+              !qtyColumnName.trim()
+            }
           >
             {isSubmitting
               ? t("dashboard.readingApprovedSignedQty")
