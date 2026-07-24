@@ -1,15 +1,17 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Paperclip } from "lucide-react";
+import { FileText, Paperclip, Trash2 } from "lucide-react";
 
 interface ConcentrationDrawingFilesCellProps {
   drawingFiles: string[];
   isRTL: boolean;
   isUploading: boolean;
   isExpanded: boolean;
+  isDeletingAll?: boolean;
   onAttach: () => void;
   onOpen: (path: string) => void;
   onRemove: (path: string) => void;
+  onRemoveAll?: () => void;
   onToggleExpanded: () => void;
   drawingFileName: (path: string) => string;
 }
@@ -21,14 +23,17 @@ const ConcentrationDrawingFilesCell: React.FC<
   isRTL,
   isUploading,
   isExpanded,
+  isDeletingAll = false,
   onAttach,
   onOpen,
   onRemove,
+  onRemoveAll,
   onToggleExpanded,
   drawingFileName,
 }) => {
   const { t } = useTranslation();
   const showToggle = drawingFiles.length > 1;
+  const showDeleteAll = drawingFiles.length > 1 && !!onRemoveAll;
 
   const renderDrawingFile = (filePath: string) => (
     <div
@@ -60,12 +65,30 @@ const ConcentrationDrawingFilesCell: React.FC<
     </div>
   );
 
+  const deleteAllButton = showDeleteAll ? (
+    <button
+      type="button"
+      onClick={onRemoveAll}
+      onDoubleClick={(e) => e.stopPropagation()}
+      disabled={isUploading || isDeletingAll}
+      className="inline-flex items-center justify-center gap-1 bg-red-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
+      title={t("concentration.deleteAllDrawingsTitle")}
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+      <span>
+        {isDeletingAll
+          ? t("concentration.deletingAllDrawings")
+          : t("concentration.deleteAllDrawings")}
+      </span>
+    </button>
+  ) : null;
+
   const attachButton = (
     <button
       type="button"
       onClick={onAttach}
       onDoubleClick={(e) => e.stopPropagation()}
-      disabled={isUploading}
+      disabled={isUploading || isDeletingAll}
       className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
     >
       <Paperclip className="h-3.5 w-3.5" />
@@ -106,6 +129,7 @@ const ConcentrationDrawingFilesCell: React.FC<
               {t("concentration.showMoreDrawings")}
             </button>
           )}
+          {deleteAllButton}
           {attachButton}
         </div>
       </div>
@@ -125,7 +149,14 @@ const ConcentrationDrawingFilesCell: React.FC<
           {t("concentration.showLessDrawings")}
         </button>
       </div>
-      <div className="flex justify-center">{attachButton}</div>
+      <div
+        className={`flex justify-center gap-1 ${
+          isRTL ? "flex-row-reverse" : ""
+        }`}
+      >
+        {deleteAllButton}
+        {attachButton}
+      </div>
     </div>
   );
 };

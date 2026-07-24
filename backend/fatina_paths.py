@@ -13,10 +13,25 @@ FATINA_BASE_DIR = Path("C:/Fatina")
 logger = logging.getLogger(__name__)
 
 
+_FINAL_SUBMISSION_SOURCE_SUFFIXES = {".pdf", ".png"}
+
+
 def _is_final_submission_pdf(path: Path) -> bool:
     """True for previously produced {section}_final.pdf outputs."""
     name = path.name.lower()
     return name.endswith("_final.pdf")
+
+
+def _is_final_submission_source(path: Path) -> bool:
+    """True for PDF/PNG inputs that should be merged into the final submission."""
+    if not path.is_file():
+        return False
+    suffix = path.suffix.lower()
+    if suffix not in _FINAL_SUBMISSION_SOURCE_SUFFIXES:
+        return False
+    if suffix == ".pdf" and _is_final_submission_pdf(path):
+        return False
+    return True
 
 
 def _append_pdf_pages(writer, pdf_path: Path) -> int:
@@ -29,18 +44,76 @@ def _append_pdf_pages(writer, pdf_path: Path) -> int:
     return len(reader.pages)
 
 
+def _append_png_as_page(writer, png_path: Path) -> int:
+    """Append a PNG as a single PDF page sized to the image. Returns 1."""
+    from io import BytesIO
+
+    from PIL import Image
+    from pypdf import PdfReader
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen.canvas import Canvas
+
+    with Image.open(png_path) as img:
+        if img.mode in ("RGBA", "LA"):
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[-1])
+            img = background
+        elif img.mode == "P":
+            img = img.convert("RGBA")
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[-1])
+            img = background
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+
+        width, height = img.size
+        image_buf = BytesIO()
+        img.save(image_buf, format="PNG")
+        image_buf.seek(0)
+
+    pdf_buf = BytesIO()
+    canvas = Canvas(pdf_buf, pagesize=(width, height))
+    canvas.drawImage(
+        ImageReader(image_buf),
+        0,
+        0,
+        width=width,
+        height=height,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    canvas.showPage()
+    canvas.save()
+    pdf_buf.seek(0)
+
+    reader = PdfReader(pdf_buf)
+    writer.add_page(reader.pages[0])
+    return 1
+
+
+def _append_source_file(writer, path: Path) -> int:
+    """Append a PDF or PNG source file; PNG becomes one page."""
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return _append_pdf_pages(writer, path)
+    if suffix == ".png":
+        return _append_png_as_page(writer, path)
+    return 0
+
+
 def produce_final_submission_pdfs(
     base_dir: Path | None = None,
 ) -> Dict[str, object]:
     """
-    For each item folder under Fatina, merge PDFs into {section}_final.pdf.
+    For each item folder under Fatina, merge PDFs/PNGs into {section}_final.pdf.
 
     Order:
       1. Concentration sheet at item root: {section}.pdf
-      2. PDFs inside each immediate subfolder (calc sheet no / {invoice}_m),
-         subfolders sorted by name; PDFs within each folder sorted by name.
+      2. PDF/PNG files inside each immediate subfolder (calc sheet no / {invoice}_m),
+         subfolders sorted by name; files within each folder sorted by name.
+         Each PNG is treated as a single-page PDF.
 
-    Pages are appended as-is. Existing *_final.pdf files are never used as inputs.
+    PDF pages are appended as-is. Existing *_final.pdf files are never used as inputs.
     """
     from pypdf import PdfWriter
 
@@ -81,24 +154,19 @@ def produce_final_submission_pdfs(
                 key=lambda p: p.name.lower(),
             )
             for subdir in subdirs:
-                pdfs = sorted(
-                    [
-                        p
-                        for p in subdir.iterdir()
-                        if p.is_file()
-                        and p.suffix.lower() == ".pdf"
-                        and not _is_final_submission_pdf(p)
-                    ],
+                source_files = sorted(
+                    [p for p in subdir.iterdir() if _is_final_submission_source(p)],
                     key=lambda p: p.name.lower(),
                 )
-                for pdf_path in pdfs:
-                    pages_added += _append_pdf_pages(writer, pdf_path)
-                    sources.append(str(pdf_path))
+                for source_path in source_files:
+                    pages_added += _append_source_file(writer, source_path)
+                    sources.append(str(source_path))
 
             if pages_added == 0:
                 skipped.append(section)
                 logger.info(
-                    "Skipping final submission for %s: no PDFs found", section
+                    "Skipping final submission for %s: no PDF/PNG files found",
+                    section,
                 )
                 continue
 

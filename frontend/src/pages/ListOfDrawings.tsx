@@ -76,7 +76,7 @@ const rowToDraft = (row: DrawingListItem): DraftFields => ({
 const cellClass =
   "px-2 py-2 text-sm text-gray-900 text-center border-b border-r border-gray-300 align-middle";
 const inputClass =
-  "w-full min-w-[5.5rem] px-1.5 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center";
+  "w-full px-1.5 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center";
 
 const COLUMN_KEYS = [
   "no",
@@ -95,6 +95,38 @@ const COLUMN_KEYS = [
   "executionStatus",
   "action",
 ] as const;
+
+type ColumnKey = (typeof COLUMN_KEYS)[number];
+
+/** Language-independent widths so EN/HE layouts match. */
+const COLUMN_WIDTHS: Record<ColumnKey, string> = {
+  no: "4.5rem",
+  drawingType: "8rem",
+  planningOffice: "8.5rem",
+  drawingName: "9rem",
+  crossSections: "8rem",
+  element: "7.5rem",
+  sheetName: "8rem",
+  edition: "6.5rem",
+  releaseDate: "8rem",
+  updateDescription: "10rem",
+  folderDate: "8rem",
+  filePath: "32rem",
+  notes: "8rem",
+  executionStatus: "11rem",
+  action: "16rem",
+};
+
+const colStyle = (key: ColumnKey): React.CSSProperties => ({
+  width: COLUMN_WIDTHS[key],
+  minWidth: COLUMN_WIDTHS[key],
+  maxWidth: COLUMN_WIDTHS[key],
+});
+
+const TABLE_WIDTH = `${Object.values(COLUMN_WIDTHS)
+  .map((w) => parseFloat(w))
+  .reduce((a, b) => a + b, 0)}rem`;
+
 
 const FILTER_KEYS = [
   "no",
@@ -352,11 +384,11 @@ const ListOfDrawings: React.FC = () => {
   };
 
   const thClass =
-    "sticky top-0 z-10 px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm";
+    "sticky top-0 z-10 px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm leading-tight";
 
   const renderDraftInputs = (draft: DraftFields) => (
     <>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("no")}>
         <input
           type="number"
           min={1}
@@ -367,7 +399,7 @@ const ListOfDrawings: React.FC = () => {
           autoFocus
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("drawingType")}>
         <input
           type="text"
           value={draft.drawing_type}
@@ -376,7 +408,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("planningOffice")}>
         <input
           type="text"
           value={draft.planning_office}
@@ -385,7 +417,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("drawingName")}>
         <input
           type="text"
           value={draft.drawing_name}
@@ -394,7 +426,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("crossSections")}>
         <input
           type="text"
           value={draft.cross_sections}
@@ -403,7 +435,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("element")}>
         <input
           type="text"
           value={draft.element}
@@ -412,7 +444,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("sheetName")}>
         <input
           type="text"
           value={draft.sheet_name}
@@ -421,7 +453,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("edition")}>
         <input
           type="text"
           value={draft.edition}
@@ -430,7 +462,7 @@ const ListOfDrawings: React.FC = () => {
           className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("releaseDate")}>
         <input
           type="text"
           value={draft.release_date}
@@ -440,16 +472,16 @@ const ListOfDrawings: React.FC = () => {
           placeholder={t("listOfDrawings.datePlaceholder")}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("updateDescription")}>
         <input
           type="text"
           value={draft.update_description}
           onChange={(e) => updateDraft({ update_description: e.target.value })}
           onKeyDown={handleEditKeyDown}
-          className={`${inputClass} min-w-[8rem]`}
+          className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("folderDate")}>
         <input
           type="text"
           value={draft.folder_date}
@@ -459,26 +491,26 @@ const ListOfDrawings: React.FC = () => {
           placeholder={t("listOfDrawings.datePlaceholder")}
         />
       </td>
-      <td className={cellClass}>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("filePath")}>
         <input
           type="text"
           value={draft.file_path}
           onChange={(e) => updateDraft({ file_path: e.target.value })}
           onKeyDown={handleEditKeyDown}
-          className={`${inputClass} min-w-[12rem]`}
+          className={inputClass}
           placeholder={t("listOfDrawings.filePathPlaceholder")}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("notes")}>
         <input
           type="text"
           value={draft.notes}
           onChange={(e) => updateDraft({ notes: e.target.value })}
           onKeyDown={handleEditKeyDown}
-          className={`${inputClass} min-w-[7rem]`}
+          className={inputClass}
         />
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("executionStatus")}>
         <select
           value={draft.execution_status}
           onChange={(e) =>
@@ -496,9 +528,9 @@ const ListOfDrawings: React.FC = () => {
           <option value="cancelled">{t("listOfDrawings.cancelled")}</option>
         </select>
       </td>
-      <td className={cellClass}>
+      <td className={cellClass} style={colStyle("action")}>
         <div
-          className={`inline-flex items-center justify-center gap-2 ${
+          className={`inline-flex items-center justify-center gap-2 flex-wrap ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
@@ -526,29 +558,79 @@ const ListOfDrawings: React.FC = () => {
 
   const renderReadRow = (row: DrawingListItem) => (
     <>
-      <td className={cellClass}>{row.no}</td>
-      <td className={cellClass}>{row.drawing_type || "—"}</td>
-      <td className={cellClass}>{row.planning_office || "—"}</td>
-      <td className={cellClass}>{row.drawing_name || "—"}</td>
-      <td className={cellClass}>{row.cross_sections || "—"}</td>
-      <td className={cellClass}>{row.element || "—"}</td>
-      <td className={cellClass}>{row.sheet_name || "—"}</td>
-      <td className={cellClass}>{row.edition || "—"}</td>
-      <td className={cellClass}>{row.release_date || "—"}</td>
-      <td className={cellClass}>
-        <span className="whitespace-pre-wrap">
+      <td className={cellClass} style={colStyle("no")}>
+        {row.no}
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("drawingType")}>
+        <span className="block truncate" title={row.drawing_type || undefined}>
+          {row.drawing_type || "—"}
+        </span>
+      </td>
+      <td
+        className={`${cellClass} overflow-hidden`}
+        style={colStyle("planningOffice")}
+      >
+        <span className="block truncate" title={row.planning_office || undefined}>
+          {row.planning_office || "—"}
+        </span>
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("drawingName")}>
+        <span className="block truncate" title={row.drawing_name || undefined}>
+          {row.drawing_name || "—"}
+        </span>
+      </td>
+      <td
+        className={`${cellClass} overflow-hidden`}
+        style={colStyle("crossSections")}
+      >
+        <span className="block truncate" title={row.cross_sections || undefined}>
+          {row.cross_sections || "—"}
+        </span>
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("element")}>
+        <span className="block truncate" title={row.element || undefined}>
+          {row.element || "—"}
+        </span>
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("sheetName")}>
+        <span className="block truncate" title={row.sheet_name || undefined}>
+          {row.sheet_name || "—"}
+        </span>
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("edition")}>
+        <span className="block truncate" title={row.edition || undefined}>
+          {row.edition || "—"}
+        </span>
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("releaseDate")}>
+        <span className="block truncate" title={row.release_date || undefined}>
+          {row.release_date || "—"}
+        </span>
+      </td>
+      <td
+        className={`${cellClass} overflow-hidden`}
+        style={colStyle("updateDescription")}
+      >
+        <span
+          className="block truncate"
+          title={row.update_description || undefined}
+        >
           {row.update_description || "—"}
         </span>
       </td>
-      <td className={cellClass}>{row.folder_date || "—"}</td>
-      <td className={`${cellClass} max-w-xs`}>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("folderDate")}>
+        <span className="block truncate" title={row.folder_date || undefined}>
+          {row.folder_date || "—"}
+        </span>
+      </td>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("filePath")}>
         {row.file_path ? (
           <button
             type="button"
             onClick={() => handleOpenFile(row)}
             disabled={openingId === row.id}
-            className="text-blue-600 hover:text-blue-800 hover:underline break-all text-center"
-            title={t("listOfDrawings.openFile")}
+            className="block w-full truncate text-blue-600 hover:text-blue-800 hover:underline text-center"
+            title={row.file_path}
           >
             {row.file_path}
           </button>
@@ -556,13 +638,22 @@ const ListOfDrawings: React.FC = () => {
           "—"
         )}
       </td>
-      <td className={cellClass}>
-        <span className="whitespace-pre-wrap">{row.notes || "—"}</span>
+      <td className={`${cellClass} overflow-hidden`} style={colStyle("notes")}>
+        <span className="block truncate" title={row.notes || undefined}>
+          {row.notes || "—"}
+        </span>
       </td>
-      <td className={cellClass}>{statusLabel(row.execution_status)}</td>
-      <td className={cellClass}>
+      <td
+        className={`${cellClass} overflow-hidden`}
+        style={colStyle("executionStatus")}
+      >
+        <span className="block truncate">
+          {statusLabel(row.execution_status)}
+        </span>
+      </td>
+      <td className={cellClass} style={colStyle("action")}>
         <div
-          className={`inline-flex items-center justify-center gap-2 ${
+          className={`inline-flex items-center justify-center gap-2 flex-wrap ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
@@ -667,19 +758,40 @@ const ListOfDrawings: React.FC = () => {
               ref={tableScrollRef}
               className="overflow-auto max-h-[70vh]"
               dir="ltr"
-            >              <table
-                className="min-w-full border-separate border-spacing-0 border-t border-l border-gray-300"
+            >
+              <table
+                className="table-fixed border-separate border-spacing-0 border-t border-l border-gray-300"
+                style={{ width: TABLE_WIDTH, minWidth: TABLE_WIDTH }}
                 dir={isRTL ? "rtl" : "ltr"}
               >
+                <colgroup>
+                  {COLUMN_KEYS.map((key) => (
+                    <col
+                      key={key}
+                      style={{
+                        width: COLUMN_WIDTHS[key],
+                        minWidth: COLUMN_WIDTHS[key],
+                      }}
+                    />
+                  ))}
+                </colgroup>
                 <thead className="bg-gray-50">
                   <tr>
                     {COLUMN_KEYS.map((key) =>
                       key === "action" ? (
-                        <th key={key} className={thClass}>
+                        <th
+                          key={key}
+                          className={thClass}
+                          style={colStyle(key)}
+                        >
                           {t(`listOfDrawings.${key}`)}
                         </th>
                       ) : (
-                        <th key={key} className={thClass}>
+                        <th
+                          key={key}
+                          className={thClass}
+                          style={colStyle(key)}
+                        >
                           <div className="flex items-center justify-center gap-1">
                             <span>{t(`listOfDrawings.${key}`)}</span>
                             <FilterDropdown

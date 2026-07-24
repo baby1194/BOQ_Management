@@ -304,16 +304,16 @@ export const concentrationApi = {
       )
       .then((res) => res.data),
 
-  deleteAllDrawingFiles: () =>
-    api
-      .delete<{
-        success: boolean;
-        message: string;
-        files_removed: number;
-        entries_cleared: number;
-        fatina_files_removed: number;
-      }>("/concentration/drawing-files/all")
-      .then((res) => res.data),
+  removeAllDrawingFiles: (entryId: number, invoiceNo?: string) => {
+    const query = invoiceNo
+      ? `?invoice_no=${encodeURIComponent(invoiceNo)}`
+      : "";
+    return api
+      .delete<ConcentrationEntry>(
+        `/concentration/entries/${entryId}/drawing-files/all${query}`
+      )
+      .then((res) => res.data);
+  },
 
   trackCalculationSheets: (sheetId: number, language?: string) =>
     api

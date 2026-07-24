@@ -42,7 +42,9 @@ interface ConcentrationBreakdownRowsProps {
     path: string,
     invoiceNo?: string
   ) => void;
+  onRemoveAllDrawings: (entryId: number, invoiceNo?: string) => void;
   onToggleDrawingExpanded: (key: string) => void;
+  deletingAllDrawingKey: string | null;
   drawingFileName: (path: string) => string;
 }
 
@@ -68,7 +70,9 @@ export const ConcentrationBreakdownPastRows: React.FC<
   onAttachDrawing,
   onOpenDrawing,
   onRemoveDrawing,
+  onRemoveAllDrawings,
   onToggleDrawingExpanded,
+  deletingAllDrawingKey,
   drawingFileName,
 }) => {
   const { t } = useTranslation();
@@ -128,6 +132,10 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 onRemove={(path) =>
                   onRemoveDrawing(entry.id, path, row.period)
                 }
+                onRemoveAll={() =>
+                  onRemoveAllDrawings(entry.id, row.period)
+                }
+                isDeletingAll={deletingAllDrawingKey === key}
                 onToggleExpanded={() => onToggleDrawingExpanded(key)}
                 drawingFileName={drawingFileName}
               />

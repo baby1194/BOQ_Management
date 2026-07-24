@@ -188,14 +188,6 @@ class DrawingFilePathRequest(BaseModel):
     )
 
 
-class DeleteAllDrawingFilesResponse(BaseModel):
-    success: bool
-    message: str
-    files_removed: int
-    entries_cleared: int
-    fatina_files_removed: int
-
-
 class CopyConcentrationEntryToBOQItemsRequest(BaseModel):
     boq_item_ids: List[int] = Field(..., min_length=1)
 

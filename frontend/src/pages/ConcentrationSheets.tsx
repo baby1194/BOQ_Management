@@ -28,7 +28,6 @@ import {
   X,
   ExternalLink,
   RefreshCw,
-  Trash2,
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
@@ -175,7 +174,9 @@ const ConcentrationSheets: React.FC = () => {
   const [expandedDrawingKeys, setExpandedDrawingKeys] = useState<Set<string>>(
     new Set()
   );
-  const [deletingAllDrawings, setDeletingAllDrawings] = useState(false);
+  const [deletingAllDrawingKey, setDeletingAllDrawingKey] = useState<
+    string | null
+  >(null);
   const [periodEdit, setPeriodEdit] = useState<{
     entryId: number;
     period: string;
@@ -328,27 +329,28 @@ const ConcentrationSheets: React.FC = () => {
     }
   };
 
-  const handleDeleteAllDrawingFiles = async () => {
+  const handleRemoveAllDrawingFiles = async (
+    entryId: number,
+    invoiceNo?: string
+  ) => {
     if (!confirm(t("concentration.confirmDeleteAllDrawings"))) return;
-
+    const key = `${entryId}:${invoiceNo || "current"}`;
     try {
-      setDeletingAllDrawings(true);
+      setDeletingAllDrawingKey(key);
       setError(null);
-      const response = await concentrationApi.deleteAllDrawingFiles();
-      if (selectedSheet) {
-        await fetchEntries(selectedSheet.id);
-      }
-      alert(`✅ ${response.message}`);
+      const updated = await concentrationApi.removeAllDrawingFiles(
+        entryId,
+        invoiceNo
+      );
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
     } catch (err: any) {
-      console.error("Error deleting all drawing files:", err);
-      const errorMessage =
+      console.error("Error removing all drawing files:", err);
+      setError(
         err.response?.data?.detail ||
-        err.message ||
-        t("concentration.failedToDeleteAllDrawings");
-      setError(errorMessage);
-      alert(`Error: ${errorMessage}`);
+          t("concentration.failedToDeleteAllDrawings")
+      );
     } finally {
-      setDeletingAllDrawings(false);
+      setDeletingAllDrawingKey(null);
     }
   };
 
@@ -1199,24 +1201,6 @@ const ConcentrationSheets: React.FC = () => {
                 ? t("concentration.exporting")
                 : t("concentration.exportAllExcel")}
             </button>
-            <button
-              onClick={handleDeleteAllDrawingFiles}
-              disabled={deletingAllDrawings || sheets.length === 0}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-              title={t("concentration.deleteAllDrawingsTitle")}
-            >
-              {deletingAllDrawings ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  <span>{t("concentration.deletingAllDrawings")}</span>
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4" />
-                  <span>{t("concentration.deleteAllDrawings")}</span>
-                </>
-              )}
-            </button>
           </div>
 
           {navigatedFromBOQ && (
@@ -1847,8 +1831,14 @@ const ConcentrationSheets: React.FC = () => {
                                         onAttachDrawing={triggerAttachDrawings}
                                         onOpenDrawing={handleOpenDrawingFile}
                                         onRemoveDrawing={handleRemoveDrawingFile}
+                                        onRemoveAllDrawings={
+                                          handleRemoveAllDrawingFiles
+                                        }
                                         onToggleDrawingExpanded={
                                           toggleDrawingFilesExpanded
+                                        }
+                                        deletingAllDrawingKey={
+                                          deletingAllDrawingKey
                                         }
                                         drawingFileName={drawingFileName}
                                       />
@@ -2052,6 +2042,16 @@ const ConcentrationSheets: React.FC = () => {
                                               path,
                                               currentPeriod || undefined
                                             )
+                                          }
+                                          onRemoveAll={() =>
+                                            handleRemoveAllDrawingFiles(
+                                              entry.id,
+                                              currentPeriod || undefined
+                                            )
+                                          }
+                                          isDeletingAll={
+                                            deletingAllDrawingKey ===
+                                            currentDrawingKey
                                           }
                                           onToggleExpanded={() =>
                                             toggleDrawingFilesExpanded(
