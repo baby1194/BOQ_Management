@@ -46,6 +46,7 @@ def test_produce_final_submission_pdfs_order(tmp_path: Path):
     result = produce_final_submission_pdfs(base_dir=tmp_path)
 
     assert result["produced_count"] == 1
+    assert result["copied_count"] == 1
     assert result["skipped_count"] == 1
     assert result["errors"] == []
 
@@ -55,6 +56,31 @@ def test_produce_final_submission_pdfs_order(tmp_path: Path):
     # conc(2) + invoice.pdf(1) + photo.png(1) + scan.webp(1)
     # + drawing_a(1) + drawing_b(1) + drawing_c.png(1) + drawing_d.jpg(1)
     assert len(reader.pages) == 9
+
+    shared = tmp_path / "Final submission Files" / "40.01.001_final.pdf"
+    assert shared.is_file()
+    assert len(PdfReader(str(shared)).pages) == 9
+
+
+def test_produce_final_submission_skips_shared_folder(tmp_path: Path):
+    from fatina_paths import (
+        FINAL_SUBMISSION_FILES_DIR_NAME,
+        produce_final_submission_pdfs,
+    )
+
+    item = tmp_path / "40.01.001"
+    (item / "20_1").mkdir(parents=True)
+    _write_blank_pdf(item / "40.01.001.pdf", page_count=1)
+
+    # Pre-existing shared folder must not be treated as an item folder
+    shared = tmp_path / FINAL_SUBMISSION_FILES_DIR_NAME
+    shared.mkdir()
+    _write_blank_pdf(shared / "noise.pdf", page_count=1)
+
+    result = produce_final_submission_pdfs(base_dir=tmp_path)
+    assert result["produced_count"] == 1
+    assert (shared / "40.01.001_final.pdf").is_file()
+    assert result["skipped_count"] == 0
 
 
 def test_produce_final_submission_skips_missing_fatina(tmp_path: Path):

@@ -266,6 +266,7 @@ def test_build_concentration_export_subrows():
         build_concentration_export_totals_row,
         concentration_export_link_row_offsets,
         concentration_export_main_row_offsets,
+        format_concentration_export_row_for_pdf,
     )
 
     entry = SimpleNamespace(
@@ -283,6 +284,20 @@ def test_build_concentration_export_subrows():
             "current_drawing_no": "06",
             "periods": {"01": 200.0, "02": 150.0, "06": 100.0},
             "left_submitted": 50.0,
+            "period_details": {
+                "01": {
+                    "internal_quantity": 190.0,
+                    "approved_by_project_manager": 180.0,
+                },
+                "02": {
+                    "internal_quantity": 140.0,
+                    "approved_by_project_manager": 130.0,
+                },
+                "06": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 0.0,
+                },
+            },
         },
     )
     headers = [
@@ -306,15 +321,21 @@ def test_build_concentration_export_subrows():
     assert rows[0]["Quantity Submitted"] == 200.0
     assert rows[0]["Submission Percentage"] == 20.0
     assert rows[0]["Estimated Quantity"] == 1000.0
-    assert rows[0]["Internal Quantity"] is None
+    assert rows[0]["Internal Quantity"] == 190.0
+    assert rows[0]["Approved by Project Manager"] == 180.0
     assert rows[1]["Invoice No"] == "02"
     assert rows[1]["Description"] is None
     assert rows[1]["Estimated Quantity"] is None
-    assert rows[1]["Internal Quantity"] is None
-    assert rows[1]["Approved by Project Manager"] is None
+    assert rows[1]["Internal Quantity"] == 140.0
+    assert rows[1]["Approved by Project Manager"] == 130.0
     assert rows[2]["Invoice No"] == "06"
     assert rows[2]["Description"] is None
     assert rows[2]["Quantity Submitted"] == 100.0
+    assert rows[2]["Approved by Project Manager"] == 0.0
+
+    pdf_past = format_concentration_export_row_for_pdf(rows[0], headers)
+    assert pdf_past[headers.index("Approved by Project Manager")] == "180.00"
+    assert pdf_past[headers.index("Internal Quantity")] == "190.00"
 
     offsets = concentration_export_main_row_offsets([entry], entry_columns)
     assert offsets == [2]
@@ -323,12 +344,13 @@ def test_build_concentration_export_subrows():
 
     totals = build_concentration_export_totals_row(
         [entry],
-        ["Quantity Submitted"],
+        ["Quantity Submitted", "Approved by Project Manager"],
         [],
         "TOTALS",
         entry_columns,
     )
     assert totals["Quantity Submitted"] == 450.0
+    assert totals["Approved by Project Manager"] == 310.0
 
 
 def test_validate_calculation_sheet_header_fields_messages():

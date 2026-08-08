@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List
 
 FATINA_BASE_DIR = Path("C:/Fatina")
+FINAL_SUBMISSION_FILES_DIR_NAME = "Final submission Files"
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,12 @@ _FINAL_SUBMISSION_IMAGE_SUFFIXES = {
     ".webp",
 }
 _FINAL_SUBMISSION_SOURCE_SUFFIXES = {".pdf", *_FINAL_SUBMISSION_IMAGE_SUFFIXES}
+
+
+def fatina_final_submission_files_dir(base_dir: Path | None = None) -> Path:
+    """Shared folder for all produced {section}_final.pdf copies."""
+    root = Path(base_dir) if base_dir is not None else FATINA_BASE_DIR
+    return root / FINAL_SUBMISSION_FILES_DIR_NAME
 
 
 def _is_final_submission_pdf(path: Path) -> bool:
@@ -129,26 +136,36 @@ def produce_final_submission_pdfs(
          subfolders sorted by name; files within each folder sorted by name.
          Each image (png/jpg/jpeg/gif/bmp/tif/tiff/webp) is treated as a single-page PDF.
 
+    Each produced file is also copied to Fatina/Final submission Files/.
     PDF pages are appended as-is. Existing *_final.pdf files are never used as inputs.
     """
     from pypdf import PdfWriter
 
     root = Path(base_dir) if base_dir is not None else FATINA_BASE_DIR
+    shared_dir = fatina_final_submission_files_dir(root)
     produced: List[str] = []
+    copied: List[str] = []
     skipped: List[str] = []
     errors: List[str] = []
 
     if not root.is_dir():
         return {
             "produced_count": 0,
+            "copied_count": 0,
             "skipped_count": 0,
             "produced_paths": produced,
+            "copied_paths": copied,
+            "shared_dir": str(shared_dir),
             "skipped": skipped,
             "errors": [f"Fatina folder not found: {root}"],
         }
 
     item_dirs = sorted(
-        [p for p in root.iterdir() if p.is_dir()],
+        [
+            p
+            for p in root.iterdir()
+            if p.is_dir() and p.name != FINAL_SUBMISSION_FILES_DIR_NAME
+        ],
         key=lambda p: p.name.lower(),
     )
 
@@ -196,6 +213,12 @@ def produce_final_submission_pdfs(
                 pages_added,
                 len(sources),
             )
+
+            shared_dir.mkdir(parents=True, exist_ok=True)
+            shared_copy = shared_dir / output_path.name
+            shutil.copy2(output_path, shared_copy)
+            copied.append(str(shared_copy))
+            logger.info("Copied final submission PDF to %s", shared_copy)
         except Exception as exc:
             msg = f"{section}: {exc}"
             errors.append(msg)
@@ -205,8 +228,11 @@ def produce_final_submission_pdfs(
 
     return {
         "produced_count": len(produced),
+        "copied_count": len(copied),
         "skipped_count": len(skipped),
         "produced_paths": produced,
+        "copied_paths": copied,
+        "shared_dir": str(shared_dir),
         "skipped": skipped,
         "errors": errors,
     }

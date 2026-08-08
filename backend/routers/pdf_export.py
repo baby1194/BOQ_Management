@@ -1463,16 +1463,18 @@ async def export_non_boq_items_excel(
 @router.post("/final-submission", response_model=schemas.PDFExportResponse)
 async def produce_final_submission():
     """
-    Merge Fatina item-folder PDFs into one {section}_final.pdf per item.
+    Merge Fatina item-folder PDFs/images into one {section}_final.pdf per item.
 
     For each C:/Fatina/{section}/ folder: concentration sheet PDF first, then
-    PDFs from each subfolder in folder-name order (pages appended as-is).
+    PDF/image files from each subfolder in folder-name order (pages appended as-is).
+    Copies are also written to C:/Fatina/Final submission Files/.
     """
     try:
         result = produce_final_submission_pdfs()
         produced_count = int(result.get("produced_count") or 0)
         skipped_count = int(result.get("skipped_count") or 0)
         errors = list(result.get("errors") or [])
+        shared_dir = str(result.get("shared_dir") or (FATINA_BASE_DIR / "Final submission Files"))
 
         if errors and produced_count == 0:
             raise HTTPException(
@@ -1481,17 +1483,18 @@ async def produce_final_submission():
             )
 
         parts = [
-            f"Produced {produced_count} final submission PDF(s) under C:/Fatina."
+            f"Produced {produced_count} final submission PDF(s) under C:/Fatina "
+            f"and copied to {shared_dir}."
         ]
         if skipped_count:
-            parts.append(f"Skipped {skipped_count} folder(s) with no PDFs.")
+            parts.append(f"Skipped {skipped_count} folder(s) with no PDFs/images.")
         if errors:
             parts.append(f"{len(errors)} folder(s) failed.")
 
         return schemas.PDFExportResponse(
             success=True,
             message=" ".join(parts),
-            pdf_path=str(FATINA_BASE_DIR),
+            pdf_path=shared_dir,
             sheets_exported=produced_count,
         )
     except HTTPException:
