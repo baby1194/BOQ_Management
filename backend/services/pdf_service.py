@@ -326,6 +326,7 @@ class PDFService:
         language="en",
         font_size=12,
         cell_padding=None,
+        center_column_indices=None,
     ):
         """Create a table with robust Hebrew support using Paragraph objects"""
         from reportlab.platypus import Paragraph
@@ -333,13 +334,19 @@ class PDFService:
 
         if cell_padding is None:
             cell_padding = font_size
+
+        center_cols = set(center_column_indices or [])
+        # Text columns follow language: right in Hebrew, left in English.
+        # Number columns (center_cols) are always centered.
+        text_align = 2 if language == "he" else 0  # TA_RIGHT / TA_LEFT
+        text_align_mode = 'RIGHT' if language == "he" else 'LEFT'
         
         # Create Hebrew-aware paragraph styles
         hebrew_style = ParagraphStyle(
             'HebrewStyle',
             fontName=self.hebrew_font,
             fontSize=font_size,
-            alignment=2,  # Right alignment for Hebrew text
+            alignment=text_align,
             spaceAfter=0,
             spaceBefore=0,
             leftIndent=0,
@@ -347,11 +354,35 @@ class PDFService:
             wordWrap='RTL',
         )
         
-        english_style = ParagraphStyle(
-            'EnglishStyle',
+        latin_style = ParagraphStyle(
+            'LatinStyle',
             fontName='Helvetica',
             fontSize=font_size,
-            alignment=0,  # Left alignment for English text
+            alignment=text_align,
+            spaceAfter=0,
+            spaceBefore=0,
+            leftIndent=0,
+            rightIndent=0,
+            wordWrap='LTR',
+        )
+
+        center_hebrew_style = ParagraphStyle(
+            'CenterHebrewStyle',
+            fontName=self.hebrew_font,
+            fontSize=font_size,
+            alignment=1,  # CENTER
+            spaceAfter=0,
+            spaceBefore=0,
+            leftIndent=0,
+            rightIndent=0,
+            wordWrap='RTL',
+        )
+
+        center_latin_style = ParagraphStyle(
+            'CenterLatinStyle',
+            fontName='Helvetica',
+            fontSize=font_size,
+            alignment=1,  # CENTER
             spaceAfter=0,
             spaceBefore=0,
             leftIndent=0,
@@ -373,12 +404,12 @@ class PDFService:
                     # Use actual column width for accurate wrapping
                     col_width = column_widths[col_idx] if col_idx < len(column_widths) else 100
                     wrapped_text = self._wrap_hebrew_text(str(cell_value), col_width)
-                    # Use Hebrew paragraph style for Hebrew text
-                    paragraph_row.append(Paragraph(wrapped_text, hebrew_style))
+                    style = center_hebrew_style if col_idx in center_cols else hebrew_style
+                    paragraph_row.append(Paragraph(wrapped_text, style))
                 else:
-                    # Use English paragraph style for non-Hebrew text
+                    style = center_latin_style if col_idx in center_cols else latin_style
                     paragraph_row.append(
-                        Paragraph(self._escape_paragraph_text(cell_value) if cell_value else "", english_style)
+                        Paragraph(self._escape_paragraph_text(cell_value) if cell_value else "", style)
                     )
             paragraph_data.append(paragraph_row)
         
@@ -390,14 +421,11 @@ class PDFService:
             splitInRow=1,
         )
         
-        # Set alignment based on language
-        align_mode = 'RIGHT' if language == "he" else 'LEFT'
-        
         # Apply basic table styling
         table_style = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # Brighter blue for headers
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # White text for better contrast
-            ('ALIGN', (0, 0), (-1, -1), align_mode),  # Alignment based on language
+            ('ALIGN', (0, 0), (-1, -1), text_align_mode),  # Text columns follow language
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), font_size),
             ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
@@ -408,6 +436,8 @@ class PDFService:
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ('VALIGN', (0, 0), (-1, -1), 'TOP')  # Top alignment for multi-line content
         ]
+        for col_idx in center_cols:
+            table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
         
         table.setStyle(TableStyle(table_style))
         return table
@@ -1217,10 +1247,12 @@ class PDFService:
                 # Use the already defined translated_headers and header_indices from page size calculation
                 entries_data = [translated_headers]
                 # Style for Calculation Sheet No link (absolute file URI under C:/Fatina)
+                # Number/ID columns are centered in both languages.
                 link_style = ParagraphStyle(
                     'CalcSheetLink',
                     parent=styles['Normal'],
                     fontSize=font_size,
+                    alignment=1,  # CENTER
                     spaceAfter=0,
                     spaceBefore=0,
                 )
@@ -1302,11 +1334,14 @@ class PDFService:
                     entries_data, current_headers, page_width, font_size, font_size, language
                 )
                 
-                # Identify numerical columns (columns that contain quantities)
-                # Use the actual translated headers to identify numerical columns
+                # Number/ID columns (client "red"): always centered.
+                # Word columns (client "green"): right in Hebrew, left in English.
                 numerical_column_indices = []
                 numerical_header_keys = [
+                    'Calculation Sheet No',
+                    'Invoice No',
                     'Estimated Quantity',
+                    'Submission Percentage',
                     'Quantity Submitted',
                     'Internal Quantity',
                     'Approved by Project Manager',
@@ -1331,6 +1366,7 @@ class PDFService:
                         language=language,
                         font_size=font_size,
                         cell_padding=cell_padding,
+                        center_column_indices=numerical_column_indices,
                     )
                     logger.info("Successfully created robust Hebrew table for concentration entries with repeatRows")
                     # Override grey backgrounds - remove header and totals row grey backgrounds
@@ -1339,7 +1375,7 @@ class PDFService:
                     override_style = TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.white),  # Header row - white background
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Header row - black text
-                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # All cells aligned based on language
+                        ('ALIGN', (0, 0), (-1, -1), align_mode),  # Word columns follow language
                         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, -1), font_size),
                         ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
@@ -1350,10 +1386,8 @@ class PDFService:
                         ('GRID', (0, 0), (-1, -1), 1, colors.black),
                         ('VALIGN', (0, 0), (-1, -1), 'TOP')
                     ])
-                    # In English mode only, center-align numerical columns
-                    if language == "en":
-                        for col_idx in numerical_column_indices:
-                            override_style.add('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER')
+                    for col_idx in numerical_column_indices:
+                        override_style.add('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER')
                     add_concentration_export_subrow_pdf_spans(
                         override_style, subrow_groups, merge_col_indices
                     )
@@ -1366,9 +1400,9 @@ class PDFService:
                     
                     # Customize the style for concentration entries based on language
                     if language == "he":
-                        # Hebrew mode: right-aligned content
+                        # Hebrew mode: word columns right-aligned
                         entries_table_style.extend([
-                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # Default: all columns right-aligned for Hebrew
+                            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
                             ('FONTSIZE', (0, 0), (-1, -1), font_size),
                             ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
                             ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
@@ -1378,9 +1412,9 @@ class PDFService:
                             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
                         ])
                     else:
-                        # English mode: left-aligned content
+                        # English mode: word columns left-aligned
                         entries_table_style.extend([
-                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Default: all columns left-aligned for English
+                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                             ('FONTSIZE', (0, 0), (-1, -1), font_size),
                             ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding),
                             ('TOPPADDING', (0, 0), (-1, -1), cell_padding),
@@ -1390,10 +1424,8 @@ class PDFService:
                             ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),  # Totals row - distinct light grey background
                         ])
                     
-                    # In English mode only, center-align numerical columns
-                    if language == "en":
-                        for col_idx in numerical_column_indices:
-                            entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
+                    for col_idx in numerical_column_indices:
+                        entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
                     add_concentration_export_subrow_pdf_spans(
                         entries_table_style, subrow_groups, merge_col_indices
                     )
