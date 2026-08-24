@@ -288,7 +288,7 @@ def fatina_invoice_folder_name(invoice_no: str) -> str:
 
 
 def fatina_invoice_dir(section_number: str, invoice_no: str) -> Path:
-    """Item folder sub-directory for drawings when there is no calc sheet number."""
+    """Item folder sub-directory named after the invoice number ({invoice}_m)."""
     folder_name = fatina_invoice_folder_name(invoice_no)
     if not folder_name:
         return fatina_section_dir(section_number)

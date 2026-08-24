@@ -468,7 +468,11 @@
     "entriesImported": "Entries Imported",
     "importSuccessful": "Import Successful",
     "importFailed": "Import Failed",
-    "failedToImportCalculationSheets": "Failed to import calculation sheets"
+    "failedToImportCalculationSheets": "Failed to import calculation sheets",
+    "locationChangedTitle": "Calculation sheet locations changed",
+    "locationChangedDescription": "These sheets were already imported, but their file location changed or the saved file is missing. Re-import from the new path to update them, or delete stale sheets to prevent errors.",
+    "previousPath": "Previous path",
+    "newPath": "New path"
   },
   "profile": {
     "title": "User Profile",
@@ -675,7 +679,11 @@
     "allEntriesPopulatedSuccessfully": "All entries populated successfully",
     "allSheetsSyncedSuccessfully": "All sheets synced successfully",
     "commentUpdatedSuccessfully": "Comment updated successfully",
-    "viewConcentrationSheet": "View concentration sheet for {{sectionNumber}}"
+    "viewConcentrationSheet": "View concentration sheet for {{sectionNumber}}",
+    "locationChangedTitle": "Calculation sheet locations changed",
+    "locationChangedDescription": "These imported sheets have a changed or missing file location. Re-import from the new path to update them, or select and delete stale sheets to prevent errors.",
+    "selectChangedSheets": "Select listed sheets",
+    "missingSourceFile": "Source file missing or moved"
   },
   "summary": {
     "title": "Summary",

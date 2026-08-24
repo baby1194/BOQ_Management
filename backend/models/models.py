@@ -157,6 +157,12 @@ class CalculationSheet(Base):
     # Relationships
     entries = relationship("CalculationEntry", back_populates="calculation_sheet", cascade="all, delete-orphan")
 
+    @property
+    def source_file_missing(self) -> bool:
+        from utils.source_file_paths import is_source_file_missing
+
+        return is_source_file_missing(self.source_file_path)
+
 class CalculationEntry(Base):
     __tablename__ = "calculation_entries"
     

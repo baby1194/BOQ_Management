@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from utils.calculation_sheet_utils import _entry_current_drawing_no
+from utils.calculation_sheet_utils import (
+    _entry_current_drawing_no,
+    breakdown_period_keys,
+)
 
 
 def _compute_submission_percentage(estimated: float, submitted: float) -> float:
@@ -307,8 +310,51 @@ def entry_all_drawing_files(entry: Any) -> List[str]:
     return paths
 
 
+def entry_invoice_numbers(entry: Any) -> List[str]:
+    """Unique invoice numbers for an entry (current field first, then past periods)."""
+    result: List[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        period = str(value or "").strip()
+        if period and period not in seen:
+            seen.add(period)
+            result.append(period)
+
+    add(getattr(entry, "drawing_no", None))
+    add(getattr(entry, "current_invoice_id", None))
+    add(resolve_entry_current_period(entry))
+    breakdown = getattr(entry, "submission_breakdown", None)
+    for period in get_period_details_map(breakdown):
+        add(period)
+    for period in breakdown_period_keys(breakdown):
+        add(period)
+    return result
+
+
+def invoice_numbers_for_calculation_sheet(
+    entries: Iterable[Any] | None,
+    calculation_sheet_no: str,
+) -> List[str]:
+    """Invoice numbers from exported entries that belong to a calculation sheet."""
+    sheet_no = str(calculation_sheet_no or "").strip()
+    if not sheet_no or not entries:
+        return []
+    result: List[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
+        if calc_no != sheet_no:
+            continue
+        for invoice_no in entry_invoice_numbers(entry):
+            if invoice_no not in seen:
+                seen.add(invoice_no)
+                result.append(invoice_no)
+    return result
+
+
 def entry_drawing_files_by_invoice(entry: Any) -> Dict[str, List[str]]:
-    """Map invoice no -> drawing file paths for Fatina export without a calc sheet."""
+    """Map invoice no -> drawing file paths for Fatina invoice-folder copies."""
     grouped: Dict[str, List[str]] = {}
     seen_by_period: Dict[str, set[str]] = {}
 

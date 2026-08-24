@@ -259,6 +259,7 @@ export interface CalculationSheet {
   description: string;
   comment?: string;
   source_file_path?: string;
+  source_file_missing?: boolean;
   import_date: string;
   created_at: string;
   updated_at?: string;
@@ -282,6 +283,14 @@ export interface CalculationSheetWithEntries extends CalculationSheet {
   entries: CalculationEntry[];
 }
 
+export interface CalculationSheetLocationChange {
+  calculation_sheet_no: string;
+  drawing_no?: string;
+  previous_path?: string | null;
+  new_path?: string | null;
+  reason: string;
+}
+
 export interface CalculationImportResponse {
   success: boolean;
   message: string;
@@ -289,6 +298,7 @@ export interface CalculationImportResponse {
   sheets_imported: number;
   entries_imported: number;
   errors: string[];
+  location_changed?: CalculationSheetLocationChange[];
 }
 
 export interface PopulateConcentrationEntriesResponse {

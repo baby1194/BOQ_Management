@@ -20,6 +20,7 @@ import {
   CalculationSheetWithEntries,
   CalculationEntry,
   CalculationImportResponse,
+  CalculationSheetLocationChange,
   PopulateConcentrationEntriesResponse,
   NonBoqItem,
   ProjectInfo,
@@ -572,7 +573,7 @@ export const importApi = {
 
   listCalculationSheetFiles: (path: string) =>
     api
-      .post<{ files: string[] }>(
+      .post<{ files: string[]; location_changed?: CalculationSheetLocationChange[] }>(
         "/file-import/list-calculation-sheet-files/",
         { path }
       )

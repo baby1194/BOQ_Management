@@ -468,7 +468,11 @@
     "entriesImported": "רשומות יובאו",
     "importSuccessful": "ייבוא הצליח",
     "importFailed": "ייבוא נכשל",
-    "failedToImportCalculationSheets": "נכשל בייבוא דפי החישוב"
+    "failedToImportCalculationSheets": "נכשל בייבוא דפי החישוב",
+    "locationChangedTitle": "מיקום דפי חישוב השתנה",
+    "locationChangedDescription": "דפים אלה כבר יובאו, אך מיקום הקובץ שלהם השתנה או שהקובץ השמור חסר. ייבא מחדש מהנתיב החדש כדי לעדכן, או מחק דפים מיושנים כדי למנוע שגיאות.",
+    "previousPath": "נתיב קודם",
+    "newPath": "נתיב חדש"
   },
   "profile": {
     "title": "פרופיל משתמש",
@@ -675,7 +679,11 @@
     "allEntriesPopulatedSuccessfully": "כל הערכים מולאו בהצלחה",
     "allSheetsSyncedSuccessfully": "כל הדפים סונכרנו בהצלחה",
     "commentUpdatedSuccessfully": "ההערה עודכנה בהצלחה",
-    "viewConcentrationSheet": "הצג דף ריכוז עבור {{sectionNumber}}"
+    "viewConcentrationSheet": "הצג דף ריכוז עבור {{sectionNumber}}",
+    "locationChangedTitle": "מיקום דפי חישוב השתנה",
+    "locationChangedDescription": "לדפים מיובאים אלה יש מיקום קובץ שהשתנה או קובץ חסר. ייבא מחדש מהנתיב החדש כדי לעדכן, או בחר ומחק דפים מיושנים כדי למנוע שגיאות.",
+    "selectChangedSheets": "בחר את הדפים ברשימה",
+    "missingSourceFile": "קובץ המקור חסר או הועבר"
   },
   "summary": {
     "title": "סיכום",

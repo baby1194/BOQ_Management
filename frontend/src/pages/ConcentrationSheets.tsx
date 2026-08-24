@@ -1369,8 +1369,8 @@ const ConcentrationSheets: React.FC = () => {
       >
         {/* Left Side - Items List */}
         <div className="w-full min-h-0 lg:h-full lg:w-[var(--concentration-sidebar-width)] lg:flex-none lg:min-w-[14rem] lg:max-w-[60%]">
-          <div className="bg-white rounded-lg shadow h-full flex flex-col">
-            <div className="p-4 border-b border-gray-200">
+          <div className="bg-white rounded-lg shadow h-full min-h-0 flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-200 shrink-0">
               <h2 className="text-lg font-semibold text-gray-900">
                 {t("concentration.boqItems")}
               </h2>
@@ -1454,10 +1454,7 @@ const ConcentrationSheets: React.FC = () => {
               </div>
             </div>
 
-            <div
-              className="flex-1 overflow-y-scroll"
-              style={{ minHeight: 0, maxHeight: "calc(100vh - 250px)" }}
-            >
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {filteredSheets.length === 0 ? (
                 <div
                   className={`p-4 text-gray-500 ${
@@ -1636,11 +1633,11 @@ const ConcentrationSheets: React.FC = () => {
 
         {/* Right Side - Concentration Sheet Details */}
         <div className="w-full min-h-0 flex-1 lg:h-full lg:min-w-0">
-          <div className="bg-white rounded-lg shadow h-full flex flex-col">
+          <div className="bg-white rounded-lg shadow h-full min-h-0 flex flex-col overflow-hidden">
             {selectedSheet ? (
-              <>
+              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
                 {/* Header Information */}
-                <div className="p-6 border-b border-gray-200">
+                <div className="p-6 border-b border-gray-200 shrink-0">
                   <div
                     className={`flex justify-between items-start mb-4 ${
                       isRTL ? "flex-row-reverse" : ""
@@ -1817,7 +1814,7 @@ const ConcentrationSheets: React.FC = () => {
                 </div>
 
                 {/* Entries Table */}
-                <div className="flex-1 p-6 overflow-hidden flex flex-col">
+                <div className="p-6 flex flex-col">
                   <div
                     className={`flex justify-between items-center mb-4 ${
                       isRTL ? "flex-row-reverse" : ""
@@ -1880,14 +1877,13 @@ const ConcentrationSheets: React.FC = () => {
                   )}
 
                   {entriesLoading ? (
-                    <div className="flex justify-center items-center flex-1">
+                    <div className="flex justify-center items-center py-12">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                   ) : (
-                    <div className="flex-1 overflow-hidden">
-                      <div className="overflow-x-auto h-full">
+                    <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50 sticky top-0">
+                          <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr>
                               <th className="px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
                                 <span className="sr-only">
@@ -2596,10 +2592,9 @@ const ConcentrationSheets: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
-                    </div>
                   )}
                 </div>
-              </>
+              </div>
             ) : null}
           </div>
         </div>

@@ -939,6 +939,7 @@ class PDFService:
                     db_session,
                     link_section,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
+                    entries=entries,
                 )
                 copy_concentration_entry_drawing_files_to_fatina(
                     db_session,

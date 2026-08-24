@@ -36,6 +36,12 @@ from fatina_paths import (
     primary_fatina_source_path,
     resolve_original_source_path,
 )
+from utils.source_file_paths import (
+    collect_missing_source_locations,
+    detect_moved_source_locations,
+    merge_location_changes,
+    source_paths_differ,
+)
 
 router = APIRouter(prefix="/file-import", tags=["file-import"])
 
@@ -64,6 +70,33 @@ def discover_calculation_sheet_xlsx_files(path_str: str) -> List[str]:
     raise HTTPException(status_code=400, detail="Invalid path")
 
 
+def gather_calculation_sheet_location_changes(
+    db: Session,
+    file_paths: List[str],
+    import_location_changes: Optional[List[Dict]] = None,
+    include_missing: bool = False,
+) -> List[Dict]:
+    sheets = db.query(models.CalculationSheet).all()
+    groups = [
+        import_location_changes or [],
+        detect_moved_source_locations(sheets, file_paths),
+    ]
+    if include_missing:
+        groups.append(collect_missing_source_locations(sheets))
+    return merge_location_changes(*groups)
+
+
+def append_location_change_message(message: str, location_changed: List[Dict]) -> str:
+    if not location_changed:
+        return message
+    count = len(location_changed)
+    return (
+        f"{message} {count} already-imported calculation sheet(s) have a changed or "
+        "missing file location. Update them by re-importing from the new path, or delete "
+        "stale sheets to prevent errors."
+    )
+
+
 def import_calculation_sheet_from_disk(
     file_path: Path,
     db: Session,
@@ -71,7 +104,7 @@ def import_calculation_sheet_from_disk(
 ) -> tuple[int, int, bool, CalcSheetPushResult]:
     """
     Import or update one calculation sheet from a file on disk.
-    Returns (entries_created, fatina_folders_saved, was_existing_update, push_result).
+    Returns (entries_created, fatina_folders_saved, was_existing_update, push_result, location_change).
     """
     sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
     source_file_path = str(file_path.resolve())
@@ -79,6 +112,7 @@ def import_calculation_sheet_from_disk(
     existing_sheet = db.query(models.CalculationSheet).filter(
         models.CalculationSheet.calculation_sheet_no == sheet_data["calculation_sheet_no"],
     ).first()
+    location_change = None
 
     if existing_sheet:
         logger.info(
@@ -86,6 +120,15 @@ def import_calculation_sheet_from_disk(
             f"Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}"
         )
         previous_calculation_sheet_no = existing_sheet.calculation_sheet_no
+        previous_path = existing_sheet.source_file_path
+        if previous_path and source_paths_differ(previous_path, source_file_path):
+            location_change = {
+                "calculation_sheet_no": sheet_data["calculation_sheet_no"],
+                "drawing_no": existing_sheet.drawing_no or sheet_data["drawing_no"],
+                "previous_path": previous_path,
+                "new_path": source_file_path,
+                "reason": "moved",
+            }
         existing_sheet.file_name = file_path.name
         existing_sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
         existing_sheet.drawing_no = sheet_data["drawing_no"]
@@ -151,7 +194,7 @@ def import_calculation_sheet_from_disk(
         f"Successfully {action} calculation sheet {file_path.name} with {entries_created} entries "
         f"(source: {source_file_path}). Saved to {files_saved_count} item folder(s)."
     )
-    return entries_created, files_saved_count, was_existing, push_result
+    return entries_created, files_saved_count, was_existing, push_result, location_change
 
 
 def save_calculation_sheet_to_item_folders(
@@ -243,11 +286,14 @@ def copy_calculation_sheets_to_item_folder(
     db: Session,
     section_number: str,
     skip_calc_sheet_nos: set[str] | None = None,
+    entries: List[models.ConcentrationEntry] | None = None,
 ) -> int:
     """
-    Copy all calculation sheet files related to the given section_number to the item folder.
-    Used when exporting concentration sheets so the destination folder has both the
-    concentration sheet and its calculation sheets.
+    Copy calculation sheet files related to the given section_number into Fatina.
+
+    Each file is stored under C:/Fatina/{section}/{calculation_sheet_no}/.
+    When an invoice number is available on the exported item, the same file is
+    also copied to C:/Fatina/{section}/{invoice_no}_m/.
 
     Section folders under FATINA are created only when at least one file is copied, so
     empty section directories are not left behind when there is nothing to copy.
@@ -259,6 +305,9 @@ def copy_calculation_sheets_to_item_folder(
     Returns:
         Number of calculation sheet files copied
     """
+    from fatina_paths import copy_files_to_invoice_dir
+    from utils.period_details_utils import invoice_numbers_for_calculation_sheet
+
     if not section_number or not str(section_number).strip():
         return 0
     try:
@@ -309,6 +358,33 @@ def copy_calculation_sheets_to_item_folder(
                 logger.info(f"Copied calculation sheet to folder: {dest}")
             except (PermissionError, OSError) as e:
                 logger.error(f"Error copying calculation sheet to {dest_dir}: {e}")
+
+            if entries is not None:
+                invoice_numbers = invoice_numbers_for_calculation_sheet(
+                    entries, sheet.calculation_sheet_no
+                )
+            else:
+                from utils.period_details_utils import entry_invoice_numbers
+
+                calc_entries = (
+                    db.query(models.CalculationEntry)
+                    .filter(
+                        models.CalculationEntry.calculation_sheet_id == sheet.id,
+                        models.CalculationEntry.section_number == section_number,
+                    )
+                    .all()
+                )
+                invoice_numbers = []
+                seen_invoices: set[str] = set()
+                for calc_entry in calc_entries:
+                    for invoice_no in entry_invoice_numbers(calc_entry):
+                        if invoice_no not in seen_invoices:
+                            seen_invoices.add(invoice_no)
+                            invoice_numbers.append(invoice_no)
+            for invoice_no in invoice_numbers:
+                copied += copy_files_to_invoice_dir(
+                    section_number, invoice_no, [str(src)]
+                )
         return copied
     except Exception as e:
         logger.error(f"Error in copy_calculation_sheets_to_item_folder: {e}")
@@ -322,9 +398,12 @@ def copy_concentration_entry_drawing_files_to_fatina(
     sheet_id: int | None = None,
     skip_calc_sheet_nos: set[str] | None = None,
 ) -> int:
-    """Copy drawing files attached to concentration entries into Fatina calc sheet folders."""
+    """Copy drawing files into Fatina calc-sheet folders and invoice folders when present."""
     from fatina_paths import copy_files_to_calc_sheet_dir, copy_files_to_invoice_dir
-    from utils.period_details_utils import entry_drawing_files_by_invoice
+    from utils.period_details_utils import (
+        entry_all_drawing_files,
+        entry_drawing_files_by_invoice,
+    )
 
     if not section_number or not str(section_number).strip():
         return 0
@@ -342,16 +421,16 @@ def copy_concentration_entry_drawing_files_to_fatina(
     copied = 0
     for entry in entries:
         calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
-        if calc_no:
-            from utils.period_details_utils import entry_all_drawing_files
-
-            paths = entry_all_drawing_files(entry)
-            if not paths:
-                continue
-            if skip_calc_sheet_nos and calc_no in skip_calc_sheet_nos:
-                continue
-            copied += copy_files_to_calc_sheet_dir(section_number, calc_no, paths)
+        skip_calc = bool(
+            skip_calc_sheet_nos and calc_no and calc_no in skip_calc_sheet_nos
+        )
+        if skip_calc:
             continue
+
+        if calc_no:
+            paths = entry_all_drawing_files(entry)
+            if paths:
+                copied += copy_files_to_calc_sheet_dir(section_number, calc_no, paths)
 
         for invoice_no, paths in entry_drawing_files_by_invoice(entry).items():
             if not paths:
@@ -678,12 +757,19 @@ async def create_concentration_sheets_for_all_items(db: Session = Depends(get_db
         )
 
 @router.post("/list-calculation-sheet-files/", response_model=schemas.CalculationSheetsListResponse)
-async def list_calculation_sheet_files(request: schemas.CalculationSheetsPathRequest):
+async def list_calculation_sheet_files(
+    request: schemas.CalculationSheetsPathRequest,
+    db: Session = Depends(get_db),
+):
     """List .xlsx calculation sheet files from a folder path or single file path."""
     files = discover_calculation_sheet_xlsx_files(request.path)
     if not files:
         raise HTTPException(status_code=400, detail="No .xlsx files found at path")
-    return schemas.CalculationSheetsListResponse(files=files)
+    location_changed = gather_calculation_sheet_location_changes(db, files)
+    return schemas.CalculationSheetsListResponse(
+        files=files,
+        location_changed=location_changed,
+    )
 
 
 @router.post("/import-calculation-sheets-from-paths/", response_model=schemas.CalculationImportResponse)
@@ -699,6 +785,7 @@ async def import_calculation_sheets_from_paths(
     total_entries_imported = 0
     all_errors = []
     push_results: list[CalcSheetPushResult] = []
+    import_location_changes: list[dict] = []
 
     for path_str in request.file_paths:
         file_path = Path(path_str)
@@ -709,12 +796,14 @@ async def import_calculation_sheets_from_paths(
             all_errors.append(f"{file_path.name} - Not an .xlsx file")
             continue
         try:
-            entries_created, _, _, push_result = import_calculation_sheet_from_disk(
+            entries_created, _, _, push_result, location_change = import_calculation_sheet_from_disk(
                 file_path, db, excel_service
             )
             total_sheets_imported += 1
             total_entries_imported += entries_created
             push_results.append(push_result)
+            if location_change:
+                import_location_changes.append(location_change)
         except Exception as e:
             error_msg = f"{file_path.name} - Error processing file: {str(e)}"
             logger.error(error_msg)
@@ -748,6 +837,10 @@ async def import_calculation_sheets_from_paths(
                 request.entry_columns.dict() if request.entry_columns else None
             ),
         )
+    location_changed = gather_calculation_sheet_location_changes(
+        db, request.file_paths, import_location_changes
+    )
+    success_message = append_location_change_message(success_message, location_changed)
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
         message=success_message,
@@ -755,6 +848,7 @@ async def import_calculation_sheets_from_paths(
         sheets_imported=total_sheets_imported,
         entries_imported=total_entries_imported,
         errors=all_errors,
+        location_changed=location_changed,
     )
 
 
@@ -778,16 +872,19 @@ async def import_calculation_sheets_from_folder(
     total_entries_imported = 0
     all_errors = []
     push_results: list[CalcSheetPushResult] = []
+    import_location_changes: list[dict] = []
 
     for path_str in excel_files:
         file_path = Path(path_str)
         try:
-            entries_created, _, _, push_result = import_calculation_sheet_from_disk(
+            entries_created, _, _, push_result, location_change = import_calculation_sheet_from_disk(
                 file_path, db, excel_service
             )
             total_sheets_imported += 1
             total_entries_imported += entries_created
             push_results.append(push_result)
+            if location_change:
+                import_location_changes.append(location_change)
         except Exception as e:
             error_msg = f"{file_path.name} - Error processing file: {str(e)}"
             logger.error(error_msg)
@@ -811,15 +908,18 @@ async def import_calculation_sheets_from_folder(
             ),
         )
 
+    location_changed = gather_calculation_sheet_location_changes(
+        db, excel_files, import_location_changes
+    )
+    success_message = append_location_change_message(success_message, location_changed)
     return schemas.CalculationImportResponse(
         success=len(all_errors) == 0,
-        message=(
-            success_message
-        ),
+        message=success_message,
         files_processed=len(excel_files),
         sheets_imported=total_sheets_imported,
         entries_imported=total_entries_imported,
         errors=all_errors,
+        location_changed=location_changed,
     )
 
 @router.post("/import-calculation-sheets/", response_model=schemas.CalculationImportResponse)
@@ -857,6 +957,7 @@ async def import_calculation_sheets(
         total_entries_imported = 0
         all_errors = []
         push_results: list[CalcSheetPushResult] = []
+        import_location_changes: list[dict] = []
         relative_paths_map: Dict[str, str] = {}
         if file_relative_paths:
             try:
@@ -902,11 +1003,13 @@ async def import_calculation_sheets(
                 ).first()
                 
                 previous_calculation_sheet_no = None
+                previous_path = None
                 if existing_sheet:
                     # Update existing calculation sheet with new data
                     logger.info(f"Updating existing calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
                     
                     previous_calculation_sheet_no = existing_sheet.calculation_sheet_no
+                    previous_path = existing_sheet.source_file_path
                     existing_sheet.file_name = file.filename
                     existing_sheet.calculation_sheet_no = sheet_data['calculation_sheet_no']
                     existing_sheet.drawing_no = sheet_data['drawing_no']
@@ -992,6 +1095,15 @@ async def import_calculation_sheets(
                 if fatina_source and is_upload_copy_path(source_file_path, upload_dir):
                     source_file_path = fatina_source
                     current_sheet.source_file_path = fatina_source
+
+                if previous_path and source_paths_differ(previous_path, current_sheet.source_file_path):
+                    import_location_changes.append({
+                        "calculation_sheet_no": sheet_data["calculation_sheet_no"],
+                        "drawing_no": current_sheet.drawing_no or sheet_data["drawing_no"],
+                        "previous_path": previous_path,
+                        "new_path": current_sheet.source_file_path,
+                        "reason": "moved",
+                    })
                 
                 # Count as imported (whether new or updated)
                 total_sheets_imported += 1
@@ -1032,13 +1144,19 @@ async def import_calculation_sheets(
                 entry_columns=entry_columns_dict,
             )
         
+        location_changed = gather_calculation_sheet_location_changes(
+            db, [], import_location_changes
+        )
+        success_message = append_location_change_message(success_message, location_changed)
+        
         return schemas.CalculationImportResponse(
             success=len(all_errors) == 0,
             message=success_message,
             files_processed=len(files),
             sheets_imported=total_sheets_imported,
             entries_imported=total_entries_imported,
-            errors=all_errors
+            errors=all_errors,
+            location_changed=location_changed,
         )
     except Exception as e:
         db.rollback()

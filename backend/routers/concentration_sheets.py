@@ -165,13 +165,11 @@ def _fatina_invoice_drawing_still_referenced(
     invoice_no: str,
     filename: str,
 ) -> bool:
-    """True if another entry without a calc sheet still uses this invoice folder file."""
+    """True if another entry still uses this invoice folder file."""
     others = db.query(models.ConcentrationEntry).filter(
         models.ConcentrationEntry.id != exclude_entry_id,
     ).all()
     for other in others:
-        if str(getattr(other, "calculation_sheet_no", "") or "").strip():
-            continue
         other_section = _entry_boq_section_number(other, db)
         if other_section != section_number:
             continue
@@ -195,7 +193,6 @@ def _sync_entry_drawing_files_to_fatina(
         paths = entry_all_drawing_files(db_entry)
         if paths:
             copy_files_to_calc_sheet_dir(section_number, calc_no, paths)
-        return
 
     for invoice_no, paths in entry_drawing_files_by_invoice(db_entry).items():
         if paths:
@@ -1113,9 +1110,8 @@ def _purge_unreferenced_drawing_copies(
         )
     ):
         remove_file_from_calc_sheet_dir(section_number, calc_no, original_path)
-    elif (
+    if (
         section_number
-        and not calc_no
         and invoice_no
         and filename
         and not _fatina_invoice_drawing_still_referenced(

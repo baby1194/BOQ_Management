@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "react-query";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { importApi } from "../services/api";
-import { CalculationImportResponse } from "../types";
+import { CalculationImportResponse, CalculationSheetLocationChange } from "../types";
 import {
   Upload,
   FileText,
@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
 
 const FileImport: React.FC = () => {
   const { t } = useTranslation();
@@ -24,6 +25,9 @@ const FileImport: React.FC = () => {
   const [calculationSheetsPath, setCalculationSheetsPath] = useState("");
   const [listedCalculationFiles, setListedCalculationFiles] = useState<
     string[]
+  >([]);
+  const [listedLocationChanges, setListedLocationChanges] = useState<
+    CalculationSheetLocationChange[]
   >([]);
   const [readingCalculationFiles, setReadingCalculationFiles] = useState(false);
   const [calculationImportResult, setCalculationImportResult] =
@@ -63,6 +67,15 @@ const FileImport: React.FC = () => {
       onSuccess: (data) => {
         setCalculationImportResult(data);
         toast.success(t("import.calculationSheetsImported"));
+        if (data.location_changed && data.location_changed.length > 0) {
+          const lines = data.location_changed
+            .map(formatLocationChangeLine)
+            .join("\n");
+          toast.error(
+            `${t("import.locationChangedTitle")}\n${lines}`,
+            { duration: 12000 }
+          );
+        }
         queryClient.invalidateQueries("calculation-sheets");
 
         setTimeout(() => {
@@ -143,6 +156,17 @@ const FileImport: React.FC = () => {
       setCalculationImportResult(null);
       const response = await importApi.listCalculationSheetFiles(path);
       setListedCalculationFiles(response.files);
+      setListedLocationChanges(response.location_changed || []);
+      if (response.location_changed && response.location_changed.length > 0) {
+        const lines = response.location_changed
+          .map(formatLocationChangeLine)
+          .join("\n");
+        alert(
+          `${t("import.locationChangedTitle")}\n\n${t(
+            "import.locationChangedDescription"
+          )}\n\n${lines}`
+        );
+      }
       toast.success(
         t("import.foundExcelFiles", { count: response.files.length })
       );
@@ -174,6 +198,7 @@ const FileImport: React.FC = () => {
 
   const clearCalculationFiles = () => {
     setListedCalculationFiles([]);
+    setListedLocationChanges([]);
     setCalculationImportResult(null);
   };
 
@@ -469,6 +494,36 @@ const FileImport: React.FC = () => {
                   </button>
                 </div>
 
+                {listedLocationChanges.length > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 space-y-2">
+                    <div className="flex items-start">
+                      <AlertCircle
+                        className={`h-5 w-5 text-yellow-600 shrink-0 mt-0.5 ${
+                          isRTL ? "ml-2" : "mr-2"
+                        }`}
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-yellow-900">
+                          {t("import.locationChangedTitle")}
+                        </p>
+                        <p className="text-xs text-yellow-800 mt-1">
+                          {t("import.locationChangedDescription")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {listedLocationChanges.map((change, index) => (
+                        <div
+                          key={`${change.calculation_sheet_no}-${index}`}
+                          className="text-xs p-2 rounded bg-yellow-100 text-yellow-900 border border-yellow-200"
+                        >
+                          {formatLocationChangeLine(change)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto divide-y divide-gray-100">
                   {listedCalculationFiles.map((filePath) => (
                     <div
@@ -608,6 +663,30 @@ const FileImport: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              {calculationImportResult.location_changed &&
+                calculationImportResult.location_changed.length > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 space-y-2">
+                    <p className="text-sm font-semibold text-yellow-900">
+                      {t("import.locationChangedTitle")}
+                    </p>
+                    <p className="text-xs text-yellow-800">
+                      {t("import.locationChangedDescription")}
+                    </p>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {calculationImportResult.location_changed.map(
+                        (change, index) => (
+                          <div
+                            key={`${change.calculation_sheet_no}-${index}`}
+                            className="text-xs p-2 rounded bg-yellow-100 text-yellow-900 border border-yellow-200"
+                          >
+                            {formatLocationChangeLine(change)}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
 
               {calculationImportResult.errors &&
                 calculationImportResult.errors.length > 0 && (

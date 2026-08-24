@@ -165,6 +165,7 @@ async def get_calculation_sheet_with_entries(
         description=sheet.description,
         comment=sheet.comment,
         source_file_path=sheet.source_file_path,
+        source_file_missing=sheet.source_file_missing,
         import_date=sheet.import_date,
         created_at=sheet.created_at,
         updated_at=sheet.updated_at,

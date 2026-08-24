@@ -337,6 +337,7 @@ class CalculationSheet(CalculationSheetBase):
     import_date: datetime
     created_at: datetime
     updated_at: Optional[datetime] = None
+    source_file_missing: bool = False
 
     class Config:
         from_attributes = True
@@ -390,6 +391,14 @@ class CalculationEntry(CalculationEntryBase):
 class CalculationSheetWithEntries(CalculationSheet):
     entries: List[CalculationEntry] = []
 
+class CalculationSheetLocationChange(BaseModel):
+    calculation_sheet_no: str
+    drawing_no: str = ""
+    previous_path: Optional[str] = None
+    new_path: Optional[str] = None
+    reason: str
+
+
 # Calculation Import Response
 class CalculationImportResponse(BaseModel):
     success: bool
@@ -398,6 +407,7 @@ class CalculationImportResponse(BaseModel):
     sheets_imported: int
     entries_imported: int
     errors: List[str] = []
+    location_changed: List[CalculationSheetLocationChange] = []
 
 
 class CalculationSheetsPathRequest(BaseModel):
@@ -406,6 +416,7 @@ class CalculationSheetsPathRequest(BaseModel):
 
 class CalculationSheetsListResponse(BaseModel):
     files: List[str]
+    location_changed: List[CalculationSheetLocationChange] = []
 
 
 class CalculationSheetsImportPathsRequest(BaseModel):

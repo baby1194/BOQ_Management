@@ -14,6 +14,7 @@ import {
   FolderOpen,
   RefreshCw,
   GripVertical,
+  AlertTriangle,
 } from "lucide-react";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 import {
@@ -21,6 +22,7 @@ import {
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
 import { entryCumulativeSubmittedQuantity } from "../utils/submissionBreakdown";
+import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
 
 const CALC_SIDEBAR_WIDTH_KEY = "calculation-sidebar-width-percent";
 const CALC_DEFAULT_WIDTH = 33.333;
@@ -70,6 +72,10 @@ const CalculationSheets: React.FC = () => {
   const visibleEntries = useMemo(
     () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
     [entries]
+  );
+  const sheetsWithChangedLocation = useMemo(
+    () => sheets.filter((sheet) => sheet.source_file_missing),
+    [sheets]
   );
   const [openingFile, setOpeningFile] = useState(false);
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
@@ -722,6 +728,52 @@ const CalculationSheets: React.FC = () => {
         </div>
       )}
 
+      {sheetsWithChangedLocation.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-md p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-700 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-yellow-900">
+                {t("calculationSheets.locationChangedTitle")} (
+                {sheetsWithChangedLocation.length})
+              </p>
+              <p className="text-sm text-yellow-800 mt-1">
+                {t("calculationSheets.locationChangedDescription")}
+              </p>
+              <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto text-sm text-yellow-900">
+                {sheetsWithChangedLocation.map((sheet) => (
+                  <li key={sheet.id}>
+                    <button
+                      type="button"
+                      className="text-left hover:underline"
+                      onClick={() => handleSheetSelect(sheet)}
+                    >
+                      {formatLocationChangeLine({
+                        calculation_sheet_no: sheet.calculation_sheet_no,
+                        drawing_no: sheet.drawing_no,
+                        previous_path: sheet.source_file_path,
+                        reason: "missing",
+                      })}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedSheetIds(
+                    new Set(sheetsWithChangedLocation.map((sheet) => sheet.id))
+                  )
+                }
+                className="mt-3 text-sm font-medium text-yellow-900 underline hover:no-underline"
+              >
+                {t("calculationSheets.selectChangedSheets")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         ref={splitContainerRef}
         className={`flex flex-col lg:flex-row h-screen max-h-[calc(100vh-200px)] min-h-0 ${
@@ -780,7 +832,7 @@ const CalculationSheets: React.FC = () => {
               </button>
             </div>
           )}
-          <div className="bg-white rounded-lg shadow h-full flex flex-col">
+          <div className="bg-white rounded-lg shadow h-full min-h-0 flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
                 {t("calculationSheets.title")}
@@ -819,10 +871,7 @@ const CalculationSheets: React.FC = () => {
               </div>
             </div>
 
-            <div
-              className="flex-1 overflow-y-scroll"
-              style={{ minHeight: 0, maxHeight: "calc(100vh - 250px)" }}
-            >
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {filteredSheets.length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
                   <p>{t("calculationSheets.noSheetsFound")}</p>
@@ -860,6 +909,10 @@ const CalculationSheets: React.FC = () => {
                         selectedSheet?.id === sheet.id
                           ? "bg-blue-50 border-r-4 border-blue-500"
                           : ""
+                      } ${
+                        sheet.source_file_missing
+                          ? "bg-yellow-50"
+                          : ""
                       }`}
                     >
                       <div className="flex justify-between items-start">
@@ -878,8 +931,18 @@ const CalculationSheets: React.FC = () => {
                               className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer flex-shrink-0"
                             />
                             <div className="flex-1">
-                              <h3 className="font-medium text-gray-900">
+                              <h3 className="font-medium text-gray-900 flex items-center gap-2">
                                 {sheet.calculation_sheet_no}
+                                {sheet.source_file_missing && (
+                                  <span
+                                    className="inline-flex items-center text-yellow-700"
+                                    title={t(
+                                      "calculationSheets.missingSourceFile"
+                                    )}
+                                  >
+                                    <AlertTriangle className="h-4 w-4" />
+                                  </span>
+                                )}
                               </h3>
                               <p className="text-sm text-gray-600 mt-1">
                                 {sheet.drawing_no}
@@ -962,11 +1025,11 @@ const CalculationSheets: React.FC = () => {
 
         {/* Right Side - Sheet Details */}
         <div className="w-full min-h-0 flex-1 lg:h-full lg:min-w-0">
-          <div className="bg-white rounded-lg shadow h-full flex flex-col">
+          <div className="bg-white rounded-lg shadow h-full min-h-0 flex flex-col overflow-hidden">
             {selectedSheet ? (
-              <>
+              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
                 {/* Header Information */}
-                <div className="p-6 border-b border-gray-200">
+                <div className="p-6 border-b border-gray-200 shrink-0">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900">
@@ -1040,13 +1103,25 @@ const CalculationSheets: React.FC = () => {
                           )}
                         </button>
                       </div>
-                      {selectedSheet.source_file_path && (
+                      {(selectedSheet.source_file_path ||
+                        selectedSheet.source_file_missing) && (
                         <p
-                          className={`text-xs text-gray-500 max-w-xs ${
-                            isRTL ? "text-left" : "text-right"
-                          }`}
+                          className={`text-xs max-w-xs ${
+                            selectedSheet.source_file_missing
+                              ? "text-yellow-700 font-medium"
+                              : "text-gray-500"
+                          } ${isRTL ? "text-left" : "text-right"}`}
                         >
-                          Source: {selectedSheet.source_file_path}
+                          {selectedSheet.source_file_missing
+                            ? t("calculationSheets.missingSourceFile")
+                            : null}
+                          {selectedSheet.source_file_missing &&
+                          selectedSheet.source_file_path
+                            ? ": "
+                            : selectedSheet.source_file_path
+                            ? "Source: "
+                            : ""}
+                          {selectedSheet.source_file_path}
                         </p>
                       )}
                       {/* <p
@@ -1147,7 +1222,7 @@ const CalculationSheets: React.FC = () => {
                 </div>
 
                 {/* Entries Table */}
-                <div className="flex-1 p-6 overflow-hidden flex flex-col">
+                <div className="p-6 flex flex-col">
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
@@ -1163,14 +1238,13 @@ const CalculationSheets: React.FC = () => {
                   </div>
 
                   {entriesLoading ? (
-                    <div className="flex justify-center items-center flex-1">
+                    <div className="flex justify-center items-center py-12">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                   ) : (
-                    <div className="flex-1 overflow-hidden">
-                      <div className="overflow-x-auto h-full">
+                    <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50 sticky top-0">
+                          <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr>
                               <th className="px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
                                 <span className="sr-only">
@@ -1322,10 +1396,9 @@ const CalculationSheets: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
-                    </div>
                   )}
                 </div>
-              </>
+              </div>
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center text-gray-500">
