@@ -17,6 +17,7 @@ from fatina_paths import (
     produce_final_submission_pdfs,
     sanitize_folder_name,
 )
+from utils.boq_order_utils import sort_concentration_sheets_by_boq_order
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -155,6 +156,8 @@ async def export_concentration_sheets(
                 message="No concentration sheets found to export",
                 sheets_exported=0
             )
+
+        sheets = sort_concentration_sheets_by_boq_order(sheets, db)
 
         from utils.concentration_utils import (
             concentration_sheet_cumulative_submitted_equals_approved,
@@ -380,6 +383,8 @@ async def export_all_concentration_sheets_excel(
                 message="No concentration sheets found to export",
                 sheets_exported=0
             )
+
+        sheets = sort_concentration_sheets_by_boq_order(sheets, db)
         
         # Generate Excel files - saved to C:/Fatina/{section_number}/ directories
         entry_columns = None

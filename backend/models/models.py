@@ -8,7 +8,7 @@ class BOQItem(Base):
     
     id = Column(Integer, primary_key=True, index=True)
 
-    # Table row order in the BOQ UI (drag-and-drop); independent of serial_number
+    # Table row order in the BOQ UI; kept in sync when serial_number changes
     display_order = Column(Integer, nullable=False, default=0, index=True)
     
     # Original BOQ.xlsx columns

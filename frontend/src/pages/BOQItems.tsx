@@ -1240,12 +1240,20 @@ const BOQItems: React.FC = () => {
       // Save to database
       const updatedItem = await boqApi.update(item.id, updateData);
 
-      // Update local state
-      setItems((prevItems) =>
-        prevItems.map((prevItem) =>
-          prevItem.id === item.id ? updatedItem : prevItem
-        )
+      const serialNumberChanged = Object.prototype.hasOwnProperty.call(
+        editingValues,
+        "serial_number"
       );
+
+      if (serialNumberChanged) {
+        await fetchItems();
+      } else {
+        setAllItems((prevItems) =>
+          prevItems.map((prevItem) =>
+            prevItem.id === item.id ? updatedItem : prevItem
+          )
+        );
+      }
 
       const advanceCol = options?.advanceToColumn;
       if (advanceCol) {

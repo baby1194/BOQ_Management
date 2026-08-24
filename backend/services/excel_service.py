@@ -7,6 +7,7 @@ from models import models
 import os
 
 from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name, calculation_file_uri
+from utils.boq_order_utils import sort_concentration_sheets_by_boq_order
 
 logger = logging.getLogger(__name__)
 
@@ -709,6 +710,7 @@ class ExcelService:
     ):
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
+            sheets = sort_concentration_sheets_by_boq_order(sheets, db_session)
             from utils.concentration_utils import (
                 calc_sheet_nos_to_skip_for_selective_export,
                 concentration_sheet_cumulative_submitted_equals_approved,

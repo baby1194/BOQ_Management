@@ -1478,6 +1478,12 @@ class PDFService:
         if not concentration_sheets:
             return 0
 
+        from utils.boq_order_utils import sort_concentration_sheets_by_boq_order
+
+        concentration_sheets = sort_concentration_sheets_by_boq_order(
+            concentration_sheets, db_session
+        )
+
         exported_count = 0
         for sheet in concentration_sheets:
             boq_item = db_session.query(models.BOQItem).filter(

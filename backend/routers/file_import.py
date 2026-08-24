@@ -15,6 +15,7 @@ from database.database import get_db, get_system_db, get_project_id, get_project
 from models import models
 from schemas import schemas
 from services.excel_service import ExcelService
+from utils.boq_order_utils import sync_display_orders_by_serial_number
 from services.calculation_sheet_sync import (
     CalcSheetPushResult,
     finalize_calculation_sheet_changes,
@@ -447,14 +448,14 @@ async def upload_file(
         # Commit changes
         db.commit()
         
-        # Set serial_number to id for all newly imported items
+        # Set serial_number to id only for imported items that had no serial in the file
         if imported_count > 0:
-            # Get all items that were just imported (those without serial_number set)
             new_items = db.query(models.BOQItem).filter(models.BOQItem.serial_number.is_(None)).all()
             for item in new_items:
                 item.serial_number = item.id
-            
-            # Commit the serial_number updates
+
+            db.commit()
+            sync_display_orders_by_serial_number(db)
             db.commit()
         
         # Create import log
@@ -586,14 +587,14 @@ async def import_folder(
     # Commit all changes
     db.commit()
     
-    # Set serial_number to id for all newly imported items
+    # Set serial_number to id only for imported items that had no serial in the file
     if total_items_updated > 0:
-        # Get all items that were just imported (those without serial_number set)
         new_items = db.query(models.BOQItem).filter(models.BOQItem.serial_number.is_(None)).all()
         for item in new_items:
             item.serial_number = item.id
-        
-        # Commit the serial_number updates
+
+        db.commit()
+        sync_display_orders_by_serial_number(db)
         db.commit()
     
     # Count skipped items from errors

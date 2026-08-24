@@ -223,7 +223,17 @@ async def get_concentration_sheets(
 ):
     """Get all concentration sheets with pagination"""
     try:
-        sheets = db.query(models.ConcentrationSheet).offset(skip).limit(limit).all()
+        sheets = (
+            db.query(models.ConcentrationSheet)
+            .join(models.BOQItem, models.BOQItem.id == models.ConcentrationSheet.boq_item_id)
+            .order_by(
+                models.BOQItem.display_order.asc(),
+                models.BOQItem.id.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         return sheets
     except Exception as e:
         logger.error(f"Error fetching concentration sheets: {str(e)}")
@@ -243,9 +253,18 @@ async def get_concentration_sheets_with_boq_data(
         await _purge_orphan_concentration_entries(db)
 
         # Get all concentration sheets with their BOQ items in a single query using joinedload
-        sheets = db.query(models.ConcentrationSheet).options(
-            joinedload(models.ConcentrationSheet.boq_item)
-        ).offset(skip).limit(limit).all()
+        sheets = (
+            db.query(models.ConcentrationSheet)
+            .options(joinedload(models.ConcentrationSheet.boq_item))
+            .join(models.BOQItem, models.BOQItem.id == models.ConcentrationSheet.boq_item_id)
+            .order_by(
+                models.BOQItem.display_order.asc(),
+                models.BOQItem.id.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         
         if not sheets:
             return []

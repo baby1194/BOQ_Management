@@ -8,6 +8,7 @@ from database.database import get_db
 from models import models
 from schemas import schemas
 from services.non_boq_service import remove_non_boq_item_by_section
+from utils.boq_order_utils import sync_display_orders_by_serial_number
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -242,9 +243,14 @@ async def update_boq_item(
         if 'approved_by_project_manager' in update_data:
             update_data['total_approved_by_project_manager'] = update_data.get('approved_by_project_manager') * db_item.price
         
+        serial_number_changed = "serial_number" in update_data
+
         for field, value in update_data.items():
             setattr(db_item, field, value)
-        
+
+        if serial_number_changed:
+            sync_display_orders_by_serial_number(db)
+
         db.commit()
         db.refresh(db_item)
         
