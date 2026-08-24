@@ -304,6 +304,7 @@
     "subtitle": "נהל דפי ריכוז עבור פריטי BOQ",
     "sheetsCount": "דפים",
     "boqItems": "פריטי BOQ",
+    "resizePanels": "שנה את רוחב פריטי ה-BOQ ולוח דף הריכוז",
     "selectItemToViewSheet": "בחר פריט כדי לראות את דף הריכוז שלו",
     "filteredCount": "מוצגים",
     "currentlyViewing": "צופים כרגע:",
@@ -613,6 +614,7 @@
   "calculationSheets": {
     "title": "דפי חישוב",
     "subtitle": "הצג ונהל דפי חישוב מיובאים",
+    "resizePanels": "שנה את רוחב רשימת דפי החישוב ולוח הפרטים",
     "selectSheetToViewEntries": "בחר דף כדי להציג את הערכים שלו",
     "sheets": "דפים",
     "loading": "טוען דפי חישוב...",
@@ -672,7 +674,8 @@
     "entriesPopulatedSuccessfully": "הערכים מולאו בהצלחה",
     "allEntriesPopulatedSuccessfully": "כל הערכים מולאו בהצלחה",
     "allSheetsSyncedSuccessfully": "כל הדפים סונכרנו בהצלחה",
-    "commentUpdatedSuccessfully": "ההערה עודכנה בהצלחה"
+    "commentUpdatedSuccessfully": "ההערה עודכנה בהצלחה",
+    "viewConcentrationSheet": "הצג דף ריכוז עבור {{sectionNumber}}"
   },
   "summary": {
     "title": "סיכום",

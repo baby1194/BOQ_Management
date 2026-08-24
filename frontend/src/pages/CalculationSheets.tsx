@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { calculationSheetsApi } from "../services/api";
@@ -12,6 +13,7 @@ import {
   Filter,
   FolderOpen,
   RefreshCw,
+  GripVertical,
 } from "lucide-react";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
 import {
@@ -19,6 +21,15 @@ import {
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
 import { entryCumulativeSubmittedQuantity } from "../utils/submissionBreakdown";
+
+const CALC_SIDEBAR_WIDTH_KEY = "calculation-sidebar-width-percent";
+const CALC_DEFAULT_WIDTH = 33.333;
+const CALC_MIN_WIDTH = 18;
+const CALC_MAX_WIDTH = 60;
+
+function clampCalcSidebarWidth(value: number): number {
+  return Math.min(CALC_MAX_WIDTH, Math.max(CALC_MIN_WIDTH, value));
+}
 
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
@@ -65,6 +76,13 @@ const CalculationSheets: React.FC = () => {
     new Set()
   );
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [sidebarWidthPercent, setSidebarWidthPercent] = useState(() => {
+    const saved = getProjectItem(CALC_SIDEBAR_WIDTH_KEY);
+    const parsed = saved !== null ? Number(saved) : NaN;
+    return Number.isFinite(parsed) ? clampCalcSidebarWidth(parsed) : CALC_DEFAULT_WIDTH;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch all calculation sheets
   const fetchSheets = async () => {
@@ -605,6 +623,45 @@ const CalculationSheets: React.FC = () => {
     setProjectItem("calculation-sheets-filter-drawing-no", filterDrawingNo);
   }, [filterDrawingNo]);
 
+  useEffect(() => {
+    setProjectItem(CALC_SIDEBAR_WIDTH_KEY, sidebarWidthPercent.toString());
+  }, [sidebarWidthPercent]);
+
+  useEffect(() => {
+    if (!isResizingSidebar) {
+      return;
+    }
+
+    const updateWidthFromClientX = (clientX: number) => {
+      const container = splitContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const fromStart = isRTL ? rect.right - clientX : clientX - rect.left;
+      setSidebarWidthPercent(clampCalcSidebarWidth((fromStart / rect.width) * 100));
+    };
+
+    const handlePointerMove = (e: PointerEvent) => updateWidthFromClientX(e.clientX);
+    const handlePointerUp = () => setIsResizingSidebar(false);
+
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [isResizingSidebar, isRTL]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -665,9 +722,19 @@ const CalculationSheets: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-screen max-h-[calc(100vh-200px)]">
+      <div
+        ref={splitContainerRef}
+        className={`flex flex-col lg:flex-row h-screen max-h-[calc(100vh-200px)] min-h-0 ${
+          isResizingSidebar ? "select-none" : ""
+        }`}
+        style={
+          {
+            ["--calc-sidebar-width" as string]: `${sidebarWidthPercent}%`,
+          } as React.CSSProperties
+        }
+      >
         {/* Left Side - Sheets List */}
-        <div className="lg:col-span-1">
+        <div className="w-full min-h-0 lg:h-full lg:w-[var(--calc-sidebar-width)] lg:flex-none lg:min-w-[14rem] lg:max-w-[60%]">
           {/* Sync All Button */}
           <div className="mb-4">
             <button
@@ -848,8 +915,53 @@ const CalculationSheets: React.FC = () => {
           </div>
         </div>
 
+        {/* Resize handle */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("calculationSheets.resizePanels")}
+          aria-valuemin={CALC_MIN_WIDTH}
+          aria-valuemax={CALC_MAX_WIDTH}
+          aria-valuenow={Math.round(sidebarWidthPercent)}
+          tabIndex={0}
+          className={`hidden lg:flex relative w-3 shrink-0 mx-1.5 self-stretch items-center justify-center cursor-col-resize group touch-none select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded ${
+            isResizingSidebar ? "bg-blue-100" : "hover:bg-gray-100"
+          }`}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            setIsResizingSidebar(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            e.preventDefault();
+            const step = e.shiftKey ? 5 : 2;
+            const direction = e.key === "ArrowRight" ? 1 : -1;
+            const signed = isRTL ? -direction : direction;
+            setSidebarWidthPercent((prev) =>
+              clampCalcSidebarWidth(prev + signed * step)
+            );
+          }}
+          onDoubleClick={() => setSidebarWidthPercent(CALC_DEFAULT_WIDTH)}
+          title={t("calculationSheets.resizePanels")}
+        >
+          <div
+            className={`absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full transition-colors ${
+              isResizingSidebar ? "bg-blue-500" : "bg-gray-300 group-hover:bg-blue-400"
+            }`}
+          />
+          <span
+            className={`relative z-10 flex h-8 w-5 items-center justify-center rounded-md border shadow-sm transition-colors ${
+              isResizingSidebar
+                ? "border-blue-500 bg-blue-50 text-blue-600"
+                : "border-gray-300 bg-white text-gray-500 group-hover:border-blue-400 group-hover:text-blue-500"
+            }`}
+          >
+            <GripVertical className="h-4 w-4" aria-hidden />
+          </span>
+        </div>
+
         {/* Right Side - Sheet Details */}
-        <div className="lg:col-span-2">
+        <div className="w-full min-h-0 flex-1 lg:h-full lg:min-w-0">
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             {selectedSheet ? (
               <>
@@ -1140,7 +1252,25 @@ const CalculationSheets: React.FC = () => {
                                         />
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {entry.section_number}
+                                        {entry.section_number ? (
+                                          <Link
+                                            to={`/concentration?sectionNumber=${encodeURIComponent(
+                                              entry.section_number
+                                            )}`}
+                                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                                            title={t(
+                                              "calculationSheets.viewConcentrationSheet",
+                                              {
+                                                sectionNumber:
+                                                  entry.section_number,
+                                              }
+                                            )}
+                                          >
+                                            {entry.section_number}
+                                          </Link>
+                                        ) : (
+                                          "-"
+                                        )}
                                       </td>
                                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                                         _

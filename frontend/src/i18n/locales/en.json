@@ -304,6 +304,7 @@
     "subtitle": "Manage concentration sheets for BOQ items",
     "sheetsCount": "sheets",
     "boqItems": "BOQ Items",
+    "resizePanels": "Resize BOQ items and concentration sheet panels",
     "selectItemToViewSheet": "Select an item to view its concentration sheet",
     "filteredCount": "shown",
     "currentlyViewing": "Currently viewing:",
@@ -613,6 +614,7 @@
   "calculationSheets": {
     "title": "Calculation Sheets",
     "subtitle": "View and manage imported calculation sheets",
+    "resizePanels": "Resize calculation sheets list and detail panels",
     "selectSheetToViewEntries": "Select a sheet to view its entries",
     "sheets": "sheets",
     "loading": "Loading calculation sheets...",
@@ -672,7 +674,8 @@
     "entriesPopulatedSuccessfully": "Entries populated successfully",
     "allEntriesPopulatedSuccessfully": "All entries populated successfully",
     "allSheetsSyncedSuccessfully": "All sheets synced successfully",
-    "commentUpdatedSuccessfully": "Comment updated successfully"
+    "commentUpdatedSuccessfully": "Comment updated successfully",
+    "viewConcentrationSheet": "View concentration sheet for {{sectionNumber}}"
   },
   "summary": {
     "title": "Summary",

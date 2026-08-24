@@ -28,6 +28,7 @@ import {
   X,
   ExternalLink,
   RefreshCw,
+  GripVertical,
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
@@ -88,6 +89,18 @@ function expandedBreakdownIdsForEntries(
   );
 }
 
+const SIDEBAR_WIDTH_STORAGE_KEY = "concentration-sidebar-width-percent";
+const DEFAULT_SIDEBAR_WIDTH_PERCENT = 33.333;
+const MIN_SIDEBAR_WIDTH_PERCENT = 18;
+const MAX_SIDEBAR_WIDTH_PERCENT = 60;
+
+function clampSidebarWidthPercent(value: number): number {
+  return Math.min(
+    MAX_SIDEBAR_WIDTH_PERCENT,
+    Math.max(MIN_SIDEBAR_WIDTH_PERCENT, value)
+  );
+}
+
 function concentrationEntryToEditDraft(
   entry: ConcentrationEntry
 ): ConcentrationEntryEditDraft {
@@ -111,6 +124,30 @@ function concentrationEntryToEditDraft(
     supervisor_notes: currentFields.supervisor_notes,
     is_manual: entry.is_manual,
   };
+}
+
+function findSheetFromSearchParams(
+  sheetsList: ConcentrationSheetWithBOQData[],
+  params: URLSearchParams
+): ConcentrationSheetWithBOQData | undefined {
+  const selectedItemId = params.get("selectedItem");
+  if (selectedItemId) {
+    const byItemId = sheetsList.find(
+      (sheet) => sheet.boq_item_id === parseInt(selectedItemId, 10)
+    );
+    if (byItemId) return byItemId;
+  }
+
+  const sectionNumber = params.get("sectionNumber");
+  if (sectionNumber) {
+    const normalized = sectionNumber.trim().toLowerCase();
+    return sheetsList.find(
+      (sheet) =>
+        sheet.boq_item?.section_number?.trim().toLowerCase() === normalized
+    );
+  }
+
+  return undefined;
 }
 
 const ConcentrationSheets: React.FC = () => {
@@ -151,6 +188,15 @@ const ConcentrationSheets: React.FC = () => {
     const saved = getProjectItem("concentration-sheets-section-filter");
     return saved !== null ? saved : "";
   });
+  const [sidebarWidthPercent, setSidebarWidthPercent] = useState(() => {
+    const saved = getProjectItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    const parsed = saved !== null ? Number(saved) : NaN;
+    return Number.isFinite(parsed)
+      ? clampSidebarWidthPercent(parsed)
+      : DEFAULT_SIDEBAR_WIDTH_PERCENT;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
   const [showEntryColumnModal, setShowEntryColumnModal] = useState(false);
   const [pendingExportAction, setPendingExportAction] = useState<{
     type: "single" | "all";
@@ -718,30 +764,37 @@ const ConcentrationSheets: React.FC = () => {
 
       setSheets(sheetsWithBOQ);
 
-      // Check if there's a selected item from URL params
-      const selectedItemId = searchParams.get("selectedItem");
-      if (selectedItemId) {
-        const targetSheet = sheetsWithBOQ.find(
-          (sheet) => sheet.boq_item_id === parseInt(selectedItemId)
-        );
-        if (targetSheet) {
-          setSelectedSheet(targetSheet);
-          loadProjectInfoFromSheet(targetSheet);
-          fetchEntries(targetSheet.id);
+      // Check if there's a selected item/section from URL params
+      const targetSheet = findSheetFromSearchParams(
+        sheetsWithBOQ,
+        searchParams
+      );
+      if (targetSheet) {
+        setSelectedSheet(targetSheet);
+        loadProjectInfoFromSheet(targetSheet);
+        fetchEntries(targetSheet.id);
 
-          // Show navigation message and set flag
+        // Show navigation message and set flag (BOQ deep-link only)
+        if (searchParams.get("selectedItem")) {
           setShowNavigationMessage(true);
           setNavigatedFromBOQ(true);
           setTimeout(() => setShowNavigationMessage(false), 3000);
-
-          // Save selected sheet ID to localStorage
-          setProjectItem(
-            "concentration-selected-sheet-id",
-            targetSheet.id.toString()
-          );
-
-          return; // Don't set default selection
         }
+
+        // Save selected sheet ID to localStorage
+        setProjectItem(
+          "concentration-selected-sheet-id",
+          targetSheet.id.toString()
+        );
+
+        setTimeout(() => {
+          const element = document.getElementById(`sheet-${targetSheet.id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
+
+        return; // Don't set default selection
       }
 
       // Restore previously selected sheet from localStorage
@@ -1079,6 +1132,59 @@ const ConcentrationSheets: React.FC = () => {
     setProjectItem("concentration-sheets-section-filter", sectionNumberFilter);
   }, [sectionNumberFilter]);
 
+  useEffect(() => {
+    setProjectItem(
+      SIDEBAR_WIDTH_STORAGE_KEY,
+      sidebarWidthPercent.toString()
+    );
+  }, [sidebarWidthPercent]);
+
+  useEffect(() => {
+    if (!isResizingSidebar) {
+      return;
+    }
+
+    const updateWidthFromClientX = (clientX: number) => {
+      const container = splitContainerRef.current;
+      if (!container) {
+        return;
+      }
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) {
+        return;
+      }
+      const fromStart = isRTL ? rect.right - clientX : clientX - rect.left;
+      setSidebarWidthPercent(
+        clampSidebarWidthPercent((fromStart / rect.width) * 100)
+      );
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      updateWidthFromClientX(event.clientX);
+    };
+
+    const handlePointerUp = () => {
+      setIsResizingSidebar(false);
+    };
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [isResizingSidebar, isRTL]);
+
   // Refresh data when page becomes visible (e.g., user navigates back from BOQ Items)
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -1101,25 +1207,28 @@ const ConcentrationSheets: React.FC = () => {
 
   // Handle URL parameter changes
   useEffect(() => {
-    const selectedItemId = searchParams.get("selectedItem");
-    if (selectedItemId && sheets.length > 0) {
-      const targetSheet = sheets.find(
-        (sheet) => sheet.boq_item_id === parseInt(selectedItemId)
-      );
-      if (targetSheet && targetSheet.id !== selectedSheet?.id) {
-        setSelectedSheet(targetSheet);
-        loadProjectInfoFromSheet(targetSheet);
-        fetchEntries(targetSheet.id);
-        setNavigatedFromBOQ(true);
+    if (sheets.length === 0) return;
 
-        // Scroll to the selected item in the sidebar
-        setTimeout(() => {
-          const element = document.getElementById(`sheet-${targetSheet.id}`);
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        }, 100);
+    const targetSheet = findSheetFromSearchParams(sheets, searchParams);
+    if (targetSheet && targetSheet.id !== selectedSheet?.id) {
+      setSelectedSheet(targetSheet);
+      loadProjectInfoFromSheet(targetSheet);
+      fetchEntries(targetSheet.id);
+      if (searchParams.get("selectedItem")) {
+        setNavigatedFromBOQ(true);
       }
+      setProjectItem(
+        "concentration-selected-sheet-id",
+        targetSheet.id.toString()
+      );
+
+      // Scroll to the selected item in the sidebar
+      setTimeout(() => {
+        const element = document.getElementById(`sheet-${targetSheet.id}`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 100);
     }
   }, [searchParams, sheets]);
 
@@ -1247,9 +1356,19 @@ const ConcentrationSheets: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-screen max-h-[calc(100vh-200px)]">
+      <div
+        ref={splitContainerRef}
+        className={`flex flex-col lg:flex-row h-screen max-h-[calc(100vh-200px)] min-h-0 ${
+          isResizingSidebar ? "select-none" : ""
+        }`}
+        style={
+          {
+            ["--concentration-sidebar-width" as string]: `${sidebarWidthPercent}%`,
+          } as React.CSSProperties
+        }
+      >
         {/* Left Side - Items List */}
-        <div className="lg:col-span-1">
+        <div className="w-full min-h-0 lg:h-full lg:w-[var(--concentration-sidebar-width)] lg:flex-none lg:min-w-[14rem] lg:max-w-[60%]">
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
@@ -1464,8 +1583,59 @@ const ConcentrationSheets: React.FC = () => {
           </div>
         </div>
 
+        {/* Resize handle between BOQ sidebar and main panel */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("concentration.resizePanels")}
+          aria-valuemin={MIN_SIDEBAR_WIDTH_PERCENT}
+          aria-valuemax={MAX_SIDEBAR_WIDTH_PERCENT}
+          aria-valuenow={Math.round(sidebarWidthPercent)}
+          tabIndex={0}
+          className={`hidden lg:flex relative w-3 shrink-0 mx-1.5 self-stretch items-center justify-center cursor-col-resize group touch-none select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded ${
+            isResizingSidebar ? "bg-blue-100" : "hover:bg-gray-100"
+          }`}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            setIsResizingSidebar(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+              return;
+            }
+            event.preventDefault();
+            const step = event.shiftKey ? 5 : 2;
+            const direction = event.key === "ArrowRight" ? 1 : -1;
+            const signed = isRTL ? -direction : direction;
+            setSidebarWidthPercent((prev) =>
+              clampSidebarWidthPercent(prev + signed * step)
+            );
+          }}
+          onDoubleClick={() =>
+            setSidebarWidthPercent(DEFAULT_SIDEBAR_WIDTH_PERCENT)
+          }
+          title={t("concentration.resizePanels")}
+        >
+          <div
+            className={`absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full transition-colors ${
+              isResizingSidebar
+                ? "bg-blue-500"
+                : "bg-gray-300 group-hover:bg-blue-400"
+            }`}
+          />
+          <span
+            className={`relative z-10 flex h-8 w-5 items-center justify-center rounded-md border shadow-sm transition-colors ${
+              isResizingSidebar
+                ? "border-blue-500 bg-blue-50 text-blue-600"
+                : "border-gray-300 bg-white text-gray-500 group-hover:border-blue-400 group-hover:text-blue-500"
+            }`}
+          >
+            <GripVertical className="h-4 w-4" aria-hidden />
+          </span>
+        </div>
+
         {/* Right Side - Concentration Sheet Details */}
-        <div className="lg:col-span-2">
+        <div className="w-full min-h-0 flex-1 lg:h-full lg:min-w-0">
           <div className="bg-white rounded-lg shadow h-full flex flex-col">
             {selectedSheet ? (
               <>
