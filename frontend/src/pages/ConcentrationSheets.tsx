@@ -22,7 +22,14 @@ import {
   BOQItemWithLatestContractUpdate,
   BOQItem,
 } from "../types";
-import { formatCurrency, formatNumber } from "../utils/format";
+import {
+  formatCurrency,
+  formatNumber,
+  numberDraftToValue,
+  parseNumberDraft,
+  toNumberDraft,
+  type NumberDraft,
+} from "../utils/format";
 import {
   Search,
   X,
@@ -60,8 +67,8 @@ type ConcentrationEntryEditDraft = {
   estimated_quantity: number;
   submission_percentage: number;
   quantity_submitted: number;
-  internal_quantity: number;
-  approved_by_project_manager: number;
+  internal_quantity: NumberDraft;
+  approved_by_project_manager: NumberDraft;
   notes: string;
   supervisor_notes: string;
   is_manual: boolean;
@@ -118,8 +125,10 @@ function concentrationEntryToEditDraft(
       estimatedQuantity,
       currentFields.submission_percentage
     ),
-    internal_quantity: currentFields.internal_quantity,
-    approved_by_project_manager: currentFields.approved_by_project_manager,
+    internal_quantity: toNumberDraft(currentFields.internal_quantity),
+    approved_by_project_manager: toNumberDraft(
+      currentFields.approved_by_project_manager
+    ),
     notes: currentFields.notes,
     supervisor_notes: currentFields.supervisor_notes,
     is_manual: entry.is_manual,
@@ -956,8 +965,10 @@ const ConcentrationSheets: React.FC = () => {
           (entry.estimated_quantity
             ? (qty / entry.estimated_quantity) * 100
             : 100),
-        internal_quantity: detail.internal_quantity ?? 0,
-        approved_by_project_manager: detail.approved_by_project_manager ?? 0,
+        internal_quantity: toNumberDraft(detail.internal_quantity),
+        approved_by_project_manager: toNumberDraft(
+          detail.approved_by_project_manager
+        ),
         notes: detail.notes || "",
         supervisor_notes: detail.supervisor_notes || "",
       },
@@ -975,8 +986,12 @@ const ConcentrationSheets: React.FC = () => {
       const updatedEntry = await concentrationApi.updateEntry(periodEdit.entryId, {
         invoice_no: periodEdit.period,
         submission_percentage: periodEdit.draft.submission_percentage,
-        internal_quantity: periodEdit.draft.internal_quantity,
-        approved_by_project_manager: periodEdit.draft.approved_by_project_manager,
+        internal_quantity: numberDraftToValue(
+          periodEdit.draft.internal_quantity
+        ),
+        approved_by_project_manager: numberDraftToValue(
+          periodEdit.draft.approved_by_project_manager
+        ),
         notes: periodEdit.draft.notes,
         supervisor_notes: periodEdit.draft.supervisor_notes,
       });
@@ -1010,8 +1025,10 @@ const ConcentrationSheets: React.FC = () => {
     const periodFields = {
       invoice_no: invoiceNo || undefined,
       submission_percentage: editDraft.submission_percentage,
-      internal_quantity: editDraft.internal_quantity,
-      approved_by_project_manager: editDraft.approved_by_project_manager,
+      internal_quantity: numberDraftToValue(editDraft.internal_quantity),
+      approved_by_project_manager: numberDraftToValue(
+        editDraft.approved_by_project_manager
+      ),
       notes: editDraft.notes,
       supervisor_notes: editDraft.supervisor_notes,
     };
@@ -2329,9 +2346,9 @@ const ConcentrationSheets: React.FC = () => {
                                                   ? {
                                                       ...d,
                                                       internal_quantity:
-                                                        parseFloat(
+                                                        parseNumberDraft(
                                                           e.target.value
-                                                        ) || 0,
+                                                        ),
                                                     }
                                                   : null
                                               )
@@ -2357,9 +2374,9 @@ const ConcentrationSheets: React.FC = () => {
                                                   ? {
                                                       ...d,
                                                       approved_by_project_manager:
-                                                        parseFloat(
+                                                        parseNumberDraft(
                                                           e.target.value
-                                                        ) || 0,
+                                                        ),
                                                     }
                                                   : null
                                               )
@@ -2666,8 +2683,10 @@ const EntryForm: React.FC<EntryFormProps> = ({
       entry?.estimated_quantity || 0,
       entry?.submission_percentage ?? 100
     ),
-    internal_quantity: entry?.internal_quantity || 0,
-    approved_by_project_manager: entry?.approved_by_project_manager || 0,
+    internal_quantity: toNumberDraft(entry?.internal_quantity),
+    approved_by_project_manager: toNumberDraft(
+      entry?.approved_by_project_manager
+    ),
     notes: entry?.notes || "",
     supervisor_notes: entry?.supervisor_notes || "",
     is_manual: entry?.is_manual ?? true, // Default to true for manual entries
@@ -2675,7 +2694,13 @@ const EntryForm: React.FC<EntryFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({
+      ...formData,
+      internal_quantity: numberDraftToValue(formData.internal_quantity),
+      approved_by_project_manager: numberDraftToValue(
+        formData.approved_by_project_manager
+      ),
+    });
   };
 
   const handleChange = (field: string, value: any) => {
@@ -2818,7 +2843,10 @@ const EntryForm: React.FC<EntryFormProps> = ({
             step="0.01"
             value={formData.internal_quantity}
             onChange={(e) =>
-              handleChange("internal_quantity", parseFloat(e.target.value) || 0)
+              handleChange(
+                "internal_quantity",
+                parseNumberDraft(e.target.value)
+              )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={saving}
@@ -2836,7 +2864,7 @@ const EntryForm: React.FC<EntryFormProps> = ({
             onChange={(e) =>
               handleChange(
                 "approved_by_project_manager",
-                parseFloat(e.target.value) || 0
+                parseNumberDraft(e.target.value)
               )
             }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

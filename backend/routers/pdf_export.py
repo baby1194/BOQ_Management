@@ -1422,6 +1422,54 @@ async def export_non_boq_items_pdf(
         )
 
 
+@router.post("/drawing-list/excel", response_model=schemas.PDFExportResponse)
+async def export_drawing_list_excel(
+    request: schemas.DrawingListExportRequest,
+    db: Session = Depends(get_db),
+    excel_service: ExcelService = Depends(get_excel_service),
+):
+    """Export the List of Drawings table to Excel."""
+    try:
+        if request.data:
+            rows = request.data
+        else:
+            rows = (
+                db.query(models.DrawingListItem)
+                .order_by(
+                    models.DrawingListItem.display_order.asc(),
+                    models.DrawingListItem.id.asc(),
+                )
+                .all()
+            )
+
+        if not rows:
+            return schemas.PDFExportResponse(
+                success=False,
+                message="No drawings found to export",
+                sheets_exported=0,
+            )
+
+        language = request.language or "en"
+        excel_path = excel_service.export_drawing_list(rows, language)
+        filename = (
+            excel_path.split("/")[-1]
+            if "/" in excel_path
+            else excel_path.split("\\")[-1]
+        )
+        return schemas.PDFExportResponse(
+            success=True,
+            message="Successfully exported drawing list to Excel",
+            pdf_path=f"/export/download/{filename}",
+            sheets_exported=len(rows),
+        )
+    except Exception as e:
+        logger.error("Error exporting drawing list to Excel: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
 @router.post("/non-boq-items/excel", response_model=schemas.PDFExportResponse)
 async def export_non_boq_items_excel(
     request: schemas.NonBoqExportRequest,

@@ -258,7 +258,26 @@
     "confirmContractQuantityUpdate": "אישור עדכון כמות חוזה",
     "confirmContractUpdateDeletion": "אישור מחיקת עדכון חוזה",
     "hasManualEntries": "לפריט זה יש רשומות ריכוז ידניות",
-    "manualEntry": "ידני"
+    "manualEntry": "ידני",
+    "copyToProject": "העתק לפרויקט…",
+    "transferTitle": "העתקת פריטי BOQ לפרויקט אחר",
+    "transferDescription": "העתק {{count}} פריט(ים) שנבחרו לפרויקט אחר (כולל דפי ריכוז ורשומות).",
+    "transferTargetProject": "פרויקט יעד",
+    "transferSelectProject": "בחר פרויקט…",
+    "transferNoOtherProjects": "אין פרויקטים אחרים. צור פרויקט נוסף תחילה.",
+    "transferChecking": "בודק התנגשויות…",
+    "transferPreviewFailed": "לא ניתן לבדוק התנגשויות בפרויקט היעד.",
+    "transferFailed": "העתקת פריטי BOQ נכשלה.",
+    "transferConflictsWarning": "{{count}} פריט(ים) כבר קיימים בפרויקט היעד (אותו מספר סעיף):",
+    "transferConflictsSkipNote": "פריטים אלה לא יועתקו. פריטים קיימים בפרויקט היעד לא ישתנו.",
+    "transferWillCopy": "{{count}} פריט(ים) יועתקו.",
+    "transferNothingToCopy": "אין מה להעתיק — כל מספרי הסעיף שנבחרו כבר קיימים בפרויקט היעד.",
+    "transferCopy": "העתק",
+    "transferCopyNonConflicting": "העתק פריטים ללא התנגשות",
+    "transferCopying": "מעתיק…",
+    "selectItemsToCopy": "בחר תחילה פריט BOQ אחד או יותר",
+    "selectAllVisible": "בחר את כל הגלויים",
+    "clearSelection": "נקה בחירה"
   },
   "concentration": {
     "title": "דפי ריכוז",
@@ -810,6 +829,10 @@
     "failedToCreate": "הוספת התכנית נכשלה",
     "failedToUpdate": "עדכון התכנית נכשל",
     "failedToDelete": "מחיקת התכנית נכשלה",
-    "failedToOpen": "פתיחת קובץ התכנית נכשלה"
+    "failedToOpen": "פתיחת קובץ התכנית נכשלה",
+    "exportExcel": "ייצא ל-Excel",
+    "nothingToExport": "אין תכניות לייצוא",
+    "exportedSuccessfully": "רשימת התכניות יוצאה ל-Excel",
+    "failedToExport": "ייצוא רשימת התכניות נכשל"
   }
 }

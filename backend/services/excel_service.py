@@ -1564,4 +1564,182 @@ class ExcelService:
 
         except Exception as e:
             logger.error(f"Error generating non-BOQ items Excel: {str(e)}")
+            raise
+
+    def export_drawing_list(self, rows, language="en"):
+        """Export the List of Drawings register to Excel."""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"list_of_drawings_{timestamp}.xlsx"
+            filepath = self.exports_dir / filename
+
+            if not rows:
+                raise ValueError("No data to export")
+
+            lang = "he" if language == "he" else "en"
+            if lang == "he":
+                column_labels = {
+                    "no": "מס׳",
+                    "drawing_type": "סוג תכנית",
+                    "planning_office": "מתכנן",
+                    "drawing_name": "שם תכנית",
+                    "cross_sections": "חתכים",
+                    "element": "אלמנט",
+                    "sheet_name": "גיליון",
+                    "edition": "מהדורה",
+                    "release_date": "תאריך מהדורה",
+                    "update_description": "תאור עדכון",
+                    "folder_date": "תאריך תיקייה",
+                    "file_path": "נתיב קובץ",
+                    "notes": "הערות",
+                    "execution_status": "לביצוע / מבוטל",
+                }
+                status_labels = {
+                    "to_be_executed": "לביצוע",
+                    "cancelled": "מבוטל",
+                }
+                sheet_title = "רשימת תכניות"
+            else:
+                column_labels = {
+                    "no": "No",
+                    "drawing_type": "Drawing Type",
+                    "planning_office": "Planning Office",
+                    "drawing_name": "Drawing Name",
+                    "cross_sections": "Cross Sections",
+                    "element": "Element",
+                    "sheet_name": "Sheet Name",
+                    "edition": "Edition",
+                    "release_date": "Release Date",
+                    "update_description": "Update Description",
+                    "folder_date": "Folder Date",
+                    "file_path": "File Path",
+                    "notes": "Notes",
+                    "execution_status": "TO BE Executed / Cancelled",
+                }
+                status_labels = {
+                    "to_be_executed": "To Be Executed",
+                    "cancelled": "Cancelled",
+                }
+                sheet_title = "List of Drawings"
+
+            ordered_keys = [
+                "no",
+                "drawing_type",
+                "planning_office",
+                "drawing_name",
+                "cross_sections",
+                "element",
+                "sheet_name",
+                "edition",
+                "release_date",
+                "update_description",
+                "folder_date",
+                "file_path",
+                "notes",
+                "execution_status",
+            ]
+
+            def _field(row, key):
+                if isinstance(row, dict):
+                    if key == "no":
+                        return row.get("no") if row.get("no") is not None else row.get("display_order")
+                    return row.get(key)
+                if key == "no":
+                    value = getattr(row, "no", None)
+                    return value if value is not None else getattr(row, "display_order", None)
+                return getattr(row, key, None)
+
+            export_data = []
+            file_paths = []
+            for row in rows:
+                record = {}
+                for key in ordered_keys:
+                    value = _field(row, key)
+                    if key == "execution_status":
+                        value = status_labels.get(str(value or "").strip(), "")
+                    elif value is None:
+                        value = ""
+                    record[column_labels[key]] = value
+                export_data.append(record)
+                file_paths.append(str(_field(row, "file_path") or "").strip())
+
+            df = pd.DataFrame(export_data)
+            sheet_name = sheet_title[:31]
+
+            with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name=sheet_name)
+                worksheet = writer.sheets[sheet_name]
+
+                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                from openpyxl.styles.colors import BLUE
+                from openpyxl.utils import get_column_letter
+
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(
+                    start_color="366092", end_color="366092", fill_type="solid"
+                )
+                header_alignment = Alignment(
+                    horizontal="center", vertical="center", wrap_text=True
+                )
+                body_alignment = Alignment(
+                    horizontal="center", vertical="center", wrap_text=True
+                )
+                thin = Border(
+                    left=Side(style="thin", color="D9D9D9"),
+                    right=Side(style="thin", color="D9D9D9"),
+                    top=Side(style="thin", color="D9D9D9"),
+                    bottom=Side(style="thin", color="D9D9D9"),
+                )
+                link_font = Font(color=BLUE, underline="single")
+
+                worksheet.row_dimensions[1].height = 28
+                worksheet.freeze_panes = "A2"
+                if lang == "he":
+                    worksheet.sheet_view.rightToLeft = True
+
+                for cell in worksheet[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_alignment
+                    cell.border = thin
+
+                file_path_col = ordered_keys.index("file_path") + 1
+                for row_idx, file_path in enumerate(file_paths, start=2):
+                    worksheet.row_dimensions[row_idx].height = 22
+                    for col_idx in range(1, len(ordered_keys) + 1):
+                        cell = worksheet.cell(row=row_idx, column=col_idx)
+                        cell.alignment = body_alignment
+                        cell.border = thin
+                    if file_path:
+                        link_cell = worksheet.cell(row=row_idx, column=file_path_col)
+                        try:
+                            link_cell.hyperlink = Path(file_path).as_uri()
+                            link_cell.font = link_font
+                        except Exception:
+                            pass
+
+                min_widths = {
+                    "no": 8,
+                    "drawing_type": 16,
+                    "planning_office": 16,
+                    "drawing_name": 22,
+                    "cross_sections": 16,
+                    "element": 14,
+                    "sheet_name": 18,
+                    "edition": 12,
+                    "release_date": 14,
+                    "update_description": 22,
+                    "folder_date": 14,
+                    "file_path": 40,
+                    "notes": 18,
+                    "execution_status": 22,
+                }
+                for col_idx, key in enumerate(ordered_keys, start=1):
+                    worksheet.column_dimensions[get_column_letter(col_idx)].width = min_widths[key]
+
+            logger.info(f"Generated drawing list Excel: {filepath}")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"Error generating drawing list Excel: {str(e)}")
             raise 

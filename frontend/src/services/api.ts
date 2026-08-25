@@ -47,6 +47,9 @@ import {
   DrawingListItem,
   DrawingListItemCreate,
   DrawingListItemUpdate,
+  BOQTransferRequest,
+  BOQTransferPreviewResponse,
+  BOQTransferResponse,
 } from "../types";
 import {
   filenameFromExportPath,
@@ -176,6 +179,16 @@ export const boqApi = {
   reorder: (orderedIds: number[]) =>
     api
       .post<{ ok: boolean }>("/boq/reorder", { ordered_ids: orderedIds })
+      .then((res) => res.data),
+
+  transferPreview: (data: BOQTransferRequest) =>
+    api
+      .post<BOQTransferPreviewResponse>("/boq/transfer/preview", data)
+      .then((res) => res.data),
+
+  transfer: (data: BOQTransferRequest) =>
+    api
+      .post<BOQTransferResponse>("/boq/transfer", data)
       .then((res) => res.data),
 };
 
@@ -781,6 +794,14 @@ export const exportApi = {
     api
       .post<PDFExportResponse>("/export/non-boq-items/excel", {
         language: language || "en",
+      })
+      .then((res) => res.data),
+
+  exportDrawingListExcel: (language?: string, data?: DrawingListItem[]) =>
+    api
+      .post<PDFExportResponse>("/export/drawing-list/excel", {
+        language: language || "en",
+        data,
       })
       .then((res) => res.data),
 

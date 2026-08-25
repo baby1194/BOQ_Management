@@ -69,6 +69,45 @@ class BOQItemUpdate(BaseModel):
 class BOQReorderRequest(BaseModel):
     ordered_ids: List[int] = Field(..., min_length=1)
 
+
+class BOQTransferRequest(BaseModel):
+    """Copy BOQ items from the active (source) project into another project."""
+
+    target_project_id: str = Field(..., min_length=1)
+    boq_item_ids: List[int] = Field(..., min_length=1)
+
+
+class BOQTransferConflictItem(BaseModel):
+    boq_item_id: int
+    section_number: str
+    description: str
+
+
+class BOQTransferItemResult(BaseModel):
+    source_boq_item_id: int
+    target_boq_item_id: int
+    section_number: str
+    description: str
+
+
+class BOQTransferPreviewResponse(BaseModel):
+    will_copy: List[BOQTransferConflictItem]
+    conflicts: List[BOQTransferConflictItem]
+    missing_ids: List[int]
+    copy_count: int
+    conflict_count: int
+
+
+class BOQTransferResponse(BaseModel):
+    success: bool
+    message: str
+    transferred: List[BOQTransferItemResult]
+    skipped_conflicts: List[BOQTransferConflictItem]
+    missing_ids: List[int]
+    transferred_count: int
+    skipped_count: int
+
+
 class BOQItem(BOQItemBase):
     id: int
     created_at: datetime
@@ -756,6 +795,11 @@ class DrawingListItem(DrawingListItemBase):
 
     class Config:
         from_attributes = True
+
+
+class DrawingListExportRequest(BaseModel):
+    language: Optional[str] = "en"
+    data: Optional[List[DrawingListItem]] = None
 
 
 # Workspace project schemas (multi-project support)

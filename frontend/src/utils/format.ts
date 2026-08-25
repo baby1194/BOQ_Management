@@ -10,6 +10,27 @@ export const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
+/** Number input draft: blank instead of a pre-filled 0. */
+export type NumberDraft = number | "";
+
+/** Open a number cell empty when the stored value is 0/absent. */
+export function toNumberDraft(
+  value: number | null | undefined
+): NumberDraft {
+  if (value == null || value === 0) return "";
+  return value;
+}
+
+export function parseNumberDraft(raw: string): NumberDraft {
+  if (raw === "") return "";
+  const parsed = parseFloat(raw);
+  return Number.isNaN(parsed) ? "" : parsed;
+}
+
+export function numberDraftToValue(value: NumberDraft): number {
+  return value === "" ? 0 : value;
+}
+
 /**
  * Format a number with commas and decimal places
  */

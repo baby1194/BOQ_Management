@@ -4,10 +4,20 @@ from sqlalchemy import func
 from typing import List
 import logging
 
-from database.database import get_db
+from database.database import (
+    get_db,
+    get_project_id,
+    get_project_upload_dir,
+    _get_project_session_factory,
+)
+from database import project_registry
 from models import models
 from schemas import schemas
 from services.non_boq_service import remove_non_boq_item_by_section
+from services.boq_transfer_service import (
+    classify_transfer_items,
+    copy_boq_items_to_project,
+)
 from utils.boq_order_utils import sync_display_orders_by_serial_number
 
 logger = logging.getLogger(__name__)
@@ -110,6 +120,125 @@ async def reorder_boq_items(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
+
+
+@router.post("/transfer/preview", response_model=schemas.BOQTransferPreviewResponse)
+async def preview_boq_transfer(
+    body: schemas.BOQTransferRequest,
+    source_db: Session = Depends(get_db),
+    source_project_id: str = Depends(get_project_id),
+):
+    """Preview which selected BOQ items can be copied vs section_number conflicts."""
+    if body.target_project_id == source_project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target project must be different from the current project",
+        )
+    if not project_registry.get_project(body.target_project_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target project not found",
+        )
+
+    TargetSession = _get_project_session_factory(body.target_project_id)
+    target_db = TargetSession()
+    try:
+        to_copy, conflicts, missing_ids = classify_transfer_items(
+            source_db, target_db, body.boq_item_ids
+        )
+        will_copy = [
+            schemas.BOQTransferConflictItem(
+                boq_item_id=item.id,
+                section_number=item.section_number,
+                description=item.description,
+            )
+            for item in to_copy
+        ]
+        return schemas.BOQTransferPreviewResponse(
+            will_copy=will_copy,
+            conflicts=[
+                schemas.BOQTransferConflictItem(**conflict) for conflict in conflicts
+            ],
+            missing_ids=missing_ids,
+            copy_count=len(will_copy),
+            conflict_count=len(conflicts),
+        )
+    finally:
+        target_db.close()
+
+
+@router.post("/transfer", response_model=schemas.BOQTransferResponse)
+async def transfer_boq_items(
+    body: schemas.BOQTransferRequest,
+    source_db: Session = Depends(get_db),
+    source_project_id: str = Depends(get_project_id),
+):
+    """
+    Copy selected BOQ items into another project.
+
+    Items whose section_number already exists in the target are skipped (not copied).
+    """
+    if body.target_project_id == source_project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target project must be different from the current project",
+        )
+    if not project_registry.get_project(body.target_project_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target project not found",
+        )
+
+    TargetSession = _get_project_session_factory(body.target_project_id)
+    target_db = TargetSession()
+    try:
+        result = copy_boq_items_to_project(
+            source_db=source_db,
+            target_db=target_db,
+            boq_item_ids=body.boq_item_ids,
+            target_upload_dir=get_project_upload_dir(body.target_project_id),
+        )
+        transferred_count = result["transferred_count"]
+        skipped_count = result["skipped_count"]
+        if transferred_count == 0 and skipped_count > 0:
+            message = (
+                f"No items copied. {skipped_count} item(s) skipped because "
+                "section number already exists in the target project."
+            )
+        elif skipped_count > 0:
+            message = (
+                f"Copied {transferred_count} item(s). "
+                f"{skipped_count} item(s) skipped (section number already exists)."
+            )
+        else:
+            message = f"Copied {transferred_count} item(s) successfully."
+
+        return schemas.BOQTransferResponse(
+            success=True,
+            message=message,
+            transferred=[
+                schemas.BOQTransferItemResult(**row) for row in result["transferred"]
+            ],
+            skipped_conflicts=[
+                schemas.BOQTransferConflictItem(**row)
+                for row in result["skipped_conflicts"]
+            ],
+            missing_ids=result["missing_ids"],
+            transferred_count=transferred_count,
+            skipped_count=skipped_count,
+        )
+    except HTTPException:
+        target_db.rollback()
+        raise
+    except Exception as e:
+        target_db.rollback()
+        logger.error(f"Error transferring BOQ items: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+    finally:
+        target_db.close()
 
 
 @router.get("/{item_id}", response_model=schemas.BOQItem)

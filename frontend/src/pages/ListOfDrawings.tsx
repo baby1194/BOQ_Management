@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { DraftingCompass, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { DraftingCompass, Plus, Pencil, Trash2, Copy, FileSpreadsheet } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 import FilterDropdown from "../components/FilterDropdown";
-import { drawingListApi } from "../services/api";
+import { drawingListApi, exportApi } from "../services/api";
 import { DrawingListItem } from "../types";
 import {
   filterCellValue,
@@ -149,10 +149,11 @@ type FilterKey = (typeof FILTER_KEYS)[number];
 
 const ListOfDrawings: React.FC = () => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
+  const { isRTL, language } = useLanguage();
   const [items, setItems] = useState<DrawingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState<EditingState>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -374,6 +375,33 @@ const ListOfDrawings: React.FC = () => {
       );
     } finally {
       setOpeningId(null);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (filteredItems.length === 0) {
+      toast.error(t("listOfDrawings.nothingToExport"));
+      return;
+    }
+    try {
+      setExporting(true);
+      const response = await exportApi.exportDrawingListExcel(
+        language,
+        filteredItems
+      );
+      if (response.success && response.pdf_path) {
+        await exportApi.downloadExportFile(response.pdf_path);
+        toast.success(t("listOfDrawings.exportedSuccessfully"));
+      } else {
+        toast.error(response.message || t("listOfDrawings.failedToExport"));
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error(
+        error?.response?.data?.detail || t("listOfDrawings.failedToExport")
+      );
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -723,6 +751,19 @@ const ListOfDrawings: React.FC = () => {
               {t("common.clearFilter")} ({activeFilterCount})
             </button>
           )}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exporting || loading || filteredItems.length === 0}
+            className={`inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              isRTL ? "flex-row-reverse" : ""
+            }`}
+          >
+            <FileSpreadsheet className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+            {exporting
+              ? t("common.exporting")
+              : t("listOfDrawings.exportExcel")}
+          </button>
           <button
             type="button"
             onClick={handleAddRow}

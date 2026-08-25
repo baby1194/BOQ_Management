@@ -58,6 +58,42 @@ export interface BOQItemCreate {
   subsection?: string;
 }
 
+export interface BOQTransferRequest {
+  target_project_id: string;
+  boq_item_ids: number[];
+}
+
+export interface BOQTransferConflictItem {
+  boq_item_id: number;
+  section_number: string;
+  description: string;
+}
+
+export interface BOQTransferItemResult {
+  source_boq_item_id: number;
+  target_boq_item_id: number;
+  section_number: string;
+  description: string;
+}
+
+export interface BOQTransferPreviewResponse {
+  will_copy: BOQTransferConflictItem[];
+  conflicts: BOQTransferConflictItem[];
+  missing_ids: number[];
+  copy_count: number;
+  conflict_count: number;
+}
+
+export interface BOQTransferResponse {
+  success: boolean;
+  message: string;
+  transferred: BOQTransferItemResult[];
+  skipped_conflicts: BOQTransferConflictItem[];
+  missing_ids: number[];
+  transferred_count: number;
+  skipped_count: number;
+}
+
 export interface BOQItemUpdate {
   serial_number?: number;
   structure?: number;

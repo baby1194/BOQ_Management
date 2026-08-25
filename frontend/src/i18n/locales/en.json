@@ -258,7 +258,26 @@
     "confirmContractQuantityUpdate": "Confirm Contract Quantity Update",
     "confirmContractUpdateDeletion": "Confirm Contract Update Deletion",
     "hasManualEntries": "This item has manual concentration entries",
-    "manualEntry": "Manual"
+    "manualEntry": "Manual",
+    "copyToProject": "Copy to project…",
+    "transferTitle": "Copy BOQ items to another project",
+    "transferDescription": "Copy {{count}} selected item(s) into another project (with concentration sheets and entries).",
+    "transferTargetProject": "Target project",
+    "transferSelectProject": "Select a project…",
+    "transferNoOtherProjects": "No other projects available. Create another project first.",
+    "transferChecking": "Checking for conflicts…",
+    "transferPreviewFailed": "Could not check target project for conflicts.",
+    "transferFailed": "Failed to copy BOQ items.",
+    "transferConflictsWarning": "{{count}} item(s) already exist in the target project (same section number):",
+    "transferConflictsSkipNote": "Those items will not be copied. Existing items in the target project will not be changed.",
+    "transferWillCopy": "{{count}} item(s) will be copied.",
+    "transferNothingToCopy": "Nothing to copy — all selected section numbers already exist in the target project.",
+    "transferCopy": "Copy",
+    "transferCopyNonConflicting": "Copy non-conflicting items",
+    "transferCopying": "Copying…",
+    "selectItemsToCopy": "Select one or more BOQ items first",
+    "selectAllVisible": "Select all visible",
+    "clearSelection": "Clear selection"
   },
   "concentration": {
     "title": "Concentration Sheets",
@@ -810,6 +829,10 @@
     "failedToCreate": "Failed to add drawing",
     "failedToUpdate": "Failed to update drawing",
     "failedToDelete": "Failed to delete drawing",
-    "failedToOpen": "Failed to open drawing file"
+    "failedToOpen": "Failed to open drawing file",
+    "exportExcel": "Export to Excel",
+    "nothingToExport": "No drawings to export",
+    "exportedSuccessfully": "Drawing list exported to Excel",
+    "failedToExport": "Failed to export drawing list"
   }
 }

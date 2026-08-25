@@ -19,8 +19,14 @@ import {
   ContractQuantityUpdate,
   BOQItemQuantityUpdate,
 } from "../types";
-import { formatCurrency, formatNumber } from "../utils/format";
+import {
+  formatCurrency,
+  formatNumber,
+  numberDraftToValue,
+  parseNumberDraft,
+} from "../utils/format";
 import BOQExportModal from "../components/BOQExportModal";
+import TransferBOQItemsModal from "../components/TransferBOQItemsModal";
 import FilterDropdown from "../components/FilterDropdown";
 import { GripVertical } from "lucide-react";
 import {
@@ -436,6 +442,10 @@ const BOQItems: React.FC = () => {
 
   // Export state
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferSelectedIds, setTransferSelectedIds] = useState<Set<number>>(
+    () => new Set()
+  );
   const [exporting, setExporting] = useState(false);
   const [passwordItemId, setPasswordItemId] = useState<number | null>(null);
   const [passwordContractUpdateId, setPasswordContractUpdateId] = useState<
@@ -1043,6 +1053,50 @@ const BOQItems: React.FC = () => {
     contractUpdates,
   ]);
 
+  useEffect(() => {
+    setTransferSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(allItems.map((item) => item.id));
+      const next = new Set<number>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) next.add(id);
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [allItems]);
+
+  const transferSelectedItems = useMemo(
+    () => allItems.filter((item) => transferSelectedIds.has(item.id)),
+    [allItems, transferSelectedIds]
+  );
+
+  const allVisibleSelected =
+    items.length > 0 && items.every((item) => transferSelectedIds.has(item.id));
+
+  const toggleTransferSelect = (itemId: number) => {
+    setTransferSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    setTransferSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        items.forEach((item) => next.delete(item.id));
+      } else {
+        items.forEach((item) => next.add(item.id));
+      }
+      return next;
+    });
+  };
+
   // Count active filters
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -1232,10 +1286,20 @@ const BOQItems: React.FC = () => {
       const derivedValues = calculateDerivedValues(item, editingValues);
 
       // Prepare update data
-      const updateData = {
+      const updateData: Partial<BOQItem> = {
         ...editingValues,
         ...derivedValues,
       };
+      if (
+        Object.prototype.hasOwnProperty.call(
+          editingValues,
+          "approved_signed_quantity"
+        )
+      ) {
+        updateData.approved_signed_quantity = numberDraftToValue(
+          editingValues.approved_signed_quantity as number | ""
+        );
+      }
 
       // Save to database
       const updatedItem = await boqApi.update(item.id, updateData);
@@ -2343,6 +2407,22 @@ const BOQItems: React.FC = () => {
             </button>
             <button
               onClick={() => {
+                if (transferSelectedIds.size === 0) {
+                  toast.error(t("boq.selectItemsToCopy"));
+                  return;
+                }
+                setShowTransferModal(true);
+              }}
+              disabled={items.length === 0 || loading}
+              className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t("boq.copyToProject")}
+              {transferSelectedIds.size > 0
+                ? ` (${transferSelectedIds.size})`
+                : ""}
+            </button>
+            <button
+              onClick={() => {
                 setPasswordAction("update");
                 setPasswordItemId(null);
                 setPasswordContractUpdateId(null);
@@ -3151,6 +3231,19 @@ const BOQItems: React.FC = () => {
               <tr className="border-b border-gray-300 bg-gray-50">
                 <th
                   className="px-1 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-10 min-w-[2.5rem]"
+                  title={t("boq.selectAllVisible")}
+                >
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    disabled={items.length === 0}
+                    className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    aria-label={t("boq.selectAllVisible")}
+                  />
+                </th>
+                <th
+                  className="px-1 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-10 min-w-[2.5rem]"
                   title={t("boq.dragToReorder")}
                 >
                   {t("boq.move")}
@@ -3379,6 +3472,10 @@ const BOQItems: React.FC = () => {
 
               {/* Filter Inputs Row */}
               <tr className="border-b border-gray-300 bg-gray-100">
+                <th
+                  className="px-2 py-2 border-r border-gray-300 w-10 min-w-[2.5rem] bg-gray-100"
+                  aria-hidden
+                />
                 <th
                   className="px-2 py-2 border-r border-gray-300 w-10 min-w-[2.5rem] bg-gray-100"
                   aria-hidden
@@ -3999,6 +4096,18 @@ const BOQItems: React.FC = () => {
                     } ${boqDragRowId === item.id ? "opacity-60" : ""}`}
                   >
                     <td
+                      className="px-1 py-2 border-r border-gray-300 align-middle text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={transferSelectedIds.has(item.id)}
+                        onChange={() => toggleTransferSelect(item.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        aria-label={item.section_number}
+                      />
+                    </td>
+                    <td
                       className="px-1 py-2 border-r border-gray-300 align-middle"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -4383,12 +4492,12 @@ const BOQItems: React.FC = () => {
                                 undefined &&
                               currentValues.approved_signed_quantity !== null
                                 ? currentValues.approved_signed_quantity
-                                : item.approved_signed_quantity || 0
+                                : item.approved_signed_quantity || ""
                             }
                             onChange={(e) =>
                               handleInputChange(
                                 "approved_signed_quantity",
-                                parseFloat(e.target.value) || 0
+                                parseNumberDraft(e.target.value)
                               )
                             }
                             onKeyDown={(e) =>
@@ -5350,6 +5459,15 @@ const BOQItems: React.FC = () => {
         loading={exporting}
         title={t("boq.exportTableTitle")}
         contractUpdates={contractUpdates}
+      />
+
+      <TransferBOQItemsModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        selectedItems={transferSelectedItems}
+        onTransferred={() => {
+          setTransferSelectedIds(new Set());
+        }}
       />
     </div>
   );

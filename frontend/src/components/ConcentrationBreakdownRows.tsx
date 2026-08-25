@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ConcentrationEntry } from "../types";
-import { formatNumber } from "../utils/format";
+import { formatNumber, parseNumberDraft, type NumberDraft } from "../utils/format";
 import ConcentrationDrawingFilesCell from "./ConcentrationDrawingFilesCell";
 import {
   breakdownTotalsForEntry,
@@ -11,8 +11,8 @@ import {
 
 export type PeriodEditDraft = {
   submission_percentage: number;
-  internal_quantity: number;
-  approved_by_project_manager: number;
+  internal_quantity: NumberDraft;
+  approved_by_project_manager: NumberDraft;
   notes: string;
   supervisor_notes: string;
 };
@@ -178,7 +178,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
                   onChange={(e) =>
                     onPeriodDraftChange({
                       ...draft,
-                      internal_quantity: parseFloat(e.target.value) || 0,
+                      internal_quantity: parseNumberDraft(e.target.value),
                     })
                   }
                   className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded"
@@ -197,8 +197,9 @@ export const ConcentrationBreakdownPastRows: React.FC<
                   onChange={(e) =>
                     onPeriodDraftChange({
                       ...draft,
-                      approved_by_project_manager:
-                        parseFloat(e.target.value) || 0,
+                      approved_by_project_manager: parseNumberDraft(
+                        e.target.value
+                      ),
                     })
                   }
                   className="w-full max-w-[7rem] px-2 py-1 text-sm border border-gray-300 rounded"
