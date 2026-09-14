@@ -1131,14 +1131,14 @@ class PDFService:
                 right_column_data = [
                     [project_headers_translations['Contractor in Charge'], (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'],
                     [project_headers_translations['Developer Name'], (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A'],
-                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.2f} ({boq_item.unit})"],
+                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.3f} ({boq_item.unit})"],
                     [boq_headers_translations['Price'], f"{boq_item.price:,.2f} ₪"]
                 ]
             else:
                 right_column_data = [
                     [project_headers_translations['Contractor in Charge'], (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'],
                     [project_headers_translations['Developer Name'], (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A'],
-                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.2f} ({boq_item.unit})"],
+                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.3f} ({boq_item.unit})"],
                     [boq_headers_translations['Price'], f"{boq_item.price:,.2f} ₪"]
                 ]
             
@@ -2425,7 +2425,7 @@ class PDFService:
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
                                 row_data.append(self._format_currency(value))
                             else:
-                                row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
+                                row_data.append(f"{value:,.3f}" if value != int(value) else str(int(value)))
                         else:
                             row_data.append(str(value))
                     data.append(row_data)
