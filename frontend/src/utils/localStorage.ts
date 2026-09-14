@@ -50,6 +50,8 @@ const APP_STORAGE_KEYS = [
   "calculation-selected-sheet-id",
   "concentration-sheets-section-filter",
   "concentration-selected-sheet-id",
+  "concentration-qty-mismatch-mode",
+  "concentration-entry-column-visibility",
   "boq-export-columns",
   "summary-export-columns",
   "concentration-entry-export-columns",

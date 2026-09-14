@@ -12,6 +12,8 @@ import {
   sortUniqueValues,
   useColumnDropdownFilters,
 } from "../utils/columnFilters";
+import { useResizableColumns } from "../hooks/useResizableColumns";
+import ResizableTh from "../components/ResizableTh";
 
 interface DraftFields {
   no: string;
@@ -99,33 +101,23 @@ const COLUMN_KEYS = [
 type ColumnKey = (typeof COLUMN_KEYS)[number];
 
 /** Language-independent widths so EN/HE layouts match. */
-const COLUMN_WIDTHS: Record<ColumnKey, string> = {
-  no: "4.5rem",
-  drawingType: "8rem",
-  planningOffice: "8.5rem",
-  drawingName: "9rem",
-  crossSections: "8rem",
-  element: "7.5rem",
-  sheetName: "8rem",
-  edition: "6.5rem",
-  releaseDate: "8rem",
-  updateDescription: "10rem",
-  folderDate: "8rem",
-  filePath: "32rem",
-  notes: "8rem",
-  executionStatus: "11rem",
-  action: "22rem",
+const COLUMN_WIDTH_DEFAULTS: Record<ColumnKey, number> = {
+  no: 72,
+  drawingType: 128,
+  planningOffice: 136,
+  drawingName: 144,
+  crossSections: 128,
+  element: 120,
+  sheetName: 128,
+  edition: 104,
+  releaseDate: 128,
+  updateDescription: 160,
+  folderDate: 128,
+  filePath: 512,
+  notes: 128,
+  executionStatus: 176,
+  action: 352,
 };
-
-const colStyle = (key: ColumnKey): React.CSSProperties => ({
-  width: COLUMN_WIDTHS[key],
-  minWidth: COLUMN_WIDTHS[key],
-  maxWidth: COLUMN_WIDTHS[key],
-});
-
-const TABLE_WIDTH = `${Object.values(COLUMN_WIDTHS)
-  .map((w) => parseFloat(w))
-  .reduce((a, b) => a + b, 0)}rem`;
 
 
 const FILTER_KEYS = [
@@ -150,6 +142,10 @@ type FilterKey = (typeof FILTER_KEYS)[number];
 const ListOfDrawings: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL, language } = useLanguage();
+  const { startResize, colStyle, tableWidth } = useResizableColumns(
+    "list-of-drawings",
+    COLUMN_WIDTH_DEFAULTS
+  );
   const [items, setItems] = useState<DrawingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -802,34 +798,36 @@ const ListOfDrawings: React.FC = () => {
             >
               <table
                 className="table-fixed border-separate border-spacing-0 border-t border-l border-gray-300"
-                style={{ width: TABLE_WIDTH, minWidth: TABLE_WIDTH }}
+                style={{ width: tableWidth, minWidth: tableWidth }}
                 dir={isRTL ? "rtl" : "ltr"}
               >
                 <colgroup>
                   {COLUMN_KEYS.map((key) => (
-                    <col
-                      key={key}
-                      style={{
-                        width: COLUMN_WIDTHS[key],
-                        minWidth: COLUMN_WIDTHS[key],
-                      }}
-                    />
+                    <col key={key} style={colStyle(key)} />
                   ))}
                 </colgroup>
                 <thead className="bg-gray-50">
                   <tr>
                     {COLUMN_KEYS.map((key) =>
                       key === "action" ? (
-                        <th
+                        <ResizableTh
                           key={key}
+                          columnKey={key}
+                          width={colStyle(key).width as number}
+                          onResizeStart={startResize}
+                          isRTL={isRTL}
                           className={thClass}
                           style={colStyle(key)}
                         >
                           {t(`listOfDrawings.${key}`)}
-                        </th>
+                        </ResizableTh>
                       ) : (
-                        <th
+                        <ResizableTh
                           key={key}
+                          columnKey={key}
+                          width={colStyle(key).width as number}
+                          onResizeStart={startResize}
+                          isRTL={isRTL}
                           className={thClass}
                           style={colStyle(key)}
                         >
@@ -850,7 +848,7 @@ const ListOfDrawings: React.FC = () => {
                               onClose={() => handleClose(key as FilterKey)}
                             />
                           </div>
-                        </th>
+                        </ResizableTh>
                       )
                     )}
                   </tr>

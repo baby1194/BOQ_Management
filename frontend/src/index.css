@@ -227,3 +227,22 @@ html[dir="rtl"] {
     font-weight: 500 !important; /* font-medium */
   }
 }
+
+th[data-col-key] {
+  position: relative;
+}
+
+th[data-col-key]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  right: 0;
+}
+
+html[dir="rtl"] th[data-col-key]::after {
+  left: 0;
+  right: auto;
+}

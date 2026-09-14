@@ -12,6 +12,8 @@ import {
   sortUniqueValues,
   useColumnDropdownFilters,
 } from "../utils/columnFilters";
+import { useResizableColumns } from "../hooks/useResizableColumns";
+import ResizableTh from "../components/ResizableTh";
 
 interface AddFormState {
   no: string;
@@ -27,6 +29,14 @@ interface EditDraft {
 
 const FILTER_KEYS = ["no", "fileName", "filePath", "description"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
+
+const PROJECT_INFO_COLUMN_WIDTHS: Record<FilterKey | "action", number> = {
+  no: 88,
+  fileName: 180,
+  filePath: 280,
+  description: 220,
+  action: 200,
+};
 
 const emptyAddForm = (): AddFormState => ({
   no: "",
@@ -44,6 +54,10 @@ const getRowFilterValues = (row: ProjectInfoFile): Record<FilterKey, string> => 
 const ProjectInfoFiles: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
+  const { startResize, colStyle } = useResizableColumns(
+    "project-info-files",
+    PROJECT_INFO_COLUMN_WIDTHS
+  );
   const [files, setFiles] = useState<ProjectInfoFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -268,7 +282,14 @@ const ProjectInfoFiles: React.FC = () => {
   };
 
   const renderFilterHeader = (key: FilterKey, label: string) => (
-    <th className="sticky top-0 z-10 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm">
+    <ResizableTh
+      columnKey={key}
+      width={colStyle(key).width as number}
+      onResizeStart={startResize}
+      isRTL={isRTL}
+      className="sticky top-0 z-10 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm"
+      style={colStyle(key)}
+    >
       <div className="flex items-center justify-center gap-1">
         <span>{label}</span>
         <FilterDropdown
@@ -282,7 +303,7 @@ const ProjectInfoFiles: React.FC = () => {
           onClose={() => handleClose(key)}
         />
       </div>
-    </th>
+    </ResizableTh>
   );
 
   return (
@@ -465,9 +486,16 @@ const ProjectInfoFiles: React.FC = () => {
                       "description",
                       t("projectInfoFiles.description")
                     )}
-                    <th className="sticky top-0 z-10 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm">
+                    <ResizableTh
+                      columnKey="action"
+                      width={colStyle("action").width as number}
+                      onResizeStart={startResize}
+                      isRTL={isRTL}
+                      className="sticky top-0 z-10 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap text-center border-b border-r border-gray-300 bg-gray-50 shadow-sm"
+                      style={colStyle("action")}
+                    >
                       {t("projectInfoFiles.action")}
-                    </th>
+                    </ResizableTh>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
