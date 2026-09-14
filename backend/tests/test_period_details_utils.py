@@ -376,3 +376,67 @@ def test_hydrate_preserves_qty_update_when_only_period_details_exist():
         entry.submission_breakdown["period_details"]["01"]["internal_quantity"]
         == 50.0
     )
+
+
+def test_apply_current_period_keeps_existing_pdfs_when_detail_empty():
+    entry = SimpleNamespace(
+        drawing_no="07",
+        invoice_description=None,
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes=None,
+        supervisor_notes=None,
+        submission_percentage=100.0,
+        drawing_files=["/tmp/keep.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "07",
+            "periods": {"06": 10.0, "07": 4.0},
+            "period_details": {
+                "06": {
+                    "internal_quantity": 1.0,
+                    "approved_by_project_manager": 1.0,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": ["/tmp/old.pdf"],
+                },
+                "07": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 0.0,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                },
+            },
+        },
+    )
+    apply_current_period_to_entry_fields(entry)
+    assert entry.drawing_files == ["/tmp/keep.pdf"]
+
+
+def test_estimated_only_keeps_breakdown_and_drawings():
+    from utils.concentration_utils import apply_calculation_entry_estimated_only
+
+    concentration_entry = SimpleNamespace(
+        estimated_quantity=10.0,
+        quantity_submitted=4.0,
+        submission_percentage=40.0,
+        drawing_no="06",
+        invoice_description="work",
+        drawing_files=["/tmp/keep.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "06",
+            "periods": {"06": 4.0},
+            "period_details": {
+                "06": {"drawing_files": ["/tmp/keep.pdf"]},
+            },
+        },
+    )
+    calc_entry = SimpleNamespace(estimated_quantity=12.0, quantity_submitted=0.0)
+    apply_calculation_entry_estimated_only(concentration_entry, calc_entry)
+    assert concentration_entry.estimated_quantity == 12.0
+    assert concentration_entry.quantity_submitted == 0.0
+    assert concentration_entry.drawing_no == "06"
+    assert concentration_entry.invoice_description == "work"
+    assert concentration_entry.drawing_files == ["/tmp/keep.pdf"]
+    assert concentration_entry.submission_breakdown["periods"]["06"] == 4.0
+

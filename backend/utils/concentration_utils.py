@@ -60,7 +60,7 @@ def calc_sheet_nos_submitted_equals_approved(entries: Iterable[T]) -> Set[str]:
 
     skip: Set[str] = set()
     for calc_no, bucket in totals.items():
-        if round(bucket["submitted"], 2) == round(bucket["approved"], 2):
+        if round(bucket["submitted"], 3) == round(bucket["approved"], 3):
             skip.add(calc_no)
     return skip
 
@@ -133,7 +133,7 @@ def concentration_sheet_cumulative_submitted_equals_approved(
     for entry in entries:
         total_submitted += entry_cumulative_submitted_quantity(entry)
         total_approved += entry_total_approved_quantity(entry)
-    return round(total_submitted, 2) == round(total_approved, 2)
+    return round(total_submitted, 3) == round(total_approved, 3)
 
 
 def calc_entry_is_submitted(calc_entry) -> bool:
@@ -201,9 +201,7 @@ def apply_calculation_entry_estimated_only(
     concentration_entry.estimated_quantity = estimated
     concentration_entry.quantity_submitted = 0.0
     concentration_entry.submission_percentage = 0.0
-    concentration_entry.submission_breakdown = None
-    concentration_entry.drawing_no = None
-    concentration_entry.invoice_description = None
+    # Keep invoice metadata and PDF attachments; the user deletes those.
 
 
 def sync_calc_entry_to_concentration(

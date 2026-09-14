@@ -232,7 +232,9 @@ def apply_current_period_to_entry_fields(entry: Any) -> None:
         entry.submission_percentage = detail["submission_percentage"]
     entry.notes = detail["notes"] or None
     entry.supervisor_notes = detail["supervisor_notes"] or None
-    entry.drawing_files = detail["drawing_files"]
+    entry.drawing_files = detail["drawing_files"] or _normalize_drawing_files(
+        getattr(entry, "drawing_files", None)
+    )
     entry.invoice_description = detail["invoice_description"] or None
 
 
