@@ -11,6 +11,28 @@ from utils.boq_order_utils import sort_concentration_sheets_by_boq_order
 
 logger = logging.getLogger(__name__)
 
+
+def _patch_openpyxl_custom_filters() -> None:
+    """Allow AutoFilter captions that are not numeric/wildcard (calc sheet row 2)."""
+    try:
+        from openpyxl.worksheet.filters import CustomFilter
+    except Exception:
+        return
+    if getattr(CustomFilter, "_spontaneous_caption_patch", False):
+        return
+
+    original_init = CustomFilter.__init__
+
+    def patched_init(self, operator="equal", val=None):
+        try:
+            original_init(self, operator=operator, val=val)
+        except ValueError:
+            self.operator = operator
+            self.val = val
+
+    CustomFilter.__init__ = patched_init
+    CustomFilter._spontaneous_caption_patch = True
+
 # BOQ export: columns that must stay as text in Excel (not coerced to numeric).
 _BOQ_TEXT_COLUMNS = frozenset({
     "section_number",
@@ -42,14 +64,18 @@ def _is_concentration_qty_header(header: str) -> bool:
     return False
 
 
+QUANTITY_EXCEL_FORMAT = "#,##0.000"
+CURRENCY_EXCEL_FORMAT = '"₪"#,##0.00'
+
+
 def _boq_excel_number_format(column_name: str) -> str:
     """Excel number_format: match prior rules (currency for price/sums, else quantity-style)."""
     c = column_name.lower()
     if ("total" in c or "sum" in c or "price" in c) and "quantity" not in c:
-        return '"₪"#,##0.00'
+        return CURRENCY_EXCEL_FORMAT
     if c in ("serial_number", "structure"):
         return "0"
-    return "#,##0.00"
+    return QUANTITY_EXCEL_FORMAT
 
 
 _BOQ_HEADER_TRANSLATIONS = {
@@ -110,18 +136,36 @@ _BOQ_HEADER_TRANSLATIONS = {
 }
 
 
+def _contract_update_index(update) -> int:
+    return int(getattr(update, "update_index", None) or 1)
+
+
+def _contract_update_qty_label(update, language="en") -> str:
+    n = _contract_update_index(update)
+    if language == "he":
+        return f"כמות חוזה מעודכנת מס' {n}"
+    return f"Updated Contract Qty {n}"
+
+
+def _contract_update_sum_label(update, language="en") -> str:
+    n = _contract_update_index(update)
+    if language == "he":
+        return f'סה"כ חוזה מעודכן מס\' {n}'
+    return f"Updated Contract Sum {n}"
+
+
 def _boq_header_label(key, language="en", contract_updates_by_id=None):
     """Resolve a BOQ export column key to a display label for Excel headers."""
     if key.startswith("updated_contract_quantity_"):
         update_id = int(key.rsplit("_", 1)[-1])
         update = (contract_updates_by_id or {}).get(update_id)
         if update:
-            return update.update_name
+            return _contract_update_qty_label(update, language)
     if key.startswith("updated_contract_sum_"):
         update_id = int(key.rsplit("_", 1)[-1])
         update = (contract_updates_by_id or {}).get(update_id)
         if update:
-            return update.update_name.replace("Qty", "Sum")
+            return _contract_update_sum_label(update, language)
 
     lang = "he" if language == "he" else "en"
     return _BOQ_HEADER_TRANSLATIONS[lang].get(key, key)
@@ -316,11 +360,12 @@ class ExcelService:
             from utils.calculation_sheet_utils import (
                 compute_submission_breakdown,
                 count_calculation_sheet_items,
+                read_entry_current_invoice_id,
                 read_entry_invoice_description,
-                read_entry_submitted_invoice_id,
                 validate_calculation_sheet_header_fields,
             )
 
+            _patch_openpyxl_custom_filters()
             df = pd.read_excel(file_path, sheet_name="Calculation", header=None)
             file_name = Path(file_path).name
             
@@ -351,8 +396,8 @@ class ExcelService:
                     estimated_quantity = df.iloc[5, col_index]
                     estimated_quantity = float(estimated_quantity) if pd.notna(estimated_quantity) else 0.0
 
-                    entry_current_invoice_id = read_entry_submitted_invoice_id(
-                        df, col_index
+                    entry_current_invoice_id = read_entry_current_invoice_id(
+                        df, col_index, drawing_no, item_count=item_count
                     )
                     entry_invoice_description = read_entry_invoice_description(
                         df, col_index
@@ -685,8 +730,8 @@ class ExcelService:
                         cell.font = Font(bold=True)
                         cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
 
-                worksheet.cell(row=boq_data_row_1based, column=2).number_format = "#,##0.00"
-                worksheet.cell(row=boq_data_row_1based, column=4).number_format = '"₪"#,##0.00'
+                worksheet.cell(row=boq_data_row_1based, column=2).number_format = QUANTITY_EXCEL_FORMAT
+                worksheet.cell(row=boq_data_row_1based, column=4).number_format = CURRENCY_EXCEL_FORMAT
                 if entries:
                     for col_i, h in enumerate(filtered_headers, start=1):
                         if not _is_concentration_qty_header(h):
@@ -697,7 +742,7 @@ class ExcelService:
                         ):
                             cell = worksheet.cell(row=r, column=col_i)
                             if isinstance(cell.value, (int, float)):
-                                cell.number_format = "#,##0.00"
+                                cell.number_format = QUANTITY_EXCEL_FORMAT
             
             logger.info(f"Generated concentration sheet Excel with single sheet RTL layout: {filepath}")
             return str(filepath)
@@ -925,8 +970,8 @@ class ExcelService:
                             cell.font = Font(bold=True)
                             cell.fill = PatternFill(start_color="87CEEB", end_color="87CEEB", fill_type="solid")
 
-                    worksheet.cell(row=boq_data_row_1based, column=2).number_format = "#,##0.00"
-                    worksheet.cell(row=boq_data_row_1based, column=4).number_format = '"₪"#,##0.00'
+                    worksheet.cell(row=boq_data_row_1based, column=2).number_format = QUANTITY_EXCEL_FORMAT
+                    worksheet.cell(row=boq_data_row_1based, column=4).number_format = CURRENCY_EXCEL_FORMAT
                     if entries:
                         for col_i, h in enumerate(entries_headers, start=1):
                             if not _is_concentration_qty_header(h):
@@ -937,7 +982,7 @@ class ExcelService:
                             ):
                                 cell = worksheet.cell(row=r, column=col_i)
                                 if isinstance(cell.value, (int, float)):
-                                    cell.number_format = "#,##0.00"
+                                    cell.number_format = QUANTITY_EXCEL_FORMAT
                 
                 exported_paths.append(str(filepath))
                 logger.info(f"Generated concentration sheet Excel: {filepath}")

@@ -109,8 +109,6 @@ def validate_calculation_sheet_header_fields(
 ) -> None:
     if not calculation_sheet_no:
         raise ValueError(f"File {file_name} has empty calculation no.")
-    if not drawing_no:
-        raise ValueError(f"File {file_name} has empty invoice no.")
     if not description:
         raise ValueError(f"File {file_name} has empty description.")
 
@@ -191,12 +189,18 @@ def read_entry_invoice_description(df, col_index: int) -> Optional[str]:
 
 
 def read_entry_current_invoice_id(
-    df, col_index: int, sheet_drawing_no: str = ""
+    df, col_index: int, sheet_drawing_no: str = "", item_count: int = 1
 ) -> str:
-    """Read current invoice id from row 2 of an item column; fall back to sheet C2."""
+    """Read current invoice id from row 2 of an item column.
+
+    Multi-item sheets do not fall back to sheet C2, so one item's invoice
+    cannot leak onto another item.
+    """
     submitted = read_entry_submitted_invoice_id(df, col_index)
     if submitted:
         return submitted
+    if item_count > 1:
+        return ""
     return str(sheet_drawing_no or "").strip()
 
 
@@ -850,7 +854,7 @@ def format_concentration_export_row_for_pdf(
             formatted.append("")
         else:
             numeric = float(value or 0)
-            formatted.append("" if numeric == 0 else f"{numeric:,.2f}")
+            formatted.append("" if numeric == 0 else f"{numeric:,.3f}")
     return formatted
 
 

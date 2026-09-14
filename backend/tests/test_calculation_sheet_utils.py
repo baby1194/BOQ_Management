@@ -234,7 +234,7 @@ def test_concentration_export_pdf_formats_zero_numeric_as_empty():
         headers,
     )
     assert formatted[0] == "DC-29"
-    assert formatted[1] == "674.80"
+    assert formatted[1] == "674.800"
     assert formatted[2] == ""
 
 
@@ -334,8 +334,8 @@ def test_build_concentration_export_subrows():
     assert rows[2]["Approved by Project Manager"] == 0.0
 
     pdf_past = format_concentration_export_row_for_pdf(rows[0], headers)
-    assert pdf_past[headers.index("Approved by Project Manager")] == "180.00"
-    assert pdf_past[headers.index("Internal Quantity")] == "190.00"
+    assert pdf_past[headers.index("Approved by Project Manager")] == "180.000"
+    assert pdf_past[headers.index("Internal Quantity")] == "190.000"
 
     offsets = concentration_export_main_row_offsets([entry], entry_columns)
     assert offsets == [2]
@@ -361,8 +361,11 @@ def test_validate_calculation_sheet_header_fields_messages():
     with pytest.raises(ValueError, match="File test.xlsx has empty calculation no."):
         validate_calculation_sheet_header_fields("", "06", "desc", "test.xlsx")
 
-    with pytest.raises(ValueError, match="File test.xlsx has empty invoice no."):
-        validate_calculation_sheet_header_fields("7", "", "desc", "test.xlsx")
+    with pytest.raises(ValueError, match="File test.xlsx has empty description."):
+        validate_calculation_sheet_header_fields("7", "06", "", "test.xlsx")
+
+    validate_calculation_sheet_header_fields("7", "any caption", "desc", "test.xlsx")
+    validate_calculation_sheet_header_fields("7", "", "desc", "test.xlsx")
 
 
 def test_read_entry_current_invoice_id_from_column_row_2():
@@ -376,6 +379,7 @@ def test_read_entry_current_invoice_id_falls_back_to_sheet_c2():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10
     assert read_entry_current_invoice_id(df, col, "06") == "06"
+    assert read_entry_current_invoice_id(df, col, "06", item_count=2) == ""
 
 
 def test_read_entry_submitted_invoice_id_requires_row_2():
