@@ -228,6 +228,7 @@ export interface ApprovedSignedQtyImportResponse {
   items_not_found: number;
   not_found_section_numbers: string[];
   errors: string[];
+  invoice_date_approved_signed_qty?: string | null;
 }
 
 export interface PDFExportRequest {
@@ -419,6 +420,7 @@ export interface BOQItemWithLatestContractUpdate extends BOQItem {
   latest_contract_sum: number;
   has_contract_updates: boolean;
   latest_update_index?: number;
+  search_text?: string;
 }
 
 export interface SubsectionSummary {

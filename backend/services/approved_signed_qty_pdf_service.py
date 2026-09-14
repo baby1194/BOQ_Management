@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -267,3 +268,86 @@ def extract_approved_signed_quantities(
         qty_col,
     )
     return results
+
+
+_DATE_TOKEN_RE = re.compile(
+    r"(?<!\d)(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})(?!\d)"
+)
+_REPORTING_LABEL_RE = re.compile(
+    r"חודש\s*דיווח|דיווח\s*חודש|חוויד\s*שדוח|שדוח\s*חוויד|reporting\s*month",
+    re.IGNORECASE,
+)
+
+
+def _calendar_date(day: int, month: int, year: int) -> Optional[datetime]:
+    if year < 100:
+        year += 2000
+    if not (1 <= month <= 12 and 1 <= day <= 31 and 1900 <= year <= 2100):
+        return None
+    try:
+        return datetime(year, month, 1, tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def parse_reporting_month_from_text(text: str) -> Optional[datetime]:
+    """Parse Invoice Date for Approved Signed QTY from PDF header text.
+
+    Prefers a date next to 'חודש דיווח' / 'reporting month' (e.g. 30.06.2026 -> June 2026).
+    """
+    if not text:
+        return None
+    compact = re.sub(r"\s+", " ", text)
+
+    for match in _REPORTING_LABEL_RE.finditer(compact):
+        window = compact[match.end() : match.end() + 48]
+        date_match = _DATE_TOKEN_RE.search(window)
+        if date_match:
+            parsed = _calendar_date(
+                int(date_match.group(1)),
+                int(date_match.group(2)),
+                int(date_match.group(3)),
+            )
+            if parsed:
+                return parsed
+
+    # Label may appear after a reversed/RTL date
+    for match in _REPORTING_LABEL_RE.finditer(compact):
+        window = compact[max(0, match.start() - 48) : match.start()]
+        date_match = None
+        for candidate in _DATE_TOKEN_RE.finditer(window):
+            date_match = candidate
+        if date_match:
+            parsed = _calendar_date(
+                int(date_match.group(1)),
+                int(date_match.group(2)),
+                int(date_match.group(3)),
+            )
+            if parsed:
+                return parsed
+    return None
+
+
+def extract_approved_signed_invoice_date(
+    pdf_path: str | Path,
+) -> Optional[datetime]:
+    """Read reporting-month date from the first pages of a signed approved PDF."""
+    try:
+        import pdfplumber
+    except ImportError as exc:
+        raise RuntimeError(
+            "pdfplumber is required to read approved signed quantity PDFs. "
+            "Install it with: pip install pdfplumber"
+        ) from exc
+
+    path = Path(pdf_path)
+    if not path.exists():
+        raise FileNotFoundError(f"PDF not found: {path}")
+
+    chunks: List[str] = []
+    with pdfplumber.open(str(path)) as pdf:
+        for page in pdf.pages[:3]:
+            extracted = page.extract_text() or ""
+            if extracted:
+                chunks.append(extracted)
+    return parse_reporting_month_from_text("\n".join(chunks))

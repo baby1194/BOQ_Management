@@ -326,6 +326,7 @@ class ApprovedSignedQtyImportResponse(BaseModel):
     items_not_found: int = 0
     not_found_section_numbers: List[str] = []
     errors: List[str] = []
+    invoice_date_approved_signed_qty: Optional[datetime] = None
 
 
 # PDF Export Schemas
@@ -599,6 +600,7 @@ class BOQItemWithLatestContractUpdate(BaseModel):
     latest_contract_sum: float
     has_contract_updates: bool
     latest_update_index: Optional[int] = None
+    search_text: Optional[str] = None
 
     class Config:
         from_attributes = True

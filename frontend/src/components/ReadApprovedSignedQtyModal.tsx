@@ -164,6 +164,13 @@ const ReadApprovedSignedQtyModal: React.FC<ReadApprovedSignedQtyModalProps> = ({
           message += ` (${result.items_not_found} ${t("dashboard.itemsNotFoundInBoq")})`;
         }
         toast.success(message);
+        if (result.invoice_date_approved_signed_qty) {
+          const parsed = new Date(result.invoice_date_approved_signed_qty);
+          const dateLabel = `${String(parsed.getUTCMonth() + 1).padStart(2, "0")}/${parsed.getUTCFullYear()}`;
+          toast.success(
+            t("dashboard.approvedSignedInvoiceDateUpdated", { date: dateLabel }),
+          );
+        }
         onSuccess?.(result);
         resetAndClose();
       } else {
