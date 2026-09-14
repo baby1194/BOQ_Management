@@ -25,7 +25,7 @@ def test_produce_final_submission_pdfs_order(tmp_path: Path):
 
     item = tmp_path / "40.01.001"
     calc_dir = item / "20_1"
-    invoice_dir = item / "05_m"
+    invoice_dir = tmp_path.parent / f"{tmp_path.name} Invoice" / "40.01.001" / "05_m"
     calc_dir.mkdir(parents=True)
     invoice_dir.mkdir(parents=True)
 

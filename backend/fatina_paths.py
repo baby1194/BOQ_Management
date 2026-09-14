@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List
 
 FATINA_BASE_DIR = Path("C:/Fatina")
+FATINA_INVOICE_BASE_DIR = Path("C:/Fatina Invoice")
 FINAL_SUBMISSION_FILES_DIR_NAME = "Final submission Files"
 
 logger = logging.getLogger(__name__)
@@ -186,6 +187,14 @@ def produce_final_submission_pdfs(
                 [p for p in item_dir.iterdir() if p.is_dir()],
                 key=lambda p: p.name.lower(),
             )
+            invoice_item_dir = fatina_invoice_root(root) / section
+            if invoice_item_dir.is_dir() and invoice_item_dir.resolve() != item_dir.resolve():
+                subdirs.extend(
+                    sorted(
+                        [p for p in invoice_item_dir.iterdir() if p.is_dir()],
+                        key=lambda p: p.name.lower(),
+                    )
+                )
             for subdir in subdirs:
                 source_files = sorted(
                     [p for p in subdir.iterdir() if _is_final_submission_source(p)],
@@ -270,6 +279,14 @@ def sanitize_folder_name(folder_name: str) -> str:
     )
 
 
+def fatina_invoice_root(base_dir: Path | None = None) -> Path:
+    """Parent folder for invoice copies (C:/Fatina Invoice by default)."""
+    root = Path(base_dir) if base_dir is not None else FATINA_BASE_DIR
+    if root.resolve() == FATINA_BASE_DIR.resolve():
+        return FATINA_INVOICE_BASE_DIR
+    return root.parent / f"{root.name} Invoice"
+
+
 def fatina_section_dir(section_number: str) -> Path:
     return FATINA_BASE_DIR / sanitize_folder_name(section_number)
 
@@ -287,12 +304,13 @@ def fatina_invoice_folder_name(invoice_no: str) -> str:
     return f"{base}_m"
 
 
-def fatina_invoice_dir(section_number: str, invoice_no: str) -> Path:
-    """Item folder sub-directory named after the invoice number ({invoice}_m)."""
+def fatina_invoice_dir(section_number: str, invoice_no: str, base_dir: Path | None = None) -> Path:
+    """Invoice folder under Fatina Invoice / {section} / {invoice}_m."""
     folder_name = fatina_invoice_folder_name(invoice_no)
+    section_dir = fatina_invoice_root(base_dir) / sanitize_folder_name(section_number)
     if not folder_name:
-        return fatina_section_dir(section_number)
-    return fatina_section_dir(section_number) / folder_name
+        return section_dir
+    return section_dir / folder_name
 
 
 def calculation_file_path(
@@ -376,14 +394,13 @@ def copy_files_to_invoice_dir(
     invoice_no: str,
     source_paths: list[str],
 ) -> int:
-    """Copy files into C:/Fatina/{section}/{invoice_no}_m/."""
+    """Copy files into C:/Fatina Invoice/{section}/{invoice_no}_m/."""
     if not section_number or not invoice_no or not source_paths:
         return 0
-
-    dest_dir = fatina_invoice_dir(section_number, invoice_no)
     if not fatina_invoice_folder_name(invoice_no):
         return 0
 
+    dest_dir = fatina_invoice_dir(section_number, invoice_no)
     dest_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
     for src_str in source_paths:
