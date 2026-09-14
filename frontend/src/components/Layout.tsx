@@ -21,7 +21,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useProject } from "../contexts/ProjectContext";
 import LanguageSwitcher from "./LanguageSwitcher";
-import NewProjectModal from "./NewProjectModal";
+import CalculatorPanel from "./CalculatorPanel";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -43,6 +43,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSignOut = async () => {
@@ -247,6 +248,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </ul>
         </nav>
 
+        {isAuthenticated && (
+          <div className="px-4 pb-4">
+            <button
+              type="button"
+              onClick={() => setShowCalculator((open) => !open)}
+              className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                showCalculator
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              } ${isRTL ? "flex-row-reverse" : ""}`}
+            >
+              <Calculator className={`${isRTL ? "ml-3" : "mr-3"} h-5 w-5`} />
+              {t("common.calculator")}
+            </button>
+          </div>
+        )}
+
         {/* User menu at bottom of sidebar */}
         {isAuthenticated && user && (
           <div className="p-4 border-t border-gray-200" ref={menuRef}>
@@ -339,6 +357,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
       </div>
 
+      <CalculatorPanel
+        isOpen={showCalculator}
+        onClose={() => setShowCalculator(false)}
+      />
       <NewProjectModal
         isOpen={showNewProjectModal}
         onClose={() => setShowNewProjectModal(false)}
