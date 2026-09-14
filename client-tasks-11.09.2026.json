@@ -1,159 +1,202 @@
 {
   "source": "NOTES-11.09.2026.docx",
   "created": "2026-09-14",
-  "current_task_id": "T01",
+  "current_task_id": null,
   "tasks": [
     {
       "id": "T01",
-      "status": "ready_for_review",
+      "status": "completed",
       "priority": "bug",
       "title": "Fix summary Excel export download",
       "about": "Exporting the summary Excel table fails in the browser (Chrome: site was not available). Screenshots show Summary of Systems Export Summary and failed subsections_summary_*.xlsx files.",
-      "pages": ["Summary of Systems", "Summary of Subsections", "Summary of Structures"],
+      "pages": [
+        "Summary of Systems",
+        "Summary of Subsections",
+        "Summary of Structures"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T02",
-      "status": "pending",
+      "status": "completed",
       "priority": "old_note",
       "title": "Auto-fill invoice date from signed approved PDF",
       "about": "When Read Approved Signed QTY imports a signed PDF, automatically update Invoice Date for Approved Signed QTY (screenshot also marks invoice numbers and submitted date — confirm extra fields with client).",
-      "pages": ["BOQ Items", "Read Approved Signed QTY"],
+      "pages": [
+        "BOQ Items",
+        "Read Approved Signed QTY"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T03",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Click item number to navigate BOQ ↔ Concentration",
       "about": "Keep View Sheet in Actions, and also let clicking section/item number on BOQ open that Concentration sheet, and clicking item number on Concentration go back to BOQ.",
-      "pages": ["BOQ Items", "Concentration Sheets"],
+      "pages": [
+        "BOQ Items",
+        "Concentration Sheets"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T04",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Split FATINA vs FATINA INVOICE folders",
       "about": "Calc-sheet folders (e.g. 17_1) and invoice folders (e.g. 03_m) currently mix under C:\\Fatina\\{item}. Use two parent folders such as FATINA and FATINA INVOICE.",
-      "pages": ["FATINA export"],
+      "pages": [
+        "FATINA export"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T05",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Color unmatched quantities on Concentration sheets",
       "about": "Color entry text (e.g. red) when approved qty does not match submitted qty, or when it does not match estimated qty. Give the user both options to choose.",
-      "pages": ["Concentration Sheets"],
+      "pages": [
+        "Concentration Sheets"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T06",
-      "status": "pending",
+      "status": "completed",
       "priority": "nice_to_have",
       "title": "Track calculation sheet directly from Concentration",
       "about": "Opening a calc sheet from Concentration already works. Tracking currently requires going to Calculation Sheets, searching the number, then Track. Add a direct track path.",
-      "pages": ["Concentration Sheets", "Calculation Sheets"],
+      "pages": [
+        "Concentration Sheets",
+        "Calculation Sheets"
+      ],
       "nice_to_have": true
     },
     {
       "id": "T07",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Word search on Concentration item list",
       "about": "Search by words in Work Description and Description, and filter the left item list to items that contain that word.",
-      "pages": ["Concentration Sheets"],
+      "pages": [
+        "Concentration Sheets"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T08",
-      "status": "pending",
+      "status": "completed",
       "priority": "nice_to_have",
       "title": "Hide columns on Concentration Sheets",
       "about": "Allow hiding columns on Concentration Sheets for convenience. No dedicated screenshot.",
-      "pages": ["Concentration Sheets"],
+      "pages": [
+        "Concentration Sheets"
+      ],
       "nice_to_have": true
     },
     {
       "id": "T09",
-      "status": "pending",
+      "status": "completed",
       "priority": "bug",
       "title": "Hebrew titles for updated contract columns",
       "about": "After Update Contract Quantity, Hebrew UI still shows English titles such as UPDATED CONTRACT QTY 1 / UPDATED CONTRACT SUM 1. Use כמות חוזה מעודכנת מס' 1 and סה\"כ חוזה מעודכן מס' 1.",
-      "pages": ["BOQ Items"],
+      "pages": [
+        "BOQ Items"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T10",
-      "status": "pending",
+      "status": "completed",
       "priority": "bug",
       "title": "Updated Qty badge only when quantity actually changed",
       "about": "Show Updated Qty only when the new quantity differs from the previous update, not vs original forever. Example: 200→250 show; 250→250 do not show.",
-      "pages": ["Concentration Sheets"],
+      "pages": [
+        "Concentration Sheets"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T11",
-      "status": "pending",
+      "status": "completed",
       "priority": "nice_to_have",
       "title": "In-app calculator side panel",
       "about": "Add a calculator (like Windows Calculator) that can be opened from any sheet.",
-      "pages": ["All pages"],
+      "pages": [
+        "All pages"
+      ],
       "nice_to_have": true
     },
     {
       "id": "T12",
-      "status": "pending",
+      "status": "completed",
       "priority": "old_note",
       "title": "Column resize sliders on more tables",
       "about": "Concentration Sheets already has sliders. Add the same to Concentration window and other tables if possible: Project Info Files, List of Drawings, BOQ Items.",
-      "pages": ["Project Info Files", "List of Drawings", "BOQ Items"],
+      "pages": [
+        "Project Info Files",
+        "List of Drawings",
+        "BOQ Items"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T13",
-      "status": "pending",
+      "status": "completed",
       "priority": "bug",
       "title": "Allow spontaneous captions on calc sheet upload",
       "about": "Uploading a calc sheet fails if line 2 is a free-text caption: Value must be either numerical or a string containing a wildcard. Allow any spontaneous caption.",
-      "pages": ["Calculation Sheets", "File Import"],
+      "pages": [
+        "Calculation Sheets",
+        "File Import"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T14",
-      "status": "pending",
+      "status": "completed",
       "priority": "very_important",
       "title": "Changing calc sheet invoice number must keep totals correct",
       "about": "If a calc sheet is set to Invoice 06 then later changed to 07, totals become wrong. User currently must delete and re-upload. Update should work without that.",
-      "pages": ["Calculation Sheets", "Concentration Sheets"],
+      "pages": [
+        "Calculation Sheets",
+        "Concentration Sheets"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T15",
-      "status": "pending",
+      "status": "completed",
       "priority": "very_important",
       "title": "FATINA invoice folder must stay per item",
       "about": "If one calc sheet has item X as Invoice 07 and item Y as Invoice 06 (example: 1.51.02.0020 = 07 and 1.51.02.0030 = 05/01-06), item Y's Fatina folder must not get 07_m.",
-      "pages": ["FATINA export"],
+      "pages": [
+        "FATINA export"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T16",
-      "status": "pending",
+      "status": "completed",
       "priority": "very_important",
       "title": "Keep PDFs when updating an existing calc sheet",
       "about": "Updating a calculation sheet that already has PDFs attached currently deletes all PDFs. Attachments should remain unless the user deletes them.",
-      "pages": ["Calculation Sheets"],
+      "pages": [
+        "Calculation Sheets"
+      ],
       "nice_to_have": false
     },
     {
       "id": "T17",
-      "status": "pending",
+      "status": "completed",
       "priority": "bug",
       "title": "Three digits after the decimal point",
       "about": "Quantities currently keep 5+ decimals internally (e.g. 146.09015 shown as 146.09). Client wants 3 digits after the decimal.",
-      "pages": ["Exports / tables"],
+      "pages": [
+        "Exports / tables"
+      ],
       "nice_to_have": false
     }
   ]
