@@ -25,6 +25,7 @@ from utils.concentration_utils import (
     entry_cumulative_submitted,
     remove_orphan_concentration_entries,
 )
+from utils.contract_update_flags import has_changed_contract_quantity
 from utils.period_details_utils import (
     apply_current_period_to_entry_fields,
     entry_all_drawing_files,
@@ -270,32 +271,84 @@ async def get_concentration_sheets_with_boq_data(
         latest_contract_update = db.query(models.ContractQuantityUpdate).order_by(
             desc(models.ContractQuantityUpdate.update_index)
         ).first()
+        previous_contract_update = None
+        if latest_contract_update:
+            previous_contract_update = (
+                db.query(models.ContractQuantityUpdate)
+                .filter(
+                    models.ContractQuantityUpdate.update_index
+                    < latest_contract_update.update_index
+                )
+                .order_by(desc(models.ContractQuantityUpdate.update_index))
+                .first()
+            )
         
         # Get all BOQ item IDs from the sheets
         boq_item_ids = [sheet.boq_item_id for sheet in sheets if sheet.boq_item]
         
-        # Get all quantity updates for all BOQ items and latest contract update in a single query
+        # Get quantity updates for latest and previous contract updates
         latest_quantity_updates = {}
+        previous_quantity_updates = {}
         if latest_contract_update and boq_item_ids:
             quantity_updates = db.query(models.BOQItemQuantityUpdate).filter(
                 models.BOQItemQuantityUpdate.boq_item_id.in_(boq_item_ids),
                 models.BOQItemQuantityUpdate.contract_update_id == latest_contract_update.id
             ).all()
             latest_quantity_updates = {update.boq_item_id: update for update in quantity_updates}
+        if previous_contract_update and boq_item_ids:
+            previous_updates = db.query(models.BOQItemQuantityUpdate).filter(
+                models.BOQItemQuantityUpdate.boq_item_id.in_(boq_item_ids),
+                models.BOQItemQuantityUpdate.contract_update_id == previous_contract_update.id
+            ).all()
+            previous_quantity_updates = {update.boq_item_id: update for update in previous_updates}
+
+        search_texts: dict[int, list[str]] = {sheet_id: [] for sheet_id in [s.id for s in sheets]}
+        if search_texts:
+            entry_rows = (
+                db.query(
+                    models.ConcentrationEntry.concentration_sheet_id,
+                    models.ConcentrationEntry.description,
+                    models.ConcentrationEntry.invoice_description,
+                )
+                .filter(
+                    models.ConcentrationEntry.concentration_sheet_id.in_(list(search_texts.keys()))
+                )
+                .all()
+            )
+            for sheet_id, description, invoice_description in entry_rows:
+                if description:
+                    search_texts[sheet_id].append(str(description))
+                if invoice_description:
+                    search_texts[sheet_id].append(str(invoice_description))
         
         result = []
         for sheet in sheets:
             if sheet.boq_item:
                 # Get the quantity update for this specific BOQ item
                 latest_quantity_update = latest_quantity_updates.get(sheet.boq_item_id)
+                previous_quantity_update = previous_quantity_updates.get(sheet.boq_item_id)
                 
                 # Create BOQ item with latest contract update data
                 boq_item_dict = {c.key: getattr(sheet.boq_item, c.key) for c in sheet.boq_item.__table__.columns}
                 boq_item_dict.update({
                     "latest_contract_quantity": latest_quantity_update.updated_contract_quantity if latest_quantity_update else sheet.boq_item.original_contract_quantity,
                     "latest_contract_sum": latest_quantity_update.updated_contract_sum if latest_quantity_update else (sheet.boq_item.original_contract_quantity * sheet.boq_item.price),
-                    "has_contract_updates": latest_contract_update is not None,
-                    "latest_update_index": latest_contract_update.update_index if latest_contract_update else None
+                    "has_contract_updates": has_changed_contract_quantity(
+                        original_quantity=sheet.boq_item.original_contract_quantity,
+                        latest_quantity=(
+                            latest_quantity_update.updated_contract_quantity
+                            if latest_quantity_update
+                            else None
+                        ),
+                        previous_quantity=(
+                            previous_quantity_update.updated_contract_quantity
+                            if previous_quantity_update
+                            else None
+                        ),
+                        has_latest_row=latest_quantity_update is not None,
+                    ),
+                    "latest_update_index": latest_contract_update.update_index if latest_contract_update else None,
+                    "search_text": " ".join(search_texts.get(sheet.id, [])),
                 })
                 
                 # Create the combined response - convert sheet to dict and add boq_item

@@ -19,6 +19,7 @@ from services.boq_transfer_service import (
     copy_boq_items_to_project,
 )
 from utils.boq_order_utils import sync_display_orders_by_serial_number
+from utils.contract_update_flags import has_changed_contract_quantity
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -559,13 +560,30 @@ async def get_boq_item_with_latest_contract_update(item_id: int, db: Session = D
         latest_contract_update = db.query(models.ContractQuantityUpdate).order_by(
             models.ContractQuantityUpdate.update_index.desc()
         ).first()
+        previous_contract_update = None
+        if latest_contract_update:
+            previous_contract_update = (
+                db.query(models.ContractQuantityUpdate)
+                .filter(
+                    models.ContractQuantityUpdate.update_index
+                    < latest_contract_update.update_index
+                )
+                .order_by(models.ContractQuantityUpdate.update_index.desc())
+                .first()
+            )
         
         # Get the quantity update for this BOQ item and latest contract update
         latest_quantity_update = None
+        previous_quantity_update = None
         if latest_contract_update:
             latest_quantity_update = db.query(models.BOQItemQuantityUpdate).filter(
                 models.BOQItemQuantityUpdate.boq_item_id == item_id,
                 models.BOQItemQuantityUpdate.contract_update_id == latest_contract_update.id
+            ).first()
+        if previous_contract_update:
+            previous_quantity_update = db.query(models.BOQItemQuantityUpdate).filter(
+                models.BOQItemQuantityUpdate.boq_item_id == item_id,
+                models.BOQItemQuantityUpdate.contract_update_id == previous_contract_update.id
             ).first()
         
         # Create response with latest contract quantities
@@ -573,7 +591,20 @@ async def get_boq_item_with_latest_contract_update(item_id: int, db: Session = D
             **boq_item.__dict__,
             "latest_contract_quantity": latest_quantity_update.updated_contract_quantity if latest_quantity_update else boq_item.original_contract_quantity,
             "latest_contract_sum": latest_quantity_update.updated_contract_sum if latest_quantity_update else (boq_item.original_contract_quantity * boq_item.price),
-            "has_contract_updates": latest_contract_update is not None,
+            "has_contract_updates": has_changed_contract_quantity(
+                original_quantity=boq_item.original_contract_quantity,
+                latest_quantity=(
+                    latest_quantity_update.updated_contract_quantity
+                    if latest_quantity_update
+                    else None
+                ),
+                previous_quantity=(
+                    previous_quantity_update.updated_contract_quantity
+                    if previous_quantity_update
+                    else None
+                ),
+                has_latest_row=latest_quantity_update is not None,
+            ),
             "latest_update_index": latest_contract_update.update_index if latest_contract_update else None
         }
         
