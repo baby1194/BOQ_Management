@@ -7,7 +7,9 @@ export function triggerBrowserDownload(blob: Blob, filename: string): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Revoke after the browser has started the download. Immediate revoke
+  // causes Chrome to fail with "Couldn't download — site wasn't available".
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function filenameFromExportPath(exportPath: string): string {

@@ -279,21 +279,7 @@ const SummaryOfSystems: React.FC = () => {
       }
 
       if (response.success && response.pdf_path) {
-        // Create download link
-        const link = document.createElement("a");
-        // The backend returns /export/download/filename, so we need to access it via the API
-        const downloadUrl = response.pdf_path.startsWith("/")
-          ? `/api${response.pdf_path}`
-          : `/api/${response.pdf_path}`;
-        link.href = downloadUrl;
-        // Extract filename from the path
-        const filename =
-          response.pdf_path.split("/").pop() ||
-          `systems_summary.${format === "pdf" ? "pdf" : "xlsx"}`;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        await exportApi.downloadExportFile(response.pdf_path);
 
         // Show success message
         setSuccessMessage(
