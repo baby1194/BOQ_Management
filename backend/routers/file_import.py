@@ -25,8 +25,10 @@ from services.calculation_sheet_sync import (
 from services.non_boq_service import register_non_boq_items_from_calculation_entries
 from services.approved_signed_qty_pdf_service import (
     build_boq_section_number,
+    extract_approved_signed_invoice_date,
     extract_approved_signed_quantities,
 )
+from utils.fatina_invoice_isolation import invoices_exclusive_to_other_items
 from services.auth_service import get_current_user_from_cookie, verify_password
 from fatina_paths import (
     FATINA_BASE_DIR,
@@ -381,6 +383,17 @@ def copy_calculation_sheets_to_item_folder(
                         if invoice_no not in seen_invoices:
                             seen_invoices.add(invoice_no)
                             invoice_numbers.append(invoice_no)
+            foreign_invoices = invoices_exclusive_to_other_items(
+                db.query(models.CalculationEntry)
+                .filter(models.CalculationEntry.calculation_sheet_id == sheet.id)
+                .all(),
+                section_number,
+            )
+            invoice_numbers = [
+                invoice_no
+                for invoice_no in invoice_numbers
+                if invoice_no not in foreign_invoices
+            ]
             for invoice_no in invoice_numbers:
                 copied += copy_files_to_invoice_dir(
                     section_number, invoice_no, [str(src)]
@@ -1224,6 +1237,7 @@ async def import_approved_signed_quantities_from_pdf(
             section_column_name=section_column_name,
             qty_column_name=qty_column_name,
         )
+        invoice_date = extract_approved_signed_invoice_date(temp_path)
         if not quantities:
             return schemas.ApprovedSignedQtyImportResponse(
                 success=False,
@@ -1264,6 +1278,13 @@ async def import_approved_signed_quantities_from_pdf(
             boq_item.approved_signed_total = quantity * price
             items_updated += 1
 
+        if invoice_date:
+            project_info = db.query(models.ProjectInfo).first()
+            if project_info is None:
+                project_info = models.ProjectInfo()
+                db.add(project_info)
+            project_info.invoice_date_approved_signed_qty = invoice_date
+
         db.commit()
 
         message = (
@@ -1283,6 +1304,7 @@ async def import_approved_signed_quantities_from_pdf(
             items_not_found=len(not_found),
             not_found_section_numbers=not_found[:50],
             errors=[],
+            invoice_date_approved_signed_qty=invoice_date,
         )
     except HTTPException:
         raise
