@@ -5,7 +5,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
@@ -36,8 +36,10 @@ import {
   ExternalLink,
   RefreshCw,
   GripVertical,
+  Settings,
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
+import ColumnSettingsModal from "../components/ColumnSettingsModal";
 import PopulateConcentrationEntryModal from "../components/PopulateConcentrationEntryModal";
 import ConcentrationDrawingFilesCell from "../components/ConcentrationDrawingFilesCell";
 import {
@@ -56,6 +58,48 @@ import {
   resolveCurrentPeriod,
 } from "../utils/periodDetails";
 import { getProjectItem, setProjectItem } from "../utils/localStorage";
+import {
+  startHeaderColumnResize,
+  useResizableColumns,
+} from "../hooks/useResizableColumns";
+
+const ENTRY_COLUMN_KEYS = [
+  "description",
+  "calculation_sheet_no",
+  "drawing_no",
+  "invoice_description",
+  "drawings",
+  "estimated_quantity",
+  "submission_percentage",
+  "quantity_submitted",
+  "internal_quantity",
+  "approved_qty",
+  "notes",
+  "supervisor_notes",
+  "actions",
+] as const;
+
+type EntryColumnKey = (typeof ENTRY_COLUMN_KEYS)[number];
+
+const DEFAULT_ENTRY_COLUMN_VISIBILITY: Record<EntryColumnKey, boolean> = {
+  description: true,
+  calculation_sheet_no: true,
+  drawing_no: true,
+  invoice_description: true,
+  drawings: true,
+  estimated_quantity: true,
+  submission_percentage: true,
+  quantity_submitted: true,
+  internal_quantity: true,
+  approved_qty: true,
+  notes: true,
+  supervisor_notes: true,
+  actions: true,
+};
+
+function quantitiesMismatch(left: number, right: number): boolean {
+  return Math.abs((left || 0) - (right || 0)) > 0.0005;
+}
 
 /** Draft state for inline row editing (mirrors EntryForm fields). */
 type ConcentrationEntryEditDraft = {
@@ -161,6 +205,7 @@ function findSheetFromSearchParams(
 
 const ConcentrationSheets: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [sheets, setSheets] = useState<ConcentrationSheetWithBOQData[]>([]);
@@ -197,6 +242,44 @@ const ConcentrationSheets: React.FC = () => {
     const saved = getProjectItem("concentration-sheets-section-filter");
     return saved !== null ? saved : "";
   });
+  const [qtyMismatchMode, setQtyMismatchMode] = useState<
+    "submitted" | "estimated"
+  >(() => {
+    const saved = getProjectItem("concentration-qty-mismatch-mode");
+    return saved === "estimated" ? "estimated" : "submitted";
+  });
+  const [entryColumnVisibility, setEntryColumnVisibility] = useState<
+    Record<EntryColumnKey, boolean>
+  >(() => {
+    const saved = getProjectItem("concentration-entry-column-visibility");
+    if (!saved) return { ...DEFAULT_ENTRY_COLUMN_VISIBILITY };
+    try {
+      return {
+        ...DEFAULT_ENTRY_COLUMN_VISIBILITY,
+        ...(JSON.parse(saved) as Partial<Record<EntryColumnKey, boolean>>),
+      };
+    } catch {
+      return { ...DEFAULT_ENTRY_COLUMN_VISIBILITY };
+    }
+  });
+  const [showEntryTableColumnModal, setShowEntryTableColumnModal] =
+    useState(false);
+  const { startResize: startEntryColumnResize, colStyle: entryColStyle } =
+    useResizableColumns("concentration-entry-table", {
+      description: 180,
+      calculation_sheet_no: 110,
+      drawing_no: 90,
+      invoice_description: 160,
+      drawings: 140,
+      estimated_quantity: 110,
+      submission_percentage: 90,
+      quantity_submitted: 110,
+      internal_quantity: 110,
+      approved_qty: 110,
+      notes: 140,
+      supervisor_notes: 140,
+      actions: 160,
+    });
   const [sidebarWidthPercent, setSidebarWidthPercent] = useState(() => {
     const saved = getProjectItem(SIDEBAR_WIDTH_STORAGE_KEY);
     const parsed = saved !== null ? Number(saved) : NaN;
@@ -304,6 +387,14 @@ const ConcentrationSheets: React.FC = () => {
     }
 
     setPendingExportAction(null);
+  };
+
+  const handleTrackCalculationSheet = (calculationSheetNo: string) => {
+    const normalizedNo = calculationSheetNo.trim();
+    if (!normalizedNo) return;
+    navigate(
+      `/calculation-sheets?sheetNo=${encodeURIComponent(normalizedNo)}&track=1`
+    );
   };
 
   const handleOpenCalculationSheet = async (calculationSheetNo: string) => {
@@ -1135,10 +1226,21 @@ const ConcentrationSheets: React.FC = () => {
   // Filter sheets based on section number
   const filteredSheets = sheets.filter((sheet) => {
     if (!sectionNumberFilter) return true;
-    return sheet.boq_item.section_number
-      .toLowerCase()
-      .includes(sectionNumberFilter.toLowerCase());
+    const query = sectionNumberFilter.toLowerCase();
+    const section = (sheet.boq_item.section_number || "").toLowerCase();
+    const description = (sheet.boq_item.description || "").toLowerCase();
+    const searchText = (sheet.boq_item.search_text || "").toLowerCase();
+    return (
+      section.includes(query) ||
+      description.includes(query) ||
+      searchText.includes(query)
+    );
   });
+
+  const showEntryCol = (key: EntryColumnKey) =>
+    entryColumnVisibility[key] !== false;
+  const visibleEntryColumnCount =
+    1 + ENTRY_COLUMN_KEYS.filter((key) => showEntryCol(key)).length;
 
   useEffect(() => {
     fetchSheets();
@@ -1148,6 +1250,17 @@ const ConcentrationSheets: React.FC = () => {
   useEffect(() => {
     setProjectItem("concentration-sheets-section-filter", sectionNumberFilter);
   }, [sectionNumberFilter]);
+
+  useEffect(() => {
+    setProjectItem("concentration-qty-mismatch-mode", qtyMismatchMode);
+  }, [qtyMismatchMode]);
+
+  useEffect(() => {
+    setProjectItem(
+      "concentration-entry-column-visibility",
+      JSON.stringify(entryColumnVisibility)
+    );
+  }, [entryColumnVisibility]);
 
   useEffect(() => {
     setProjectItem(
@@ -1511,9 +1624,9 @@ const ConcentrationSheets: React.FC = () => {
                     const approvedQty =
                       sheet.boq_item.approved_by_project_manager ?? 0;
                     const roundedSubmitted =
-                      Math.round(submittedQty * 100) / 100;
+                      Math.round(submittedQty * 1000) / 1000;
                     const roundedApproved =
-                      Math.round(approvedQty * 100) / 100;
+                      Math.round(approvedQty * 1000) / 1000;
                     const bothZero =
                       roundedSubmitted === 0 && roundedApproved === 0;
                     const qtyMismatch =
@@ -1546,9 +1659,21 @@ const ConcentrationSheets: React.FC = () => {
                             <div className="flex justify-between items-start">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <h3 className="font-medium text-gray-900">
+                                  <button
+                                    type="button"
+                                    className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                    title={t("concentration.goToBOQItem")}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      navigate(
+                                        `/boq?section=${encodeURIComponent(
+                                          sheet.boq_item.section_number
+                                        )}`
+                                      );
+                                    }}
+                                  >
                                     {sheet.boq_item.section_number}
-                                  </h3>
+                                  </button>
                                   {sheet.boq_item.has_contract_updates && (
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                       {t("concentration.updatedQty")}
@@ -1741,7 +1866,20 @@ const ConcentrationSheets: React.FC = () => {
                         {t("concentration.sectionNumberLabel")}
                       </label>
                       <p className="text-gray-900">
-                        {selectedSheet.boq_item.section_number}
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                          title={t("concentration.goToBOQItem")}
+                          onClick={() =>
+                            navigate(
+                              `/boq?section=${encodeURIComponent(
+                                selectedSheet.boq_item.section_number
+                              )}`
+                            )
+                          }
+                        >
+                          {selectedSheet.boq_item.section_number}
+                        </button>
                       </p>
                     </div>
                     <div>
@@ -1845,6 +1983,33 @@ const ConcentrationSheets: React.FC = () => {
                         isRTL ? "flex-row-reverse" : ""
                       }`}
                     >
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <span>{t("concentration.highlightMismatch")}</span>
+                        <select
+                          value={qtyMismatchMode}
+                          onChange={(e) =>
+                            setQtyMismatchMode(
+                              e.target.value as "submitted" | "estimated"
+                            )
+                          }
+                          className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+                        >
+                          <option value="submitted">
+                            {t("concentration.mismatchVsSubmitted")}
+                          </option>
+                          <option value="estimated">
+                            {t("concentration.mismatchVsEstimated")}
+                          </option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowEntryTableColumnModal(true)}
+                        className="bg-gray-100 text-gray-800 px-3 py-2 rounded-md hover:bg-gray-200 inline-flex items-center gap-1"
+                      >
+                        <Settings className="h-4 w-4" />
+                        {t("concentration.hideColumns")}
+                      </button>
                       {visibleEntries.length > 0 && (
                         <button
                           type="button"
@@ -1900,64 +2065,149 @@ const ConcentrationSheets: React.FC = () => {
                   ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50 sticky top-0 z-10">
+                          <thead
+                            className="bg-gray-50 sticky top-0 z-10"
+                            onPointerDown={(event) =>
+                              startHeaderColumnResize(
+                                event,
+                                startEntryColumnResize,
+                                isRTL
+                              )
+                            }
+                          >
                             <tr>
                               <th className="px-2 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
                                 <span className="sr-only">
                                   {t("submissionBreakdown.toggleDetails")}
                                 </span>
                               </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.descriptionLabel")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.calcSheetNo")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.drawingNoLabel")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.invoiceDescriptionLabel")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.drawings")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.estQuantity")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.submissionPercentage")}
-                              </th>
-                              <th
-                                className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                title={t(
-                                  "submissionBreakdown.currentMonthHint"
-                                )}
-                              >
-                                {t("concentration.qtySubmitted")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.internalQty")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.approvedQty")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("boq.notes")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.supervisorNotes")}
-                              </th>
-                              <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {t("concentration.actions")}
-                              </th>
+                              {showEntryCol("description") && (
+                                <th
+                                  data-col-key="description"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("description")}
+                                >
+                                  {t("concentration.descriptionLabel")}
+                                </th>
+                              )}
+                              {showEntryCol("calculation_sheet_no") && (
+                                <th
+                                  data-col-key="calculation_sheet_no"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("calculation_sheet_no")}
+                                >
+                                  {t("concentration.calcSheetNo")}
+                                </th>
+                              )}
+                              {showEntryCol("drawing_no") && (
+                                <th
+                                  data-col-key="drawing_no"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("drawing_no")}
+                                >
+                                  {t("concentration.drawingNoLabel")}
+                                </th>
+                              )}
+                              {showEntryCol("invoice_description") && (
+                                <th
+                                  data-col-key="invoice_description"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("invoice_description")}
+                                >
+                                  {t("concentration.invoiceDescriptionLabel")}
+                                </th>
+                              )}
+                              {showEntryCol("drawings") && (
+                                <th
+                                  data-col-key="drawings"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("drawings")}
+                                >
+                                  {t("concentration.drawings")}
+                                </th>
+                              )}
+                              {showEntryCol("estimated_quantity") && (
+                                <th
+                                  data-col-key="estimated_quantity"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("estimated_quantity")}
+                                >
+                                  {t("concentration.estQuantity")}
+                                </th>
+                              )}
+                              {showEntryCol("submission_percentage") && (
+                                <th
+                                  data-col-key="submission_percentage"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("submission_percentage")}
+                                >
+                                  {t("concentration.submissionPercentage")}
+                                </th>
+                              )}
+                              {showEntryCol("quantity_submitted") && (
+                                <th
+                                  data-col-key="quantity_submitted"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("quantity_submitted")}
+                                  title={t(
+                                    "submissionBreakdown.currentMonthHint"
+                                  )}
+                                >
+                                  {t("concentration.qtySubmitted")}
+                                </th>
+                              )}
+                              {showEntryCol("internal_quantity") && (
+                                <th
+                                  data-col-key="internal_quantity"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("internal_quantity")}
+                                >
+                                  {t("concentration.internalQty")}
+                                </th>
+                              )}
+                              {showEntryCol("approved_qty") && (
+                                <th
+                                  data-col-key="approved_qty"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("approved_qty")}
+                                >
+                                  {t("concentration.approvedQty")}
+                                </th>
+                              )}
+                              {showEntryCol("notes") && (
+                                <th
+                                  data-col-key="notes"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("notes")}
+                                >
+                                  {t("boq.notes")}
+                                </th>
+                              )}
+                              {showEntryCol("supervisor_notes") && (
+                                <th
+                                  data-col-key="supervisor_notes"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("supervisor_notes")}
+                                >
+                                  {t("concentration.supervisorNotes")}
+                                </th>
+                              )}
+                              {showEntryCol("actions") && (
+                                <th
+                                  data-col-key="actions"
+                                  className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  style={entryColStyle("actions")}
+                                >
+                                  {t("concentration.actions")}
+                                </th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {visibleEntries.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={14}
+                                  colSpan={visibleEntryColumnCount}
                                   className={`px-3 py-8 text-gray-500 ${
                                     isRTL ? "text-right" : "text-center"
                                   }`}
@@ -1987,13 +2237,30 @@ const ConcentrationSheets: React.FC = () => {
                                 const currentDrawingKey = `${entry.id}:${
                                   currentPeriod || "current"
                                 }`;
+                                const compareQty =
+                                  qtyMismatchMode === "submitted"
+                                    ? isEditingRow
+                                      ? editDraft.quantity_submitted
+                                      : entry.quantity_submitted
+                                    : isEditingRow
+                                      ? editDraft.estimated_quantity
+                                      : entry.estimated_quantity;
+                                const approvedQtyValue = isEditingRow
+                                  ? numberDraftToValue(
+                                      editDraft.approved_by_project_manager
+                                    )
+                                  : currentFields.approved_by_project_manager;
+                                const qtyMismatch = quantitiesMismatch(
+                                  compareQty,
+                                  approvedQtyValue
+                                );
 
                                 return (
                                   <React.Fragment key={entry.id}>
                                     {isBreakdownExpanded && (
                                       <ConcentrationBreakdownPastRows
                                         entry={entry}
-                                        columnCount={14}
+                                        columnCount={visibleEntryColumnCount}
                                         isRTL={isRTL}
                                         saving={saving}
                                         periodEdit={periodEdit}
@@ -2045,6 +2312,7 @@ const ConcentrationSheets: React.FC = () => {
                                           }
                                         />
                                       </td>
+                                      {showEntryCol("description") && (
                                       <td className="px-3 py-2 text-sm text-gray-900 max-w-[14rem] align-top">
                                         {manualEditable ? (
                                           <input
@@ -2073,6 +2341,8 @@ const ConcentrationSheets: React.FC = () => {
                                           </div>
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("calculation_sheet_no") && (
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top min-w-[7rem]">
                                         {manualEditable ? (
                                           <div className="flex items-start gap-1">
@@ -2118,7 +2388,7 @@ const ConcentrationSheets: React.FC = () => {
                                           <button
                                             type="button"
                                             onClick={() =>
-                                              handleOpenCalculationSheet(
+                                              handleTrackCalculationSheet(
                                                 entry.calculation_sheet_no!
                                               )
                                             }
@@ -2126,7 +2396,7 @@ const ConcentrationSheets: React.FC = () => {
                                               e.stopPropagation()
                                             }
                                             className="text-blue-600 hover:text-blue-800 hover:underline"
-                                            title="Open calculation sheet file"
+                                            title={t("concentration.trackFromHere")}
                                           >
                                             {entry.calculation_sheet_no}
                                           </button>
@@ -2134,6 +2404,8 @@ const ConcentrationSheets: React.FC = () => {
                                           "-"
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("drawing_no") && (
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
                                         {manualEditable ? (
                                           <input
@@ -2157,6 +2429,8 @@ const ConcentrationSheets: React.FC = () => {
                                           entry.drawing_no || "-"
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("invoice_description") && (
                                       <td className="px-3 py-2 text-sm text-gray-500 align-top max-w-[14rem]">
                                         {manualEditable ? (
                                           <input
@@ -2187,6 +2461,8 @@ const ConcentrationSheets: React.FC = () => {
                                           </div>
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("drawings") && (
                                       <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
                                         <ConcentrationDrawingFilesCell
                                           drawingFiles={getPeriodDrawingFiles(
@@ -2244,7 +2520,16 @@ const ConcentrationSheets: React.FC = () => {
                                           drawingFileName={drawingFileName}
                                         />
                                       </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      )}
+                                      {showEntryCol("estimated_quantity") && (
+                                      <td
+                                        className={`px-3 py-2 whitespace-nowrap text-sm align-top ${
+                                          qtyMismatch &&
+                                          qtyMismatchMode === "estimated"
+                                            ? "text-red-600 font-semibold"
+                                            : "text-gray-500"
+                                        }`}
+                                      >
                                         {manualEditable ? (
                                           <input
                                             type="number"
@@ -2275,6 +2560,8 @@ const ConcentrationSheets: React.FC = () => {
                                           formatNumber(entry.estimated_quantity)
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("submission_percentage") && (
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
                                         {isEditingRow ? (
                                           <div className="flex items-center gap-1">
@@ -2322,8 +2609,15 @@ const ConcentrationSheets: React.FC = () => {
                                           )}%`
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("quantity_submitted") && (
                                       <td
-                                        className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top"
+                                        className={`px-3 py-2 whitespace-nowrap text-sm align-top ${
+                                          qtyMismatch &&
+                                          qtyMismatchMode === "submitted"
+                                            ? "text-red-600 font-semibold"
+                                            : "text-gray-500"
+                                        }`}
                                         title={t(
                                           "submissionBreakdown.currentMonthHint"
                                         )}
@@ -2334,6 +2628,8 @@ const ConcentrationSheets: React.FC = () => {
                                             : entry.quantity_submitted
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("internal_quantity") && (
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
                                         {isEditingRow ? (
                                           <input
@@ -2360,7 +2656,15 @@ const ConcentrationSheets: React.FC = () => {
                                           formatNumber(currentFields.internal_quantity)
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
+                                      )}
+                                      {showEntryCol("approved_qty") && (
+                                      <td
+                                        className={`px-3 py-2 whitespace-nowrap text-sm align-top ${
+                                          qtyMismatch
+                                            ? "text-red-600 font-semibold"
+                                            : "text-gray-500"
+                                        }`}
+                                      >
                                         {isEditingRow ? (
                                           <input
                                             type="number"
@@ -2390,6 +2694,8 @@ const ConcentrationSheets: React.FC = () => {
                                           )
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("notes") && (
                                       <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
                                         {isEditingRow ? (
                                           <textarea
@@ -2417,6 +2723,8 @@ const ConcentrationSheets: React.FC = () => {
                                           </div>
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("supervisor_notes") && (
                                       <td className="px-3 py-2 text-sm text-gray-500 max-w-[10rem] align-top">
                                         {isEditingRow ? (
                                           <textarea
@@ -2445,6 +2753,8 @@ const ConcentrationSheets: React.FC = () => {
                                           </div>
                                         )}
                                       </td>
+                                      )}
+                                      {showEntryCol("actions") && (
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
                                         {isEditingRow ? (
                                           <div
@@ -2528,11 +2838,12 @@ const ConcentrationSheets: React.FC = () => {
                                           </button>
                                         )}
                                       </td>
+                                      )}
                                     </tr>
                                     {isBreakdownExpanded && (
                                       <ConcentrationBreakdownTotalRow
                                         entry={entry}
-                                        columnCount={14}
+                                        columnCount={visibleEntryColumnCount}
                                       />
                                     )}
                                   </React.Fragment>
@@ -2546,21 +2857,32 @@ const ConcentrationSheets: React.FC = () => {
                                 <td className="px-2 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                {showEntryCol("description") && (
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {t("concentration.totals")}
                                 </td>
+                                )}
+                                {showEntryCol("calculation_sheet_no") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("drawing_no") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("invoice_description") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("drawings") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("estimated_quantity") && (
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
                                     visibleEntries.reduce(
@@ -2570,12 +2892,18 @@ const ConcentrationSheets: React.FC = () => {
                                     )
                                   )}
                                 </td>
+                                )}
+                                {showEntryCol("submission_percentage") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("quantity_submitted") && (
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(visibleEntriesSubmittedTotal)}
                                 </td>
+                                )}
+                                {showEntryCol("internal_quantity") && (
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
                                     visibleEntries.reduce(
@@ -2585,6 +2913,8 @@ const ConcentrationSheets: React.FC = () => {
                                     )
                                   )}
                                 </td>
+                                )}
+                                {showEntryCol("approved_qty") && (
                                 <td className="px-3 py-3 text-sm font-bold text-gray-900">
                                   {formatNumber(
                                     visibleEntries.reduce(
@@ -2595,15 +2925,22 @@ const ConcentrationSheets: React.FC = () => {
                                     )
                                   )}
                                 </td>
+                                )}
+                                {showEntryCol("notes") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("supervisor_notes") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
+                                {showEntryCol("actions") && (
                                 <td className="px-3 py-3 text-sm text-gray-500">
                                   -
                                 </td>
+                                )}
                               </tr>
                             )}
                           </tbody>
@@ -2616,6 +2953,22 @@ const ConcentrationSheets: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ColumnSettingsModal
+        isOpen={showEntryTableColumnModal}
+        onClose={() => setShowEntryTableColumnModal(false)}
+        columnVisibility={entryColumnVisibility}
+        onToggleColumn={(columnKey) =>
+          setEntryColumnVisibility((prev) => ({
+            ...prev,
+            [columnKey]: !prev[columnKey as EntryColumnKey],
+          }))
+        }
+        onResetColumns={() =>
+          setEntryColumnVisibility({ ...DEFAULT_ENTRY_COLUMN_VISIBILITY })
+        }
+        title={t("concentration.concentrationEntries")}
+      />
 
       {/* Concentration Entry Column Selection Modal */}
       <ConcentrationEntryExportModal

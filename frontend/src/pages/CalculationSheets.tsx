@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
 import { calculationSheetsApi } from "../services/api";
@@ -36,6 +36,8 @@ function clampCalcSidebarWidth(value: number): number {
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const trackedFromQueryRef = useRef<string | null>(null);
   const [sheets, setSheets] = useState<CalculationSheet[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<CalculationSheet | null>(
     null
@@ -100,26 +102,42 @@ const CalculationSheets: React.FC = () => {
       // console.log("Calculation sheets response:", response);
       setSheets(response);
 
-      // Restore previously selected sheet from localStorage
-      const savedSheetId = getProjectItem("calculation-selected-sheet-id");
-      if (savedSheetId && response.length > 0) {
-        const savedSheet = response.find(
-          (sheet) => sheet.id === parseInt(savedSheetId)
-        );
-        if (savedSheet) {
-          setSelectedSheet(savedSheet);
-          setCommentValue(savedSheet.comment || "");
-          setEditingComment(false);
-          fetchEntries(savedSheet.id);
+      const sheetNoParam = new URLSearchParams(window.location.search).get(
+        "sheetNo"
+      );
+      const matchFromQuery = sheetNoParam
+        ? response.find(
+            (sheet) =>
+              (sheet.calculation_sheet_no || "").trim().toLowerCase() ===
+              sheetNoParam.trim().toLowerCase()
+          )
+        : undefined;
 
-          // Scroll to the selected sheet in the sidebar
-          setTimeout(() => {
-            const element = document.getElementById(`sheet-${savedSheet.id}`);
-            if (element) {
-              element.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }, 100);
+      const savedSheetId = getProjectItem("calculation-selected-sheet-id");
+      const savedSheet =
+        !matchFromQuery && savedSheetId && response.length > 0
+          ? response.find((sheet) => sheet.id === parseInt(savedSheetId, 10))
+          : undefined;
+      const sheetToSelect = matchFromQuery || savedSheet;
+      if (sheetToSelect) {
+        setSelectedSheet(sheetToSelect);
+        setCommentValue(sheetToSelect.comment || "");
+        setEditingComment(false);
+        fetchEntries(sheetToSelect.id);
+        setProjectItem(
+          "calculation-selected-sheet-id",
+          sheetToSelect.id.toString()
+        );
+        if (matchFromQuery) {
+          setSearchQuery(matchFromQuery.calculation_sheet_no || "");
         }
+
+        setTimeout(() => {
+          const element = document.getElementById(`sheet-${sheetToSelect.id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
       }
     } catch (err) {
       console.error("Error fetching calculation sheets:", err);
@@ -468,27 +486,26 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
-  const handleTrackSheet = async () => {
-    if (!selectedSheet) return;
+  const handleTrackSheet = async (sheetToTrack?: CalculationSheet | null) => {
+    const sheet = sheetToTrack || selectedSheet;
+    if (!sheet) return;
 
     try {
-      setTrackingSheetId(selectedSheet.id);
+      setTrackingSheetId(sheet.id);
       setError(null);
       const response = await calculationSheetsApi.trackSheet(
-        selectedSheet.id,
+        sheet.id,
         isRTL ? "he" : "en"
       );
 
       if (response.success) {
         const refreshedSheets = await calculationSheetsApi.getAll(0, 10000);
         setSheets(refreshedSheets);
-        const updatedSheet = refreshedSheets.find(
-          (s) => s.id === selectedSheet.id
-        );
+        const updatedSheet = refreshedSheets.find((s) => s.id === sheet.id);
         if (updatedSheet) {
           setSelectedSheet(updatedSheet);
         }
-        await fetchEntries(selectedSheet.id);
+        await fetchEntries(sheet.id);
         alert(`✅ ${response.message}`);
       } else {
         const errorMessage =
@@ -510,6 +527,31 @@ const CalculationSheets: React.FC = () => {
       setTrackingSheetId(null);
     }
   };
+
+  useEffect(() => {
+    const sheetNo = searchParams.get("sheetNo");
+    const shouldTrack = searchParams.get("track") === "1";
+    if (!sheetNo || !shouldTrack || sheets.length === 0) return;
+    const match = sheets.find(
+      (sheet) =>
+        (sheet.calculation_sheet_no || "").trim().toLowerCase() ===
+        sheetNo.trim().toLowerCase()
+    );
+    if (!match) return;
+    const trackKey = `${match.id}:${sheetNo}`;
+    if (trackedFromQueryRef.current === trackKey) return;
+    trackedFromQueryRef.current = trackKey;
+    void handleTrackSheet(match);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("track");
+        return next;
+      },
+      { replace: true }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, sheets]);
 
   // Sync all calculation sheets with concentration sheets and BOQ items
   const handleSyncAll = async () => {
