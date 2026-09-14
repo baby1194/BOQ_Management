@@ -34,6 +34,10 @@ import {
   setProjectItem,
   removeProjectItem,
 } from "../utils/localStorage";
+import {
+  startHeaderColumnResize,
+  useResizableColumns,
+} from "../hooks/useResizableColumns";
 
 /**
  * Format date as mm/yyyy
@@ -295,6 +299,26 @@ const BOQItems: React.FC = () => {
 
   // Column visibility settings modal state
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const { startResize: startBoqColumnResize, colStyle: boqColStyle } =
+    useResizableColumns("boq-items-table", {
+      serial_number: 80,
+      structure: 90,
+      system: 90,
+      section_number: 140,
+      description: 220,
+      unit: 80,
+      price: 100,
+      original_contract_quantity: 110,
+      total_contract_sum: 130,
+      estimated_quantity: 120,
+      quantity_submitted: 130,
+      internal_quantity: 110,
+      approved_by_project_manager: 130,
+      approved_signed_quantity: 140,
+      partially_submitted_quantity: 140,
+      notes: 180,
+      actions: 150,
+    });
 
   // Ref for the scrollable table container
   const tableScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -481,6 +505,20 @@ const BOQItems: React.FC = () => {
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete("addSection");
+        return next;
+      },
+      { replace: true }
+    );
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (!section) return;
+    setFilters((prev) => ({ ...prev, section_number: section }));
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("section");
         return next;
       },
       { replace: true }
@@ -2491,7 +2529,9 @@ const BOQItems: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-medium text-blue-900">
-                      {update.update_name}
+                      {t("boq.updatedContractQtyN", {
+                        n: update.update_index,
+                      })}
                     </h4>
                     <p className={`text-xs text-blue-600`}>
                       {t("boq.created")}{" "}
@@ -3226,7 +3266,12 @@ const BOQItems: React.FC = () => {
         >
           <table className="min-w-full border border-gray-300">
             {/* Frozen Header */}
-            <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm border-t-2">
+            <thead
+              className="sticky top-0 z-10 bg-gray-50 shadow-sm border-t-2"
+              onPointerDown={(event) =>
+                startHeaderColumnResize(event, startBoqColumnResize, isRTL)
+              }
+            >
               {/* Column Headers Row */}
               <tr className="border-b border-gray-300 bg-gray-50">
                 <th
@@ -3249,7 +3294,11 @@ const BOQItems: React.FC = () => {
                   {t("boq.move")}
                 </th>
                 {columnVisibility.serial_number && (
-                  <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]">
+                  <th
+                    data-col-key="serial_number"
+                    className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[80px]"
+                    style={boqColStyle("serial_number")}
+                  >
                     {t("boq.serialNumber")}
                   </th>
                 )}
@@ -3296,12 +3345,20 @@ const BOQItems: React.FC = () => {
                   </th>
                 )}
                 {columnVisibility.section_number && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
+                  <th
+                    data-col-key="section_number"
+                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
+                    style={boqColStyle("section_number")}
+                  >
                     {t("boq.sectionNumber")}
                   </th>
                 )}
                 {columnVisibility.description && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[200px]">
+                  <th
+                    data-col-key="description"
+                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[200px]"
+                    style={boqColStyle("description")}
+                  >
                     {t("boq.description")}
                   </th>
                 )}
@@ -3347,7 +3404,9 @@ const BOQItems: React.FC = () => {
                       key={update.id}
                       className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
                     >
-                      {update.update_name}
+                      {t("boq.updatedContractQtyN", {
+                        n: update.update_index,
+                      })}
                     </th>
                   ) : null;
                 })}
@@ -3359,7 +3418,9 @@ const BOQItems: React.FC = () => {
                       key={update.id}
                       className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]"
                     >
-                      {update.update_name.replace("Qty", "Sum")}
+                      {t("boq.updatedContractSumN", {
+                        n: update.update_index,
+                      })}
                     </th>
                   ) : null;
                 })}
@@ -4232,7 +4293,16 @@ const BOQItems: React.FC = () => {
                     {columnVisibility.section_number && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-300">
                         <div className="flex items-center gap-2">
-                          <span>{item.section_number}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleViewConcentrationSheet(item)
+                            }
+                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                            title={t("concentration.viewSheet")}
+                          >
+                            {item.section_number}
+                          </button>
                           {item.has_manual_entries && (
                             <span
                               className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
@@ -5126,7 +5196,9 @@ const BOQItems: React.FC = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-sm text-gray-700">
-                      {update.update_name}
+                      {t("boq.updatedContractQtyN", {
+                        n: update.update_index,
+                      })}
                     </span>
                   </label>
                 );
@@ -5161,7 +5233,9 @@ const BOQItems: React.FC = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-sm text-gray-700">
-                      {update.update_name.replace("Qty", "Sum")}
+                      {t("boq.updatedContractSumN", {
+                        n: update.update_index,
+                      })}
                     </span>
                   </label>
                 );
