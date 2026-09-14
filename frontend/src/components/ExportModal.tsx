@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { SummaryExportRequest, ContractQuantityUpdate } from "../types";
 import {
   EXPORT_PREFS_KEYS,
@@ -39,6 +40,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
   loading = false,
   contractUpdates = [],
 }) => {
+  const { t } = useTranslation();
   const [exportRequest, setExportRequest] = useState<SummaryExportRequest>(() =>
     loadExportColumnPrefs<SummaryExportRequest>(
       EXPORT_PREFS_KEYS.summary,
@@ -212,7 +214,9 @@ const ExportModal: React.FC<ExportModalProps> = ({
                         disabled={loading}
                       />
                       <span className="text-sm text-gray-700">
-                        {update.update_name.replace("Qty", "Sum")}
+                        {t("boq.updatedContractSumN", {
+                          n: update.update_index,
+                        })}
                       </span>
                     </label>
                   ))}
