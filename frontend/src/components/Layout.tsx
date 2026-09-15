@@ -21,6 +21,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useProject } from "../contexts/ProjectContext";
 import LanguageSwitcher from "./LanguageSwitcher";
+import NewProjectModal from "./NewProjectModal";
 import CalculatorPanel from "./CalculatorPanel";
 
 interface LayoutProps {

@@ -1,6 +1,16 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
+import bcrypt
+
+# passlib 1.7.4 reads bcrypt.__about__.__version__, removed in bcrypt 4.1+.
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type(
+        "about",
+        (),
+        {"__version__": getattr(bcrypt, "__version__", "4.0.1")},
+    )()
+
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status, Depends
