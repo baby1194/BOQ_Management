@@ -81,6 +81,7 @@ function withTrailingSlash(url: string): string {
     "/project-info",
     "/project-info-files",
     "/drawing-list",
+    "/site-work",
     "/search",
   ];
   if (collectionRoots.includes(path)) {
@@ -1036,6 +1037,39 @@ export const drawingListApi = {
     api
       .post<{ success: boolean; message: string }>(`/drawing-list/${id}/open`)
       .then((res) => res.data),
+};
+
+export interface SiteWorkItem {
+  id: number;
+  description: string;
+  system_name: string | null;
+  classification: "system" | "exception" | "additional_work";
+  source: "site_report" | "whatsapp";
+  work_date: string | null;
+  photo_paths: string[];
+  created_at: string | null;
+}
+
+export interface SiteWorkIngestResult {
+  created: SiteWorkItem[];
+  created_count: number;
+  skipped_duplicates: number;
+  ignored_lines: number;
+}
+
+export const siteWorkApi = {
+  getAll: () =>
+    api.get<SiteWorkItem[]>("/site-work").then((res) => res.data),
+
+  ingest: (formData: FormData) =>
+    api
+      .post<SiteWorkIngestResult>("/site-work/ingest", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((res) => res.data),
+
+  delete: (id: number) =>
+    api.delete(`/site-work/${id}`).then((res) => res.data),
 };
 
 export default api;

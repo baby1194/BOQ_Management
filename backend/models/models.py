@@ -295,6 +295,24 @@ class DrawingListItem(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+class SiteWorkItem(Base):
+    """Work actually performed on site, ingested from site reports or WhatsApp."""
+
+    __tablename__ = "site_work_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(Text, nullable=False)
+    dedupe_key = Column(String(500), unique=True, nullable=False, index=True)
+    system_name = Column(String(200), nullable=True)
+    # system | exception | additional_work
+    classification = Column(String(50), nullable=False)
+    # site_report | whatsapp
+    source = Column(String(50), nullable=False)
+    work_date = Column(String(20), nullable=True)
+    photo_paths = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
     

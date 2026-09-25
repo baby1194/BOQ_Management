@@ -9,6 +9,7 @@ import BOQItems from "./pages/BOQItems";
 import ConcentrationSheets from "./pages/ConcentrationSheets";
 import CalculationSheets from "./pages/CalculationSheets";
 import FileImport from "./pages/FileImport";
+import SiteReports from "./pages/SiteReports";
 import SummaryOfSubsections from "./pages/SummaryOfSubsections";
 import SummaryOfSystems from "./pages/SummaryOfSystems";
 import SummaryOfStructures from "./pages/SummaryOfStructures";
@@ -66,6 +67,7 @@ function App() {
                     element={<CalculationSheets />}
                   />
                   <Route path="/import" element={<FileImport />} />
+                  <Route path="/site-reports" element={<SiteReports />} />
                   <Route
                     path="/summary-subsections"
                     element={<SummaryOfSubsections />}

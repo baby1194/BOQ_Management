@@ -15,6 +15,7 @@ import {
   FolderKanban,
   FolderOpen,
   DraftingCompass,
+  ClipboardList,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../contexts/AuthContext";
@@ -130,6 +131,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: "/import",
       icon: Upload,
       key: "import",
+    },
+    {
+      name: t("navigation.siteReports"),
+      href: "/site-reports",
+      icon: ClipboardList,
+      key: "siteReports",
     },
   ];
 
