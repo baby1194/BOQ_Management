@@ -632,7 +632,7 @@ const CalculationSheets: React.FC = () => {
       setError(null);
       const result = await calculationSheetsApi.printPdfs({
         orientation: printOrientation,
-        margin_mm: Number(printMargin) || 10,
+        margin_mm: printMargin.trim() === "" ? 10 : Number(printMargin),
         columns: printColumns,
         include_invoice: true,
       });

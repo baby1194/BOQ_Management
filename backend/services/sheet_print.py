@@ -1,13 +1,20 @@
 """Write a PDF copy of each calculation-sheet workbook into its own folder."""
 
+import os
 from pathlib import Path
 from typing import Iterable, List, Optional
 
 import pandas as pd
+from bidi.algorithm import get_display
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+
+CALCULATION_SHEET_NAME = "Calculation"
+_FONT_NAME = "SheetPrintHebrew"
 
 
 def pdf_beside_workbook(workbook: Path) -> Path:
@@ -25,6 +32,53 @@ def select_columns(frame: pd.DataFrame, columns: Optional[Iterable[int]]) -> pd.
     return frame.iloc[:, indexes]
 
 
+def _cell_text(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
+
+
+def drop_empty_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    keep = frame.apply(lambda row: any(_cell_text(value) for value in row), axis=1)
+    return frame.loc[keep].reset_index(drop=True)
+
+
+def read_print_frame(workbook: Path) -> pd.DataFrame:
+    """The Calculation sheet when the workbook has one, otherwise the first sheet."""
+    book = pd.ExcelFile(workbook)
+    sheet = CALCULATION_SHEET_NAME if CALCULATION_SHEET_NAME in book.sheet_names else book.sheet_names[0]
+    return pd.read_excel(book, sheet_name=sheet, header=None)
+
+
+def _ensure_font() -> str:
+    if _FONT_NAME in pdfmetrics.getRegisteredFontNames():
+        return _FONT_NAME
+    for path in (
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\ARIAL.TTF",
+        r"C:\Windows\Fonts\tahoma.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ):
+        if os.path.exists(path):
+            pdfmetrics.registerFont(TTFont(_FONT_NAME, path))
+            return _FONT_NAME
+    return "Helvetica"
+
+
+def _display_text(value) -> str:
+    text = _cell_text(value)
+    if any("\u0590" <= char <= "\u05ff" for char in text):
+        return get_display(text)
+    return text
+
+
 def write_sheet_pdf(
     workbook: Path,
     destination: Path,
@@ -32,10 +86,9 @@ def write_sheet_pdf(
     margin_mm: float = 10,
     columns: Optional[Iterable[int]] = None,
 ) -> None:
-    frame = pd.read_excel(workbook, header=None)
-    frame = select_columns(frame, columns)
+    frame = drop_empty_rows(select_columns(read_print_frame(workbook), columns))
     page = landscape(A4) if orientation == "landscape" else A4
-    margin = float(margin_mm) * mm
+    margin = max(0.0, float(margin_mm)) * mm
     document = SimpleDocTemplate(
         str(destination),
         pagesize=page,
@@ -44,23 +97,26 @@ def write_sheet_pdf(
         topMargin=margin,
         bottomMargin=margin,
     )
-    data = []
-    for row in frame.itertuples(index=False):
-        data.append(
-            [
-                "" if value is None or (isinstance(value, float) and pd.isna(value)) else str(value)[:80]
-                for value in row
-            ]
-        )
+    data = [
+        [_display_text(value) for value in row]
+        for row in frame.itertuples(index=False)
+    ]
     if not data:
         data = [[""]]
-    table = Table(data, repeatRows=1)
+    usable = page[0] - (2 * margin)
+    column_count = max(len(data[0]), 1)
+    column_width = usable / column_count
+    font_name = _ensure_font()
+    table = Table(data, colWidths=[column_width] * column_count)
     table.setStyle(
         TableStyle(
             [
-                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("FONTNAME", (0, 0), (-1, -1), font_name),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
             ]
         )
     )
