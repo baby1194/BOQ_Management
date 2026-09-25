@@ -354,6 +354,23 @@ export const calculationSheetsApi = {
       )
       .then((res) => res.data),
 
+  quantityCheck: () =>
+    api
+      .get<{
+        count: number;
+        items: {
+          section_number: string;
+          sheet_calculated: number;
+          system_calculated: number;
+          calculated_diff: number;
+          sheet_submitted: number;
+          system_submitted: number;
+          submitted_diff: number;
+          status: string;
+        }[];
+      }>("/calculation-sheets/quantity-check")
+      .then((res) => res.data),
+
   getById: (id: number) =>
     api
       .get<CalculationSheet>(`/calculation-sheets/${id}`)

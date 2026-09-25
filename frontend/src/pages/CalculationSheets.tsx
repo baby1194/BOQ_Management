@@ -67,6 +67,20 @@ const CalculationSheets: React.FC = () => {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [tracking, setTracking] = useState(false);
+  const [checkingQuantities, setCheckingQuantities] = useState(false);
+  const [quantityMismatches, setQuantityMismatches] = useState<
+    | {
+        section_number: string;
+        sheet_calculated: number;
+        system_calculated: number;
+        calculated_diff: number;
+        sheet_submitted: number;
+        system_submitted: number;
+        submitted_diff: number;
+        status: string;
+      }[]
+    | null
+  >(null);
   const [trackingSheetId, setTrackingSheetId] = useState<number | null>(null);
   const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
@@ -608,6 +622,20 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
+  const handleQuantityCheck = async () => {
+    try {
+      setCheckingQuantities(true);
+      setError(null);
+      const result = await calculationSheetsApi.quantityCheck();
+      setQuantityMismatches(result.items);
+    } catch (err) {
+      console.error("Error checking quantities:", err);
+      setError(t("calculationSheets.quantityCheckFailed"));
+    } finally {
+      setCheckingQuantities(false);
+    }
+  };
+
   const handleTrack = async () => {
     try {
       setTracking(true);
@@ -753,6 +781,16 @@ const CalculationSheets: React.FC = () => {
             {t("calculationSheets.sheets")})
           </p>
         </div>
+        <div className="flex gap-2 shrink-0">
+        <button
+          onClick={handleQuantityCheck}
+          disabled={checkingQuantities}
+          className="bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {checkingQuantities
+            ? t("calculationSheets.quantityChecking")
+            : t("calculationSheets.quantityCheck")}
+        </button>
         <button
           onClick={handleTrack}
           disabled={tracking || sheets.length === 0}
@@ -771,7 +809,47 @@ const CalculationSheets: React.FC = () => {
             </>
           )}
         </button>
+        </div>
       </div>
+
+      {quantityMismatches && (
+        <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+          {quantityMismatches.length === 0 ? (
+            <p className="text-sm text-green-700">
+              {t("calculationSheets.quantityCheckOk")}
+            </p>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead className="text-gray-600">
+                <tr>
+                  <th className="px-2 py-1 text-start">{t("boq.sectionNumber")}</th>
+                  <th className="px-2 py-1 text-start">{t("calculationSheets.sheetCalculated")}</th>
+                  <th className="px-2 py-1 text-start">{t("calculationSheets.systemCalculated")}</th>
+                  <th className="px-2 py-1 text-start">{t("calculationSheets.calculatedDiff")}</th>
+                  <th className="px-2 py-1 text-start">{t("calculationSheets.sheetSubmitted")}</th>
+                  <th className="px-2 py-1 text-start">{t("calculationSheets.systemSubmitted")}</th>
+                  <th className="px-2 py-1 text-start">{t("calculationSheets.submittedDiff")}</th>
+                  <th className="px-2 py-1 text-start">{t("siteWork.classification")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quantityMismatches.map((row) => (
+                  <tr key={row.section_number} className="border-t border-gray-100">
+                    <td className="px-2 py-1">{row.section_number}</td>
+                    <td className="px-2 py-1">{formatNumber(row.sheet_calculated)}</td>
+                    <td className="px-2 py-1">{formatNumber(row.system_calculated)}</td>
+                    <td className="px-2 py-1">{formatNumber(row.calculated_diff)}</td>
+                    <td className="px-2 py-1">{formatNumber(row.sheet_submitted)}</td>
+                    <td className="px-2 py-1">{formatNumber(row.system_submitted)}</td>
+                    <td className="px-2 py-1">{formatNumber(row.submitted_diff)}</td>
+                    <td className="px-2 py-1">{row.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">

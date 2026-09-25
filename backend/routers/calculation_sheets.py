@@ -113,6 +113,15 @@ def refresh_calculation_sheet_from_disk(
 
 router = APIRouter()
 
+@router.get("/quantity-check")
+async def check_calculation_quantities(db: Session = Depends(get_db)):
+    """Compare calculation-sheet totals with BOQ calculated and submitted quantities."""
+    from services.quantity_check import mismatches_from_db
+
+    rows = mismatches_from_db(db)
+    return {"count": len(rows), "items": rows}
+
+
 @router.get("/", response_model=List[schemas.CalculationSheet])
 async def get_calculation_sheets(
     skip: int = 0,
