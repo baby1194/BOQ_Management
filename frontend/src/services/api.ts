@@ -1080,6 +1080,25 @@ export const drawingListApi = {
 
   elements: () => api.get<string[]>("/drawing-list/elements").then((res) => res.data),
 
+  measurePlan: (filePath: string) =>
+    api
+      .post<{
+        length: number;
+        line_count: number;
+        unit_count: number;
+        readable: boolean;
+        detail: string;
+      }>("/drawing-list/measure-plan", { file_path: filePath })
+      .then((res) => res.data),
+
+  assignPlanQuantity: (sectionNumber: string, quantity: number) =>
+    api
+      .post<{ section_number: string; estimated_quantity: number; added: number }>(
+        "/drawing-list/assign-plan-quantity",
+        { section_number: sectionNumber, quantity }
+      )
+      .then((res) => res.data),
+
   elementSubmission: (element: string) =>
     api
       .get<{

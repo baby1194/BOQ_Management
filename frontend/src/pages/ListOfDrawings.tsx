@@ -15,6 +15,7 @@ import {
 import { useResizableColumns } from "../hooks/useResizableColumns";
 import ResizableTh from "../components/ResizableTh";
 import ElementProgress from "../components/ElementProgress";
+import PlanMeasure from "../components/PlanMeasure";
 
 interface DraftFields {
   no: string;
@@ -775,6 +776,7 @@ const ListOfDrawings: React.FC = () => {
         </div>
       </div>
       <ElementProgress />
+      <PlanMeasure />
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         {loading ? (

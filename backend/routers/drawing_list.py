@@ -107,6 +107,41 @@ def _apply_fields(db_item: models.DrawingListItem, data: dict) -> None:
         db_item.execution_status = _normalize_execution_status(data["execution_status"])
 
 
+@router.post("/measure-plan")
+def measure_plan_file(body: dict):
+    from pathlib import Path
+
+    from services.dxf_quantities import measure_plan
+
+    raw = str(body.get("file_path") or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="file_path is required")
+    return measure_plan(Path(raw))
+
+
+@router.post("/assign-plan-quantity")
+def assign_plan_quantity(body: dict, db: Session = Depends(get_db)):
+    section = str(body.get("section_number") or "").strip()
+    quantity = float(body.get("quantity") or 0)
+    if not section:
+        raise HTTPException(status_code=400, detail="section_number is required")
+    item = (
+        db.query(models.BOQItem)
+        .filter(models.BOQItem.section_number == section)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="BOQ item not found")
+    item.estimated_quantity = float(item.estimated_quantity or 0) + quantity
+    item.total_estimate = float(item.estimated_quantity or 0) * float(item.price or 0)
+    db.commit()
+    return {
+        "section_number": item.section_number,
+        "estimated_quantity": item.estimated_quantity,
+        "added": quantity,
+    }
+
+
 @router.get("/elements")
 def list_elements(db: Session = Depends(get_db)):
     names = set()
