@@ -1064,6 +1064,24 @@ export const drawingListApi = {
     api
       .post<{ success: boolean; message: string }>(`/drawing-list/${id}/open`)
       .then((res) => res.data),
+
+  elements: () => api.get<string[]>("/drawing-list/elements").then((res) => res.data),
+
+  elementSubmission: (element: string) =>
+    api
+      .get<{
+        element: string;
+        submitted_count: number;
+        not_submitted_count: number;
+        items: {
+          section_number: string;
+          description: string;
+          contract_quantity: number;
+          quantity_submitted: number;
+          submitted: boolean;
+        }[];
+      }>(`/drawing-list/element-submission?element=${encodeURIComponent(element)}`)
+      .then((res) => res.data),
 };
 
 export interface SiteWorkItem {

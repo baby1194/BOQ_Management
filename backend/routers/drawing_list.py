@@ -107,6 +107,55 @@ def _apply_fields(db_item: models.DrawingListItem, data: dict) -> None:
         db_item.execution_status = _normalize_execution_status(data["execution_status"])
 
 
+@router.get("/elements")
+def list_elements(db: Session = Depends(get_db)):
+    names = set()
+    for (element,) in db.query(models.DrawingListItem.element).all():
+        if element and str(element).strip():
+            names.add(str(element).strip())
+    return sorted(names)
+
+
+@router.get("/element-submission")
+def element_submission(element: str, db: Session = Depends(get_db)):
+    from services.element_progress import items_for_element
+
+    needle = element.strip()
+    drawings = (
+        db.query(models.DrawingListItem)
+        .filter(models.DrawingListItem.element == needle)
+        .all()
+    )
+    drawing_names = [row.drawing_name for row in drawings if row.drawing_name]
+    boq_items = []
+    for item in db.query(models.BOQItem).all():
+        boq_items.append(
+            {
+                "section_number": item.section_number,
+                "description": item.description,
+                "contract_quantity": item.original_contract_quantity,
+                "quantity_submitted": item.quantity_submitted,
+            }
+        )
+    entries_by_section = {}
+    for entry in db.query(models.ConcentrationEntry).all():
+        entries_by_section.setdefault(entry.section_number, []).append(
+            {
+                "description": entry.description,
+                "invoice_description": entry.invoice_description,
+                "drawing_no": entry.drawing_no,
+                "section_number": entry.section_number,
+            }
+        )
+    rows = items_for_element(needle, boq_items, entries_by_section, drawing_names)
+    return {
+        "element": needle,
+        "submitted_count": sum(1 for row in rows if row["submitted"]),
+        "not_submitted_count": sum(1 for row in rows if not row["submitted"]),
+        "items": rows,
+    }
+
+
 @router.get("/", response_model=List[schemas.DrawingListItem])
 async def list_drawings(db: Session = Depends(get_db)):
     try:

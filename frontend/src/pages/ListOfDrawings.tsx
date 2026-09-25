@@ -14,6 +14,7 @@ import {
 } from "../utils/columnFilters";
 import { useResizableColumns } from "../hooks/useResizableColumns";
 import ResizableTh from "../components/ResizableTh";
+import ElementProgress from "../components/ElementProgress";
 
 interface DraftFields {
   no: string;
@@ -773,6 +774,7 @@ const ListOfDrawings: React.FC = () => {
           </button>
         </div>
       </div>
+      <ElementProgress />
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         {loading ? (
