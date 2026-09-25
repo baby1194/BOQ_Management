@@ -243,6 +243,7 @@
     "createConcentrationSheets": "Create Concentration Sheets",
     "columnSettings": "⚙️ Column Settings",
     "exportTable": "📊 Export Table",
+    "overrunOnly": "Only items where submitted quantity exceeds contract quantity, and add the invoice that crossed it",
     "exportTableTitle": "Export BOQ Items Table",
     "saving": "Saving...",
     "saveChanges": "Save Changes",

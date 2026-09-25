@@ -81,6 +81,7 @@ const buildDefaultBOQExportRequest = (
     include_total_increase: true,
     include_subsection: true,
     include_notes: true,
+    overrun_only: false,
   };
 
   contractUpdates.forEach((update) => {
@@ -594,6 +595,16 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
             </label>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 mb-4">
+          <input
+            type="checkbox"
+            checked={Boolean(exportRequest.overrun_only)}
+            onChange={() => handleCheckboxChange("overrun_only")}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm text-gray-700">{t("boq.overrunOnly")}</span>
+        </label>
 
         <div className="flex justify-end space-x-3">
           <button

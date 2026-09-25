@@ -243,6 +243,7 @@
     "createConcentrationSheets": "צור דפי ריכוז",
     "columnSettings": "הגדרות עמודות ⚙️",
     "exportTable": "ייצא טבלה 📊",
+    "overrunOnly": "רק סעיפים שבהם הכמות המוגשת גדולה מכמות החוזה, ובתוספת החשבונית שבה זה קרה",
     "exportTableTitle": "ייצוא טבלת פריטי BOQ",
     "saving": "שומר...",
     "saveChanges": "שמור שינויים",

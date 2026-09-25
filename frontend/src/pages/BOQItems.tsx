@@ -1701,7 +1701,9 @@ const BOQItems: React.FC = () => {
 
       // Filter the current table data based on the request
       const filteredData = items.map((item) => {
-        const filteredItem: any = {};
+        const filteredItem: any = {
+          boq_item_id: item.id,
+        };
 
         if (request.include_serial_number)
           filteredItem.serial_number = item.serial_number;

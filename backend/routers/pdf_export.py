@@ -1354,6 +1354,17 @@ async def export_boq_items_excel(
             .all()
         )
 
+        if request.get("overrun_only"):
+            from services.overrun_export import rows_over_contract
+
+            filtered_items = rows_over_contract(db, filtered_items)
+            grand_totals = None
+            if not filtered_items:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No items have a submitted quantity above the contract quantity",
+                )
+
         # Generate Excel
         excel_path = excel_service.export_boq_items(
             filtered_items,
@@ -1371,6 +1382,8 @@ async def export_boq_items_excel(
             sheets_exported=len(filtered_items)
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error exporting BOQ items to Excel: {str(e)}")
         raise HTTPException(

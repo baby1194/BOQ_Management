@@ -46,6 +46,7 @@ _BOQ_TEXT_COLUMNS = frozenset({
     "system",
     "subsection",
     "notes",
+    "overrun_invoice_no",
 })
 
 # Concentration sheet entries table: columns stored as numeric cells with Excel formatting.
@@ -110,6 +111,7 @@ _BOQ_HEADER_TRANSLATIONS = {
         "total_increase": "Total Increase",
         "subsection": "Subsection",
         "notes": "Notes",
+        "overrun_invoice_no": "Invoice No. over contract",
     },
     "he": {
         "serial_number": "מספר סידורי",
@@ -137,6 +139,7 @@ _BOQ_HEADER_TRANSLATIONS = {
         "total_increase": 'סה"כ הגדלה',
         "subsection": "תת סעיף",
         "notes": "הערות",
+        "overrun_invoice_no": "מס' חשבונית מעל החוזה",
     },
 }
 
@@ -1236,7 +1239,8 @@ class ExcelService:
                 'approved_by_project_manager', 'approved_signed_quantity',
                 'partially_submitted_quantity', 'total_estimate',
                 'total_submitted', 'internal_total', 'total_approved_by_project_manager',
-                'approved_signed_total', 'partial_submitted_total', 'total_decrease', 'total_increase', 'subsection', 'notes'
+                'approved_signed_total', 'partial_submitted_total', 'total_decrease', 'total_increase', 'subsection', 'notes',
+                'overrun_invoice_no',
             ])
             
             # Only include headers that exist in the data
