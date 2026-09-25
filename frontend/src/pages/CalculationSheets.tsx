@@ -68,6 +68,10 @@ const CalculationSheets: React.FC = () => {
   const [syncingAll, setSyncingAll] = useState(false);
   const [tracking, setTracking] = useState(false);
   const [checkingQuantities, setCheckingQuantities] = useState(false);
+  const [printingSheets, setPrintingSheets] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState<"landscape" | "portrait">("landscape");
+  const [printMargin, setPrintMargin] = useState("10");
+  const [printColumns, setPrintColumns] = useState("");
   const [quantityMismatches, setQuantityMismatches] = useState<
     | {
         section_number: string;
@@ -622,6 +626,27 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
+  const handlePrintPdfs = async () => {
+    try {
+      setPrintingSheets(true);
+      setError(null);
+      const result = await calculationSheetsApi.printPdfs({
+        orientation: printOrientation,
+        margin_mm: Number(printMargin) || 10,
+        columns: printColumns,
+        include_invoice: true,
+      });
+      alert(
+        t("calculationSheets.printDone", { count: result.count })
+      );
+    } catch (err) {
+      console.error("Error printing calculation sheets:", err);
+      setError(t("calculationSheets.printFailed"));
+    } finally {
+      setPrintingSheets(false);
+    }
+  };
+
   const handleQuantityCheck = async () => {
     try {
       setCheckingQuantities(true);
@@ -781,7 +806,40 @@ const CalculationSheets: React.FC = () => {
             {t("calculationSheets.sheets")})
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex flex-wrap gap-2 shrink-0 items-center">
+        <select
+          value={printOrientation}
+          onChange={(event) =>
+            setPrintOrientation(event.target.value as "landscape" | "portrait")
+          }
+          className="border border-gray-300 rounded-md px-2 py-2 text-sm"
+          aria-label={t("calculationSheets.printOrientation")}
+        >
+          <option value="landscape">{t("calculationSheets.landscape")}</option>
+          <option value="portrait">{t("calculationSheets.portrait")}</option>
+        </select>
+        <input
+          value={printMargin}
+          onChange={(event) => setPrintMargin(event.target.value)}
+          className="border border-gray-300 rounded-md px-2 py-2 text-sm w-16"
+          aria-label={t("calculationSheets.printMargin")}
+        />
+        <input
+          value={printColumns}
+          onChange={(event) => setPrintColumns(event.target.value)}
+          placeholder={t("calculationSheets.printColumns")}
+          className="border border-gray-300 rounded-md px-2 py-2 text-sm w-28"
+        />
+        <button
+          type="button"
+          onClick={handlePrintPdfs}
+          disabled={printingSheets}
+          className="bg-slate-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50"
+        >
+          {printingSheets
+            ? t("calculationSheets.printing")
+            : t("calculationSheets.printPdfs")}
+        </button>
         <button
           onClick={handleQuantityCheck}
           disabled={checkingQuantities}

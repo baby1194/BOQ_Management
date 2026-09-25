@@ -114,6 +114,30 @@ def refresh_calculation_sheet_from_disk(
 
 router = APIRouter()
 
+@router.post("/print-pdfs")
+async def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
+    """Save a PDF next to each Excel calculation sheet under FATINA and FATINA INVOICE."""
+    from pathlib import Path
+
+    from fatina_paths import FATINA_BASE_DIR, FATINA_INVOICE_BASE_DIR
+    from services.sheet_print import print_workbooks
+
+    orientation = body.get("orientation") or "landscape"
+    if orientation not in ("landscape", "portrait"):
+        raise HTTPException(status_code=400, detail="orientation must be landscape or portrait")
+    margin = float(body.get("margin_mm") or 10)
+    raw_columns = str(body.get("columns") or "")
+    columns = []
+    for part in raw_columns.replace(" ", "").split(","):
+        if part.isdigit():
+            columns.append(int(part))
+    roots = [Path(FATINA_BASE_DIR)]
+    if body.get("include_invoice", True):
+        roots.append(Path(FATINA_INVOICE_BASE_DIR))
+    written = print_workbooks(roots, orientation=orientation, margin_mm=margin, columns=columns)
+    return {"count": len(written), "files": written[:30]}
+
+
 @router.get("/quantity-check")
 async def check_calculation_quantities(db: Session = Depends(get_db)):
     """Compare calculation-sheet totals with BOQ calculated and submitted quantities."""

@@ -364,6 +364,19 @@ export const calculationSheetsApi = {
       )
       .then((res) => res.data),
 
+  printPdfs: (settings: {
+    orientation: "landscape" | "portrait";
+    margin_mm: number;
+    columns: string;
+    include_invoice: boolean;
+  }) =>
+    api
+      .post<{ count: number; files: string[] }>(
+        "/calculation-sheets/print-pdfs",
+        settings
+      )
+      .then((res) => res.data),
+
   quantityCheck: () =>
     api
       .get<{
