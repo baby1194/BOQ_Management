@@ -177,6 +177,8 @@ class CalculationEntry(Base):
     quantity_submitted = Column(Float, default=0.0)
     submission_breakdown = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
+    # Excel row 7 of the item column. Used when this section is not on the BOQ.
+    unit_price = Column(Float, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

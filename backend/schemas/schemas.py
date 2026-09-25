@@ -726,6 +726,10 @@ class NonBoqItem(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     calculation_sheet_nos: List[str] = []
+    description: str = ""
+    unit: str = "יח'"
+    quantity: float = 0.0
+    price: float = 0.0
 
     class Config:
         from_attributes = True
@@ -733,6 +737,10 @@ class NonBoqItem(BaseModel):
 
 class NonBoqExportRequest(BaseModel):
     language: Optional[str] = "en"
+
+
+class NonBoqProjectImport(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
 
 
 # Project Info Files (standalone reference files)

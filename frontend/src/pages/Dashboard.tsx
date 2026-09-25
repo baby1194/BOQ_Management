@@ -58,7 +58,9 @@ const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [selectedPeriod, setSelectedPeriod] = useState("all");
-  const { activeProjectId, projects } = useProject();
+  const { activeProjectId, projects, refreshProjects } = useProject();
+  const [nonBoqProjectName, setNonBoqProjectName] = useState("");
+  const [importingNonBoq, setImportingNonBoq] = useState(false);
 
   const projectId =
     getActiveProjectId() ?? activeProjectId ?? projects[0]?.id ?? null;
@@ -268,6 +270,28 @@ const Dashboard: React.FC = () => {
     navigate(
       `/boq?addSection=${encodeURIComponent(sectionNumber)}`,
     );
+  };
+
+  const handleImportNonBoqProject = async () => {
+    const name = nonBoqProjectName.trim();
+    if (!name) return;
+    setImportingNonBoq(true);
+    try {
+      const result = await nonBoqApi.importAsProject(name);
+      await refreshProjects();
+      toast.success(
+        t("dashboard.importNonBoqDone", {
+          name: result.project_name,
+          count: result.item_count,
+          missing: result.missing_price,
+        })
+      );
+      setNonBoqProjectName("");
+    } catch {
+      toast.error(t("dashboard.importNonBoqFailed"));
+    } finally {
+      setImportingNonBoq(false);
+    }
   };
 
   const handleExportNonBoqItems = async (format: "pdf" | "excel") => {
@@ -722,6 +746,21 @@ const Dashboard: React.FC = () => {
                   isRTL ? "flex-row-reverse" : ""
                 }`}
               >
+                <input
+                  value={nonBoqProjectName}
+                  onChange={(event) => setNonBoqProjectName(event.target.value)}
+                  placeholder={t("dashboard.importNonBoqProjectName")}
+                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm w-40"
+                />
+                <button
+                  type="button"
+                  onClick={handleImportNonBoqProject}
+                  disabled={importingNonBoq || !nonBoqProjectName.trim()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50"
+                  title={t("dashboard.nonBoqPriceHint")}
+                >
+                  {t("dashboard.importNonBoqProject")}
+                </button>
                 <button
                   onClick={() => handleExportNonBoqItems("pdf")}
                   disabled={exportingNonBoq !== null}
@@ -766,6 +805,12 @@ const Dashboard: React.FC = () => {
                     <div>
                       <p className="font-medium text-gray-900">
                         {t("boq.sectionNumber")}: {item.section_number}
+                        {item.price ? (
+                          <span className="font-normal text-gray-700">
+                            {" "}
+                            · {item.price}
+                          </span>
+                        ) : null}
                         {formatNonBoqCalcSheets(item) && (
                           <>
                             <span className="mx-2 text-gray-400">·</span>

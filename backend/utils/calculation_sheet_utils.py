@@ -14,6 +14,8 @@ DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
 INVOICE_DESCRIPTION_ROW = 2  # Excel row 3 (0-based)
 SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
+# Price for items that are not on the contract. Same item column, the row under the estimated quantity.
+NON_BOQ_PRICE_ROW = 6  # Excel row 7 (0-based)
 SHARED_PERIOD_COLUMN_INDEX = 1  # Column B — past invoices when the sheet has one item
 FIRST_ITEM_COLUMN_INDEX = 4
 
@@ -23,6 +25,13 @@ def period_column_index(item_col_index: int, item_count: int) -> int:
     if item_count <= 1:
         return SHARED_PERIOD_COLUMN_INDEX
     return item_col_index - 1
+
+
+def read_non_boq_price(df, col_index: int) -> float:
+    """Unit price from the defined cell (Excel row 7) in the item column."""
+    if col_index < 0 or col_index >= df.shape[1] or df.shape[0] <= NON_BOQ_PRICE_ROW:
+        return 0.0
+    return round_quantity(_safe_float(df.iloc[NON_BOQ_PRICE_ROW, col_index]))
 
 
 def count_calculation_sheet_items(df, start_col: int = FIRST_ITEM_COLUMN_INDEX) -> int:

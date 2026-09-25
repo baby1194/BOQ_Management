@@ -513,6 +513,7 @@ class ExcelService:
             from utils.calculation_sheet_utils import (
                 compute_submission_breakdown,
                 count_calculation_sheet_items,
+                read_non_boq_price,
                 read_entry_current_invoice_id,
                 read_entry_invoice_description,
                 validate_calculation_sheet_header_fields,
@@ -579,7 +580,8 @@ class ExcelService:
                         'estimated_quantity': estimated_quantity,
                         'quantity_submitted': quantity_submitted,
                         'submission_breakdown': submission_breakdown,
-                        'notes': notes
+                        'notes': notes,
+                        'unit_price': read_non_boq_price(df, col_index),
                     }
                     entries.append(entry)
                 

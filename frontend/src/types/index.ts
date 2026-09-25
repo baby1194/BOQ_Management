@@ -352,6 +352,10 @@ export interface NonBoqItem {
   id: number;
   section_number: string;
   calculation_sheet_nos: string[];
+  description?: string;
+  unit?: string;
+  quantity?: number;
+  price?: number;
   created_at: string;
   updated_at?: string;
 }

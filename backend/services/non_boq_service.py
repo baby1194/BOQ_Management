@@ -73,6 +73,82 @@ def build_non_boq_export_rows(items: Iterable[Dict]) -> list[dict]:
     return rows
 
 
+def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
+    """One BOQ row per section. Quantity is the sum of calculated amounts. Price is the first cell found."""
+    grouped: dict[str, dict] = {}
+    for record in records:
+        section = _normalize_section_number(record.get("section_number"))
+        if not section:
+            continue
+        row = grouped.setdefault(
+            section,
+            {
+                "section_number": section,
+                "description": "",
+                "unit": "יח'",
+                "quantity": 0.0,
+                "price": 0.0,
+            },
+        )
+        description = (record.get("description") or "").strip()
+        if description and not row["description"]:
+            row["description"] = description
+        row["quantity"] += float(record.get("estimated_quantity") or 0)
+        price = record.get("unit_price")
+        if row["price"] == 0.0 and price not in (None, "", 0, 0.0):
+            row["price"] = float(price)
+    rows = []
+    for section in sorted(grouped):
+        row = grouped[section]
+        quantity = round(row["quantity"], 3)
+        price = round(float(row["price"] or 0), 2)
+        if not row["description"]:
+            row["description"] = section
+        rows.append(
+            {
+                "section_number": section,
+                "description": row["description"],
+                "unit": row["unit"],
+                "quantity": quantity,
+                "price": price,
+                "total": round(quantity * price, 2),
+                "missing_price": price == 0.0,
+            }
+        )
+    return rows
+
+
+def non_boq_import_rows(db: Session) -> list[dict]:
+    """Calculated quantity, description, and price for every non-BOQ section."""
+    sections = {
+        item.section_number
+        for item in db.query(models.NonBoqItem).all()
+    }
+    if not sections:
+        return []
+    entries = (
+        db.query(models.CalculationEntry, models.CalculationSheet)
+        .join(
+            models.CalculationSheet,
+            models.CalculationEntry.calculation_sheet_id == models.CalculationSheet.id,
+        )
+        .filter(models.CalculationEntry.section_number.in_(sections))
+        .all()
+    )
+    records = []
+    for entry, sheet in entries:
+        description = (entry.invoice_description or "").strip() or (sheet.description or "")
+        records.append(
+            {
+                "section_number": entry.section_number,
+                "description": description,
+                "estimated_quantity": entry.estimated_quantity,
+                "unit_price": entry.unit_price,
+            }
+        )
+    return build_non_boq_import_rows(records)
+
+
 def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
     """Return non-BOQ items enriched with related calculation sheet numbers."""
     items = (
@@ -84,6 +160,7 @@ def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
         db,
         [item.section_number for item in items],
     )
+    priced = {row["section_number"]: row for row in non_boq_import_rows(db)}
     return [
         {
             "id": item.id,
@@ -91,6 +168,10 @@ def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
             "created_at": item.created_at,
             "updated_at": item.updated_at,
             "calculation_sheet_nos": sheet_nos_by_section.get(item.section_number, []),
+            "description": priced.get(item.section_number, {}).get("description") or "",
+            "unit": priced.get(item.section_number, {}).get("unit") or "יח'",
+            "quantity": priced.get(item.section_number, {}).get("quantity") or 0.0,
+            "price": priced.get(item.section_number, {}).get("price") or 0.0,
         }
         for item in items
     ]

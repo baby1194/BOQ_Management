@@ -301,6 +301,21 @@ def _ensure_invoice_description_columns(engine) -> None:
         conn.commit()
 
 
+def _ensure_calculation_entry_unit_price(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(calculation_entries)"))
+        ]
+        if "unit_price" not in columns:
+            conn.execute(
+                text("ALTER TABLE calculation_entries ADD COLUMN unit_price FLOAT")
+            )
+        conn.commit()
+
+
 def init_project_database(project_id: str) -> None:
     from models import models
 
@@ -311,6 +326,7 @@ def init_project_database(project_id: str) -> None:
     _ensure_submission_breakdown_columns(engine)
     _ensure_calculation_entry_current_invoice_id_column(engine)
     _ensure_invoice_description_columns(engine)
+    _ensure_calculation_entry_unit_price(engine)
     _ensure_calculation_sheet_no_unique(engine)
 
 

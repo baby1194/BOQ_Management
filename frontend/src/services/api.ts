@@ -199,6 +199,16 @@ export const nonBoqApi = {
 
   remove: (id: number) =>
     api.delete(`/non-boq-items/${id}`).then((res) => res.data),
+
+  importAsProject: (name: string) =>
+    api
+      .post<{
+        project_id: string;
+        project_name: string;
+        item_count: number;
+        missing_price: number;
+      }>("/non-boq-items/import-as-project", { name })
+      .then((res) => res.data),
 };
 
 // Concentration Sheets API

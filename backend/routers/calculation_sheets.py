@@ -91,6 +91,7 @@ def refresh_calculation_sheet_from_disk(
                     quantity_submitted=entry_data["quantity_submitted"],
                     submission_breakdown=entry_data.get("submission_breakdown"),
                     notes=entry_data.get("notes", ""),
+                    unit_price=entry_data.get("unit_price"),
                 )
             )
             entries_refreshed += 1
