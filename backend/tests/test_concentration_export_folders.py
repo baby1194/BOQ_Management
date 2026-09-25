@@ -387,3 +387,26 @@ def test_invoice_numbers_for_calculation_sheet():
     assert invoice_numbers_for_calculation_sheet(entries, "20/2") == ["06"]
     assert invoice_numbers_for_calculation_sheet(entries, "20/3") == []
     assert invoice_numbers_for_calculation_sheet([], "20/1") == []
+
+
+def test_mirror_concentration_sheet_to_fatina_invoice(tmp_path, monkeypatch):
+    from fatina_paths import (
+        FATINA_INVOICE_BASE_DIR,
+        mirror_concentration_sheet_to_fatina_invoice,
+    )
+
+    invoice_root = tmp_path / "Fatina Invoice"
+    monkeypatch.setattr(
+        "fatina_paths.fatina_invoice_root",
+        lambda base_dir=None: invoice_root,
+    )
+
+    src = tmp_path / "40.01.001.pdf"
+    src.write_bytes(b"%PDF-test")
+
+    assert mirror_concentration_sheet_to_fatina_invoice("40.01.001", src)
+    dest = invoice_root / "40.01.001" / "40.01.001.pdf"
+    assert dest.is_file()
+    assert dest.read_bytes() == b"%PDF-test"
+    # Default import path constant unchanged (sanity)
+    assert FATINA_INVOICE_BASE_DIR.name == "Fatina Invoice"

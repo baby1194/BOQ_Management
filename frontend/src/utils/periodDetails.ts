@@ -67,12 +67,22 @@ export function periodSubmissionPercentage(
   return computeSubmissionPercentage(entry.estimated_quantity || 0, qty);
 }
 
+function periodKeysForEntryTotals(entry: ConcentrationEntry): string[] {
+  const rows = getBreakdownPeriodRows(entry);
+  if (rows.length > 0) {
+    return rows.map((row) => row.period);
+  }
+  const details = getPeriodDetailsMap(entry.submission_breakdown);
+  return Object.keys(details);
+}
+
 export function entryTotalInternalQuantity(entry: ConcentrationEntry): number {
   const details = getPeriodDetailsMap(entry.submission_breakdown);
-  const periods = Object.keys(details);
-  if (periods.length > 0) {
+  const periods = periodKeysForEntryTotals(entry);
+  if (periods.length > 0 && Object.keys(details).length > 0) {
     return periods.reduce(
-      (sum, period) => sum + (details[period].internal_quantity || 0),
+      (sum, period) =>
+        sum + (details[period]?.internal_quantity || 0),
       0
     );
   }
@@ -81,11 +91,11 @@ export function entryTotalInternalQuantity(entry: ConcentrationEntry): number {
 
 export function entryTotalApprovedQuantity(entry: ConcentrationEntry): number {
   const details = getPeriodDetailsMap(entry.submission_breakdown);
-  const periods = Object.keys(details);
-  if (periods.length > 0) {
+  const periods = periodKeysForEntryTotals(entry);
+  if (periods.length > 0 && Object.keys(details).length > 0) {
     return periods.reduce(
       (sum, period) =>
-        sum + (details[period].approved_by_project_manager || 0),
+        sum + (details[period]?.approved_by_project_manager || 0),
       0
     );
   }

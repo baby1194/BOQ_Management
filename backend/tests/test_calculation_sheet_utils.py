@@ -234,7 +234,7 @@ def test_concentration_export_pdf_formats_zero_numeric_as_empty():
         headers,
     )
     assert formatted[0] == "DC-29"
-    assert formatted[1] == "674.800"
+    assert formatted[1] == "674.80"
     assert formatted[2] == ""
 
 
@@ -334,8 +334,8 @@ def test_build_concentration_export_subrows():
     assert rows[2]["Approved by Project Manager"] == 0.0
 
     pdf_past = format_concentration_export_row_for_pdf(rows[0], headers)
-    assert pdf_past[headers.index("Approved by Project Manager")] == "180.000"
-    assert pdf_past[headers.index("Internal Quantity")] == "190.000"
+    assert pdf_past[headers.index("Approved by Project Manager")] == "180.00"
+    assert pdf_past[headers.index("Internal Quantity")] == "190.00"
 
     offsets = concentration_export_main_row_offsets([entry], entry_columns)
     assert offsets == [2]

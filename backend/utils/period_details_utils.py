@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from utils.calculation_sheet_utils import (
+    _breakdown_periods,
     _entry_current_drawing_no,
     breakdown_period_keys,
 )
@@ -110,13 +111,52 @@ def period_submission_percentage(
     return _compute_submission_percentage(estimated, qty)
 
 
+def period_keys_for_entry_totals(entry: Any) -> set[str]:
+    """
+    Invoice periods that contribute to concentration totals.
+
+    Matches visible breakdown rows: current period always counts; past periods
+    only when they still have submitted quantity in the breakdown.
+    """
+    breakdown = _normalize_breakdown(getattr(entry, "submission_breakdown", None))
+    if not breakdown:
+        return set()
+
+    current = resolve_entry_current_period(entry)
+    period_qty = _breakdown_periods(breakdown)
+    keys: set[str] = set()
+    for period, qty in period_qty.items():
+        is_current = bool(current and period == current)
+        if is_current or float(qty or 0) != 0:
+            keys.add(period)
+    return keys
+
+
+def _allowed_period_detail_keys(breakdown: Dict[str, Any]) -> set[str]:
+    """Period keys that may keep stored period_details after a calc-sheet sync."""
+    current = str(breakdown.get("current_drawing_no") or "").strip()
+    period_qty = _breakdown_periods(breakdown)
+    allowed: set[str] = set()
+    for period, qty in period_qty.items():
+        if float(qty or 0) != 0 or (current and period == current):
+            allowed.add(period)
+    if current:
+        allowed.add(current)
+    return allowed
+
+
 def merge_breakdown_preserve_period_details(
     old_breakdown: Any, new_breakdown: Any
 ) -> Dict[str, Any]:
     merged = dict(_normalize_breakdown(new_breakdown))
     old_details = get_period_details_map(old_breakdown)
     if old_details:
-        merged["period_details"] = old_details
+        allowed = _allowed_period_detail_keys(merged)
+        merged["period_details"] = {
+            period: detail
+            for period, detail in old_details.items()
+            if period in allowed
+        }
     return merged
 
 
@@ -264,6 +304,10 @@ def set_period_detail_fields(
             current[field] = str(value or "")
         elif field == "submission_percentage":
             current[field] = float(value) if value is not None else None
+        elif field in ("internal_quantity", "approved_by_project_manager"):
+            from utils.quantity_utils import round_quantity
+
+            current[field] = round_quantity(value)
         else:
             current[field] = float(value or 0)
 
@@ -279,7 +323,12 @@ def entry_total_internal_quantity(entry: Any) -> float:
     breakdown = getattr(entry, "submission_breakdown", None)
     details = get_period_details_map(breakdown)
     if details:
-        return sum(float(d["internal_quantity"] or 0) for d in details.values())
+        keys = period_keys_for_entry_totals(entry) or set(details.keys())
+        return sum(
+            float(details[p]["internal_quantity"] or 0)
+            for p in keys
+            if p in details
+        )
     return float(getattr(entry, "internal_quantity", 0) or 0)
 
 
@@ -287,8 +336,11 @@ def entry_total_approved_quantity(entry: Any) -> float:
     breakdown = getattr(entry, "submission_breakdown", None)
     details = get_period_details_map(breakdown)
     if details:
+        keys = period_keys_for_entry_totals(entry) or set(details.keys())
         return sum(
-            float(d["approved_by_project_manager"] or 0) for d in details.values()
+            float(details[p]["approved_by_project_manager"] or 0)
+            for p in keys
+            if p in details
         )
     return float(getattr(entry, "approved_by_project_manager", 0) or 0)
 

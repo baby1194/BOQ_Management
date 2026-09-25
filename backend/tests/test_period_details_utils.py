@@ -13,6 +13,60 @@ from utils.period_details_utils import (
 )
 
 
+def test_entry_totals_exclude_stale_invoice_after_switch():
+    """Approved total must not count a prior invoice when its submitted qty is gone."""
+    entry = SimpleNamespace(
+        drawing_no="07",
+        approved_by_project_manager=14.4,
+        internal_quantity=0.0,
+        submission_breakdown={
+            "current_drawing_no": "07",
+            "periods": {"07": 14.4},
+            "period_details": {
+                "06": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 120.9,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                },
+                "07": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 14.4,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": [],
+                },
+            },
+        },
+    )
+
+    assert entry_total_approved_quantity(entry) == 14.4
+
+
+def test_merge_breakdown_drops_stale_period_details():
+    old = {
+        "current_drawing_no": "06",
+        "periods": {"06": 10.0},
+        "period_details": {
+            "06": {
+                "internal_quantity": 0.0,
+                "approved_by_project_manager": 120.9,
+                "notes": "",
+                "supervisor_notes": "",
+                "drawing_files": [],
+            }
+        },
+    }
+    new = {
+        "current_drawing_no": "07",
+        "periods": {"07": 14.4},
+    }
+    merged = merge_breakdown_preserve_period_details(old, new)
+    assert "06" not in merged.get("period_details", {})
+    assert merged["current_drawing_no"] == "07"
+
+
 def test_merge_breakdown_preserves_period_details():
     old = {
         "current_drawing_no": "01",

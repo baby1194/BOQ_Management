@@ -797,7 +797,17 @@ async def update_concentration_entry(
                 k: v for k, v in update_data.items() if k in allowed_for_auto
             }
 
+        from utils.quantity_utils import round_quantity
+
+        qty_fields = {
+            "estimated_quantity",
+            "quantity_submitted",
+            "internal_quantity",
+            "approved_by_project_manager",
+        }
         for field, value in update_data.items():
+            if field in qty_fields and value is not None:
+                value = round_quantity(value)
             setattr(db_entry, field, value)
 
         should_sync_qty = (

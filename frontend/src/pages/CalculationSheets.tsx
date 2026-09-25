@@ -487,7 +487,10 @@ const CalculationSheets: React.FC = () => {
   };
 
   const handleTrackSheet = async (sheetToTrack?: CalculationSheet | null) => {
-    const sheet = sheetToTrack || selectedSheet;
+    const sheet =
+      sheetToTrack && typeof sheetToTrack.id === "number"
+        ? sheetToTrack
+        : selectedSheet;
     if (!sheet) return;
 
     try {
@@ -517,10 +520,18 @@ const CalculationSheets: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Error tracking calculation sheet:", err);
-      const errorMessage =
-        err.response?.data?.detail ||
-        err.message ||
-        t("calculationSheets.failedToTrack");
+      const detail = err.response?.data?.detail;
+      let errorMessage = t("calculationSheets.failedToTrack");
+      if (typeof detail === "string") {
+        errorMessage = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        errorMessage = detail
+          .map((x: { msg?: string }) => x.msg)
+          .filter(Boolean)
+          .join(", ");
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
       setError(errorMessage);
       alert(`Error: ${errorMessage}`);
     } finally {
@@ -1087,7 +1098,7 @@ const CalculationSheets: React.FC = () => {
                         {selectedSheet.source_file_path && (
                           <>
                             <button
-                              onClick={handleTrackSheet}
+                              onClick={() => void handleTrackSheet()}
                               disabled={trackingSheetId === selectedSheet.id}
                               className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                               title={t("calculationSheets.trackSheetTooltip")}

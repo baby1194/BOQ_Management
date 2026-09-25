@@ -60,7 +60,9 @@ def calc_sheet_nos_submitted_equals_approved(entries: Iterable[T]) -> Set[str]:
 
     skip: Set[str] = set()
     for calc_no, bucket in totals.items():
-        if round(bucket["submitted"], 3) == round(bucket["approved"], 3):
+        from utils.quantity_utils import round_quantity
+
+        if round_quantity(bucket["submitted"]) == round_quantity(bucket["approved"]):
             skip.add(calc_no)
     return skip
 
@@ -133,7 +135,9 @@ def concentration_sheet_cumulative_submitted_equals_approved(
     for entry in entries:
         total_submitted += entry_cumulative_submitted_quantity(entry)
         total_approved += entry_total_approved_quantity(entry)
-    return round(total_submitted, 3) == round(total_approved, 3)
+    from utils.quantity_utils import round_quantity
+
+    return round_quantity(total_submitted) == round_quantity(total_approved)
 
 
 def calc_entry_is_submitted(calc_entry) -> bool:
@@ -165,8 +169,10 @@ def apply_calculation_entry_quantities(
     concentration_entry, calc_entry, *, drawing_no: str | None = None
 ) -> None:
     """Copy estimated/submitted quantities from a calc entry and derive submission percentage."""
-    estimated = float(calc_entry.estimated_quantity or 0)
-    submitted = float(calc_entry.quantity_submitted or 0)
+    from utils.quantity_utils import round_quantity
+
+    estimated = round_quantity(calc_entry.estimated_quantity)
+    submitted = round_quantity(calc_entry.quantity_submitted)
     concentration_entry.estimated_quantity = estimated
     concentration_entry.quantity_submitted = submitted
     concentration_entry.submission_percentage = compute_submission_percentage(
@@ -197,7 +203,9 @@ def apply_calculation_entry_estimated_only(
     concentration_entry, calc_entry
 ) -> None:
     """Sync estimated quantity only; clear submitted fields (no invoice / not submitted)."""
-    estimated = float(calc_entry.estimated_quantity or 0)
+    from utils.quantity_utils import round_quantity
+
+    estimated = round_quantity(calc_entry.estimated_quantity)
     concentration_entry.estimated_quantity = estimated
     concentration_entry.quantity_submitted = 0.0
     concentration_entry.submission_percentage = 0.0
@@ -251,8 +259,10 @@ def sync_calc_entry_to_concentration(
         if concentration_entry:
             break
 
+    from utils.quantity_utils import round_quantity
+
     submitted = calc_entry_is_submitted(calc_entry)
-    estimated = float(calc_entry.estimated_quantity or 0)
+    estimated = round_quantity(calc_entry.estimated_quantity)
 
     if concentration_entry:
         if getattr(concentration_entry, "is_manual", False):
@@ -284,7 +294,9 @@ def sync_calc_entry_to_concentration(
     if estimated <= 0 and not submitted:
         return None
 
-    submitted_qty = float(calc_entry.quantity_submitted or 0) if submitted else 0.0
+    submitted_qty = (
+        round_quantity(calc_entry.quantity_submitted) if submitted else 0.0
+    )
     invoice_id = (
         str(calc_entry.current_invoice_id or "").strip() if submitted else None
     )
@@ -435,10 +447,12 @@ def concentration_entry_quantities_differ(
     concentration_entry, calc_entry, *, drawing_no: str | None = None
 ) -> bool:
     """Return True if applying calc entry quantities would change the concentration entry."""
-    new_estimated = float(calc_entry.estimated_quantity or 0)
-    new_submitted = float(calc_entry.quantity_submitted or 0)
-    old_estimated = float(concentration_entry.estimated_quantity or 0)
-    old_submitted = float(concentration_entry.quantity_submitted or 0)
+    from utils.quantity_utils import round_quantity
+
+    new_estimated = round_quantity(calc_entry.estimated_quantity)
+    new_submitted = round_quantity(calc_entry.quantity_submitted)
+    old_estimated = round_quantity(concentration_entry.estimated_quantity)
+    old_submitted = round_quantity(concentration_entry.quantity_submitted)
     if old_estimated != new_estimated or old_submitted != new_submitted:
         return True
     if drawing_no is not None:

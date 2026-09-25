@@ -171,3 +171,6 @@ start_frontend.bat
 BOQ.bat
 
 backend/output.csv
+
+backend/database/projects
+backend/database/projects.json

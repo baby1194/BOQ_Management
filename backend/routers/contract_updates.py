@@ -6,6 +6,7 @@ import logging
 from database.database import get_db
 from models import models
 from schemas import schemas
+from utils.contract_update_flags import resolved_contract_quantity_for_new_update
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -28,9 +29,24 @@ async def create_contract_update(db: Session = Depends(get_db)):
     """Create a new contract quantity update"""
     try:
         # Get the next update index
-        last_update = db.query(models.ContractQuantityUpdate).order_by(models.ContractQuantityUpdate.update_index.desc()).first()
+        last_update = (
+            db.query(models.ContractQuantityUpdate)
+            .order_by(models.ContractQuantityUpdate.update_index.desc())
+            .first()
+        )
         next_index = 1 if not last_update else last_update.update_index + 1
-        
+
+        previous_qty_by_boq_item: dict[int, models.BOQItemQuantityUpdate] = {}
+        if last_update:
+            for row in (
+                db.query(models.BOQItemQuantityUpdate)
+                .filter(
+                    models.BOQItemQuantityUpdate.contract_update_id == last_update.id
+                )
+                .all()
+            ):
+                previous_qty_by_boq_item[row.boq_item_id] = row
+
         # Create the contract update
         contract_update = models.ContractQuantityUpdate(
             update_index=next_index,
@@ -43,13 +59,24 @@ async def create_contract_update(db: Session = Depends(get_db)):
         # Get all BOQ items
         boq_items = db.query(models.BOQItem).all()
         
-        # Create quantity updates for all BOQ items
+        # Create quantity updates for all BOQ items (carry forward previous update qty)
         for boq_item in boq_items:
+            prev_row = previous_qty_by_boq_item.get(boq_item.id)
+            qty, contract_sum = resolved_contract_quantity_for_new_update(
+                original_quantity=boq_item.original_contract_quantity,
+                price=boq_item.price,
+                previous_updated_quantity=(
+                    prev_row.updated_contract_quantity if prev_row else None
+                ),
+                previous_updated_sum=(
+                    prev_row.updated_contract_sum if prev_row else None
+                ),
+            )
             quantity_update = models.BOQItemQuantityUpdate(
                 boq_item_id=boq_item.id,
                 contract_update_id=contract_update.id,
-                updated_contract_quantity=boq_item.original_contract_quantity,
-                updated_contract_sum=boq_item.original_contract_quantity * boq_item.price
+                updated_contract_quantity=qty,
+                updated_contract_sum=contract_sum,
             )
             db.add(quantity_update)
         

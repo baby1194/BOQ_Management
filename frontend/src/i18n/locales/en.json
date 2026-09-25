@@ -337,6 +337,8 @@
     "mismatchVsEstimated": "Approved ≠ estimated",
     "hideColumns": "Hide columns",
     "trackFromHere": "Open Calculation Sheets and Track",
+    "goToCalculationSheet": "Go to this calculation sheet (track manually from there)",
+    "openCalculationSheetFile": "Open calculation sheet Excel file",
     "goToBOQItem": "Open this item on BOQ Items",
     "clearFilter": "Clear filter",
     "noSheetsFoundMatching": "No concentration sheets found matching",

@@ -26,6 +26,7 @@ import {
   formatCurrency,
   formatNumber,
   numberDraftToValue,
+  roundQuantity,
   parseNumberDraft,
   toNumberDraft,
   type NumberDraft,
@@ -98,7 +99,7 @@ const DEFAULT_ENTRY_COLUMN_VISIBILITY: Record<EntryColumnKey, boolean> = {
 };
 
 function quantitiesMismatch(left: number, right: number): boolean {
-  return Math.abs((left || 0) - (right || 0)) > 0.0005;
+  return roundQuantity(left || 0) !== roundQuantity(right || 0);
 }
 
 /** Draft state for inline row editing (mirrors EntryForm fields). */
@@ -389,11 +390,11 @@ const ConcentrationSheets: React.FC = () => {
     setPendingExportAction(null);
   };
 
-  const handleTrackCalculationSheet = (calculationSheetNo: string) => {
+  const handleGoToCalculationSheet = (calculationSheetNo: string) => {
     const normalizedNo = calculationSheetNo.trim();
     if (!normalizedNo) return;
     navigate(
-      `/calculation-sheets?sheetNo=${encodeURIComponent(normalizedNo)}&track=1`
+      `/calculation-sheets?sheetNo=${encodeURIComponent(normalizedNo)}`
     );
   };
 
@@ -2385,21 +2386,43 @@ const ConcentrationSheets: React.FC = () => {
                                             ) : null}
                                           </div>
                                         ) : entry.calculation_sheet_no ? (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              handleTrackCalculationSheet(
-                                                entry.calculation_sheet_no!
-                                              )
-                                            }
-                                            onDoubleClick={(e) =>
-                                              e.stopPropagation()
-                                            }
-                                            className="text-blue-600 hover:text-blue-800 hover:underline"
-                                            title={t("concentration.trackFromHere")}
-                                          >
-                                            {entry.calculation_sheet_no}
-                                          </button>
+                                          <div className="flex items-start gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleGoToCalculationSheet(
+                                                  entry.calculation_sheet_no!
+                                                )
+                                              }
+                                              onDoubleClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                                              title={t(
+                                                "concentration.goToCalculationSheet"
+                                              )}
+                                            >
+                                              {entry.calculation_sheet_no}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void handleOpenCalculationSheet(
+                                                  entry.calculation_sheet_no!
+                                                );
+                                              }}
+                                              className="shrink-0 p-1 text-blue-600 hover:text-blue-800 rounded"
+                                              title={t(
+                                                "concentration.openCalculationSheetFile"
+                                              )}
+                                              aria-label={t(
+                                                "concentration.openCalculationSheetFile"
+                                              )}
+                                            >
+                                              <ExternalLink className="h-4 w-4" />
+                                            </button>
+                                          </div>
                                         ) : (
                                           "-"
                                         )}

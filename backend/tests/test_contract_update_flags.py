@@ -1,4 +1,7 @@
-from utils.contract_update_flags import has_changed_contract_quantity
+from utils.contract_update_flags import (
+    has_changed_contract_quantity,
+    resolved_contract_quantity_for_new_update,
+)
 
 
 def test_first_update_marks_when_quantity_changes_from_original():
@@ -35,3 +38,24 @@ def test_no_latest_row_hides_badge():
         previous_quantity=None,
         has_latest_row=False,
     )
+
+
+def test_new_update_row_carries_forward_previous_quantity():
+    qty, total = resolved_contract_quantity_for_new_update(
+        original_quantity=200,
+        price=10,
+        previous_updated_quantity=454.41,
+        previous_updated_sum=5000,
+    )
+    assert qty == 454.41
+    assert total == 5000
+
+
+def test_new_update_row_uses_original_when_no_previous():
+    qty, total = resolved_contract_quantity_for_new_update(
+        original_quantity=200,
+        price=10,
+        previous_updated_quantity=None,
+    )
+    assert qty == 200
+    assert total == 2000

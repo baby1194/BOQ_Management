@@ -389,6 +389,31 @@ def copy_files_to_calc_sheet_dir(
     return copied
 
 
+def mirror_concentration_sheet_to_fatina_invoice(
+    section_number: str,
+    source_path: str | Path,
+) -> bool:
+    """Copy concentration sheet PDF/Excel to C:/Fatina Invoice/{section}/ (same name as under C:/Fatina)."""
+    section = sanitize_folder_name(str(section_number or "").strip())
+    if not section:
+        return False
+    src = Path(source_path)
+    if not src.is_file():
+        logger.warning("Concentration sheet not found for Fatina Invoice mirror: %s", src)
+        return False
+
+    dest_dir = fatina_invoice_root() / section
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / src.name
+    try:
+        shutil.copy2(src, dest)
+        logger.info("Mirrored concentration sheet to Fatina Invoice: %s", dest)
+        return True
+    except (PermissionError, OSError) as exc:
+        logger.error("Failed to mirror concentration sheet %s -> %s: %s", src, dest, exc)
+        return False
+
+
 def copy_files_to_invoice_dir(
     section_number: str,
     invoice_no: str,

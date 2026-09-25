@@ -34,15 +34,15 @@ def get_excel_service(project_id: str = Depends(get_project_id)) -> ExcelService
 def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
     """Keep sheets whose BOQ item has PSQ != 0 and quantity_submitted > 0.
 
-    Values are rounded to 3 decimal places before comparison so the filter
-    matches the BOQ Items page (formatNumber uses 3 decimals).
+    Values are rounded to 2 decimal places before comparison so the filter
+    matches the BOQ Items page (formatNumber uses 2 decimals).
     """
     from sqlalchemy import func
 
     q_sub = func.coalesce(models.BOQItem.quantity_submitted, 0)
     q_app = func.coalesce(models.BOQItem.approved_signed_quantity, 0)
-    rounded_sub = func.round(q_sub, 3)
-    rounded_app = func.round(q_app, 3)
+    rounded_sub = func.round(q_sub, 2)
+    rounded_app = func.round(q_app, 2)
     sheet_ids_with_psq = {
         row[0]
         for row in db.query(models.ConcentrationSheet.id)
@@ -58,7 +58,7 @@ def _filter_sheets_with_estimated_gt_contract(sheets: List, db: Session) -> List
     """Keep sheets whose BOQ estimated_quantity > latest contract quantity.
 
     Latest contract quantity uses the most recent contract quantity update when
-    present; otherwise original_contract_quantity. Values are rounded to 3
+    present; otherwise original_contract_quantity. Values are rounded to 2
     decimal places before comparison to match UI formatting.
     """
     from sqlalchemy import and_, desc, func
@@ -97,7 +97,7 @@ def _filter_sheets_with_estimated_gt_contract(sheets: List, db: Session) -> List
     sheet_ids = {
         row[0]
         for row in query.filter(
-            func.round(estimated_qty, 3) > func.round(contract_qty, 3)
+            func.round(estimated_qty, 2) > func.round(contract_qty, 2)
         )
         .distinct()
         .all()

@@ -7,6 +7,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
+from utils.quantity_utils import QUANTITY_DECIMALS, round_quantity
+
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
@@ -263,7 +265,11 @@ def compute_submission_breakdown(
             # Unexpected period not seen in sheet scan; still count it.
             periods[period] = periods.get(period, 0.0) + qty
 
-    current_submitted = float(periods.get(current_drawing_no, 0.0) or 0.0)
+    periods = {key: round_quantity(val) for key, val in periods.items()}
+    left_submitted = round_quantity(left_submitted)
+    current_submitted = round_quantity(
+        float(periods.get(current_drawing_no, 0.0) or 0.0)
+    )
 
     breakdown = {
         "current_drawing_no": current_drawing_no,
@@ -354,10 +360,16 @@ def breakdowns_equal(
     if not left or not right:
         return False
 
-    if _breakdown_periods(left) != _breakdown_periods(right):
+    left_periods = {
+        key: round_quantity(val) for key, val in _breakdown_periods(left).items()
+    }
+    right_periods = {
+        key: round_quantity(val) for key, val in _breakdown_periods(right).items()
+    }
+    if left_periods != right_periods:
         return False
-    if float(left.get("left_submitted", 0.0) or 0.0) != float(
-        right.get("left_submitted", 0.0) or 0.0
+    if round_quantity(left.get("left_submitted", 0.0)) != round_quantity(
+        right.get("left_submitted", 0.0)
     ):
         return False
     return str(left.get("current_drawing_no") or "") == str(
@@ -854,7 +866,8 @@ def format_concentration_export_row_for_pdf(
             formatted.append("")
         else:
             numeric = float(value or 0)
-            formatted.append("" if numeric == 0 else f"{numeric:,.3f}")
+            qty = round_quantity(numeric)
+            formatted.append("" if qty == 0 else f"{qty:,.2f}")
     return formatted
 
 

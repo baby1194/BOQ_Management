@@ -12,6 +12,24 @@ def quantities_differ(left: Any, right: Any, epsilon: float = 1e-9) -> bool:
         return True
 
 
+def resolved_contract_quantity_for_new_update(
+    *,
+    original_quantity: Any,
+    price: Any,
+    previous_updated_quantity: Any | None,
+    previous_updated_sum: Any | None = None,
+) -> tuple[float, float]:
+    """Seed a new contract-update row from the previous update, or from original qty."""
+    if previous_updated_quantity is not None:
+        qty = float(previous_updated_quantity or 0)
+        if previous_updated_sum is not None:
+            return qty, float(previous_updated_sum or 0)
+        return qty, qty * float(price or 0)
+    qty = float(original_quantity or 0)
+    unit_price = float(price or 0)
+    return qty, qty * unit_price
+
+
 def has_changed_contract_quantity(
     *,
     original_quantity: Any,

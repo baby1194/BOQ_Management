@@ -28,13 +28,21 @@ export function parseNumberDraft(raw: string): NumberDraft {
 }
 
 export function numberDraftToValue(value: NumberDraft): number {
-  return value === "" ? 0 : value;
+  return value === "" ? 0 : roundQuantity(value);
+}
+
+/** Standard qty precision (calc sheets, concentration, BOQ quantities). */
+export const QUANTITY_DECIMALS = 2;
+
+export function roundQuantity(value: number): number {
+  const factor = 10 ** QUANTITY_DECIMALS;
+  return Math.round(value * factor) / factor;
 }
 
 /**
  * Format a number with commas and decimal places
  */
-export const formatNumber = (value: number, decimals: number = 3): string => {
+export const formatNumber = (value: number, decimals: number = QUANTITY_DECIMALS): string => {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,

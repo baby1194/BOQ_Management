@@ -14,7 +14,12 @@ from datetime import datetime
 from models import models
 from bidi.algorithm import get_display
 import arabic_reshaper
-from fatina_paths import FATINA_BASE_DIR, sanitize_folder_name, calculation_file_uri
+from fatina_paths import (
+    FATINA_BASE_DIR,
+    calculation_file_uri,
+    mirror_concentration_sheet_to_fatina_invoice,
+    sanitize_folder_name,
+)
 
 
 def _get_calculation_sheet_file_name(db_session, calculation_sheet_no):
@@ -1131,14 +1136,14 @@ class PDFService:
                 right_column_data = [
                     [project_headers_translations['Contractor in Charge'], (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'],
                     [project_headers_translations['Developer Name'], (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A'],
-                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.3f} ({boq_item.unit})"],
+                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.2f} ({boq_item.unit})"],
                     [boq_headers_translations['Price'], f"{boq_item.price:,.2f} ₪"]
                 ]
             else:
                 right_column_data = [
                     [project_headers_translations['Contractor in Charge'], (project_info.main_contractor_name if project_info else None) or sheet.contractor_in_charge or 'N/A'],
                     [project_headers_translations['Developer Name'], (project_info.developer_name if project_info else None) or sheet.developer_name or 'N/A'],
-                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.3f} ({boq_item.unit})"],
+                    [boq_headers_translations['Contract Quantity'], f"{boq_item.original_contract_quantity:,.2f} ({boq_item.unit})"],
                     [boq_headers_translations['Price'], f"{boq_item.price:,.2f} ₪"]
                 ]
             
@@ -1484,6 +1489,11 @@ class PDFService:
 
             doc.build(story, onFirstPage=_draw_header_footer, onLaterPages=_draw_header_footer)
             logger.info(f"Generated concentration sheet PDF with RTL layout: {filepath}")
+            if folder_name is not None and boq_item and boq_item.section_number:
+                mirror_concentration_sheet_to_fatina_invoice(
+                    str(boq_item.section_number).strip(),
+                    filepath,
+                )
             return str(filepath)
             
         except (PermissionError, OSError) as e:
@@ -2425,7 +2435,7 @@ class PDFService:
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
                                 row_data.append(self._format_currency(value))
                             else:
-                                row_data.append(f"{value:,.3f}" if value != int(value) else str(int(value)))
+                                row_data.append(f"{value:,.2f}" if value != int(value) else str(int(value)))
                         else:
                             row_data.append(str(value))
                     data.append(row_data)
