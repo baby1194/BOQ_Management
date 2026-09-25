@@ -632,6 +632,8 @@
     "lastUpdated": "עודכן לאחרונה",
     "database": "מסד נתונים",
     "backend": "שרת",
+    "submittedVsEstimated": "הוגש מול מחושב",
+    "approvedVsSubmitted": "אושר מול הוגש",
     "nonBoqItems": "פריטים שאינם ב-BOQ",
     "nonBoqItemsDescription": "מספרי סעיפים שנמצאו בדפי חישוב ואינם ברשימת ה-BOQ",
     "noNonBoqItems": "לא נמצאו מספרי סעיפים לא מוכרים",

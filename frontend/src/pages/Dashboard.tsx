@@ -232,6 +232,23 @@ const Dashboard: React.FC = () => {
 
     const itemsWithoutEntries = totalBOQItems - itemsWithEntries;
 
+    const estimatedQty = boqItems.reduce(
+      (sum, item) => sum + (item.estimated_quantity || 0),
+      0
+    );
+    const submittedQty = boqItems.reduce(
+      (sum, item) => sum + (item.quantity_submitted || 0),
+      0
+    );
+    const approvedQty = boqItems.reduce(
+      (sum, item) => sum + (item.approved_signed_quantity || 0),
+      0
+    );
+    const submittedOfEstimated =
+      estimatedQty > 0 ? (submittedQty / estimatedQty) * 100 : 0;
+    const approvedOfSubmitted =
+      submittedQty > 0 ? (approvedQty / submittedQty) * 100 : 0;
+
     return {
       totalBOQItems,
       totalConcentrationSheets,
@@ -249,6 +266,11 @@ const Dashboard: React.FC = () => {
       approvedProgress,
       itemsWithEntries,
       itemsWithoutEntries,
+      estimatedQty,
+      submittedQty,
+      approvedQty,
+      submittedOfEstimated,
+      approvedOfSubmitted,
     };
   };
 
@@ -683,6 +705,35 @@ const Dashboard: React.FC = () => {
             </div>
           );
         })}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {[
+          {
+            label: t("dashboard.submittedVsEstimated"),
+            percent: stats.submittedOfEstimated || 0,
+            detail: `${(stats.submittedQty || 0).toFixed(3)} / ${(stats.estimatedQty || 0).toFixed(3)}`,
+          },
+          {
+            label: t("dashboard.approvedVsSubmitted"),
+            percent: stats.approvedOfSubmitted || 0,
+            detail: `${(stats.approvedQty || 0).toFixed(3)} / ${(stats.submittedQty || 0).toFixed(3)}`,
+          },
+        ].map((bar) => (
+          <div key={bar.label} className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between text-sm text-gray-700 mb-2">
+              <span className="font-medium">{bar.label}</span>
+              <span>{Math.min(bar.percent, 999).toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div
+                className="bg-indigo-600 h-3 rounded-full"
+                style={{ width: `${Math.min(bar.percent, 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-gray-500">{bar.detail}</p>
+          </div>
+        ))}
       </div>
 
       {/* Non-BOQ Items from Calculation Sheets */}
