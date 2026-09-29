@@ -12,7 +12,7 @@
     {
       "id": "F01",
       "follows": "T01",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Use Exception when a site task has no contract system",
       "about": "The intake is not expert yet. If a job cannot be matched to a contract system, put Exception in the System column and show the row in red. If it can be matched, keep that system (Drainage, Lighting, and so on). The user can change the system afterwards.",

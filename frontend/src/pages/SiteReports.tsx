@@ -174,8 +174,19 @@ const SiteReports: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
-                <tr key={item.id} className="border-t border-gray-100">
+              items.map((item) => {
+                const isException =
+                  item.classification === "exception" ||
+                  (item.system_name || "").trim().toLowerCase() === "exception";
+                return (
+                <tr
+                  key={item.id}
+                  className={
+                    isException
+                      ? "border-t border-red-200 bg-red-50 text-red-900"
+                      : "border-t border-gray-100"
+                  }
+                >
                   <td className="px-3 py-2">{item.description}</td>
                   <td className="px-3 py-2">{item.system_name || "—"}</td>
                   <td className="px-3 py-2">{classificationLabel(item.classification)}</td>
@@ -201,7 +212,8 @@ const SiteReports: React.FC = () => {
                     </button>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

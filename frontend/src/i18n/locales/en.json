@@ -94,7 +94,7 @@
     "exception": "Exception",
     "additionalWork": "Additional work",
     "created": "Added {{count}} task(s). Skipped {{skipped}} already listed.",
-    "noneFound": "No work tasks found. Mention a contract system, or mark the line as an exception or additional work.",
+    "noneFound": "No work tasks found.",
     "loadFailed": "Failed to load site work",
     "processFailed": "Failed to process the report",
     "deleted": "Task deleted"

@@ -13,6 +13,7 @@ SYSTEM_ALIASES = [
     ("Concrete", ("concrete", "בטון")),
 ]
 
+EXCEPTION_SYSTEM = "Exception"
 EXCEPTION_MARKERS = ("exception", "exceptional", "חריג", "חריגה", "חריגים")
 ADDITIONAL_MARKERS = (
     "additional work",
@@ -77,8 +78,11 @@ def parse_work_lines(text: str, known_systems: Optional[Iterable[str]] = None) -
             continue
         system_name = _match_system(line, systems)
         classification = _classification(line, system_name)
+        # A job that cannot be matched to a contract system stays on the list.
+        if system_name is None:
+            system_name = EXCEPTION_SYSTEM
         if classification is None:
-            continue
+            classification = "exception"
         key = normalize_key(line)
         if not key or key in seen:
             continue

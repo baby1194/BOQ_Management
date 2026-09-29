@@ -29,6 +29,13 @@ def test_prefers_system_name_already_on_the_contract():
     assert items[0]["classification"] == "system"
 
 
-def test_ignores_lines_that_are_not_work():
-    items = parse_work_lines("See you tomorrow\nThanks", known_systems=["Lighting"])
+def test_ignores_greetings():
+    items = parse_work_lines("Thanks\nhello", known_systems=["Lighting"])
     assert items == []
+
+
+def test_uncategorized_job_is_exception():
+    items = parse_work_lines("Repair the north gate hinge", known_systems=["Lighting", "בטון"])
+    assert len(items) == 1
+    assert items[0]["system_name"] == "Exception"
+    assert items[0]["classification"] == "exception"
