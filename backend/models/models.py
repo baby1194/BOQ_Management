@@ -251,6 +251,8 @@ class NonBoqItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     section_number = Column(String(100), unique=True, nullable=False, index=True)
+    moved_to_project_id = Column(String(100), nullable=True)
+    moved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

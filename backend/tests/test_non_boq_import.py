@@ -1,7 +1,37 @@
 import pandas as pd
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from services.non_boq_service import build_non_boq_import_rows
+from models import models
+from services.non_boq_service import (
+    build_non_boq_import_rows,
+    mark_non_boq_items_moved,
+    select_import_rows,
+)
 from utils.calculation_sheet_utils import read_non_boq_price
+
+
+def _session():
+    engine = create_engine("sqlite://")
+    models.Base.metadata.create_all(bind=engine)
+    return sessionmaker(bind=engine)()
+
+
+def test_select_import_rows_keeps_all_when_nothing_chosen():
+    rows = [{"section_number": "A"}, {"section_number": "B"}]
+    assert select_import_rows(rows, None) == rows
+    assert select_import_rows(rows, [" B "]) == [{"section_number": "B"}]
+    assert select_import_rows(rows, []) == []
+
+
+def test_moved_items_record_the_target_project():
+    db = _session()
+    db.add_all([models.NonBoqItem(section_number="A"), models.NonBoqItem(section_number="B")])
+    db.commit()
+    assert mark_non_boq_items_moved(db, ["A"], "project-2") == 1
+    db.commit()
+    moved = {item.section_number: item.moved_to_project_id for item in db.query(models.NonBoqItem)}
+    assert moved == {"A": "project-2", "B": None}
 
 
 def test_price_is_read_from_excel_row_7():

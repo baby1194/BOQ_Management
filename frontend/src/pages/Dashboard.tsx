@@ -75,6 +75,7 @@ const Dashboard: React.FC = () => {
   >(null);
   const [nonBoqItems, setNonBoqItems] = useState<NonBoqItem[]>([]);
   const [removingNonBoqId, setRemovingNonBoqId] = useState<number | null>(null);
+  const [selectedNonBoq, setSelectedNonBoq] = useState<Set<string>>(new Set());
   const [exportingNonBoq, setExportingNonBoq] = useState<"pdf" | "excel" | null>(
     null,
   );
@@ -121,6 +122,16 @@ const Dashboard: React.FC = () => {
       setProducingFinalSubmission(false);
     }
   };
+
+  useEffect(() => {
+    setSelectedNonBoq(
+      new Set(
+        nonBoqItems
+          .filter((item) => !item.moved_to_project_id)
+          .map((item) => item.section_number),
+      ),
+    );
+  }, [nonBoqItems]);
 
   useEffect(() => {
     setProjectItem(
@@ -294,13 +305,23 @@ const Dashboard: React.FC = () => {
     );
   };
 
+  const toggleNonBoqSelection = (sectionNumber: string) => {
+    setSelectedNonBoq((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionNumber)) next.delete(sectionNumber);
+      else next.add(sectionNumber);
+      return next;
+    });
+  };
+
   const handleImportNonBoqProject = async () => {
     const name = nonBoqProjectName.trim();
-    if (!name) return;
+    if (!name || selectedNonBoq.size === 0) return;
     setImportingNonBoq(true);
     try {
-      const result = await nonBoqApi.importAsProject(name);
+      const result = await nonBoqApi.importAsProject(name, Array.from(selectedNonBoq));
       await refreshProjects();
+      setNonBoqItems(await nonBoqApi.getAll());
       toast.success(
         t("dashboard.importNonBoqDone", {
           name: result.project_name,
@@ -806,11 +827,15 @@ const Dashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleImportNonBoqProject}
-                  disabled={importingNonBoq || !nonBoqProjectName.trim()}
+                  disabled={
+                    importingNonBoq ||
+                    !nonBoqProjectName.trim() ||
+                    selectedNonBoq.size === 0
+                  }
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50"
                   title={t("dashboard.nonBoqPriceHint")}
                 >
-                  {t("dashboard.importNonBoqProject")}
+                  {t("dashboard.importNonBoqProject")} ({selectedNonBoq.size})
                 </button>
                 <button
                   onClick={() => handleExportNonBoqItems("pdf")}
@@ -853,7 +878,29 @@ const Dashboard: React.FC = () => {
                       isRTL ? "flex-row-reverse" : ""
                     }`}
                   >
-                    <div>
+                    <div
+                      className={`flex items-center gap-3 ${
+                        isRTL ? "flex-row-reverse" : ""
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedNonBoq.has(item.section_number)}
+                        onChange={() => toggleNonBoqSelection(item.section_number)}
+                        aria-label={t("dashboard.sendToNewProject")}
+                        title={t("dashboard.sendToNewProject")}
+                      />
+                      {item.moved_to_project_id && (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs font-medium text-green-700"
+                          title={t("dashboard.nonBoqSentTo", {
+                            name: item.moved_to_project_name || item.moved_to_project_id,
+                          })}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          {item.moved_to_project_name || ""}
+                        </span>
+                      )}
                       <p className="font-medium text-gray-900">
                         {t("boq.sectionNumber")}: {item.section_number}
                         {item.price ? (

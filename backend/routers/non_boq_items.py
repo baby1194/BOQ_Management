@@ -9,7 +9,9 @@ from models import models
 from schemas import schemas
 from services.non_boq_service import (
     list_non_boq_items_with_calc_sheets,
+    mark_non_boq_items_moved,
     non_boq_import_rows,
+    select_import_rows,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ async def import_non_boq_as_project(
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Project name is required")
-    rows = non_boq_import_rows(db)
+    rows = select_import_rows(non_boq_import_rows(db), body.section_numbers)
     if not rows:
         raise HTTPException(status_code=400, detail="No non-BOQ items to import")
 
@@ -68,6 +70,9 @@ async def import_non_boq_as_project(
         raise
     finally:
         target.close()
+
+    mark_non_boq_items_moved(db, [row["section_number"] for row in rows], project["id"])
+    db.commit()
 
     missing_price = sum(1 for row in rows if row["missing_price"])
     return {

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Iterable, List
+from datetime import datetime, timezone
+from typing import Dict, Iterable, List, Optional
 
 from sqlalchemy.orm import Session
 
+from database import project_registry
 from models import models
 
 
@@ -161,6 +163,9 @@ def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
         [item.section_number for item in items],
     )
     priced = {row["section_number"]: row for row in non_boq_import_rows(db)}
+    project_names = {
+        project["id"]: project["name"] for project in project_registry.list_projects()
+    }
     return [
         {
             "id": item.id,
@@ -172,9 +177,36 @@ def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
             "unit": priced.get(item.section_number, {}).get("unit") or "יח'",
             "quantity": priced.get(item.section_number, {}).get("quantity") or 0.0,
             "price": priced.get(item.section_number, {}).get("price") or 0.0,
+            "moved_to_project_id": item.moved_to_project_id,
+            "moved_to_project_name": project_names.get(item.moved_to_project_id or ""),
+            "moved_at": item.moved_at,
         }
         for item in items
     ]
+
+
+def select_import_rows(rows: List[dict], section_numbers: Optional[Iterable[str]]) -> list[dict]:
+    """All rows when nothing is chosen; otherwise only the chosen sections."""
+    if section_numbers is None:
+        return list(rows)
+    chosen = {n for n in (_normalize_section_number(s) for s in section_numbers) if n}
+    return [row for row in rows if row["section_number"] in chosen]
+
+
+def mark_non_boq_items_moved(db: Session, section_numbers: Iterable[str], project_id: str) -> int:
+    sections = list(section_numbers)
+    if not sections:
+        return 0
+    now = datetime.now(timezone.utc)
+    items = (
+        db.query(models.NonBoqItem)
+        .filter(models.NonBoqItem.section_number.in_(sections))
+        .all()
+    )
+    for item in items:
+        item.moved_to_project_id = project_id
+        item.moved_at = now
+    return len(items)
 
 logger = logging.getLogger(__name__)
 

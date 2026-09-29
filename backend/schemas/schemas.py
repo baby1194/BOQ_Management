@@ -730,6 +730,9 @@ class NonBoqItem(BaseModel):
     unit: str = "יח'"
     quantity: float = 0.0
     price: float = 0.0
+    moved_to_project_id: Optional[str] = None
+    moved_to_project_name: Optional[str] = None
+    moved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -741,6 +744,7 @@ class NonBoqExportRequest(BaseModel):
 
 class NonBoqProjectImport(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
+    section_numbers: Optional[List[str]] = None
 
 
 # Project Info Files (standalone reference files)

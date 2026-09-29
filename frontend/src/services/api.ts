@@ -200,14 +200,17 @@ export const nonBoqApi = {
   remove: (id: number) =>
     api.delete(`/non-boq-items/${id}`).then((res) => res.data),
 
-  importAsProject: (name: string) =>
+  importAsProject: (name: string, sectionNumbers: string[]) =>
     api
       .post<{
         project_id: string;
         project_name: string;
         item_count: number;
         missing_price: number;
-      }>("/non-boq-items/import-as-project", { name })
+      }>("/non-boq-items/import-as-project", {
+        name,
+        section_numbers: sectionNumbers,
+      })
       .then((res) => res.data),
 };
 

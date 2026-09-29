@@ -136,7 +136,7 @@
     {
       "id": "F11",
       "follows": "T04",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Show which non-BOQ items were moved to a new project",
       "about": "The usual action sends all non-BOQ items to one new project, but some items must be left out. After an item is sent, show a check on that row in the original project's list. Rows that were not sent stay unmarked.",

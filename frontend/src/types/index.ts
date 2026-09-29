@@ -356,6 +356,9 @@ export interface NonBoqItem {
   unit?: string;
   quantity?: number;
   price?: number;
+  moved_to_project_id?: string | null;
+  moved_to_project_name?: string | null;
+  moved_at?: string | null;
   created_at: string;
   updated_at?: string;
 }
