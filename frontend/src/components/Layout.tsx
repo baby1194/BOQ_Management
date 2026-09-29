@@ -24,6 +24,7 @@ import { useProject } from "../contexts/ProjectContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import NewProjectModal from "./NewProjectModal";
 import CalculatorPanel from "./CalculatorPanel";
+import QuantityCheckPanel from "./QuantityCheckPanel";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -365,6 +366,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
       </div>
 
+      <QuantityCheckPanel />
       <CalculatorPanel
         isOpen={showCalculator}
         onClose={() => setShowCalculator(false)}

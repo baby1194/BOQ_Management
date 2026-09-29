@@ -122,7 +122,7 @@
     {
       "id": "F10",
       "follows": "T03",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Keep the quantity-check list open across pages",
       "about": "The mismatch list should stay visible when the user goes to other sheets, so they can work through the errors. Give a way to close it.",

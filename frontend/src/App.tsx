@@ -17,6 +17,7 @@ import SignIn from "./pages/SignIn";
 import Profile from "./pages/Profile";
 import { useAuth } from "./contexts/AuthContext";
 import { ProjectProvider } from "./contexts/ProjectContext";
+import { QuantityCheckProvider } from "./contexts/QuantityCheckContext";
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -46,6 +47,7 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectProvider>
+              <QuantityCheckProvider>
               <Layout>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
@@ -84,6 +86,7 @@ function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>
+              </QuantityCheckProvider>
             </ProjectProvider>
           </ProtectedRoute>
         }

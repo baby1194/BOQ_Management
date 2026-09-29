@@ -23,6 +23,7 @@ import {
 } from "../components/SubmissionBreakdownPanel";
 import { entryCumulativeSubmittedQuantity } from "../utils/submissionBreakdown";
 import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
+import { useQuantityCheck } from "../contexts/QuantityCheckContext";
 
 const CALC_SIDEBAR_WIDTH_KEY = "calculation-sidebar-width-percent";
 const CALC_DEFAULT_WIDTH = 33.333;
@@ -69,28 +70,12 @@ const CalculationSheets: React.FC = () => {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [tracking, setTracking] = useState(false);
-  const [checkingQuantities, setCheckingQuantities] = useState(false);
+  const { checking: checkingQuantities, runCheck: handleQuantityCheck } =
+    useQuantityCheck();
   const [printingSheets, setPrintingSheets] = useState(false);
   const [printOrientation, setPrintOrientation] = useState<"landscape" | "portrait">("landscape");
   const [printMargin, setPrintMargin] = useState("10");
   const [printColumns, setPrintColumns] = useState("");
-  const [hideManualMismatches, setHideManualMismatches] = useState(false);
-  const [hideNonBoqMismatches, setHideNonBoqMismatches] = useState(false);
-  const [quantityMismatches, setQuantityMismatches] = useState<
-    | {
-        section_number: string;
-        sheet_calculated: number;
-        system_calculated: number;
-        calculated_diff: number;
-        sheet_submitted: number;
-        system_submitted: number;
-        submitted_diff: number;
-        status: string;
-        has_manual_entries?: boolean;
-        is_non_boq?: boolean;
-      }[]
-    | null
-  >(null);
   const [trackingSheetId, setTrackingSheetId] = useState<number | null>(null);
   const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
@@ -653,20 +638,6 @@ const CalculationSheets: React.FC = () => {
     }
   };
 
-  const handleQuantityCheck = async () => {
-    try {
-      setCheckingQuantities(true);
-      setError(null);
-      const result = await calculationSheetsApi.quantityCheck();
-      setQuantityMismatches(result.items);
-    } catch (err) {
-      console.error("Error checking quantities:", err);
-      setError(t("calculationSheets.quantityCheckFailed"));
-    } finally {
-      setCheckingQuantities(false);
-    }
-  };
-
   const handleTrack = async () => {
     try {
       setTracking(true);
@@ -824,12 +795,6 @@ const CalculationSheets: React.FC = () => {
     );
   }
 
-  const visibleQuantityMismatches = (quantityMismatches || []).filter((row) => {
-    if (hideManualMismatches && row.has_manual_entries) return false;
-    if (hideNonBoqMismatches && row.is_non_boq) return false;
-    return true;
-  });
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start gap-4">
@@ -905,81 +870,6 @@ const CalculationSheets: React.FC = () => {
         </button>
         </div>
       </div>
-
-      {quantityMismatches && (
-        <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
-          {quantityMismatches.length > 0 && (
-            <div className="flex flex-wrap gap-4 mb-3 text-sm text-gray-700">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={hideManualMismatches}
-                  onChange={(event) => setHideManualMismatches(event.target.checked)}
-                />
-                {t("calculationSheets.hideManual")}
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={hideNonBoqMismatches}
-                  onChange={(event) => setHideNonBoqMismatches(event.target.checked)}
-                />
-                {t("calculationSheets.hideNonBoq")}
-              </label>
-            </div>
-          )}
-          {quantityMismatches.length === 0 ? (
-            <p className="text-sm text-green-700">
-              {t("calculationSheets.quantityCheckOk")}
-            </p>
-          ) : visibleQuantityMismatches.length === 0 ? (
-            <p className="text-sm text-gray-600">
-              {t("calculationSheets.quantityCheckFilteredEmpty")}
-            </p>
-          ) : (
-            <table className="min-w-full text-sm">
-              <thead className="text-gray-600">
-                <tr>
-                  <th className="px-2 py-1 text-start">{t("boq.sectionNumber")}</th>
-                  <th className="px-2 py-1 text-start">{t("calculationSheets.sheetCalculated")}</th>
-                  <th className="px-2 py-1 text-start">{t("calculationSheets.systemCalculated")}</th>
-                  <th className="px-2 py-1 text-start">{t("calculationSheets.calculatedDiff")}</th>
-                  <th className="px-2 py-1 text-start">{t("calculationSheets.sheetSubmitted")}</th>
-                  <th className="px-2 py-1 text-start">{t("calculationSheets.systemSubmitted")}</th>
-                  <th className="px-2 py-1 text-start">{t("calculationSheets.submittedDiff")}</th>
-                  <th className="px-2 py-1 text-start">{t("siteWork.classification")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleQuantityMismatches.map((row) => (
-                  <tr key={row.section_number} className="border-t border-gray-100">
-                    <td className="px-2 py-1">
-                      <Link
-                        to={`/concentration?sectionNumber=${encodeURIComponent(row.section_number)}`}
-                        className="text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        {row.section_number}
-                      </Link>
-                      {row.has_manual_entries && (
-                        <span className="ms-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          {t("boq.manualEntry")}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1">{formatNumber(row.sheet_calculated)}</td>
-                    <td className="px-2 py-1">{formatNumber(row.system_calculated)}</td>
-                    <td className="px-2 py-1">{formatNumber(row.calculated_diff)}</td>
-                    <td className="px-2 py-1">{formatNumber(row.sheet_submitted)}</td>
-                    <td className="px-2 py-1">{formatNumber(row.system_submitted)}</td>
-                    <td className="px-2 py-1">{formatNumber(row.submitted_diff)}</td>
-                    <td className="px-2 py-1">{row.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
