@@ -200,7 +200,7 @@
     {
       "id": "F16",
       "follows": "T05",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Find an element from concentration descriptions",
       "about": "The drawing-list Element column is often empty for now, and when it is filled it holds the element name or another name. The names to use today are in the concentration sheet Description and Work Description columns. Example: section 1.02.01.0736 has entries DC-36 and DC-02 in Description, and the same names inside the Work Description. For a chosen element, show its contract items and which of them have been submitted.",

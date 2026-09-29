@@ -1122,8 +1122,10 @@ export const drawingListApi = {
           section_number: string;
           description: string;
           contract_quantity: number;
+          estimated_quantity: number;
           quantity_submitted: number;
           submitted: boolean;
+          calculation_sheet_nos: string[];
         }[];
       }>(`/drawing-list/element-submission?element=${encodeURIComponent(element)}`)
       .then((res) => res.data),

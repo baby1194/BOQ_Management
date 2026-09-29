@@ -894,7 +894,7 @@
     "crossSections": "Cross Sections",
     "element": "Element",
     "elementProgress": "Element submission",
-    "elementProgressHint": "Contract items linked to this element, and whether each one has been submitted.",
+    "elementProgressHint": "Element names come from the drawing list and from the concentration Description and Work Description. Quantities are those of the rows that name the element.",
     "chooseElement": "Choose an element",
     "noElementItems": "No contract items are linked to this element.",
     "submittedState": "Submitted",

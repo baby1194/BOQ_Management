@@ -12,8 +12,10 @@ const ElementProgress: React.FC = () => {
         section_number: string;
         description: string;
         contract_quantity: number;
+        estimated_quantity: number;
         quantity_submitted: number;
         submitted: boolean;
+        calculation_sheet_nos: string[];
       }[]
     | null
   >(null);
@@ -61,7 +63,9 @@ const ElementProgress: React.FC = () => {
             <tr>
               <th className="px-2 py-1 text-start">{t("boq.sectionNumber")}</th>
               <th className="px-2 py-1 text-start">{t("boq.description")}</th>
+              <th className="px-2 py-1 text-start">{t("concentration.calcSheetNo")}</th>
               <th className="px-2 py-1 text-start">{t("boq.contractQty")}</th>
+              <th className="px-2 py-1 text-start">{t("boq.estimatedQuantity")}</th>
               <th className="px-2 py-1 text-start">{t("boq.quantitySubmitted")}</th>
               <th className="px-2 py-1 text-start">{t("listOfDrawings.submittedState")}</th>
             </tr>
@@ -71,7 +75,9 @@ const ElementProgress: React.FC = () => {
               <tr key={row.section_number} className="border-t border-gray-100">
                 <td className="px-2 py-1">{row.section_number}</td>
                 <td className="px-2 py-1">{row.description}</td>
+                <td className="px-2 py-1">{row.calculation_sheet_nos.join(", ")}</td>
                 <td className="px-2 py-1">{formatNumber(row.contract_quantity)}</td>
+                <td className="px-2 py-1">{formatNumber(row.estimated_quantity)}</td>
                 <td className="px-2 py-1">{formatNumber(row.quantity_submitted)}</td>
                 <td className={`px-2 py-1 ${row.submitted ? "text-green-700" : "text-red-700"}`}>
                   {row.submitted

@@ -144,11 +144,22 @@ def assign_plan_quantity(body: dict, db: Session = Depends(get_db)):
 
 @router.get("/elements")
 def list_elements(db: Session = Depends(get_db)):
-    names = set()
+    from services.element_progress import element_names_from_entries
+
+    names = {}
     for (element,) in db.query(models.DrawingListItem.element).all():
         if element and str(element).strip():
-            names.add(str(element).strip())
-    return sorted(names)
+            names.setdefault(str(element).strip().casefold(), str(element).strip())
+    entries = db.query(
+        models.ConcentrationEntry.description,
+        models.ConcentrationEntry.invoice_description,
+    ).all()
+    for name in element_names_from_entries(
+        {"description": description, "invoice_description": invoice_description}
+        for description, invoice_description in entries
+    ):
+        names.setdefault(name.casefold(), name)
+    return sorted(names.values(), key=str.casefold)
 
 
 @router.get("/element-submission")
@@ -169,6 +180,7 @@ def element_submission(element: str, db: Session = Depends(get_db)):
                 "section_number": item.section_number,
                 "description": item.description,
                 "contract_quantity": item.original_contract_quantity,
+                "estimated_quantity": item.estimated_quantity,
                 "quantity_submitted": item.quantity_submitted,
             }
         )
@@ -178,8 +190,9 @@ def element_submission(element: str, db: Session = Depends(get_db)):
             {
                 "description": entry.description,
                 "invoice_description": entry.invoice_description,
-                "drawing_no": entry.drawing_no,
-                "section_number": entry.section_number,
+                "calculation_sheet_no": entry.calculation_sheet_no,
+                "estimated_quantity": entry.estimated_quantity,
+                "quantity_submitted": entry.quantity_submitted,
             }
         )
     rows = items_for_element(needle, boq_items, entries_by_section, drawing_names)

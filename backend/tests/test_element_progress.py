@@ -1,4 +1,58 @@
-from services.element_progress import items_for_element
+from services.element_progress import (
+    element_names_from_entries,
+    items_for_element,
+    mentions,
+)
+
+CLIENT_ENTRIES = {
+    "1.02.01.0736": [
+        {
+            "description": "DC-36",
+            "invoice_description": "יציקת תקרה DC-36 קומה 1",
+            "calculation_sheet_no": "17",
+            "estimated_quantity": 12.5,
+            "quantity_submitted": 12.5,
+        },
+        {
+            "description": "DC-02",
+            "invoice_description": "יציקת תקרה DC - 02",
+            "calculation_sheet_no": "21",
+            "estimated_quantity": 8,
+            "quantity_submitted": 0,
+        },
+    ]
+}
+
+
+def test_element_names_come_from_description_and_work_description():
+    entries = [entry for rows in CLIENT_ENTRIES.values() for entry in rows]
+    entries.append({"description": "1.02.01.0736", "invoice_description": "invoice 05"})
+    assert element_names_from_entries(entries) == ["DC-02", "DC-36"]
+
+
+def test_codes_match_whole_names_only():
+    assert mentions("wall DC-36 north", "DC-36")
+    assert mentions("wall dc - 36", "DC-36")
+    assert not mentions("wall DC-360", "DC-36")
+    assert not mentions("wall DC-36", "DC-3")
+
+
+def test_element_quantities_come_from_its_own_rows():
+    boq = [
+        {
+            "section_number": "1.02.01.0736",
+            "description": "Concrete slab",
+            "contract_quantity": 30,
+            "quantity_submitted": 12.5,
+        }
+    ]
+    dc36 = items_for_element("DC-36", boq, CLIENT_ENTRIES)
+    assert dc36[0]["quantity_submitted"] == 12.5
+    assert dc36[0]["submitted"] is True
+    assert dc36[0]["calculation_sheet_nos"] == ["17"]
+    dc02 = items_for_element("DC-02", boq, CLIENT_ENTRIES)
+    assert dc02[0]["estimated_quantity"] == 8
+    assert dc02[0]["submitted"] is False
 
 
 def test_splits_submitted_and_not_submitted_for_one_element():
