@@ -74,6 +74,8 @@ const CalculationSheets: React.FC = () => {
   const [printOrientation, setPrintOrientation] = useState<"landscape" | "portrait">("landscape");
   const [printMargin, setPrintMargin] = useState("10");
   const [printColumns, setPrintColumns] = useState("");
+  const [hideManualMismatches, setHideManualMismatches] = useState(false);
+  const [hideNonBoqMismatches, setHideNonBoqMismatches] = useState(false);
   const [quantityMismatches, setQuantityMismatches] = useState<
     | {
         section_number: string;
@@ -85,6 +87,7 @@ const CalculationSheets: React.FC = () => {
         submitted_diff: number;
         status: string;
         has_manual_entries?: boolean;
+        is_non_boq?: boolean;
       }[]
     | null
   >(null);
@@ -821,6 +824,12 @@ const CalculationSheets: React.FC = () => {
     );
   }
 
+  const visibleQuantityMismatches = (quantityMismatches || []).filter((row) => {
+    if (hideManualMismatches && row.has_manual_entries) return false;
+    if (hideNonBoqMismatches && row.is_non_boq) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start gap-4">
@@ -899,9 +908,33 @@ const CalculationSheets: React.FC = () => {
 
       {quantityMismatches && (
         <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+          {quantityMismatches.length > 0 && (
+            <div className="flex flex-wrap gap-4 mb-3 text-sm text-gray-700">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={hideManualMismatches}
+                  onChange={(event) => setHideManualMismatches(event.target.checked)}
+                />
+                {t("calculationSheets.hideManual")}
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={hideNonBoqMismatches}
+                  onChange={(event) => setHideNonBoqMismatches(event.target.checked)}
+                />
+                {t("calculationSheets.hideNonBoq")}
+              </label>
+            </div>
+          )}
           {quantityMismatches.length === 0 ? (
             <p className="text-sm text-green-700">
               {t("calculationSheets.quantityCheckOk")}
+            </p>
+          ) : visibleQuantityMismatches.length === 0 ? (
+            <p className="text-sm text-gray-600">
+              {t("calculationSheets.quantityCheckFilteredEmpty")}
             </p>
           ) : (
             <table className="min-w-full text-sm">
@@ -918,7 +951,7 @@ const CalculationSheets: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {quantityMismatches.map((row) => (
+                {visibleQuantityMismatches.map((row) => (
                   <tr key={row.section_number} className="border-t border-gray-100">
                     <td className="px-2 py-1">
                       <span>{row.section_number}</span>

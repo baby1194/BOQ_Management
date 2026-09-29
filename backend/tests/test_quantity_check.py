@@ -38,3 +38,4 @@ def test_sheet_item_missing_from_boq_is_a_mismatch():
     assert rows[0]["section_number"] == "99.1"
     assert rows[0]["system_calculated"] == 0.0
     assert rows[0]["calculated_diff"] == 12.5
+    assert rows[0]["is_non_boq"] is True

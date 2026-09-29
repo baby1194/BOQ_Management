@@ -42,6 +42,7 @@ def quantity_mismatches(
                 "submitted_diff": submitted_diff,
                 "status": "שגיאה/חריגה",
                 "has_manual_entries": section in manual,
+                "is_non_boq": section not in boq_totals,
             }
         )
     return rows

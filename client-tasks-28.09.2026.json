@@ -97,7 +97,7 @@
     {
       "id": "F08",
       "follows": "T03",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Hide manual items and non-BOQ items from the quantity check",
       "about": "Give separate options to hide items that carry the BOQ Manual badge, and to hide non-BOQ items, from the Check quantities list.",

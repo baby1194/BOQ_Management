@@ -398,6 +398,7 @@ export const calculationSheetsApi = {
           submitted_diff: number;
           status: string;
           has_manual_entries?: boolean;
+          is_non_boq?: boolean;
         }[];
       }>("/calculation-sheets/quantity-check")
       .then((res) => res.data),
