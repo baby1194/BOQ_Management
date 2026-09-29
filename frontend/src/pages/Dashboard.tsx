@@ -41,7 +41,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "../utils/format";
 import { useProject } from "../contexts/ProjectContext";
-import { getActiveProjectId, getProjectItem, setProjectItem } from "../utils/localStorage";
+import { getActiveProjectId } from "../utils/localStorage";
 import { setActiveProjectIdForApi } from "../services/api";
 import {
   BOQItem,
@@ -79,10 +79,7 @@ const Dashboard: React.FC = () => {
   const [exportingNonBoq, setExportingNonBoq] = useState<"pdf" | "excel" | null>(
     null,
   );
-  const [nonBoqExpanded, setNonBoqExpanded] = useState(() => {
-    const saved = getProjectItem("dashboard-non-boq-expanded");
-    return saved === null ? true : saved === "true";
-  });
+  const [nonBoqExpanded, setNonBoqExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showApprovedSignedQtyModal, setShowApprovedSignedQtyModal] =
@@ -132,13 +129,6 @@ const Dashboard: React.FC = () => {
       ),
     );
   }, [nonBoqItems]);
-
-  useEffect(() => {
-    setProjectItem(
-      "dashboard-non-boq-expanded",
-      nonBoqExpanded ? "true" : "false",
-    );
-  }, [nonBoqExpanded]);
 
   useEffect(() => {
     if (!projectId) {

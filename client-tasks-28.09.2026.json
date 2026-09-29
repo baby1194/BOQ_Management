@@ -174,7 +174,7 @@
     {
       "id": "F14",
       "follows": "T04",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Keep the Dashboard non-BOQ list closed until opened",
       "about": "The Non-BOQ list on the Dashboard currently opens expanded, and the long list is in the way. Keep it closed until the user opens it. The client marked the list header in the screenshot.",
