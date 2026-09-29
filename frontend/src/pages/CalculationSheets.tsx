@@ -954,7 +954,12 @@ const CalculationSheets: React.FC = () => {
                 {visibleQuantityMismatches.map((row) => (
                   <tr key={row.section_number} className="border-t border-gray-100">
                     <td className="px-2 py-1">
-                      <span>{row.section_number}</span>
+                      <Link
+                        to={`/concentration?sectionNumber=${encodeURIComponent(row.section_number)}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {row.section_number}
+                      </Link>
                       {row.has_manual_entries && (
                         <span className="ms-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                           {t("boq.manualEntry")}

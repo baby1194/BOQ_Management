@@ -109,7 +109,7 @@
     {
       "id": "F09",
       "follows": "T03",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Open the Concentration sheet from a quantity-check row",
       "about": "Clicking an item in the Check quantities list opens that item's Concentration sheet.",
