@@ -377,6 +377,13 @@ export const calculationSheetsApi = {
       )
       .then((res) => res.data),
 
+  forSystem: (system: string) =>
+    api
+      .get<number[]>(
+        `/calculation-sheets/for-system?system=${encodeURIComponent(system)}`
+      )
+      .then((res) => res.data),
+
   quantityCheck: () =>
     api
       .get<{

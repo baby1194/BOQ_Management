@@ -37,6 +37,8 @@ const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
+  const systemFilter = searchParams.get("system") || "";
+  const [systemSheetIds, setSystemSheetIds] = useState<Set<number> | null>(null);
   const trackedFromQueryRef = useRef<string | null>(null);
   const [sheets, setSheets] = useState<CalculationSheet[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<CalculationSheet | null>(
@@ -715,12 +717,36 @@ const CalculationSheets: React.FC = () => {
       filterDrawingNo === "" ||
       sheet.drawing_no.toLowerCase().includes(filterDrawingNo.toLowerCase());
 
-    return matchesSearch && matchesSheetNo && matchesDrawingNo;
+    const matchesSystem =
+      !systemFilter ||
+      (systemSheetIds !== null && systemSheetIds.has(sheet.id));
+
+    return matchesSearch && matchesSheetNo && matchesDrawingNo && matchesSystem;
   });
 
   useEffect(() => {
     fetchSheets();
   }, []);
+
+  useEffect(() => {
+    if (!systemFilter) {
+      setSystemSheetIds(null);
+      return;
+    }
+    let cancelled = false;
+    setSystemSheetIds(null);
+    calculationSheetsApi
+      .forSystem(systemFilter)
+      .then((ids) => {
+        if (!cancelled) setSystemSheetIds(new Set(ids));
+      })
+      .catch(() => {
+        if (!cancelled) setSystemSheetIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [systemFilter]);
 
   // Save filter values to localStorage
   useEffect(() => {
@@ -1029,6 +1055,22 @@ const CalculationSheets: React.FC = () => {
               <p className="text-sm text-gray-600">
                 {t("calculationSheets.selectSheetToViewEntries")}
               </p>
+              {systemFilter && (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-blue-800">
+                  <span>{t("calculationSheets.systemFilter", { system: systemFilter })}</span>
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams);
+                      next.delete("system");
+                      setSearchParams(next);
+                    }}
+                  >
+                    {t("calculationSheets.clearSystemFilter")}
+                  </button>
+                </div>
+              )}
 
               {/* Search */}
               <div className="mt-3">

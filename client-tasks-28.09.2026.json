@@ -72,7 +72,7 @@
     {
       "id": "F06",
       "follows": "T01",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Open Calculation Sheets filtered by the row's system",
       "about": "Clicking the system on a site-task row opens Calculation Sheets with the list filtered to that system.",

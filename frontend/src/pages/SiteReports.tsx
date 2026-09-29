@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 import { ClipboardList, Trash2 } from "lucide-react";
 import { siteWorkApi, SiteWorkItem } from "../services/api";
 
@@ -396,6 +397,14 @@ const SiteReports: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                    {item.system_name && (
+                      <Link
+                        to={`/calculation-sheets?system=${encodeURIComponent(item.system_name)}`}
+                        className="mt-1 block text-xs text-blue-700 underline"
+                      >
+                        {t("siteWork.openSheets")}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-3 py-2">{classificationLabel(item.classification)}</td>
                   <td className="px-3 py-2">{sourceLabel(item.source)}</td>

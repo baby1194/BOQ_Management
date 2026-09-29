@@ -138,6 +138,14 @@ async def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)
     return {"count": len(written), "files": written[:30]}
 
 
+@router.get("/for-system")
+def calculation_sheets_for_system(system: str, db: Session = Depends(get_db)):
+    """Sheet ids that contain at least one BOQ section of this contract system."""
+    from services.sheet_system_filter import load_sheet_ids_for_system
+
+    return load_sheet_ids_for_system(db, system)
+
+
 @router.get("/quantity-check")
 async def check_calculation_quantities(db: Session = Depends(get_db)):
     """Compare calculation-sheet totals with BOQ calculated and submitted quantities."""
