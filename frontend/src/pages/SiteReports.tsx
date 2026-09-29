@@ -170,6 +170,9 @@ const SiteReports: React.FC = () => {
             </button>
           ))}
         </div>
+        <p className="text-sm text-gray-600">
+          {source === "whatsapp" ? t("siteWork.whatsappHelp") : t("siteWork.reportHelp")}
+        </p>
         <label className="block text-sm text-gray-700">
           {t("siteWork.date")}
           <input

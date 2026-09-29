@@ -60,7 +60,7 @@
     {
       "id": "F05",
       "follows": "T01",
-      "status": "pending",
+      "status": "completed",
       "priority": "question",
       "title": "WhatsApp is pasted like a site report, for now",
       "about": "The client asked how to attach WhatsApp. For now it is the same as a site report: paste the messages, and add photos with the photo field. They had also pictured attaching the site report as a file, and connecting the system to a WhatsApp group or contact. They are willing to try the paste flow first. A live WhatsApp connection is not part of this round.",

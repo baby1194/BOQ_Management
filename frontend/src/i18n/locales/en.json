@@ -81,6 +81,8 @@
     "date": "Date",
     "text": "Report or messages",
     "textPlaceholder": "Paste the site report or WhatsApp messages. One task per line.",
+    "reportHelp": "Paste the site report in the box below, one task per line.",
+    "whatsappHelp": "Paste the WhatsApp messages in the box below, and add photos with the photo field. A live WhatsApp group is not connected.",
     "photos": "WhatsApp photos",
     "process": "Process",
     "processing": "Processing...",
