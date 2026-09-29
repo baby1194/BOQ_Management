@@ -11,6 +11,7 @@ from models import models
 from services.site_work_parser import (
     EXCEPTION_SYSTEM,
     classification_after_system_change,
+    manual_task,
     parse_work_lines,
 )
 
@@ -75,6 +76,48 @@ async def _save_photos(project_id: str, photos: List[UploadFile]) -> List[str]:
 
 class SiteWorkSystemUpdate(BaseModel):
     system_name: str = Field(..., min_length=1, max_length=200)
+
+
+class SiteWorkCreate(BaseModel):
+    description: str
+    system_name: str = EXCEPTION_SYSTEM
+    classification: str = "exception"
+    source: str = "site_report"
+    work_date: Optional[str] = None
+
+
+@router.post("/")
+def create_site_work(payload: SiteWorkCreate, db: Session = Depends(get_db)):
+    try:
+        row = manual_task(
+            payload.description,
+            payload.system_name,
+            payload.classification,
+            payload.source,
+            payload.work_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    existing = (
+        db.query(models.SiteWorkItem)
+        .filter(models.SiteWorkItem.dedupe_key == row["dedupe_key"])
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="This task is already listed")
+    item = models.SiteWorkItem(
+        description=row["description"],
+        dedupe_key=row["dedupe_key"],
+        system_name=row["system_name"],
+        classification=row["classification"],
+        source=row["source"],
+        work_date=row["work_date"],
+        photo_paths=[],
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _to_dict(item)
 
 
 @router.get("/systems")

@@ -68,6 +68,36 @@ def _classification(line: str, system_name: Optional[str]) -> Optional[str]:
     return None
 
 
+CLASSIFICATIONS = ("system", "exception", "additional_work")
+SOURCES = ("site_report", "whatsapp")
+
+
+def manual_task(
+    description: str,
+    system_name: str,
+    classification: str,
+    source: str,
+    work_date: Optional[str] = None,
+) -> dict:
+    text = (description or "").strip()
+    if len(text) < 3:
+        raise ValueError("Description is required")
+    if classification not in CLASSIFICATIONS:
+        raise ValueError("Classification is invalid")
+    if source not in SOURCES:
+        raise ValueError("Source is invalid")
+    system = (system_name or "").strip() or EXCEPTION_SYSTEM
+    date = (work_date or "").strip() or None
+    return {
+        "description": text,
+        "dedupe_key": normalize_key(text),
+        "system_name": system,
+        "classification": classification,
+        "source": source,
+        "work_date": date,
+    }
+
+
 def classification_after_system_change(current: str, system_name: str) -> str:
     """Changing the system clears an uncategorized Exception, and keeps additional work."""
     if (system_name or "").strip().casefold() == EXCEPTION_SYSTEM.casefold():

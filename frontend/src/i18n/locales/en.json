@@ -98,7 +98,12 @@
     "noneFound": "No work tasks found.",
     "loadFailed": "Failed to load site work",
     "processFailed": "Failed to process the report",
-    "deleted": "Task deleted"
+    "deleted": "Task deleted",
+    "addTask": "Add a task",
+    "description": "Description",
+    "add": "Add",
+    "added": "Task added",
+    "alreadyListed": "This task is already listed"
   },
   "auth": {
     "signIn": "Sign In",

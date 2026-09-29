@@ -1,4 +1,6 @@
-from services.site_work_parser import classification_after_system_change, parse_work_lines
+import pytest
+
+from services.site_work_parser import classification_after_system_change, manual_task, parse_work_lines
 
 
 def test_categorizes_contract_systems_and_dedupes():
@@ -32,6 +34,27 @@ def test_prefers_system_name_already_on_the_contract():
 def test_ignores_greetings():
     items = parse_work_lines("Thanks\nhello", known_systems=["Lighting"])
     assert items == []
+
+
+def test_manual_task_keeps_the_fields_the_user_entered():
+    row = manual_task(
+        "  Pour the ramp  ",
+        "Drainage",
+        "additional_work",
+        "whatsapp",
+        "2026-09-29",
+    )
+    assert row["description"] == "Pour the ramp"
+    assert row["system_name"] == "Drainage"
+    assert row["classification"] == "additional_work"
+    assert row["source"] == "whatsapp"
+    assert row["work_date"] == "2026-09-29"
+    assert row["dedupe_key"]
+
+
+def test_manual_task_rejects_a_blank_description():
+    with pytest.raises(ValueError):
+        manual_task("  ", "Exception", "exception", "site_report")
 
 
 def test_changing_exception_to_a_contract_system():

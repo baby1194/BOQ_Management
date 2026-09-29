@@ -98,7 +98,12 @@
     "noneFound": "לא נמצאו משימות.",
     "loadFailed": "טעינת עבודות האתר נכשלה",
     "processFailed": "עיבוד הדוח נכשל",
-    "deleted": "המשימה נמחקה"
+    "deleted": "המשימה נמחקה",
+    "addTask": "הוספת משימה",
+    "description": "תיאור",
+    "add": "הוסף",
+    "added": "המשימה נוספה",
+    "alreadyListed": "המשימה כבר ברשימה"
   },
   "auth": {
     "signIn": "התחבר",

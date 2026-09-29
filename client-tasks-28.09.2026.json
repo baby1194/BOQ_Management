@@ -36,7 +36,7 @@
     {
       "id": "F03",
       "follows": "T01",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Add a site task by hand",
       "about": "The parser sometimes skips a task that is written in the report. Let the user add a task themselves, with description, system, classification, source, and date.",

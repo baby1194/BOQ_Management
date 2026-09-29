@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import axios from "axios";
 import toast from "react-hot-toast";
 import { ClipboardList, Trash2 } from "lucide-react";
 import { siteWorkApi, SiteWorkItem } from "../services/api";
@@ -14,6 +15,13 @@ const SiteReports: React.FC = () => {
   const [workDate, setWorkDate] = useState("");
   const [text, setText] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
+  const [manualDescription, setManualDescription] = useState("");
+  const [manualSystem, setManualSystem] = useState("Exception");
+  const [manualClassification, setManualClassification] =
+    useState<SiteWorkItem["classification"]>("exception");
+  const [manualSource, setManualSource] = useState<SiteWorkItem["source"]>("site_report");
+  const [manualDate, setManualDate] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +80,30 @@ const SiteReports: React.FC = () => {
       toast.error(t("siteWork.processFailed"));
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const onAdd = async () => {
+    try {
+      setAdding(true);
+      const created = await siteWorkApi.create({
+        description: manualDescription,
+        system_name: manualSystem,
+        classification: manualClassification,
+        source: manualSource,
+        work_date: manualDate || undefined,
+      });
+      setItems((current) => [created, ...current]);
+      setManualDescription("");
+      toast.success(t("siteWork.added"));
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        toast.error(t("siteWork.alreadyListed"));
+      } else {
+        toast.error(t("siteWork.processFailed"));
+      }
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -160,6 +192,76 @@ const SiteReports: React.FC = () => {
           className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm disabled:opacity-50"
         >
           {processing ? t("siteWork.processing") : t("siteWork.process")}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-4">
+        <h2 className="text-lg font-medium text-gray-900">{t("siteWork.addTask")}</h2>
+        <label className="block text-sm text-gray-700">
+          {t("siteWork.description")}
+          <input
+            value={manualDescription}
+            onChange={(event) => setManualDescription(event.target.value)}
+            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+          />
+        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.system")}
+            <select
+              value={manualSystem}
+              onChange={(event) => setManualSystem(event.target.value)}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2 bg-white"
+            >
+              {systems.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.classification")}
+            <select
+              value={manualClassification}
+              onChange={(event) =>
+                setManualClassification(event.target.value as SiteWorkItem["classification"])
+              }
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2 bg-white"
+            >
+              <option value="system">{t("siteWork.systemWork")}</option>
+              <option value="exception">{t("siteWork.exception")}</option>
+              <option value="additional_work">{t("siteWork.additionalWork")}</option>
+            </select>
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.source")}
+            <select
+              value={manualSource}
+              onChange={(event) => setManualSource(event.target.value as SiteWorkItem["source"])}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2 bg-white"
+            >
+              <option value="site_report">{t("siteWork.siteReport")}</option>
+              <option value="whatsapp">{t("siteWork.whatsapp")}</option>
+            </select>
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.date")}
+            <input
+              type="date"
+              value={manualDate}
+              onChange={(event) => setManualDate(event.target.value)}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={adding || manualDescription.trim().length < 3}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm disabled:opacity-50"
+        >
+          {adding ? t("siteWork.processing") : t("siteWork.add")}
         </button>
       </div>
 

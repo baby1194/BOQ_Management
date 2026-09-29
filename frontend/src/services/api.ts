@@ -1145,6 +1145,14 @@ export const siteWorkApi = {
       })
       .then((res) => res.data),
 
+  create: (payload: {
+    description: string;
+    system_name: string;
+    classification: SiteWorkItem["classification"];
+    source: SiteWorkItem["source"];
+    work_date?: string;
+  }) => api.post<SiteWorkItem>("/site-work/", payload).then((res) => res.data),
+
   systems: () =>
     api.get<string[]>("/site-work/systems").then((res) => res.data),
 
