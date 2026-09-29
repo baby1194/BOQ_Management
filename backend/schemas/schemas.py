@@ -826,6 +826,7 @@ class ProjectCreate(ProjectBase):
 class Project(ProjectBase):
     id: str
     created_at: str
+    source_project_id: Optional[str] = None
 
     class Config:
         from_attributes = True

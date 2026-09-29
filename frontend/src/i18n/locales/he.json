@@ -50,6 +50,8 @@
   },
   "projects": {
     "currentProject": "פרויקט",
+    "linkedToMain": "נוצר מהפרויקט הראשי:",
+    "linkedProjects": "פרויקטים מקושרים:",
     "newProject": "פרויקט חדש",
     "name": "שם פרויקט",
     "namePlaceholder": "הזן שם פרויקט",

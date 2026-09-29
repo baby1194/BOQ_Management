@@ -43,6 +43,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     switchProject,
     isLoading: projectsLoading,
   } = useProject();
+  const sourceProject = activeProject?.source_project_id
+    ? projects.find((project) => project.id === activeProject.source_project_id)
+    : undefined;
+  const linkedProjects = activeProject
+    ? projects.filter((project) => project.source_project_id === activeProject.id)
+    : [];
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -215,6 +221,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 ))
               )}
             </select>
+            {sourceProject && (
+              <p className="mt-2 text-xs text-gray-600">
+                {t("projects.linkedToMain")}{" "}
+                <button
+                  type="button"
+                  onClick={() => switchProject(sourceProject.id)}
+                  className="text-blue-700 hover:underline"
+                >
+                  {sourceProject.name}
+                </button>
+              </p>
+            )}
+            {linkedProjects.length > 0 && (
+              <p className="mt-2 text-xs text-gray-600">
+                {t("projects.linkedProjects")}{" "}
+                {linkedProjects.map((project, index) => (
+                  <React.Fragment key={project.id}>
+                    {index > 0 && ", "}
+                    <button
+                      type="button"
+                      onClick={() => switchProject(project.id)}
+                      className="text-blue-700 hover:underline"
+                    >
+                      {project.name}
+                    </button>
+                  </React.Fragment>
+                ))}
+              </p>
+            )}
             <button
               onClick={() => setShowNewProjectModal(true)}
               className={`mt-2 w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors ${

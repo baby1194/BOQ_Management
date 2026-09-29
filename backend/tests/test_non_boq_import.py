@@ -17,6 +17,18 @@ def _session():
     return sessionmaker(bind=engine)()
 
 
+def test_new_project_remembers_the_main_project(tmp_path, monkeypatch):
+    from database import project_registry
+
+    monkeypatch.setattr(project_registry, "DATABASE_DIR", tmp_path)
+    monkeypatch.setattr(project_registry, "REGISTRY_FILE", tmp_path / "projects.json")
+    linked = project_registry.create_project_entry("Extras", source_project_id="main-1")
+    plain = project_registry.create_project_entry("Plain")
+    saved = {p["id"]: p for p in project_registry.list_projects()}
+    assert saved[linked["id"]]["source_project_id"] == "main-1"
+    assert "source_project_id" not in saved[plain["id"]]
+
+
 def test_select_import_rows_keeps_all_when_nothing_chosen():
     rows = [{"section_number": "A"}, {"section_number": "B"}]
     assert select_import_rows(rows, None) == rows

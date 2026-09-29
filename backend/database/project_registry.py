@@ -59,13 +59,15 @@ def get_project(project_id: str) -> Optional[Dict]:
     return None
 
 
-def create_project_entry(name: str) -> Dict:
+def create_project_entry(name: str, source_project_id: Optional[str] = None) -> Dict:
     project_id = str(uuid.uuid4())
     project = {
         "id": project_id,
         "name": name.strip(),
         "created_at": _utc_now(),
     }
+    if source_project_id:
+        project["source_project_id"] = source_project_id
     data = load_registry()
     data.setdefault("projects", []).append(project)
     save_registry(data)

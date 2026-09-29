@@ -4,7 +4,12 @@ from typing import List
 import logging
 
 from database import project_registry
-from database.database import get_db, get_project_engine, init_project_database
+from database.database import (
+    get_db,
+    get_project_engine,
+    get_project_id,
+    init_project_database,
+)
 from models import models
 from schemas import schemas
 from services.non_boq_service import (
@@ -35,6 +40,7 @@ async def list_non_boq_items(db: Session = Depends(get_db)):
 async def import_non_boq_as_project(
     body: schemas.NonBoqProjectImport,
     db: Session = Depends(get_db),
+    source_project_id: str = Depends(get_project_id),
 ):
     """Create a new project whose BOQ is the non-BOQ items, including price."""
     name = body.name.strip()
@@ -44,7 +50,7 @@ async def import_non_boq_as_project(
     if not rows:
         raise HTTPException(status_code=400, detail="No non-BOQ items to import")
 
-    project = project_registry.create_project_entry(name)
+    project = project_registry.create_project_entry(name, source_project_id=source_project_id)
     init_project_database(project["id"])
     Target = sessionmaker(bind=get_project_engine(project["id"]))
     target = Target()

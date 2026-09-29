@@ -2,6 +2,7 @@ export interface WorkspaceProject {
   id: string;
   name: string;
   created_at: string;
+  source_project_id?: string | null;
 }
 
 export interface WorkspaceProjectCreate {

@@ -148,7 +148,7 @@
     {
       "id": "F12",
       "follows": "T04",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Link the new project back to the project it came from",
       "about": "When a new project is created from non-BOQ items, remember the main project it came from and show that link. The client asked if this is possible. It is.",
