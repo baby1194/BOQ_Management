@@ -1,0 +1,214 @@
+{
+  "source": "NOTES-PHASE 3-16.09.2026_feedback.docx",
+  "created": "2026-09-28",
+  "current_task_id": null,
+  "clarified": "2026-09-29",
+  "notes": [
+    "T02 (overrun Excel) is marked DONE. No change requested.",
+    "T08 (plans) has no new note in this feedback.",
+    "Client answers on 2026-09-29 are written into F01, F07, F08, F11, F13, F15, and F16."
+  ],
+  "tasks": [
+    {
+      "id": "F01",
+      "follows": "T01",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Use Exception when a site task has no contract system",
+      "about": "The intake is not expert yet. If a job cannot be matched to a contract system, put Exception in the System column and show the row in red. If it can be matched, keep that system (Drainage, Lighting, and so on). The user can change the system afterwards.",
+      "pages": [
+        "Site reports + WhatsApp"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F02",
+      "follows": "T01",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Let the user correct the system on a site task",
+      "about": "The detected system is sometimes wrong. On each row, let the user change the system.",
+      "pages": [
+        "Site reports + WhatsApp"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F03",
+      "follows": "T01",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Add a site task by hand",
+      "about": "The parser sometimes skips a task that is written in the report. Let the user add a task themselves, with description, system, classification, source, and date.",
+      "pages": [
+        "Site reports + WhatsApp"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F04",
+      "follows": "T01",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Filter the site-task list",
+      "about": "Filter the list by system, classification, source, and date.",
+      "pages": [
+        "Site reports + WhatsApp"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F05",
+      "follows": "T01",
+      "status": "pending",
+      "priority": "question",
+      "title": "WhatsApp is pasted like a site report, for now",
+      "about": "The client asked how to attach WhatsApp. For now it is the same as a site report: paste the messages, and add photos with the photo field. They had also pictured attaching the site report as a file, and connecting the system to a WhatsApp group or contact. They are willing to try the paste flow first. A live WhatsApp connection is not part of this round.",
+      "pages": [
+        "Site reports + WhatsApp"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F06",
+      "follows": "T01",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Open Calculation Sheets filtered by the row's system",
+      "about": "Clicking the system on a site-task row opens Calculation Sheets with the list filtered to that system.",
+      "pages": [
+        "Site reports + WhatsApp",
+        "Calculation Sheets"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F07",
+      "follows": "T03",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Show the BOQ Manual badge on the quantity-check list",
+      "about": "Manual means the same purple Manual badge already shown next to the section number on BOQ Items (items that have a manual concentration entry). On the Check quantities list, show that same badge next to every such item number. The client searched for 'manual' on BOQ Items and pointed at those badges.",
+      "pages": [
+        "Calculation Sheets"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F08",
+      "follows": "T03",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Hide manual items and non-BOQ items from the quantity check",
+      "about": "Give separate options to hide items that carry the BOQ Manual badge, and to hide non-BOQ items, from the Check quantities list.",
+      "pages": [
+        "Calculation Sheets"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F09",
+      "follows": "T03",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Open the Concentration sheet from a quantity-check row",
+      "about": "Clicking an item in the Check quantities list opens that item's Concentration sheet.",
+      "pages": [
+        "Calculation Sheets",
+        "Concentration Sheets"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F10",
+      "follows": "T03",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Keep the quantity-check list open across pages",
+      "about": "The mismatch list should stay visible when the user goes to other sheets, so they can work through the errors. Give a way to close it.",
+      "pages": [
+        "Calculation Sheets",
+        "Concentration Sheets",
+        "BOQ Items"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F11",
+      "follows": "T04",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Show which non-BOQ items were moved to a new project",
+      "about": "The usual action sends all non-BOQ items to one new project, but some items must be left out. After an item is sent, show a check on that row in the original project's list. Rows that were not sent stay unmarked.",
+      "pages": [
+        "Dashboard"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F12",
+      "follows": "T04",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Link the new project back to the project it came from",
+      "about": "When a new project is created from non-BOQ items, remember the main project it came from and show that link. The client asked if this is possible. It is.",
+      "pages": [
+        "Dashboard",
+        "Project switcher"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F13",
+      "follows": "T04",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Copy the related calculation sheets into the new project",
+      "about": "A calculation sheet often contains both contract items and non-BOQ items. The new project receives only the non-BOQ items from those sheets. Those sheets must already appear under Calculation Sheets in the new project, ready to use.",
+      "pages": [
+        "Dashboard",
+        "Calculation Sheets"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F14",
+      "follows": "T04",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Keep the Dashboard non-BOQ list closed until opened",
+      "about": "The Non-BOQ list on the Dashboard currently opens expanded, and the long list is in the way. Keep it closed until the user opens it. The client marked the list header in the screenshot.",
+      "pages": [
+        "Dashboard"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F15",
+      "follows": "T07",
+      "status": "pending",
+      "priority": "bug",
+      "title": "Print calculation sheets the way Excel prints them",
+      "about": "Confirmed. Print only the block of cells that have data on the Calculation sheet, right to left, the way the Excel file is laid out. Landscape or portrait and the margins stay as choices. Do not print the empty grid. Hebrew must read in the right direction, and quantities must not show junk decimals such as 13.850000000000001.",
+      "pages": [
+        "Calculation Sheets",
+        "FATINA export",
+        "FATINA INVOICE"
+      ],
+      "nice_to_have": false
+    },
+    {
+      "id": "F16",
+      "follows": "T05",
+      "status": "pending",
+      "priority": "feature",
+      "title": "Find an element from concentration descriptions",
+      "about": "The drawing-list Element column is often empty for now, and when it is filled it holds the element name or another name. The names to use today are in the concentration sheet Description and Work Description columns. Example: section 1.02.01.0736 has entries DC-36 and DC-02 in Description, and the same names inside the Work Description. For a chosen element, show its contract items and which of them have been submitted.",
+      "pages": [
+        "Concentration Sheets",
+        "List of Drawings"
+      ],
+      "nice_to_have": false
+    }
+  ]
+}
