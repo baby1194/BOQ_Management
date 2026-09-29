@@ -186,7 +186,7 @@
     {
       "id": "F15",
       "follows": "T07",
-      "status": "pending",
+      "status": "completed",
       "priority": "bug",
       "title": "Print calculation sheets the way Excel prints them",
       "about": "Confirmed. Print only the block of cells that have data on the Calculation sheet, right to left, the way the Excel file is laid out. Landscape or portrait and the margins stay as choices. Do not print the empty grid. Hebrew must read in the right direction, and quantities must not show junk decimals such as 13.850000000000001.",
