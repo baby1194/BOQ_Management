@@ -103,7 +103,9 @@
     "description": "Description",
     "add": "Add",
     "added": "Task added",
-    "alreadyListed": "This task is already listed"
+    "alreadyListed": "This task is already listed",
+    "all": "All",
+    "noMatches": "No tasks match these filters."
   },
   "auth": {
     "signIn": "Sign In",

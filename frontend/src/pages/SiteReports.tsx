@@ -22,6 +22,10 @@ const SiteReports: React.FC = () => {
   const [manualSource, setManualSource] = useState<SiteWorkItem["source"]>("site_report");
   const [manualDate, setManualDate] = useState("");
   const [adding, setAdding] = useState(false);
+  const [filterSystem, setFilterSystem] = useState("");
+  const [filterClassification, setFilterClassification] = useState("");
+  const [filterSource, setFilterSource] = useState("");
+  const [filterDate, setFilterDate] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +130,18 @@ const SiteReports: React.FC = () => {
       toast.error(t("siteWork.processFailed"));
     }
   };
+
+  const systemFilterOptions = Array.from(
+    new Set([...systems, ...items.map((item) => item.system_name || "").filter(Boolean)])
+  );
+
+  const visibleItems = items.filter((item) => {
+    if (filterSystem && (item.system_name || "") !== filterSystem) return false;
+    if (filterClassification && item.classification !== filterClassification) return false;
+    if (filterSource && item.source !== filterSource) return false;
+    if (filterDate && (item.work_date || "") !== filterDate) return false;
+    return true;
+  });
 
   return (
     <div className="p-6 space-y-6">
@@ -265,6 +281,60 @@ const SiteReports: React.FC = () => {
         </button>
       </div>
 
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex flex-wrap gap-4">
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.system")}
+            <select
+              value={filterSystem}
+              onChange={(event) => setFilterSystem(event.target.value)}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2 bg-white"
+            >
+              <option value="">{t("siteWork.all")}</option>
+              {systemFilterOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.classification")}
+            <select
+              value={filterClassification}
+              onChange={(event) => setFilterClassification(event.target.value)}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2 bg-white"
+            >
+              <option value="">{t("siteWork.all")}</option>
+              <option value="system">{t("siteWork.systemWork")}</option>
+              <option value="exception">{t("siteWork.exception")}</option>
+              <option value="additional_work">{t("siteWork.additionalWork")}</option>
+            </select>
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.source")}
+            <select
+              value={filterSource}
+              onChange={(event) => setFilterSource(event.target.value)}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2 bg-white"
+            >
+              <option value="">{t("siteWork.all")}</option>
+              <option value="site_report">{t("siteWork.siteReport")}</option>
+              <option value="whatsapp">{t("siteWork.whatsapp")}</option>
+            </select>
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.date")}
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(event) => setFilterDate(event.target.value)}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2"
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
@@ -285,14 +355,14 @@ const SiteReports: React.FC = () => {
                   {t("projects.loading")}
                 </td>
               </tr>
-            ) : items.length === 0 ? (
+            ) : visibleItems.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
-                  {t("siteWork.empty")}
+                  {items.length === 0 ? t("siteWork.empty") : t("siteWork.noMatches")}
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              visibleItems.map((item) => {
                 const isException =
                   item.classification === "exception" ||
                   (item.system_name || "").trim().toLowerCase() === "exception";

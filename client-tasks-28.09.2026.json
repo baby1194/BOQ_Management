@@ -48,7 +48,7 @@
     {
       "id": "F04",
       "follows": "T01",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Filter the site-task list",
       "about": "Filter the list by system, classification, source, and date.",
