@@ -3,11 +3,16 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from database.database import get_db, get_project_id, get_project_upload_dir
 from models import models
-from services.site_work_parser import parse_work_lines
+from services.site_work_parser import (
+    EXCEPTION_SYSTEM,
+    classification_after_system_change,
+    parse_work_lines,
+)
 
 router = APIRouter()
 
@@ -68,6 +73,18 @@ async def _save_photos(project_id: str, photos: List[UploadFile]) -> List[str]:
     return saved
 
 
+class SiteWorkSystemUpdate(BaseModel):
+    system_name: str = Field(..., min_length=1, max_length=200)
+
+
+@router.get("/systems")
+def list_site_work_systems(db: Session = Depends(get_db)):
+    names = _known_systems(db)
+    if EXCEPTION_SYSTEM not in names:
+        names = [EXCEPTION_SYSTEM, *names]
+    return names
+
+
 @router.get("/")
 def list_site_work(db: Session = Depends(get_db)):
     items = (
@@ -122,6 +139,25 @@ async def ingest_site_work(
         "skipped_duplicates": skipped,
         "ignored_lines": max(0, len([ln for ln in text.splitlines() if ln.strip()]) - len(parsed) - skipped),
     }
+
+
+@router.patch("/{item_id}")
+def update_site_work_system(
+    item_id: int,
+    payload: SiteWorkSystemUpdate,
+    db: Session = Depends(get_db),
+):
+    item = db.query(models.SiteWorkItem).filter(models.SiteWorkItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Site work item not found")
+    system_name = payload.system_name.strip()
+    if not system_name:
+        raise HTTPException(status_code=400, detail="System is required")
+    item.system_name = system_name
+    item.classification = classification_after_system_change(item.classification, system_name)
+    db.commit()
+    db.refresh(item)
+    return _to_dict(item)
 
 
 @router.delete("/{item_id}")

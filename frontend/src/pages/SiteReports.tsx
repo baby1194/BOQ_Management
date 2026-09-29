@@ -7,6 +7,7 @@ import { siteWorkApi, SiteWorkItem } from "../services/api";
 const SiteReports: React.FC = () => {
   const { t } = useTranslation();
   const [items, setItems] = useState<SiteWorkItem[]>([]);
+  const [systems, setSystems] = useState<string[]>(["Exception"]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [source, setSource] = useState<"site_report" | "whatsapp">("site_report");
@@ -17,7 +18,12 @@ const SiteReports: React.FC = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      setItems(await siteWorkApi.getAll());
+      const [rows, names] = await Promise.all([
+        siteWorkApi.getAll(),
+        siteWorkApi.systems(),
+      ]);
+      setItems(rows);
+      setSystems(names.length ? names : ["Exception"]);
     } catch {
       toast.error(t("siteWork.loadFailed"));
     } finally {
@@ -66,6 +72,16 @@ const SiteReports: React.FC = () => {
       toast.error(t("siteWork.processFailed"));
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const onSystemChange = async (item: SiteWorkItem, systemName: string) => {
+    if (!systemName || systemName === (item.system_name || "")) return;
+    try {
+      const updated = await siteWorkApi.updateSystem(item.id, systemName);
+      setItems((current) => current.map((row) => (row.id === item.id ? updated : row)));
+    } catch {
+      toast.error(t("siteWork.processFailed"));
     }
   };
 
@@ -188,7 +204,24 @@ const SiteReports: React.FC = () => {
                   }
                 >
                   <td className="px-3 py-2">{item.description}</td>
-                  <td className="px-3 py-2">{item.system_name || "—"}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      aria-label={t("siteWork.changeSystem")}
+                      value={item.system_name || ""}
+                      onChange={(event) => onSystemChange(item, event.target.value)}
+                      className="border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-900"
+                    >
+                      {item.system_name &&
+                        !systems.some(
+                          (name) => name.toLowerCase() === item.system_name?.toLowerCase()
+                        ) && <option value={item.system_name}>{item.system_name}</option>}
+                      {systems.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-3 py-2">{classificationLabel(item.classification)}</td>
                   <td className="px-3 py-2">{sourceLabel(item.source)}</td>
                   <td className="px-3 py-2">{item.work_date || "—"}</td>

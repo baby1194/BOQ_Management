@@ -1145,6 +1145,14 @@ export const siteWorkApi = {
       })
       .then((res) => res.data),
 
+  systems: () =>
+    api.get<string[]>("/site-work/systems").then((res) => res.data),
+
+  updateSystem: (id: number, systemName: string) =>
+    api
+      .patch<SiteWorkItem>(`/site-work/${id}`, { system_name: systemName })
+      .then((res) => res.data),
+
   delete: (id: number) =>
     api.delete(`/site-work/${id}`).then((res) => res.data),
 };

@@ -1,4 +1,4 @@
-from services.site_work_parser import parse_work_lines
+from services.site_work_parser import classification_after_system_change, parse_work_lines
 
 
 def test_categorizes_contract_systems_and_dedupes():
@@ -32,6 +32,12 @@ def test_prefers_system_name_already_on_the_contract():
 def test_ignores_greetings():
     items = parse_work_lines("Thanks\nhello", known_systems=["Lighting"])
     assert items == []
+
+
+def test_changing_exception_to_a_contract_system():
+    assert classification_after_system_change("exception", "Drainage") == "system"
+    assert classification_after_system_change("system", "Exception") == "exception"
+    assert classification_after_system_change("additional_work", "Lighting") == "additional_work"
 
 
 def test_uncategorized_job_is_exception():

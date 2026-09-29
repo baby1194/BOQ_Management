@@ -68,6 +68,17 @@ def _classification(line: str, system_name: Optional[str]) -> Optional[str]:
     return None
 
 
+def classification_after_system_change(current: str, system_name: str) -> str:
+    """Changing the system clears an uncategorized Exception, and keeps additional work."""
+    if (system_name or "").strip().casefold() == EXCEPTION_SYSTEM.casefold():
+        if current == "additional_work":
+            return "additional_work"
+        return "exception"
+    if current == "exception":
+        return "system"
+    return current
+
+
 def parse_work_lines(text: str, known_systems: Optional[Iterable[str]] = None) -> List[dict]:
     """Keep work lines only, and collapse the same task inside one ingest."""
     systems = list(known_systems or [])

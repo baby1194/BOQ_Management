@@ -24,7 +24,7 @@
     {
       "id": "F02",
       "follows": "T01",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Let the user correct the system on a site task",
       "about": "The detected system is sometimes wrong. On each row, let the user change the system.",
