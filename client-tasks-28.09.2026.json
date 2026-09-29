@@ -161,7 +161,7 @@
     {
       "id": "F13",
       "follows": "T04",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Copy the related calculation sheets into the new project",
       "about": "A calculation sheet often contains both contract items and non-BOQ items. The new project receives only the non-BOQ items from those sheets. Those sheets must already appear under Calculation Sheets in the new project, ready to use.",

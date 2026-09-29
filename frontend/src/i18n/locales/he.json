@@ -660,7 +660,7 @@
     "sendToNewProject": "שלח סעיף זה לפרויקט החדש",
     "nonBoqSentTo": "נשלח לפרויקט \"{{name}}\"",
     "importNonBoqProjectName": "שם הפרויקט החדש",
-    "importNonBoqDone": "נוצר פרויקט \"{{name}}\" עם {{count}} סעיפים. ל-{{missing}} עדיין אין מחיר (שורה 7 באקסל).",
+    "importNonBoqDone": "נוצר פרויקט \"{{name}}\" עם {{count}} סעיפים ו-{{sheets}} דפי חישוב. ל-{{missing}} עדיין אין מחיר (שורה 7 באקסל).",
     "importNonBoqFailed": "ייבוא הפריטים שאינם ב-BOQ נכשל",
     "nonBoqPriceHint": "הזינו מחיר יחידה בשורה 7 של עמודת הסעיף, ואז עקבו אחרי הדף.",
     "exportingNonBoqItems": "מייצא...",

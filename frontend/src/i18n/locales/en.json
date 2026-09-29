@@ -660,7 +660,7 @@
     "sendToNewProject": "Send this item to the new project",
     "nonBoqSentTo": "Sent to project \"{{name}}\"",
     "importNonBoqProjectName": "New project name",
-    "importNonBoqDone": "Created project \"{{name}}\" with {{count}} items. {{missing}} still have no price (Excel row 7).",
+    "importNonBoqDone": "Created project \"{{name}}\" with {{count}} items and {{sheets}} calculation sheets. {{missing}} still have no price (Excel row 7).",
     "importNonBoqFailed": "Failed to import non-BOQ items",
     "nonBoqPriceHint": "Put the unit price in Excel row 7 of the item column, then track the sheet.",
     "exportingNonBoqItems": "Exporting...",

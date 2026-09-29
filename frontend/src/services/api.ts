@@ -206,6 +206,7 @@ export const nonBoqApi = {
         project_id: string;
         project_name: string;
         item_count: number;
+        calculation_sheet_count: number;
         missing_price: number;
       }>("/non-boq-items/import-as-project", {
         name,

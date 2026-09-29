@@ -12,6 +12,7 @@ from database.database import (
 )
 from models import models
 from schemas import schemas
+from services.non_boq_project_copy import fill_non_boq_project
 from services.non_boq_service import (
     list_non_boq_items_with_calc_sheets,
     mark_non_boq_items_moved,
@@ -55,21 +56,7 @@ async def import_non_boq_as_project(
     Target = sessionmaker(bind=get_project_engine(project["id"]))
     target = Target()
     try:
-        for index, row in enumerate(rows):
-            item = models.BOQItem(
-                display_order=index,
-                serial_number=index + 1,
-                section_number=row["section_number"],
-                description=row["description"],
-                unit=row["unit"],
-                original_contract_quantity=row["quantity"],
-                price=row["price"],
-                total_contract_sum=row["total"],
-                estimated_quantity=row["quantity"],
-                total_estimate=row["total"],
-                notes="Imported from non-BOQ calculation sheets",
-            )
-            target.add(item)
+        filled = fill_non_boq_project(db, target, rows)
         target.commit()
     except Exception:
         target.rollback()
@@ -85,6 +72,7 @@ async def import_non_boq_as_project(
         "project_id": project["id"],
         "project_name": project["name"],
         "item_count": len(rows),
+        "calculation_sheet_count": filled["calculation_sheet_count"],
         "missing_price": missing_price,
     }
 

@@ -326,6 +326,7 @@ const Dashboard: React.FC = () => {
         t("dashboard.importNonBoqDone", {
           name: result.project_name,
           count: result.item_count,
+          sheets: result.calculation_sheet_count,
           missing: result.missing_price,
         })
       );
