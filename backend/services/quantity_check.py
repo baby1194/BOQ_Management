@@ -1,6 +1,6 @@
 """Compare calculation-sheet totals with the quantities stored on BOQ items."""
 
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 TOLERANCE = 0.01
 
@@ -14,6 +14,7 @@ def _round3(value: float) -> float:
 def quantity_mismatches(
     sheet_totals: SheetTotals,
     boq_totals: SheetTotals,
+    manual_sections: Optional[Iterable[str]] = None,
 ) -> List[dict]:
     """Rows where sheet calculated or submitted totals differ from the BOQ.
 
@@ -21,6 +22,7 @@ def quantity_mismatches(
     Difference is sheet minus system, rounded to 3 decimals.
     A row is a mismatch when either absolute difference is at least 0.01.
     """
+    manual = {section for section in (manual_sections or []) if section}
     rows = []
     for section in sorted(set(sheet_totals) | set(boq_totals)):
         sheet_calculated, sheet_submitted = sheet_totals.get(section, (0.0, 0.0))
@@ -39,6 +41,7 @@ def quantity_mismatches(
                 "system_submitted": _round3(system_submitted),
                 "submitted_diff": submitted_diff,
                 "status": "שגיאה/חריגה",
+                "has_manual_entries": section in manual,
             }
         )
     return rows
@@ -61,4 +64,21 @@ def mismatches_from_db(db) -> List[dict]:
             float(item.estimated_quantity or 0),
             float(item.quantity_submitted or 0),
         )
-    return quantity_mismatches(sheet_totals, boq_totals)
+
+    manual_sections = {
+        section
+        for (section,) in db.query(models.BOQItem.section_number)
+        .join(
+            models.ConcentrationSheet,
+            models.ConcentrationSheet.boq_item_id == models.BOQItem.id,
+        )
+        .join(
+            models.ConcentrationEntry,
+            models.ConcentrationEntry.concentration_sheet_id == models.ConcentrationSheet.id,
+        )
+        .filter(models.ConcentrationEntry.is_manual == True)
+        .distinct()
+        .all()
+        if section
+    }
+    return quantity_mismatches(sheet_totals, boq_totals, manual_sections)

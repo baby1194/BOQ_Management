@@ -24,6 +24,15 @@ def test_difference_under_one_hundredth_is_ok():
     assert quantity_mismatches(sheets, boq) == []
 
 
+def test_manual_badge_follows_the_boq_item():
+    rows = quantity_mismatches(
+        {"1.08.10.3296": (10.0, 1.0)},
+        {"1.08.10.3296": (8.0, 1.0)},
+        manual_sections={"1.08.10.3296"},
+    )
+    assert rows[0]["has_manual_entries"] is True
+
+
 def test_sheet_item_missing_from_boq_is_a_mismatch():
     rows = quantity_mismatches({"99.1": (12.5, 0.0)}, {})
     assert rows[0]["section_number"] == "99.1"

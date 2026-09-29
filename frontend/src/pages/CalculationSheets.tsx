@@ -84,6 +84,7 @@ const CalculationSheets: React.FC = () => {
         system_submitted: number;
         submitted_diff: number;
         status: string;
+        has_manual_entries?: boolean;
       }[]
     | null
   >(null);
@@ -919,7 +920,14 @@ const CalculationSheets: React.FC = () => {
               <tbody>
                 {quantityMismatches.map((row) => (
                   <tr key={row.section_number} className="border-t border-gray-100">
-                    <td className="px-2 py-1">{row.section_number}</td>
+                    <td className="px-2 py-1">
+                      <span>{row.section_number}</span>
+                      {row.has_manual_entries && (
+                        <span className="ms-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {t("boq.manualEntry")}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-1">{formatNumber(row.sheet_calculated)}</td>
                     <td className="px-2 py-1">{formatNumber(row.system_calculated)}</td>
                     <td className="px-2 py-1">{formatNumber(row.calculated_diff)}</td>

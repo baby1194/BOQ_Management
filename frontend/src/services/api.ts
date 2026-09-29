@@ -397,6 +397,7 @@ export const calculationSheetsApi = {
           system_submitted: number;
           submitted_diff: number;
           status: string;
+          has_manual_entries?: boolean;
         }[];
       }>("/calculation-sheets/quantity-check")
       .then((res) => res.data),

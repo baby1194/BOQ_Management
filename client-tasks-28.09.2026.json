@@ -85,7 +85,7 @@
     {
       "id": "F07",
       "follows": "T03",
-      "status": "pending",
+      "status": "completed",
       "priority": "feature",
       "title": "Show the BOQ Manual badge on the quantity-check list",
       "about": "Manual means the same purple Manual badge already shown next to the section number on BOQ Items (items that have a manual concentration entry). On the Check quantities list, show that same badge next to every such item number. The client searched for 'manual' on BOQ Items and pointed at those badges.",
