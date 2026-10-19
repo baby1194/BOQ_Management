@@ -12,7 +12,8 @@ from utils.quantity_utils import QUANTITY_DECIMALS, round_quantity
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
-INVOICE_DESCRIPTION_ROW = 2  # Excel row 3 (0-based)
+INVOICE_DESCRIPTION_ROW = 2  # Excel row 3 (0-based) — short invoice title, not the item description
+ITEM_DESCRIPTION_ROW = 21  # Excel row 22 (0-based) — BOQ item description
 SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
 # Price for items that are not on the contract. Same item column, the row under the estimated quantity.
 NON_BOQ_PRICE_ROW = 6  # Excel row 7 (0-based)
@@ -188,14 +189,43 @@ def read_entry_submitted_invoice_id(df, col_index: int) -> Optional[str]:
     return None
 
 
+def _read_text_cell(df, row_index: int, col_index: int) -> Optional[str]:
+    if row_index < 0 or col_index < 0 or row_index >= df.shape[0] or col_index >= df.shape[1]:
+        return None
+    cell = df.iloc[row_index, col_index]
+    if pd.notna(cell):
+        text = str(cell).strip()
+        if text and text.lower() not in _INVALID_PERIOD_STRINGS:
+            return text
+    return None
+
+
+def _column_has_section_number(df, col_index: int) -> bool:
+    section_number = _read_text_cell(df, SECTION_NUMBER_ROW, col_index)
+    return bool(section_number)
+
+
 def read_entry_invoice_description(df, col_index: int) -> Optional[str]:
-    """Read item invoice description from row 3 of an item column."""
-    if col_index < df.shape[1]:
-        cell = df.iloc[INVOICE_DESCRIPTION_ROW, col_index]
-        if pd.notna(cell):
-            text = str(cell).strip()
-            if text and text.lower() not in _INVALID_PERIOD_STRINGS:
-                return text
+    """Read the short invoice title from row 3 of an item column."""
+    return _read_text_cell(df, INVOICE_DESCRIPTION_ROW, col_index)
+
+
+def read_entry_item_description(df, col_index: int) -> Optional[str]:
+    """Read the BOQ item description from row 22 of an item column.
+
+    Row 3 is only the short invoice title. A merged description cell keeps its
+    text in the leftmost column of the merge, so an empty item cell falls back
+    to the columns before it until the previous item.
+    """
+    text = _read_text_cell(df, ITEM_DESCRIPTION_ROW, col_index)
+    if text:
+        return text
+    for previous in range(col_index - 1, FIRST_ITEM_COLUMN_INDEX - 2, -1):
+        if _column_has_section_number(df, previous):
+            break
+        text = _read_text_cell(df, ITEM_DESCRIPTION_ROW, previous)
+        if text:
+            return text
     return None
 
 

@@ -173,6 +173,8 @@ class CalculationEntry(Base):
     section_number = Column(String(100), nullable=False)
     current_invoice_id = Column(String(100), nullable=True)
     invoice_description = Column(Text, nullable=True)
+    # Excel row 22 of the item column. Row 3 is the short invoice title.
+    item_description = Column(Text, nullable=True)
     estimated_quantity = Column(Float, default=0.0)
     quantity_submitted = Column(Float, default=0.0)
     submission_breakdown = Column(JSON, nullable=True)

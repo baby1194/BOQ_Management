@@ -71,6 +71,7 @@ def _copy_calculation_sheets(source: Session, target: Session, sections: set[str
                     section_number=entry.section_number,
                     current_invoice_id=entry.current_invoice_id,
                     invoice_description=entry.invoice_description,
+                    item_description=entry.item_description,
                     estimated_quantity=entry.estimated_quantity,
                     quantity_submitted=entry.quantity_submitted,
                     submission_breakdown=copy.deepcopy(entry.submission_breakdown),

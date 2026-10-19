@@ -402,6 +402,35 @@ def test_read_entry_invoice_description_from_row_3():
     assert read_entry_invoice_description(df, col) == "Invoice desc for 07"
 
 
+def test_read_entry_item_description_from_row_22_not_row_3():
+    from utils.calculation_sheet_utils import read_entry_item_description
+
+    df = pd.DataFrame([[None] * 12 for _ in range(30)])
+    col = 10
+    df.iloc[2, col] = "short title from row 3"
+    assert read_entry_item_description(df, col) is None
+
+    df.iloc[21, col] = "  full item description  "
+    assert read_entry_item_description(df, col) == "full item description"
+
+
+def test_read_entry_item_description_uses_merged_cell_to_the_left():
+    from utils.calculation_sheet_utils import read_entry_item_description
+
+    df = pd.DataFrame([[None] * 12 for _ in range(30)])
+    df.iloc[4, 10] = "99.01"
+    df.iloc[21, 9] = "merged description"
+    assert read_entry_item_description(df, 10) == "merged description"
+
+    df.iloc[21, 10] = "own description"
+    assert read_entry_item_description(df, 10) == "own description"
+
+    df.iloc[21, 10] = None
+    df.iloc[4, 9] = "99.00"
+    df.iloc[21, 9] = "previous item description"
+    assert read_entry_item_description(df, 10) is None
+
+
 def test_calc_entry_is_submitted_requires_invoice_and_quantity():
     from types import SimpleNamespace
 

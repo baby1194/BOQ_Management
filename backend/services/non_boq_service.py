@@ -120,8 +120,70 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
     return rows
 
 
+def _item_descriptions_from_workbook(path: str) -> dict[str, str]:
+    """Section number to Excel row 22 text. Empty when the file cannot be read."""
+    try:
+        from services.excel_service import ExcelService
+
+        sheet_data = ExcelService().read_calculation_sheet_data(path)
+    except Exception as exc:
+        logger.warning("Could not read item descriptions from %s: %s", path, exc)
+        return {}
+
+    descriptions: dict[str, str] = {}
+    for entry in sheet_data.get("entries") or []:
+        section = _normalize_section_number(entry.get("section_number"))
+        text = (entry.get("item_description") or "").strip()
+        if section and text and section not in descriptions:
+            descriptions[section] = text
+    return descriptions
+
+
+def backfill_item_descriptions(db: Session) -> int:
+    """Store Excel row 22 on entries that were imported before that cell was kept."""
+    sections = {
+        item.section_number
+        for item in db.query(models.NonBoqItem).all()
+    }
+    if not sections:
+        return 0
+
+    rows = (
+        db.query(models.CalculationEntry, models.CalculationSheet)
+        .join(
+            models.CalculationSheet,
+            models.CalculationEntry.calculation_sheet_id == models.CalculationSheet.id,
+        )
+        .filter(models.CalculationEntry.section_number.in_(sections))
+        .all()
+    )
+    missing = [
+        (entry, sheet)
+        for entry, sheet in rows
+        if not (entry.item_description or "").strip() and sheet.source_file_path
+    ]
+    if not missing:
+        return 0
+
+    by_path: dict[str, dict[str, str]] = {}
+    updated = 0
+    for entry, sheet in missing:
+        path = sheet.source_file_path
+        if path not in by_path:
+            by_path[path] = _item_descriptions_from_workbook(path)
+        section = _normalize_section_number(entry.section_number)
+        text = by_path[path].get(section or "", "")
+        if text:
+            entry.item_description = text
+            updated += 1
+    if updated:
+        db.commit()
+    return updated
+
+
 def non_boq_import_rows(db: Session) -> list[dict]:
     """Calculated quantity, description, and price for every non-BOQ section."""
+    backfill_item_descriptions(db)
     sections = {
         item.section_number
         for item in db.query(models.NonBoqItem).all()
@@ -135,15 +197,18 @@ def non_boq_import_rows(db: Session) -> list[dict]:
             models.CalculationEntry.calculation_sheet_id == models.CalculationSheet.id,
         )
         .filter(models.CalculationEntry.section_number.in_(sections))
+        .order_by(
+            models.CalculationSheet.calculation_sheet_no.asc(),
+            models.CalculationEntry.id.asc(),
+        )
         .all()
     )
     records = []
-    for entry, sheet in entries:
-        description = (entry.invoice_description or "").strip() or (sheet.description or "")
+    for entry, _sheet in entries:
         records.append(
             {
                 "section_number": entry.section_number,
-                "description": description,
+                "description": (entry.item_description or "").strip(),
                 "estimated_quantity": entry.estimated_quantity,
                 "unit_price": entry.unit_price,
             }
