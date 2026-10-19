@@ -747,6 +747,11 @@ class NonBoqProjectImport(BaseModel):
     section_numbers: Optional[List[str]] = None
 
 
+class NonBoqProjectAdd(BaseModel):
+    target_project_id: str = Field(..., min_length=1)
+    section_numbers: Optional[List[str]] = None
+
+
 # Project Info Files (standalone reference files)
 class ProjectInfoFileCreate(BaseModel):
     no: Optional[int] = Field(None, ge=1, description="1-based insert position; omit to append")

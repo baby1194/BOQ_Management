@@ -213,6 +213,21 @@ export const nonBoqApi = {
         section_numbers: sectionNumbers,
       })
       .then((res) => res.data),
+
+  addToProject: (targetProjectId: string, sectionNumbers: string[]) =>
+    api
+      .post<{
+        project_id: string;
+        project_name: string;
+        item_count: number;
+        skipped_count: number;
+        calculation_sheet_count: number;
+        missing_price: number;
+      }>("/non-boq-items/add-to-project", {
+        target_project_id: targetProjectId,
+        section_numbers: sectionNumbers,
+      })
+      .then((res) => res.data),
 };
 
 // Concentration Sheets API

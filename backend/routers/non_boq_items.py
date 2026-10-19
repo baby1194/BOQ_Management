@@ -12,7 +12,7 @@ from database.database import (
 )
 from models import models
 from schemas import schemas
-from services.non_boq_project_copy import fill_non_boq_project
+from services.non_boq_project_copy import add_non_boq_items_to_project, fill_non_boq_project
 from services.non_boq_service import (
     list_non_boq_items_with_calc_sheets,
     mark_non_boq_items_moved,
@@ -73,6 +73,57 @@ async def import_non_boq_as_project(
         "project_name": project["name"],
         "item_count": len(rows),
         "calculation_sheet_count": filled["calculation_sheet_count"],
+        "missing_price": missing_price,
+    }
+
+
+@router.post("/add-to-project")
+async def add_non_boq_to_existing_project(
+    body: schemas.NonBoqProjectAdd,
+    db: Session = Depends(get_db),
+    source_project_id: str = Depends(get_project_id),
+):
+    """Add selected non-BOQ items to a project that already exists."""
+    target_id = body.target_project_id.strip()
+    if not target_id or target_id == source_project_id:
+        raise HTTPException(status_code=400, detail="same_project")
+    project = project_registry.get_project(target_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="project_not_found")
+
+    rows = select_import_rows(non_boq_import_rows(db), body.section_numbers)
+    if not rows:
+        raise HTTPException(status_code=400, detail="no_items")
+
+    init_project_database(project["id"])
+    Target = sessionmaker(bind=get_project_engine(project["id"]))
+    target = Target()
+    try:
+        added = add_non_boq_items_to_project(db, target, rows)
+        if added["item_count"] == 0:
+            target.rollback()
+        else:
+            target.commit()
+    except Exception:
+        target.rollback()
+        raise
+    finally:
+        target.close()
+
+    if added["item_count"] == 0:
+        raise HTTPException(status_code=400, detail="already_in_project")
+
+    mark_non_boq_items_moved(db, added["added_sections"], project["id"])
+    db.commit()
+
+    added_rows = [row for row in rows if row["section_number"] in set(added["added_sections"])]
+    missing_price = sum(1 for row in added_rows if row["missing_price"])
+    return {
+        "project_id": project["id"],
+        "project_name": project["name"],
+        "item_count": added["item_count"],
+        "skipped_count": added["skipped_count"],
+        "calculation_sheet_count": added["calculation_sheet_count"],
         "missing_price": missing_price,
     }
 

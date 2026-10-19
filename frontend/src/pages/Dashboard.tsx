@@ -60,6 +60,7 @@ const Dashboard: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("all");
   const { activeProjectId, projects, refreshProjects } = useProject();
   const [nonBoqProjectName, setNonBoqProjectName] = useState("");
+  const [targetProjectId, setTargetProjectId] = useState("");
   const [importingNonBoq, setImportingNonBoq] = useState(false);
 
   const projectId =
@@ -129,6 +130,29 @@ const Dashboard: React.FC = () => {
       ),
     );
   }, [nonBoqItems]);
+
+  const subProjects = projects.filter(
+    (project) =>
+      project.id !== projectId &&
+      (project.source_project_id === projectId ||
+        nonBoqItems.some((item) => item.moved_to_project_id === project.id)),
+  );
+
+  useEffect(() => {
+    const options = projects.filter(
+      (project) =>
+        project.id !== projectId &&
+        (project.source_project_id === projectId ||
+          nonBoqItems.some((item) => item.moved_to_project_id === project.id)),
+    );
+    if (options.length === 0) {
+      setTargetProjectId("");
+      return;
+    }
+    setTargetProjectId((current) =>
+      options.some((project) => project.id === current) ? current : options[0].id,
+    );
+  }, [projects, nonBoqItems, projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -302,6 +326,39 @@ const Dashboard: React.FC = () => {
       else next.add(sectionNumber);
       return next;
     });
+  };
+
+  const nonBoqAddError = (error: any) => {
+    const detail = error?.response?.data?.detail;
+    if (detail === "already_in_project") return t("dashboard.addNonBoqAlreadyThere");
+    if (detail === "no_items") return t("dashboard.addNonBoqNoItems");
+    if (detail === "same_project") return t("dashboard.addNonBoqSameProject");
+    return t("dashboard.addNonBoqToProjectFailed");
+  };
+
+  const handleAddNonBoqToProject = async () => {
+    if (!targetProjectId || selectedNonBoq.size === 0) return;
+    setImportingNonBoq(true);
+    try {
+      const result = await nonBoqApi.addToProject(
+        targetProjectId,
+        Array.from(selectedNonBoq),
+      );
+      setNonBoqItems(await nonBoqApi.getAll());
+      toast.success(
+        t("dashboard.addNonBoqToProjectDone", {
+          name: result.project_name,
+          count: result.item_count,
+          skipped: result.skipped_count,
+          sheets: result.calculation_sheet_count,
+          missing: result.missing_price,
+        }),
+      );
+    } catch (error) {
+      toast.error(nonBoqAddError(error));
+    } finally {
+      setImportingNonBoq(false);
+    }
   };
 
   const handleImportNonBoqProject = async () => {
@@ -805,10 +862,40 @@ const Dashboard: React.FC = () => {
             </button>
             {nonBoqItems.length > 0 && (
               <div
-                className={`flex items-center gap-2 shrink-0 ${
+                className={`flex items-center gap-2 shrink-0 flex-wrap ${
                   isRTL ? "flex-row-reverse" : ""
                 }`}
               >
+                <select
+                  value={targetProjectId}
+                  onChange={(event) => setTargetProjectId(event.target.value)}
+                  disabled={subProjects.length === 0 || importingNonBoq}
+                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm max-w-[14rem] bg-white"
+                  title={t("dashboard.addNonBoqToProjectHint")}
+                >
+                  {subProjects.length === 0 ? (
+                    <option value="">{t("dashboard.addNonBoqNoSubProject")}</option>
+                  ) : (
+                    subProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleAddNonBoqToProject}
+                  disabled={
+                    importingNonBoq ||
+                    !targetProjectId ||
+                    selectedNonBoq.size === 0
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800 disabled:opacity-50"
+                  title={t("dashboard.addNonBoqToProjectHint")}
+                >
+                  {t("dashboard.addNonBoqToProject")} ({selectedNonBoq.size})
+                </button>
                 <input
                   value={nonBoqProjectName}
                   onChange={(event) => setNonBoqProjectName(event.target.value)}
