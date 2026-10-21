@@ -7,11 +7,9 @@ from utils.calculation_sheet_utils import FIRST_ITEM_COLUMN_INDEX
 
 TOLERANCE = 0.01
 
-# Row 2 of an item column is its invoice number. Column C of that row is the
-# sheet invoice, used only when the sheet has a single item.
-# Row 5 is the section number. Row 24 is Quantity Submitted.
+# Row 2 of an item column is that item's invoice number. The sheet invoice in
+# C2 is not used. Row 5 is the section number. Row 24 is Quantity Submitted.
 EXCEL_INVOICE_ROW = 2
-SHEET_INVOICE_COLUMN_INDEX = 2
 EXCEL_SECTION_ROW = 5
 EXCEL_SUBMITTED_ROW = 24
 
@@ -76,11 +74,10 @@ def submitted_totals_from_rows(
     submitted_row: Optional[Sequence],
     invoice_row: Optional[Sequence] = None,
 ) -> Dict[str, float]:
-    """Sum Excel row 24 for item columns that have an invoice number.
+    """Sum Excel row 24 for item columns whose own row 2 has an invoice number.
 
-    A column with an empty invoice was not submitted, so its row 24 is left
-    out. On a sheet with one item, an empty item invoice falls back to the
-    sheet invoice in column C. The same section is added together.
+    The sheet invoice in C2 does not count. A column with an empty row 2 was
+    not submitted, so its row 24 is left out. The same section is added together.
     """
     from utils.quantity_utils import round_quantity
 
@@ -88,23 +85,12 @@ def submitted_totals_from_rows(
     submitted_row = submitted_row or ()
     invoice_row = invoice_row or ()
     width = max(len(section_row), len(submitted_row), len(invoice_row))
-    item_columns = []
+    totals: Dict[str, float] = {}
     for col in range(FIRST_ITEM_COLUMN_INDEX, width):
         section = _section_text(section_row[col] if col < len(section_row) else None)
-        if section:
-            item_columns.append((col, section))
-
-    sheet_invoice = _section_text(
-        invoice_row[SHEET_INVOICE_COLUMN_INDEX]
-        if SHEET_INVOICE_COLUMN_INDEX < len(invoice_row)
-        else None
-    )
-    single_item = len(item_columns) == 1
-    totals: Dict[str, float] = {}
-    for col, section in item_columns:
+        if not section:
+            continue
         invoice = _section_text(invoice_row[col] if col < len(invoice_row) else None)
-        if not invoice and single_item:
-            invoice = sheet_invoice
         if not invoice:
             continue
         quantity = round_quantity(

@@ -68,23 +68,11 @@ def test_item_without_invoice_number_is_left_out():
     }
 
 
-def test_single_item_uses_the_sheet_invoice_number():
+def test_sheet_invoice_in_c2_does_not_count():
     section_row, submitted_row, invoice_row = _rows()
     invoice_row[2] = "07"
     section_row[9] = "1.02.01.0610"
     submitted_row[9] = 12.5
-    assert submitted_totals_from_rows(section_row, submitted_row, invoice_row) == {
-        "1.02.01.0610": 12.5
-    }
-
-
-def test_sheet_invoice_is_not_copied_onto_other_items():
-    section_row, submitted_row, invoice_row = _rows()
-    invoice_row[2] = "07"
-    section_row[9] = "1.1"
-    section_row[10] = "1.2"
-    submitted_row[9] = 5
-    submitted_row[10] = 6
     assert submitted_totals_from_rows(section_row, submitted_row, invoice_row) == {}
 
 
