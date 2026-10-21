@@ -1,4 +1,10 @@
-from services.quantity_check import quantity_mismatches
+from openpyxl import Workbook
+
+from services.quantity_check import (
+    submitted_by_section_from_workbook,
+    submitted_totals_from_rows,
+    quantity_mismatches,
+)
 
 
 def test_matching_totals_are_omitted():
@@ -31,6 +37,38 @@ def test_manual_badge_follows_the_boq_item():
         manual_sections={"1.08.10.3296"},
     )
     assert rows[0]["has_manual_entries"] is True
+
+
+def test_submitted_total_is_row_24_not_the_detail_lines():
+    section_row = [None] * 12
+    submitted_row = [None] * 12
+    section_row[9] = "1.02.01.0610"
+    section_row[10] = "1.02.01.0610"
+    submitted_row[9] = 77.23
+    submitted_row[10] = 10
+    # Row 6 (estimated) and the detail lines are not in these two rows.
+    assert submitted_totals_from_rows(section_row, submitted_row) == {
+        "1.02.01.0610": 87.23
+    }
+
+
+def test_workbook_submitted_quantity_reads_excel_row_24(tmp_path):
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Calculation"
+    worksheet.cell(row=5, column=10, value="1.02.01.0641")
+    worksheet.cell(row=6, column=10, value=411.94)
+    worksheet.cell(row=24, column=10, value=217.05)
+    worksheet.cell(row=28, column=10, value=999)
+    worksheet.cell(row=5, column=11, value="1.02.01.0671")
+    worksheet.cell(row=24, column=11, value=8.5)
+    path = tmp_path / "sheet.xlsx"
+    workbook.save(path)
+
+    assert submitted_by_section_from_workbook(str(path)) == {
+        "1.02.01.0641": 217.05,
+        "1.02.01.0671": 8.5,
+    }
 
 
 def test_sheet_item_missing_from_boq_is_a_mismatch():

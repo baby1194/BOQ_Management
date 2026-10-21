@@ -1,10 +1,20 @@
 """Compare calculation-sheet totals with the quantities stored on BOQ items."""
 
-from typing import Dict, Iterable, List, Optional, Tuple
+import logging
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+from utils.calculation_sheet_utils import FIRST_ITEM_COLUMN_INDEX
 
 TOLERANCE = 0.01
 
+# Row 5 is the section number. Row 24 is the Quantity Submitted cell
+# (SUBTOTAL of that item's detail lines), not the current-invoice quantity
+# stored on the calculation entry.
+EXCEL_SECTION_ROW = 5
+EXCEL_SUBMITTED_ROW = 24
+
 SheetTotals = Dict[str, Tuple[float, float]]
+logger = logging.getLogger(__name__)
 
 
 def _round3(value: float) -> float:
@@ -48,22 +58,145 @@ def quantity_mismatches(
     return rows
 
 
+def _section_text(value) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, float) and value != value:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "<na>", "nat"}:
+        return None
+    return text
+
+
+def submitted_totals_from_rows(
+    section_row: Optional[Sequence],
+    submitted_row: Optional[Sequence],
+) -> Dict[str, float]:
+    """Sum Excel row 24 by section number. Same section on one sheet is added."""
+    from utils.quantity_utils import round_quantity
+
+    section_row = section_row or ()
+    submitted_row = submitted_row or ()
+    width = max(len(section_row), len(submitted_row))
+    totals: Dict[str, float] = {}
+    for col in range(FIRST_ITEM_COLUMN_INDEX, width):
+        section = _section_text(section_row[col] if col < len(section_row) else None)
+        if not section:
+            continue
+        quantity = round_quantity(
+            submitted_row[col] if col < len(submitted_row) else 0
+        )
+        totals[section] = totals.get(section, 0.0) + quantity
+    return totals
+
+
+def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:
+    """Read each item's Quantity Submitted cell (Excel row 24) from a calc sheet."""
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    try:
+        if "Calculation" not in workbook.sheetnames:
+            return {}
+        worksheet = workbook["Calculation"]
+        max_column = worksheet.max_column or 0
+        section_row = None
+        submitted_row = None
+        for index, row in enumerate(
+            worksheet.iter_rows(
+                min_row=EXCEL_SECTION_ROW,
+                max_row=EXCEL_SUBMITTED_ROW,
+                max_col=max_column or None,
+                values_only=True,
+            ),
+            start=EXCEL_SECTION_ROW,
+        ):
+            if index == EXCEL_SECTION_ROW:
+                section_row = row
+            elif index == EXCEL_SUBMITTED_ROW:
+                submitted_row = row
+        return submitted_totals_from_rows(section_row, submitted_row)
+    finally:
+        workbook.close()
+
+
 def mismatches_from_db(db) -> List[dict]:
+    from pathlib import Path
+
     from models import models
+    from utils.concentration_utils import entry_cumulative_submitted
+
+    calculated_by_section: Dict[str, float] = {}
+    for entry in db.query(models.CalculationEntry).all():
+        section = entry.section_number
+        if not section:
+            continue
+        calculated_by_section[section] = calculated_by_section.get(
+            section, 0.0
+        ) + float(entry.estimated_quantity or 0)
+
+    submitted_by_section: Dict[str, float] = {}
+    for sheet in db.query(models.CalculationSheet).all():
+        path = sheet.source_file_path
+        if not path or not Path(path).is_file():
+            continue
+        try:
+            file_totals = submitted_by_section_from_workbook(path)
+        except Exception:
+            logger.warning(
+                "Could not read quantity submitted (row 24) from %s",
+                path,
+                exc_info=True,
+            )
+            continue
+        for section, quantity in file_totals.items():
+            submitted_by_section[section] = (
+                submitted_by_section.get(section, 0.0) + quantity
+            )
 
     sheet_totals: SheetTotals = {}
-    for entry in db.query(models.CalculationEntry).all():
-        calculated, submitted = sheet_totals.get(entry.section_number, (0.0, 0.0))
-        sheet_totals[entry.section_number] = (
-            calculated + float(entry.estimated_quantity or 0),
-            submitted + float(entry.quantity_submitted or 0),
+    for section in set(calculated_by_section) | set(submitted_by_section):
+        sheet_totals[section] = (
+            calculated_by_section.get(section, 0.0),
+            submitted_by_section.get(section, 0.0),
         )
+
+    concentration_submitted: Dict[str, float] = {}
+    sections_with_entries = set()
+    concentration_rows = (
+        db.query(
+            models.BOQItem.section_number,
+            models.ConcentrationEntry,
+        )
+        .join(
+            models.ConcentrationSheet,
+            models.ConcentrationSheet.boq_item_id == models.BOQItem.id,
+        )
+        .join(
+            models.ConcentrationEntry,
+            models.ConcentrationEntry.concentration_sheet_id
+            == models.ConcentrationSheet.id,
+        )
+        .all()
+    )
+    for section, entry in concentration_rows:
+        if not section:
+            continue
+        sections_with_entries.add(section)
+        concentration_submitted[section] = concentration_submitted.get(
+            section, 0.0
+        ) + entry_cumulative_submitted(entry)
 
     boq_totals: SheetTotals = {}
     for item in db.query(models.BOQItem).all():
+        if item.section_number in sections_with_entries:
+            submitted = concentration_submitted.get(item.section_number, 0.0)
+        else:
+            submitted = float(item.quantity_submitted or 0)
         boq_totals[item.section_number] = (
             float(item.estimated_quantity or 0),
-            float(item.quantity_submitted or 0),
+            submitted,
         )
 
     manual_sections = {

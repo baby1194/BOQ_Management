@@ -149,7 +149,7 @@ def calculation_sheets_for_system(system: str, db: Session = Depends(get_db)):
 
 @router.get("/quantity-check")
 async def check_calculation_quantities(db: Session = Depends(get_db)):
-    """Compare calculation-sheet totals with BOQ calculated and submitted quantities."""
+    """Compare sheet row 24 and calculated totals with the system's quantities."""
     from services.quantity_check import mismatches_from_db
 
     rows = mismatches_from_db(db)
