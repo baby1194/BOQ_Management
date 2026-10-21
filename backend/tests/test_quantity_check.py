@@ -39,63 +39,78 @@ def test_manual_badge_follows_the_boq_item():
     assert rows[0]["has_manual_entries"] is True
 
 
-def _rows():
-    return [None] * 12, [None] * 12, [None] * 12
+def _grid(height=40, width=14):
+    return [[None] * width for _ in range(height)]
 
 
-def test_submitted_total_is_row_24_not_the_detail_lines():
-    section_row, submitted_row, invoice_row = _rows()
-    section_row[9] = "1.02.01.0610"
-    section_row[10] = "1.02.01.0610"
-    submitted_row[9] = 77.23
-    submitted_row[10] = 10
-    invoice_row[9] = "05"
-    invoice_row[10] = "06"
-    assert submitted_totals_from_rows(section_row, submitted_row, invoice_row) == {
-        "1.02.01.0610": 87.23
+def test_submitted_total_sums_detail_lines_that_have_a_prior_invoice():
+    rows = _grid()
+    rows[1][9] = "07"
+    rows[4][9] = "1.02.01.0693"
+    rows[23][9] = 63.58
+    rows[27][8] = "07"
+    rows[27][9] = 36.30
+    rows[28][9] = 27.28
+    rows[1][11] = "08"
+    rows[4][11] = "1.02.01.0010"
+    rows[27][10] = "08"
+    rows[27][11] = 6.60
+    rows[28][11] = 4.96
+    assert submitted_totals_from_rows(rows) == {
+        "1.02.01.0693": 36.30,
+        "1.02.01.0010": 6.60,
     }
 
 
-def test_item_without_invoice_number_is_left_out():
-    section_row, submitted_row, invoice_row = _rows()
-    section_row[9] = "1.02.01.0610"
-    section_row[10] = "1.02.01.0641"
-    submitted_row[9] = 77.23
-    submitted_row[10] = 10
-    invoice_row[9] = "05"
-    assert submitted_totals_from_rows(section_row, submitted_row, invoice_row) == {
-        "1.02.01.0610": 77.23
-    }
+def test_item_without_row_2_invoice_is_left_out():
+    rows = _grid()
+    rows[1][9] = "05"
+    rows[4][9] = "1.02.01.0610"
+    rows[27][8] = "05"
+    rows[27][9] = 77.23
+    rows[4][11] = "1.02.01.0641"
+    rows[27][10] = "06"
+    rows[27][11] = 10
+    assert submitted_totals_from_rows(rows) == {"1.02.01.0610": 77.23}
 
 
 def test_sheet_invoice_in_c2_does_not_count():
-    section_row, submitted_row, invoice_row = _rows()
-    invoice_row[2] = "07"
-    section_row[9] = "1.02.01.0610"
-    submitted_row[9] = 12.5
-    assert submitted_totals_from_rows(section_row, submitted_row, invoice_row) == {}
+    rows = _grid()
+    rows[1][2] = "07"
+    rows[4][9] = "1.02.01.0610"
+    rows[23][9] = 12.5
+    rows[27][1] = "07"
+    rows[27][9] = 12.5
+    assert submitted_totals_from_rows(rows) == {}
 
 
-def test_workbook_submitted_quantity_reads_excel_row_24(tmp_path):
+def test_workbook_sums_detail_lines_and_ignores_row_24(tmp_path):
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "Calculation"
-    worksheet.cell(row=2, column=10, value="05")
-    worksheet.cell(row=5, column=10, value="1.02.01.0641")
-    worksheet.cell(row=6, column=10, value=411.94)
-    worksheet.cell(row=24, column=10, value=217.05)
-    worksheet.cell(row=28, column=10, value=999)
-    worksheet.cell(row=2, column=11, value="06")
-    worksheet.cell(row=5, column=11, value="1.02.01.0671")
-    worksheet.cell(row=24, column=11, value=8.5)
-    worksheet.cell(row=5, column=12, value="1.02.01.0999")
-    worksheet.cell(row=24, column=12, value=50)
+    worksheet.cell(row=2, column=10, value="07")
+    worksheet.cell(row=5, column=10, value="1.02.01.0693")
+    worksheet.cell(row=6, column=10, value=63.58)
+    worksheet.cell(row=24, column=10, value=63.58)
+    worksheet.cell(row=28, column=9, value="07")
+    worksheet.cell(row=28, column=10, value=36.30)
+    worksheet.cell(row=29, column=10, value=27.28)
+    worksheet.cell(row=2, column=12, value="06")
+    worksheet.cell(row=5, column=12, value="1.02.01.0671")
+    worksheet.cell(row=24, column=12, value=8.5)
+    worksheet.cell(row=28, column=11, value="06")
+    worksheet.cell(row=28, column=12, value=4.25)
+    worksheet.cell(row=29, column=12, value=9)
+    worksheet.cell(row=5, column=14, value="1.02.01.0999")
+    worksheet.cell(row=24, column=14, value=50)
+    worksheet.cell(row=28, column=13, value="01")
+    worksheet.cell(row=28, column=14, value=50)
     path = tmp_path / "sheet.xlsx"
     workbook.save(path)
 
     assert submitted_by_section_from_workbook(str(path)) == {
-        "1.02.01.0641": 217.05,
-        "1.02.01.0671": 8.5,
+        "1.02.01.0693": 36.30,
+        "1.02.01.0671": 4.25,
     }
 
 

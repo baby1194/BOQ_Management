@@ -3,15 +3,21 @@
 import logging
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from utils.calculation_sheet_utils import FIRST_ITEM_COLUMN_INDEX
+from utils.calculation_sheet_utils import (
+    DETAIL_START_ROW,
+    FIRST_ITEM_COLUMN_INDEX,
+    period_column_index,
+)
 
 TOLERANCE = 0.01
 
 # Row 2 of an item column is that item's invoice number. The sheet invoice in
-# C2 is not used. Row 5 is the section number. Row 24 is Quantity Submitted.
+# C2 is not used. Row 5 is the section number. Detail quantities start at row 28.
+# The invoice for each detail quantity is the prior column (column B when the
+# sheet has one item). Row 24 is not the submitted quantity.
 EXCEL_INVOICE_ROW = 2
 EXCEL_SECTION_ROW = 5
-EXCEL_SUBMITTED_ROW = 24
+EXCEL_DETAIL_START_ROW = DETAIL_START_ROW + 1
 
 SheetTotals = Dict[str, Tuple[float, float]]
 logger = logging.getLogger(__name__)
@@ -69,39 +75,51 @@ def _section_text(value) -> Optional[str]:
     return text
 
 
-def submitted_totals_from_rows(
-    section_row: Optional[Sequence],
-    submitted_row: Optional[Sequence],
-    invoice_row: Optional[Sequence] = None,
-) -> Dict[str, float]:
-    """Sum Excel row 24 for item columns whose own row 2 has an invoice number.
+def _cell(rows: Sequence[Sequence], excel_row: int, col: int):
+    index = excel_row - 1
+    if index < 0 or index >= len(rows):
+        return None
+    line = rows[index] or ()
+    if col < 0 or col >= len(line):
+        return None
+    return line[col]
 
-    The sheet invoice in C2 does not count. A column with an empty row 2 was
-    not submitted, so its row 24 is left out. The same section is added together.
+
+def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
+    """Sum detail quantities whose prior cell has an invoice number.
+
+    Rows are Excel rows starting at row 1. An item column is included only when
+    its own row 2 has an invoice number. C2 is ignored. Each detail quantity
+    from row 28 down is added only when the invoice cell in the prior column
+    is filled. A line with no invoice, and the row 24 subtotal, are left out.
     """
     from utils.quantity_utils import round_quantity
 
-    section_row = section_row or ()
-    submitted_row = submitted_row or ()
-    invoice_row = invoice_row or ()
-    width = max(len(section_row), len(submitted_row), len(invoice_row))
-    totals: Dict[str, float] = {}
+    rows = rows or ()
+    width = max((len(line or ()) for line in rows), default=0)
+    item_columns = []
     for col in range(FIRST_ITEM_COLUMN_INDEX, width):
-        section = _section_text(section_row[col] if col < len(section_row) else None)
-        if not section:
+        section = _section_text(_cell(rows, EXCEL_SECTION_ROW, col))
+        if section:
+            item_columns.append((col, section))
+
+    item_count = len(item_columns)
+    totals: Dict[str, float] = {}
+    for col, section in item_columns:
+        if not _section_text(_cell(rows, EXCEL_INVOICE_ROW, col)):
             continue
-        invoice = _section_text(invoice_row[col] if col < len(invoice_row) else None)
-        if not invoice:
-            continue
-        quantity = round_quantity(
-            submitted_row[col] if col < len(submitted_row) else 0
-        )
+        invoice_col = period_column_index(col, item_count)
+        quantity = 0.0
+        for excel_row in range(EXCEL_DETAIL_START_ROW, len(rows) + 1):
+            if not _section_text(_cell(rows, excel_row, invoice_col)):
+                continue
+            quantity += round_quantity(_cell(rows, excel_row, col))
         totals[section] = totals.get(section, 0.0) + quantity
     return totals
 
 
 def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:
-    """Read each item's Quantity Submitted cell (Excel row 24) from a calc sheet."""
+    """Sum submitted detail quantities from a calculation sheet workbook."""
     from openpyxl import load_workbook
 
     workbook = load_workbook(path, read_only=True, data_only=True)
@@ -109,26 +127,11 @@ def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:
         if "Calculation" not in workbook.sheetnames:
             return {}
         worksheet = workbook["Calculation"]
-        max_column = worksheet.max_column or 0
-        invoice_row = None
-        section_row = None
-        submitted_row = None
-        for index, row in enumerate(
-            worksheet.iter_rows(
-                min_row=EXCEL_INVOICE_ROW,
-                max_row=EXCEL_SUBMITTED_ROW,
-                max_col=max_column or None,
-                values_only=True,
-            ),
-            start=EXCEL_INVOICE_ROW,
-        ):
-            if index == EXCEL_INVOICE_ROW:
-                invoice_row = row
-            elif index == EXCEL_SECTION_ROW:
-                section_row = row
-            elif index == EXCEL_SUBMITTED_ROW:
-                submitted_row = row
-        return submitted_totals_from_rows(section_row, submitted_row, invoice_row)
+        max_column = worksheet.max_column or None
+        rows = list(
+            worksheet.iter_rows(max_col=max_column, values_only=True)
+        )
+        return submitted_totals_from_rows(rows)
     finally:
         workbook.close()
 
@@ -157,7 +160,7 @@ def mismatches_from_db(db) -> List[dict]:
             file_totals = submitted_by_section_from_workbook(path)
         except Exception:
             logger.warning(
-                "Could not read quantity submitted (row 24) from %s",
+                "Could not read submitted quantities from %s",
                 path,
                 exc_info=True,
             )
