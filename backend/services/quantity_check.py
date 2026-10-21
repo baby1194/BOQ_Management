@@ -7,9 +7,11 @@ from utils.calculation_sheet_utils import FIRST_ITEM_COLUMN_INDEX
 
 TOLERANCE = 0.01
 
-# Row 5 is the section number. Row 24 is the Quantity Submitted cell
-# (SUBTOTAL of that item's detail lines), not the current-invoice quantity
-# stored on the calculation entry.
+# Row 2 of an item column is its invoice number. Column C of that row is the
+# sheet invoice, used only when the sheet has a single item.
+# Row 5 is the section number. Row 24 is Quantity Submitted.
+EXCEL_INVOICE_ROW = 2
+SHEET_INVOICE_COLUMN_INDEX = 2
 EXCEL_SECTION_ROW = 5
 EXCEL_SUBMITTED_ROW = 24
 
@@ -72,17 +74,38 @@ def _section_text(value) -> Optional[str]:
 def submitted_totals_from_rows(
     section_row: Optional[Sequence],
     submitted_row: Optional[Sequence],
+    invoice_row: Optional[Sequence] = None,
 ) -> Dict[str, float]:
-    """Sum Excel row 24 by section number. Same section on one sheet is added."""
+    """Sum Excel row 24 for item columns that have an invoice number.
+
+    A column with an empty invoice was not submitted, so its row 24 is left
+    out. On a sheet with one item, an empty item invoice falls back to the
+    sheet invoice in column C. The same section is added together.
+    """
     from utils.quantity_utils import round_quantity
 
     section_row = section_row or ()
     submitted_row = submitted_row or ()
-    width = max(len(section_row), len(submitted_row))
-    totals: Dict[str, float] = {}
+    invoice_row = invoice_row or ()
+    width = max(len(section_row), len(submitted_row), len(invoice_row))
+    item_columns = []
     for col in range(FIRST_ITEM_COLUMN_INDEX, width):
         section = _section_text(section_row[col] if col < len(section_row) else None)
-        if not section:
+        if section:
+            item_columns.append((col, section))
+
+    sheet_invoice = _section_text(
+        invoice_row[SHEET_INVOICE_COLUMN_INDEX]
+        if SHEET_INVOICE_COLUMN_INDEX < len(invoice_row)
+        else None
+    )
+    single_item = len(item_columns) == 1
+    totals: Dict[str, float] = {}
+    for col, section in item_columns:
+        invoice = _section_text(invoice_row[col] if col < len(invoice_row) else None)
+        if not invoice and single_item:
+            invoice = sheet_invoice
+        if not invoice:
             continue
         quantity = round_quantity(
             submitted_row[col] if col < len(submitted_row) else 0
@@ -101,22 +124,25 @@ def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:
             return {}
         worksheet = workbook["Calculation"]
         max_column = worksheet.max_column or 0
+        invoice_row = None
         section_row = None
         submitted_row = None
         for index, row in enumerate(
             worksheet.iter_rows(
-                min_row=EXCEL_SECTION_ROW,
+                min_row=EXCEL_INVOICE_ROW,
                 max_row=EXCEL_SUBMITTED_ROW,
                 max_col=max_column or None,
                 values_only=True,
             ),
-            start=EXCEL_SECTION_ROW,
+            start=EXCEL_INVOICE_ROW,
         ):
-            if index == EXCEL_SECTION_ROW:
+            if index == EXCEL_INVOICE_ROW:
+                invoice_row = row
+            elif index == EXCEL_SECTION_ROW:
                 section_row = row
             elif index == EXCEL_SUBMITTED_ROW:
                 submitted_row = row
-        return submitted_totals_from_rows(section_row, submitted_row)
+        return submitted_totals_from_rows(section_row, submitted_row, invoice_row)
     finally:
         workbook.close()
 

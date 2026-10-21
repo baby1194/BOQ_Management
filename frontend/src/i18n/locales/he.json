@@ -753,6 +753,7 @@
     "quantityCheckTitle": "בדיקת כמויות",
     "quantityCheckCollapse": "מזער את רשימת הבדיקה",
     "quantityCheckExpand": "פתח את רשימת הבדיקה",
+    "quantityCheckResize": "שנה את גובה רשימת הבדיקה",
     "sheetCalculated": "מחושב בדפים",
     "systemCalculated": "מחושב במערכת",
     "calculatedDiff": "הפרש מחושב",

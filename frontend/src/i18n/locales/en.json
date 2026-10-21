@@ -753,6 +753,7 @@
     "quantityCheckTitle": "Quantity check",
     "quantityCheckCollapse": "Minimize the check list",
     "quantityCheckExpand": "Open the check list",
+    "quantityCheckResize": "Resize the quantity check list",
     "sheetCalculated": "Sheet calculated",
     "systemCalculated": "System calculated",
     "calculatedDiff": "Calculated difference",

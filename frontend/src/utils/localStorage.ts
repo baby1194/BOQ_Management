@@ -56,6 +56,7 @@ const APP_STORAGE_KEYS = [
   "summary-export-columns",
   "concentration-entry-export-columns",
   "dashboard-non-boq-expanded",
+  "quantity-check-panel-height",
 ];
 
 /**
