@@ -68,6 +68,7 @@ def refresh_calculation_sheet_from_disk(
         return 0, f"{label} - Source file not found: {sheet.source_file_path}", CalcSheetPushResult()
 
     try:
+        logger.info("Reading calculation sheet %s", file_path)
         sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
         previous_calculation_sheet_no = sheet.calculation_sheet_no
         sheet.file_name = file_path.name

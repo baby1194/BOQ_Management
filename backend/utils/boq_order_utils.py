@@ -32,6 +32,27 @@ def sync_display_orders_by_serial_number(db: Session) -> None:
         item.display_order = idx
 
 
+def assign_serial_numbers_by_display_order(items: Sequence) -> None:
+    """Serial numbers are the row position: 1 through the item count, in display order."""
+    ordered = sort_boq_items_by_display_order(items)
+    for idx, item in enumerate(ordered, start=1):
+        item.serial_number = idx
+
+
+def place_item_at_serial_position(items: Sequence, item_id: int, serial_number: int) -> None:
+    """Move one item to a 1-based position, then renumber serials 1..count."""
+    ordered = sort_boq_items_by_display_order(items)
+    moved = next((item for item in ordered if item.id == item_id), None)
+    if moved is None:
+        return
+    rest = [item for item in ordered if item.id != item_id]
+    index = max(0, min(int(serial_number) - 1, len(rest)))
+    rest.insert(index, moved)
+    for idx, item in enumerate(rest):
+        item.display_order = idx
+        item.serial_number = idx + 1
+
+
 def sort_boq_items_by_display_order(items: Sequence[models.BOQItem]) -> List[models.BOQItem]:
     return sorted(items, key=boq_item_display_sort_key)
 

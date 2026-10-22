@@ -13,6 +13,7 @@ from database.database import (
 from models import models
 from schemas import schemas
 from services.non_boq_project_copy import add_non_boq_items_to_project, fill_non_boq_project
+from services.project_info_copy import copy_project_info
 from services.non_boq_service import (
     list_non_boq_items_with_calc_sheets,
     mark_non_boq_items_moved,
@@ -57,6 +58,7 @@ async def import_non_boq_as_project(
     target = Target()
     try:
         filled = fill_non_boq_project(db, target, rows)
+        copy_project_info(db, target)
         target.commit()
     except Exception:
         target.rollback()

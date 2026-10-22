@@ -18,7 +18,10 @@ from services.boq_transfer_service import (
     classify_transfer_items,
     copy_boq_items_to_project,
 )
-from utils.boq_order_utils import sync_display_orders_by_serial_number
+from utils.boq_order_utils import (
+    assign_serial_numbers_by_display_order,
+    place_item_at_serial_position,
+)
 from utils.contract_update_flags import has_changed_contract_quantity
 
 logger = logging.getLogger(__name__)
@@ -110,6 +113,7 @@ async def reorder_boq_items(
         id_to_item = {row.id: row for row in all_rows}
         for idx, item_id in enumerate(ordered_ids):
             id_to_item[item_id].display_order = idx
+        assign_serial_numbers_by_display_order(all_rows)
         db.commit()
         return {"ok": True}
     except HTTPException:
@@ -374,12 +378,21 @@ async def update_boq_item(
             update_data['total_approved_by_project_manager'] = update_data.get('approved_by_project_manager') * db_item.price
         
         serial_number_changed = "serial_number" in update_data
+        requested_serial = update_data.pop("serial_number", None) if serial_number_changed else None
 
         for field, value in update_data.items():
             setattr(db_item, field, value)
 
         if serial_number_changed:
-            sync_display_orders_by_serial_number(db)
+            try:
+                position = int(requested_serial)
+            except (TypeError, ValueError):
+                position = 1
+            place_item_at_serial_position(
+                db.query(models.BOQItem).all(),
+                db_item.id,
+                position,
+            )
 
         db.commit()
         db.refresh(db_item)

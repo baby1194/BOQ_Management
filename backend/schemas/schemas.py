@@ -826,7 +826,7 @@ class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
 
 class ProjectCreate(ProjectBase):
-    pass
+    copy_from_project_id: Optional[str] = None
 
 class Project(ProjectBase):
     id: str

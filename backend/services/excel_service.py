@@ -520,8 +520,13 @@ class ExcelService:
                 validate_calculation_sheet_header_fields,
             )
 
-            _patch_openpyxl_custom_filters()
-            df = pd.read_excel(file_path, sheet_name="Calculation", header=None)
+            from utils.calc_sheet_reader import load_calculation_sheet_rows
+
+            rows = load_calculation_sheet_rows(file_path)
+            width = max((len(row) for row in rows), default=0)
+            df = pd.DataFrame(
+                [tuple(row) + (None,) * (width - len(row)) for row in rows]
+            )
             file_name = Path(file_path).name
             
             # Extract header information from specific cells

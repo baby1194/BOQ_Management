@@ -7,6 +7,7 @@ export interface WorkspaceProject {
 
 export interface WorkspaceProjectCreate {
   name: string;
+  copy_from_project_id?: string | null;
 }
 
 export interface BOQItem {

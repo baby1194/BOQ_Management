@@ -22,7 +22,10 @@ interface ProjectContextType {
   activeProjectId: string | null;
   isLoading: boolean;
   switchProject: (projectId: string) => void;
-  createProject: (name: string) => Promise<WorkspaceProject>;
+  createProject: (
+    name: string,
+    copyFromProjectId?: string | null
+  ) => Promise<WorkspaceProject>;
   refreshProjects: () => Promise<void>;
 }
 
@@ -113,8 +116,11 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   );
 
   const createProject = useCallback(
-    async (name: string) => {
-      const project = await projectsApi.create({ name });
+    async (name: string, copyFromProjectId?: string | null) => {
+      const project = await projectsApi.create({
+        name,
+        copy_from_project_id: copyFromProjectId || undefined,
+      });
       await refreshProjects();
       applyActiveProject(project.id);
       queryClient.clear();

@@ -791,13 +791,12 @@ const BOQItems: React.FC = () => {
 
   // Apply filters to items
   const applyFilters = (items: BOQItem[]): BOQItem[] => {
-    return items.filter((item) => {
-      // String filters (case-insensitive contains)
+    return items.filter((item, index) => {
+      // Position in the current display order, 1 through the item count.
+      const serialLabel = String(index + 1);
       const matchesSerialNumber =
         !filters.serial_number ||
-        (item.serial_number?.toString() || "")
-          .toLowerCase()
-          .includes(filters.serial_number.toLowerCase());
+        serialLabel.includes(filters.serial_number.trim());
 
       const matchesStructure =
         (!filters.structure ||
@@ -1078,6 +1077,14 @@ const BOQItems: React.FC = () => {
     () => sortBoqItemsByDisplayOrder(allItems),
     [allItems]
   );
+
+  const serialNumberById = useMemo(() => {
+    const map = new Map<number, number>();
+    itemsSortedByDisplayOrder.forEach((item, index) => {
+      map.set(item.id, index + 1);
+    });
+    return map;
+  }, [itemsSortedByDisplayOrder]);
 
   // Get filtered items
   const filteredItems = useMemo(() => {
@@ -1560,7 +1567,7 @@ const BOQItems: React.FC = () => {
         for (let idx = 0; idx < newGlobal.length; idx++) {
           const id = newGlobal[idx];
           const it = map.get(id);
-          if (it) next.push({ ...it, display_order: idx });
+          if (it) next.push({ ...it, display_order: idx, serial_number: idx + 1 });
         }
         return next.length === newGlobal.length ? next : prev;
       });
@@ -1706,7 +1713,8 @@ const BOQItems: React.FC = () => {
         };
 
         if (request.include_serial_number)
-          filteredItem.serial_number = item.serial_number;
+          filteredItem.serial_number =
+            serialNumberById.get(item.id) ?? item.serial_number;
         if (request.include_structure) filteredItem.structure = item.structure;
         if (request.include_system) filteredItem.system = item.system;
         if (request.include_section_number)
@@ -4204,7 +4212,7 @@ const BOQItems: React.FC = () => {
                               currentValues.serial_number !== undefined &&
                               currentValues.serial_number !== null
                                 ? currentValues.serial_number
-                                : item.serial_number || ""
+                                : serialNumberById.get(item.id) ?? ""
                             }
                             onChange={(e) =>
                               handleInputChange(
@@ -4219,7 +4227,7 @@ const BOQItems: React.FC = () => {
                             disabled={isSaving}
                           />
                         ) : (
-                          item.serial_number || "-"
+                          serialNumberById.get(item.id) ?? "-"
                         )}
                       </td>
                     )}
@@ -4848,6 +4856,7 @@ const BOQItems: React.FC = () => {
             {/* Frozen Footer with Totals */}
             <tfoot className="sticky bottom-0 z-10 bg-gray-100 border-t-2 border-gray-300 shadow-sm">
               <tr>
+                <td className="px-1 py-4 bg-gray-50 border-r border-gray-300 w-10" />
                 <td className="px-1 py-4 bg-gray-50 border-r border-gray-300 w-10" />
                 {/* Serial Number - No total */}
                 {columnVisibility.serial_number && (

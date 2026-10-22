@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { useProject } from "../contexts/ProjectContext";
@@ -14,9 +14,18 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation();
-  const { createProject } = useProject();
+  const { createProject, projects, activeProjectId } = useProject();
   const [name, setName] = useState("");
+  const [copyFromId, setCopyFromId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    setName("");
+    setCopyFromId(activeProjectId ?? "");
+  }, [isOpen, activeProjectId]);
 
   if (!isOpen) {
     return null;
@@ -31,7 +40,7 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await createProject(trimmed);
+      await createProject(trimmed, copyFromId || null);
       toast.success(t("projects.created"));
       setName("");
       onClose();
@@ -78,6 +87,28 @@ const NewProjectModal: React.FC<NewProjectModalProps> = ({
             autoFocus
             disabled={isSubmitting}
           />
+
+          <label
+            htmlFor="copy-from-project"
+            className="block text-sm font-medium text-gray-700 mt-4 mb-2"
+          >
+            {t("projects.copyFrom")}
+          </label>
+          <select
+            id="copy-from-project"
+            value={copyFromId}
+            onChange={(e) => setCopyFromId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isSubmitting || projects.length === 0}
+          >
+            <option value="">{t("projects.copyFromNone")}</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-gray-500">{t("projects.copyFromHint")}</p>
 
           <div className="flex justify-end gap-3 mt-6">
             <button

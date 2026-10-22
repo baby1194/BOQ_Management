@@ -120,20 +120,9 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
 
 def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:
     """Sum submitted detail quantities from a calculation sheet workbook."""
-    from openpyxl import load_workbook
+    from utils.calc_sheet_reader import load_calculation_sheet_rows
 
-    workbook = load_workbook(path, read_only=True, data_only=True)
-    try:
-        if "Calculation" not in workbook.sheetnames:
-            return {}
-        worksheet = workbook["Calculation"]
-        max_column = worksheet.max_column or None
-        rows = list(
-            worksheet.iter_rows(max_col=max_column, values_only=True)
-        )
-        return submitted_totals_from_rows(rows)
-    finally:
-        workbook.close()
+    return submitted_totals_from_rows(load_calculation_sheet_rows(path))
 
 
 def mismatches_from_db(db) -> List[dict]:

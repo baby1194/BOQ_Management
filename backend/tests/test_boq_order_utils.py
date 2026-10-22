@@ -3,8 +3,10 @@
 from types import SimpleNamespace
 
 from utils.boq_order_utils import (
+    assign_serial_numbers_by_display_order,
     boq_item_display_sort_key,
     boq_item_serial_sort_key,
+    place_item_at_serial_position,
     sort_concentration_sheets_by_boq_order,
 )
 
@@ -56,6 +58,29 @@ def test_boq_item_serial_sort_key_puts_null_serial_last():
         _boq(1, 1),
         _boq(2, None),
     ]
+
+
+def test_assign_serial_numbers_follows_display_order():
+    items = [
+        _boq(30, 301, display_order=1),
+        _boq(10, 357, display_order=0),
+        _boq(20, 12, display_order=2),
+    ]
+    assign_serial_numbers_by_display_order(items)
+    by_id = {item.id: item.serial_number for item in items}
+    assert by_id == {10: 1, 30: 2, 20: 3}
+
+
+def test_place_item_renumbers_one_through_count():
+    items = [
+        _boq(10, 357, display_order=0),
+        _boq(30, 301, display_order=1),
+        _boq(20, 12, display_order=2),
+    ]
+    place_item_at_serial_position(items, 20, 1)
+    ordered = sorted(items, key=lambda item: item.display_order)
+    assert [item.id for item in ordered] == [20, 10, 30]
+    assert [item.serial_number for item in ordered] == [1, 2, 3]
 
 
 def test_sort_concentration_sheets_by_boq_order():

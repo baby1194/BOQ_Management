@@ -57,6 +57,9 @@
     "namePlaceholder": "Enter project name",
     "created": "Project created successfully",
     "createFailed": "Failed to create project",
+    "copyFrom": "Copy project info from",
+    "copyFromNone": "Don't copy",
+    "copyFromHint": "Copies the project name, contractor, developer, contract number, and invoice details.",
     "noProjects": "No projects",
     "loading": "Loading project..."
   },
