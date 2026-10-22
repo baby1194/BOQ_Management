@@ -18,6 +18,7 @@ from services.non_boq_service import (
     list_non_boq_items_with_calc_sheets,
     mark_non_boq_items_moved,
     non_boq_import_rows,
+    reconcile_missing_non_boq_items,
     select_import_rows,
 )
 
@@ -29,6 +30,9 @@ router = APIRouter()
 async def list_non_boq_items(db: Session = Depends(get_db)):
     """List section numbers from calculation sheets that are not in the BOQ list."""
     try:
+        _notices, changed = reconcile_missing_non_boq_items(db)
+        if changed:
+            db.commit()
         return list_non_boq_items_with_calc_sheets(db)
     except Exception as e:
         logger.error("Error fetching non-BOQ items: %s", e)

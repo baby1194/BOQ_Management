@@ -614,6 +614,7 @@ async def track_concentration_sheet_calculation_sheets(
     entries_updated = 0
     errors: List[str] = []
     push_results: List[CalcSheetPushResult] = []
+    removed_notices: List[str] = []
 
     for calc_no in sorted(calculation_sheet_nos - found_nos):
         sheets_skipped += 1
@@ -621,7 +622,7 @@ async def track_concentration_sheet_calculation_sheets(
 
     for calc_sheet in calculation_sheets:
         entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
-            calc_sheet, excel_service, db
+            calc_sheet, excel_service, db, removed_notices
         )
         if error:
             sheets_skipped += 1
@@ -650,6 +651,8 @@ async def track_concentration_sheet_calculation_sheets(
             language=language,
             entry_columns=entry_columns,
         )
+    if removed_notices:
+        message = f"{message} " + " ".join(removed_notices)
 
     return schemas.CalculationSheetsTrackResponse(
         success=sheets_updated > 0 or sheets_skipped == 0,

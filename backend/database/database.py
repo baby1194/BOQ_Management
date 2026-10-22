@@ -344,6 +344,14 @@ def _ensure_non_boq_move_columns(engine) -> None:
             )
         if "moved_at" not in columns:
             conn.execute(text("ALTER TABLE non_boq_items ADD COLUMN moved_at DATETIME"))
+        if "source_sheet_nos" not in columns:
+            conn.execute(text("ALTER TABLE non_boq_items ADD COLUMN source_sheet_nos VARCHAR(500)"))
+        if "removed_at" not in columns:
+            conn.execute(text("ALTER TABLE non_boq_items ADD COLUMN removed_at DATETIME"))
+        if "removed_from_project" not in columns:
+            conn.execute(
+                text("ALTER TABLE non_boq_items ADD COLUMN removed_from_project BOOLEAN")
+            )
         conn.commit()
 
 

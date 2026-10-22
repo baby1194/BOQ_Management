@@ -71,6 +71,30 @@ def test_copy_project_info_writes_header_and_concentration_sheets():
     assert sheet.developer_name == "Dev Co"
 
 
+def test_copy_project_info_includes_project_info_files():
+    source = _session()
+    source.add(models.ProjectInfo(project_name="Tower A", contract_no="C-12"))
+    source.add(
+        models.ProjectInfoFile(
+            display_order=1,
+            category_en="Contract",
+            category_he="חוזה",
+            file_path="C:/docs/contract.pdf",
+            description="Main contract",
+        )
+    )
+    source.commit()
+
+    target = _session()
+    assert copy_project_info(source, target) is True
+    target.commit()
+
+    copied = target.query(models.ProjectInfoFile).one()
+    assert copied.file_path == "C:/docs/contract.pdf"
+    assert copied.category_he == "חוזה"
+    assert target.query(models.ProjectInfo).one().project_name == "Tower A"
+
+
 def test_copy_project_info_does_nothing_when_source_is_empty():
     source = _session()
     target = _session()

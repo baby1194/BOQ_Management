@@ -670,6 +670,8 @@
     "addNonBoqNoItems": "Select at least one item",
     "addNonBoqSameProject": "Choose a different project",
     "nonBoqSentTo": "Sent to project \"{{name}}\"",
+    "nonBoqDeletedFromSheet": "Deleted from calc sheet",
+    "nonBoqRemovedFromProject": "Removed from \"{{name}}\"",
     "importNonBoqProjectName": "New project name",
     "importNonBoqDone": "Created project \"{{name}}\" with {{count}} items and {{sheets}} calculation sheets. {{missing}} still have no price (Excel row 7).",
     "importNonBoqFailed": "Failed to import non-BOQ items",

@@ -19,7 +19,10 @@ from services.calculation_sheet_sync import (
 )
 from services.sync_service import SyncService
 from services.excel_service import ExcelService
-from services.non_boq_service import register_non_boq_items_from_calculation_entries
+from services.non_boq_service import (
+    reconcile_missing_non_boq_items,
+    register_non_boq_items_from_calculation_entries,
+)
 from services.pdf_service import PDFService
 from utils.concentration_utils import (
     entry_cumulative_submitted,
@@ -54,6 +57,7 @@ def refresh_calculation_sheet_from_disk(
     sheet: models.CalculationSheet,
     excel_service: ExcelService,
     db: Session,
+    removed_notices: Optional[List[str]] = None,
 ) -> tuple[int, str | None, CalcSheetPushResult]:
     """
     Reread one calculation sheet from its source file path.
@@ -99,6 +103,11 @@ def refresh_calculation_sheet_from_disk(
             entries_refreshed += 1
 
         register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
+        notices, _changed = reconcile_missing_non_boq_items(db)
+        if removed_notices is not None:
+            for notice in notices:
+                if notice not in removed_notices:
+                    removed_notices.append(notice)
 
         push_result = push_calculation_sheet_to_concentration_entries(
             db,
@@ -352,8 +361,9 @@ async def track_calculation_sheet(
         raise HTTPException(status_code=404, detail="Calculation sheet not found")
 
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
+    removed_notices: List[str] = []
     entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
-        sheet, excel_service, db
+        sheet, excel_service, db, removed_notices
     )
 
     if error:
@@ -381,6 +391,8 @@ async def track_calculation_sheet(
         language=language,
         entry_columns=_entry_columns_dict(body),
     )
+    if removed_notices:
+        message = f"{message} " + " ".join(removed_notices)
     return schemas.CalculationSheetsTrackResponse(
         success=True,
         message=message,
@@ -591,6 +603,7 @@ async def track_calculation_sheets(
     """
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
     sheets = db.query(models.CalculationSheet).all()
+    removed_notices: List[str] = []
 
     sheets_updated = 0
     sheets_skipped = 0
@@ -600,7 +613,7 @@ async def track_calculation_sheets(
 
     for sheet in sheets:
         entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
-            sheet, excel_service, db
+            sheet, excel_service, db, removed_notices
         )
         if error:
             sheets_skipped += 1
@@ -628,6 +641,8 @@ async def track_calculation_sheets(
             language=language,
             entry_columns=_entry_columns_dict(body),
         )
+    if removed_notices:
+        message = f"{message} " + " ".join(removed_notices)
 
     return schemas.CalculationSheetsTrackResponse(
         success=sheets_updated > 0 or sheets_skipped == 0,

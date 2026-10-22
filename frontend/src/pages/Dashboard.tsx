@@ -125,7 +125,7 @@ const Dashboard: React.FC = () => {
     setSelectedNonBoq(
       new Set(
         nonBoqItems
-          .filter((item) => !item.moved_to_project_id)
+          .filter((item) => !item.moved_to_project_id && !item.removed_at)
           .map((item) => item.section_number),
       ),
     );
@@ -952,9 +952,11 @@ const Dashboard: React.FC = () => {
                 {nonBoqItems.map((item) => (
                   <div
                     key={item.id}
-                    className={`flex items-center justify-between gap-4 p-3 bg-amber-50 rounded-lg border border-amber-200 ${
-                      isRTL ? "flex-row-reverse" : ""
-                    }`}
+                    className={`flex items-center justify-between gap-4 p-3 rounded-lg border ${
+                      item.removed_at
+                        ? "bg-red-50 border-red-200"
+                        : "bg-amber-50 border-amber-200"
+                    } ${isRTL ? "flex-row-reverse" : ""}`}
                   >
                     <div
                       className={`flex items-center gap-3 ${
@@ -965,19 +967,35 @@ const Dashboard: React.FC = () => {
                         type="checkbox"
                         checked={selectedNonBoq.has(item.section_number)}
                         onChange={() => toggleNonBoqSelection(item.section_number)}
+                        disabled={Boolean(item.removed_at)}
                         aria-label={t("dashboard.sendToNewProject")}
                         title={t("dashboard.sendToNewProject")}
                       />
-                      {item.moved_to_project_id && (
-                        <span
-                          className="inline-flex items-center gap-1 text-xs font-medium text-green-700"
-                          title={t("dashboard.nonBoqSentTo", {
-                            name: item.moved_to_project_name || item.moved_to_project_id,
-                          })}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          {item.moved_to_project_name || ""}
+                      {item.removed_at && (
+                        <span className="inline-flex items-center text-xs font-medium text-red-700">
+                          {t("dashboard.nonBoqDeletedFromSheet")}
                         </span>
+                      )}
+                      {item.removed_from_project && item.moved_to_project_id ? (
+                        <span className="inline-flex items-center text-xs font-medium text-red-700">
+                          {t("dashboard.nonBoqRemovedFromProject", {
+                            name:
+                              item.moved_to_project_name ||
+                              item.moved_to_project_id,
+                          })}
+                        </span>
+                      ) : (
+                        item.moved_to_project_id && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-medium text-green-700"
+                            title={t("dashboard.nonBoqSentTo", {
+                              name: item.moved_to_project_name || item.moved_to_project_id,
+                            })}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            {item.moved_to_project_name || ""}
+                          </span>
+                        )
                       )}
                       <p className="font-medium text-gray-900">
                         {t("boq.sectionNumber")}: {item.section_number}

@@ -733,6 +733,8 @@ class NonBoqItem(BaseModel):
     moved_to_project_id: Optional[str] = None
     moved_to_project_name: Optional[str] = None
     moved_at: Optional[datetime] = None
+    removed_at: Optional[datetime] = None
+    removed_from_project: bool = False
 
     class Config:
         from_attributes = True

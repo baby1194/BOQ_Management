@@ -46,6 +46,168 @@ def get_calculation_sheet_nos_by_section(
     return {key: sorted(values) for key, values in result.items()}
 
 
+def _stored_sheet_nos(value: Optional[str]) -> list[str]:
+    if not value:
+        return []
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def delete_section_from_database(db: Session, section_number: str) -> bool:
+    """Drop one section from a project: BOQ row, concentration sheet, and calc rows."""
+    section = _normalize_section_number(section_number)
+    if not section:
+        return False
+
+    found = False
+    entries = (
+        db.query(models.CalculationEntry)
+        .filter(models.CalculationEntry.section_number == section)
+        .all()
+    )
+    sheet_ids = {entry.calculation_sheet_id for entry in entries}
+    for entry in entries:
+        db.delete(entry)
+        found = True
+    db.flush()
+
+    for sheet_id in sheet_ids:
+        remaining = (
+            db.query(models.CalculationEntry)
+            .filter(models.CalculationEntry.calculation_sheet_id == sheet_id)
+            .count()
+        )
+        if remaining == 0:
+            sheet = (
+                db.query(models.CalculationSheet)
+                .filter(models.CalculationSheet.id == sheet_id)
+                .first()
+            )
+            if sheet is not None:
+                db.delete(sheet)
+
+    item = (
+        db.query(models.BOQItem)
+        .filter(models.BOQItem.section_number == section)
+        .first()
+    )
+    if item is not None:
+        found = True
+        for sheet in (
+            db.query(models.ConcentrationSheet)
+            .filter(models.ConcentrationSheet.boq_item_id == item.id)
+            .all()
+        ):
+            db.delete(sheet)
+        db.delete(item)
+    db.flush()
+    return found
+
+
+def delete_section_from_linked_project(project_id: str, section_number: str) -> bool:
+    """Remove a section from the sub-project it was copied into."""
+    if not project_id or project_registry.get_project(project_id) is None:
+        return False
+    from sqlalchemy.orm import sessionmaker
+
+    from database.database import get_project_engine, init_project_database
+
+    init_project_database(project_id)
+    Target = sessionmaker(bind=get_project_engine(project_id))
+    target = Target()
+    try:
+        deleted = delete_section_from_database(target, section_number)
+        target.commit()
+        return deleted
+    except Exception:
+        target.rollback()
+        logger.exception(
+            "Could not remove %s from project %s", section_number, project_id
+        )
+        return False
+    finally:
+        target.close()
+
+
+def reconcile_missing_non_boq_items(db: Session) -> tuple[list[str], bool]:
+    """Mark non-BOQ sections that are no longer on any calculation sheet.
+
+    A section that was copied into a sub-project is removed from that project.
+    Sections that show up on a sheet again are cleared back to a normal row.
+    Returns notice sentences and whether any row changed.
+    """
+    items = db.query(models.NonBoqItem).all()
+    if not items:
+        return [], False
+
+    live = get_calculation_sheet_nos_by_section(
+        db, [item.section_number for item in items]
+    )
+    project_names = {
+        project["id"]: project["name"] for project in project_registry.list_projects()
+    }
+    notices: list[str] = []
+    changed = False
+    now = datetime.now(timezone.utc)
+
+    for item in items:
+        sheets = live.get(item.section_number) or []
+        if sheets:
+            joined = ", ".join(sheets)
+            if item.source_sheet_nos != joined:
+                item.source_sheet_nos = joined
+                changed = True
+            if item.removed_at is not None:
+                item.removed_at = None
+                item.removed_from_project = False
+                item.moved_to_project_id = None
+                item.moved_at = None
+                changed = True
+            continue
+
+        if item.removed_at is None:
+            item.removed_at = now
+            changed = True
+            project_name = project_names.get(item.moved_to_project_id or "", "")
+            if item.moved_to_project_id and not item.removed_from_project:
+                removed = delete_section_from_linked_project(
+                    item.moved_to_project_id, item.section_number
+                )
+                project_missing = project_registry.get_project(item.moved_to_project_id) is None
+                if removed or project_missing:
+                    item.removed_from_project = True
+                    label = project_name or item.moved_to_project_id
+                    notices.append(
+                        f"{item.section_number} was deleted from the calculation sheets "
+                        f"and removed from project {label}."
+                    )
+                else:
+                    label = project_name or item.moved_to_project_id
+                    notices.append(
+                        f"{item.section_number} was deleted from the calculation sheets. "
+                        f"It could not be removed from project {label}."
+                    )
+            else:
+                notices.append(
+                    f"{item.section_number} was deleted from the calculation sheets."
+                )
+            continue
+
+        if item.moved_to_project_id and not item.removed_from_project:
+            removed = delete_section_from_linked_project(
+                item.moved_to_project_id, item.section_number
+            )
+            project_missing = project_registry.get_project(item.moved_to_project_id) is None
+            if removed or project_missing:
+                item.removed_from_project = True
+                changed = True
+                label = project_names.get(item.moved_to_project_id, item.moved_to_project_id)
+                notices.append(
+                    f"{item.section_number} was removed from project {label}."
+                )
+
+    return notices, changed
+
+
 def build_non_boq_export_rows(items: Iterable[Dict]) -> list[dict]:
     """Flatten non-BOQ items into export rows with No, item_no, and calc_sheet_no."""
     rows: list[dict] = []
@@ -237,14 +399,19 @@ def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
             "section_number": item.section_number,
             "created_at": item.created_at,
             "updated_at": item.updated_at,
-            "calculation_sheet_nos": sheet_nos_by_section.get(item.section_number, []),
             "description": priced.get(item.section_number, {}).get("description") or "",
             "unit": priced.get(item.section_number, {}).get("unit") or "יח'",
             "quantity": priced.get(item.section_number, {}).get("quantity") or 0.0,
             "price": priced.get(item.section_number, {}).get("price") or 0.0,
+            "calculation_sheet_nos": (
+                sheet_nos_by_section.get(item.section_number, [])
+                or _stored_sheet_nos(item.source_sheet_nos)
+            ),
             "moved_to_project_id": item.moved_to_project_id,
             "moved_to_project_name": project_names.get(item.moved_to_project_id or ""),
             "moved_at": item.moved_at,
+            "removed_at": item.removed_at,
+            "removed_from_project": bool(item.removed_from_project),
         }
         for item in items
     ]

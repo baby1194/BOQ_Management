@@ -22,7 +22,10 @@ from services.calculation_sheet_sync import (
     merge_push_results,
     push_calculation_sheet_to_concentration_entries,
 )
-from services.non_boq_service import register_non_boq_items_from_calculation_entries
+from services.non_boq_service import (
+    reconcile_missing_non_boq_items,
+    register_non_boq_items_from_calculation_entries,
+)
 from services.approved_signed_qty_pdf_service import (
     build_boq_section_number,
     extract_approved_signed_invoice_date,
@@ -178,6 +181,7 @@ def import_calculation_sheet_from_disk(
         entries_created += 1
 
     register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
+    reconcile_missing_non_boq_items(db)
 
     push_result = push_calculation_sheet_to_concentration_entries(
         db,

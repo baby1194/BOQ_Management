@@ -361,6 +361,8 @@ export interface NonBoqItem {
   moved_to_project_id?: string | null;
   moved_to_project_name?: string | null;
   moved_at?: string | null;
+  removed_at?: string | null;
+  removed_from_project?: boolean;
   created_at: string;
   updated_at?: string;
 }

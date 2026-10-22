@@ -255,6 +255,10 @@ class NonBoqItem(Base):
     section_number = Column(String(100), unique=True, nullable=False, index=True)
     moved_to_project_id = Column(String(100), nullable=True)
     moved_at = Column(DateTime(timezone=True), nullable=True)
+    # Last calc sheets this section was seen on, kept after it is removed from them.
+    source_sheet_nos = Column(String(500), nullable=True)
+    removed_at = Column(DateTime(timezone=True), nullable=True)
+    removed_from_project = Column(Boolean, nullable=True, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

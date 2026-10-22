@@ -46,4 +46,25 @@ def copy_project_info(source: Session, target: Session) -> bool:
         if target_info.developer_name:
             sheet.developer_name = target_info.developer_name
 
+    _copy_project_info_files(source, target)
     return True
+
+
+def _copy_project_info_files(source: Session, target: Session) -> None:
+    """Copy the project-info file list when the target does not have one yet."""
+    if target.query(models.ProjectInfoFile).first() is not None:
+        return
+    for row in (
+        source.query(models.ProjectInfoFile)
+        .order_by(models.ProjectInfoFile.display_order.asc())
+        .all()
+    ):
+        target.add(
+            models.ProjectInfoFile(
+                display_order=row.display_order,
+                category_en=row.category_en,
+                category_he=row.category_he,
+                file_path=row.file_path,
+                description=row.description,
+            )
+        )
