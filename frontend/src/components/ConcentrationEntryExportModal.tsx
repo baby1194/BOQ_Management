@@ -23,6 +23,7 @@ interface ConcentrationEntryExportModalProps {
 type ConcentrationColumnKey = Exclude<
   keyof ConcentrationEntryExportRequest,
   | "page_size"
+  | "blank_approved_quantity"
   | "export_non_empty_only"
   | "export_non_zero_psq_only"
   | "export_estimated_gt_contract_only"
@@ -355,6 +356,25 @@ const ConcentrationEntryExportModal: React.FC<
                 disabled={loading}
               />
               <span className="text-sm">{t("boq.approvedQuantity")}</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={Boolean(exportRequest.blank_approved_quantity)}
+                onChange={() =>
+                  setExportRequest((prev) => ({
+                    ...prev,
+                    blank_approved_quantity: !prev.blank_approved_quantity,
+                    include_approved_by_project_manager: prev.blank_approved_quantity
+                      ? prev.include_approved_by_project_manager
+                      : true,
+                  }))
+                }
+                className="mr-2"
+                disabled={loading}
+              />
+              <span className="text-sm">{t("boq.blankApprovedQuantity")}</span>
             </label>
 
             <label className="flex items-center">

@@ -79,6 +79,9 @@ async def get_boq_items(
 ):
     """Get all BOQ items with pagination"""
     try:
+        from services.non_boq_project_copy import sync_boq_fields_from_calculation_entries
+
+        sync_boq_fields_from_calculation_entries(db)
         items = (
             db.query(models.BOQItem)
             .order_by(models.BOQItem.display_order.asc(), models.BOQItem.id.asc())

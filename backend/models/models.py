@@ -20,6 +20,12 @@ class BOQItem(Base):
     unit = Column(String(20), nullable=False)
     original_contract_quantity = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
+    # Unit price copied from calculation-sheet row 7. Stays unchanged when price is edited.
+    submitted_price = Column(Float, nullable=True)
+    submitted_to_supervisor = Column(Boolean, nullable=True, default=False)
+    submitted_to_supervisor_date = Column(String(20), nullable=True)
+    submitted_increase_quantity = Column(Float, nullable=True)
+    submitted_change_date = Column(String(20), nullable=True)
     total_contract_sum = Column(Float, nullable=False)
     estimated_quantity = Column(Float, default=0.0)
     quantity_submitted = Column(Float, default=0.0)
@@ -181,6 +187,8 @@ class CalculationEntry(Base):
     notes = Column(Text, nullable=True)
     # Excel row 7 of the item column. Used when this section is not on the BOQ.
     unit_price = Column(Float, nullable=True)
+    # Excel row 4 of the item column (the row above the section number).
+    system = Column(String(100), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

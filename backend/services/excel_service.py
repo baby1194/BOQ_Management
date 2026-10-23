@@ -514,6 +514,7 @@ class ExcelService:
                 compute_submission_breakdown,
                 count_calculation_sheet_items,
                 read_non_boq_price,
+                read_entry_system,
                 read_entry_current_invoice_id,
                 read_entry_invoice_description,
                 read_entry_item_description,
@@ -592,6 +593,7 @@ class ExcelService:
                         'submission_breakdown': submission_breakdown,
                         'notes': notes,
                         'unit_price': read_non_boq_price(df, col_index),
+                        'system': read_entry_system(df, col_index),
                     }
                     entries.append(entry)
                 

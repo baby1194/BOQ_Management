@@ -331,6 +331,29 @@ def _ensure_calculation_entry_unit_price(engine) -> None:
         conn.commit()
 
 
+def _ensure_boq_submission_columns(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = [row[1] for row in conn.execute(text("PRAGMA table_info(boq_items)"))]
+        additions = {
+            "submitted_price": "FLOAT",
+            "submitted_to_supervisor": "BOOLEAN",
+            "submitted_to_supervisor_date": "VARCHAR(20)",
+            "submitted_increase_quantity": "FLOAT",
+            "submitted_change_date": "VARCHAR(20)",
+        }
+        for name, column_type in additions.items():
+            if name not in columns:
+                conn.execute(text(f"ALTER TABLE boq_items ADD COLUMN {name} {column_type}"))
+        entry_columns = [
+            row[1] for row in conn.execute(text("PRAGMA table_info(calculation_entries)"))
+        ]
+        if "system" not in entry_columns:
+            conn.execute(text("ALTER TABLE calculation_entries ADD COLUMN system VARCHAR(100)"))
+        conn.commit()
+
+
 def _ensure_non_boq_move_columns(engine) -> None:
     from sqlalchemy import text
 
@@ -367,6 +390,7 @@ def init_project_database(project_id: str) -> None:
     _ensure_invoice_description_columns(engine)
     _ensure_calculation_entry_item_description(engine)
     _ensure_calculation_entry_unit_price(engine)
+    _ensure_boq_submission_columns(engine)
     _ensure_non_boq_move_columns(engine)
     _ensure_calculation_sheet_no_unique(engine)
 

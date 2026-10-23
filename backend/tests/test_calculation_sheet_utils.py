@@ -587,3 +587,33 @@ def test_build_concentration_export_row_uses_period_details_when_present():
     assert row["Internal Quantity"] == 5.0
     assert row["Approved by Project Manager"] == 4.0
     assert row["Notes"] == "period"
+
+
+def test_blank_approved_quantity_keeps_the_column_and_clears_the_values():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import (
+        build_concentration_export_rows_for_entry,
+        build_concentration_export_totals_row,
+    )
+
+    entry = SimpleNamespace(
+        description="manual",
+        calculation_sheet_no="",
+        drawing_no="01",
+        estimated_quantity=100.0,
+        submission_percentage=100.0,
+        quantity_submitted=100.0,
+        internal_quantity=33.0,
+        approved_by_project_manager=22.0,
+        notes="n",
+        supervisor_notes="s",
+        submission_breakdown=None,
+        current_invoice_id=None,
+    )
+    headers = ["Description", "Approved by Project Manager"]
+    columns = {"blank_approved_quantity": True, "include_approved_by_project_manager": True}
+    rows = build_concentration_export_rows_for_entry(entry, [], headers, columns)
+    assert rows[0]["Approved by Project Manager"] == ""
+    totals = build_concentration_export_totals_row([entry], headers, [], "Total", columns)
+    assert totals["Approved by Project Manager"] == ""

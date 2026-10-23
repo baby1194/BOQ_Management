@@ -9,7 +9,7 @@ from services.non_boq_service import (
     non_boq_import_rows,
     select_import_rows,
 )
-from utils.calculation_sheet_utils import read_non_boq_price
+from utils.calculation_sheet_utils import read_entry_system, read_non_boq_price
 
 
 def _session():
@@ -53,6 +53,12 @@ def test_price_is_read_from_excel_row_7():
     assert read_non_boq_price(df, 4) == 1213
 
 
+def test_system_is_read_from_excel_row_4():
+    df = pd.DataFrame([[None] * 6 for _ in range(8)])
+    df.iloc[3, 4] = 919.0
+    assert read_entry_system(df, 4) == "919"
+
+
 def test_import_rows_sum_quantity_and_keep_the_first_price():
     rows = build_non_boq_import_rows(
         [
@@ -60,7 +66,9 @@ def test_import_rows_sum_quantity_and_keep_the_first_price():
                 "section_number": "99.02.01.0640",
                 "description": "Extra wall",
                 "estimated_quantity": 10,
+                "quantity_submitted": 4,
                 "unit_price": 50,
+                "system": "919",
             },
             {
                 "section_number": "99.02.01.0640",
@@ -79,6 +87,8 @@ def test_import_rows_sum_quantity_and_keep_the_first_price():
     by_section = {row["section_number"]: row for row in rows}
     assert by_section["99.02.01.0640"]["quantity"] == 12.5
     assert by_section["99.02.01.0640"]["price"] == 50
+    assert by_section["99.02.01.0640"]["quantity_submitted"] == 4
+    assert by_section["99.02.01.0640"]["system"] == "919"
     assert by_section["99.02.01.0640"]["total"] == 625
     assert by_section["99.05.031.0012"]["description"] == "99.05.031.0012"
     assert by_section["99.05.031.0012"]["missing_price"] is True

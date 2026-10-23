@@ -14,6 +14,7 @@ DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
 INVOICE_DESCRIPTION_ROW = 2  # Excel row 3 (0-based) — short invoice title, not the item description
 ITEM_DESCRIPTION_ROW = 21  # Excel row 22 (0-based) — BOQ item description
+SYSTEM_ROW = 3  # Excel row 4 (0-based) — system code, the row above the section number
 SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
 # Price for items that are not on the contract. Same item column, the row under the estimated quantity.
 NON_BOQ_PRICE_ROW = 6  # Excel row 7 (0-based)
@@ -203,6 +204,16 @@ def _read_text_cell(df, row_index: int, col_index: int) -> Optional[str]:
 def _column_has_section_number(df, col_index: int) -> bool:
     section_number = _read_text_cell(df, SECTION_NUMBER_ROW, col_index)
     return bool(section_number)
+
+
+def read_entry_system(df, col_index: int) -> Optional[str]:
+    """System code from Excel row 4 of the item column."""
+    text = _read_text_cell(df, SYSTEM_ROW, col_index)
+    if not text or len(text) > 40:
+        return None
+    if text.endswith(".0") and text[:-2].replace("-", "").isdigit():
+        return text[:-2]
+    return text
 
 
 def read_entry_invoice_description(df, col_index: int) -> Optional[str]:
@@ -699,6 +710,9 @@ def build_concentration_export_rows_for_entry(
     )
     if entry_columns and entry_columns.get("include_past_months_submitted_subrows"):
         _apply_subrow_merge_column_values(rows, filtered_headers)
+    if entry_columns and entry_columns.get("blank_approved_quantity"):
+        for row in rows:
+            row["Approved by Project Manager"] = ""
     return rows
 
 
@@ -973,4 +987,6 @@ def build_concentration_export_totals_row(
             totals[header] = sum(
                 entry_total_approved_quantity(entry) for entry in entries
             )
+    if entry_columns and entry_columns.get("blank_approved_quantity"):
+        totals["Approved by Project Manager"] = ""
     return totals

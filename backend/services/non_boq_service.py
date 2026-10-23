@@ -251,13 +251,19 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
                 "description": "",
                 "unit": "יח'",
                 "quantity": 0.0,
+                "quantity_submitted": 0.0,
                 "price": 0.0,
+                "system": "",
             },
         )
         description = (record.get("description") or "").strip()
         if description and not row["description"]:
             row["description"] = description
+        system = (record.get("system") or "").strip()
+        if system and not row["system"]:
+            row["system"] = system
         row["quantity"] += float(record.get("estimated_quantity") or 0)
+        row["quantity_submitted"] += float(record.get("quantity_submitted") or 0)
         price = record.get("unit_price")
         if row["price"] == 0.0 and price not in (None, "", 0, 0.0):
             row["price"] = float(price)
@@ -274,7 +280,9 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
                 "description": row["description"],
                 "unit": row["unit"],
                 "quantity": quantity,
+                "quantity_submitted": round(row["quantity_submitted"], 3),
                 "price": price,
+                "system": row["system"],
                 "total": round(quantity * price, 2),
                 "missing_price": price == 0.0,
             }
@@ -372,7 +380,9 @@ def non_boq_import_rows(db: Session) -> list[dict]:
                 "section_number": entry.section_number,
                 "description": (entry.item_description or "").strip(),
                 "estimated_quantity": entry.estimated_quantity,
+                "quantity_submitted": entry.quantity_submitted,
                 "unit_price": entry.unit_price,
+                "system": entry.system,
             }
         )
     return build_non_boq_import_rows(records)
@@ -402,7 +412,9 @@ def list_non_boq_items_with_calc_sheets(db: Session) -> list[dict]:
             "description": priced.get(item.section_number, {}).get("description") or "",
             "unit": priced.get(item.section_number, {}).get("unit") or "יח'",
             "quantity": priced.get(item.section_number, {}).get("quantity") or 0.0,
+            "quantity_submitted": priced.get(item.section_number, {}).get("quantity_submitted") or 0.0,
             "price": priced.get(item.section_number, {}).get("price") or 0.0,
+            "system": priced.get(item.section_number, {}).get("system") or "",
             "calculation_sheet_nos": (
                 sheet_nos_by_section.get(item.section_number, [])
                 or _stored_sheet_nos(item.source_sheet_nos)

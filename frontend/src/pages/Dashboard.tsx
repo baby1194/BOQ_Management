@@ -274,6 +274,16 @@ const Dashboard: React.FC = () => {
     const approvedOfSubmitted =
       submittedQty > 0 ? (approvedQty / submittedQty) * 100 : 0;
 
+    const activeExceptions = nonBoqItems.filter((item) => !item.removed_at);
+    const exceptionEstimateValue = activeExceptions.reduce(
+      (sum, item) => sum + (item.quantity || 0) * (item.price || 0),
+      0
+    );
+    const exceptionSubmittedValue = activeExceptions.reduce(
+      (sum, item) => sum + (item.quantity_submitted || 0) * (item.price || 0),
+      0
+    );
+
     return {
       totalBOQItems,
       totalConcentrationSheets,
@@ -296,6 +306,10 @@ const Dashboard: React.FC = () => {
       approvedQty,
       submittedOfEstimated,
       approvedOfSubmitted,
+      totalEstimateIncludingExceptions:
+        totalEstimateValue + exceptionEstimateValue,
+      totalSubmittedIncludingExceptions:
+        totalSubmittedValue + exceptionSubmittedValue,
     };
   };
 
@@ -492,6 +506,8 @@ const Dashboard: React.FC = () => {
       changeType: (stats.estimateVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.estimateProgress || 0,
       icon: TrendingUp,
+      includingExceptions: stats.totalEstimateIncludingExceptions || 0,
+      includingExceptionsLabel: t("dashboard.totalEstimateIncludingExceptions"),
     },
     {
       name: t("dashboard.totalSubmitted"),
@@ -500,6 +516,8 @@ const Dashboard: React.FC = () => {
       changeType: (stats.submittedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.submittedProgress || 0,
       icon: Upload,
+      includingExceptions: stats.totalSubmittedIncludingExceptions || 0,
+      includingExceptionsLabel: t("dashboard.totalSubmittedIncludingExceptions"),
     },
     {
       name: t("dashboard.totalApproved"),
@@ -742,9 +760,23 @@ const Dashboard: React.FC = () => {
                   {metric.change}
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-4">
+              <p
+                className={`text-3xl font-bold text-gray-900 ${
+                  "includingExceptionsLabel" in metric &&
+                  metric.includingExceptionsLabel
+                    ? "mb-2"
+                    : "mb-4"
+                }`}
+              >
                 {metric.value}
               </p>
+              {"includingExceptionsLabel" in metric &&
+                metric.includingExceptionsLabel && (
+                <p className="text-sm text-gray-600 mb-4">
+                  {metric.includingExceptionsLabel}:{" "}
+                  {formatCurrency(metric.includingExceptions || 0)}
+                </p>
+              )}
 
               {/* Progress bar */}
               <div className="mb-2">

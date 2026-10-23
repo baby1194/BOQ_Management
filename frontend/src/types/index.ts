@@ -20,6 +20,14 @@ export interface BOQItem {
   unit: string;
   original_contract_quantity: number;
   price: number;
+  /** Frozen unit price from calculation-sheet row 7. */
+  submitted_price?: number | null;
+  submitted_to_supervisor?: boolean | null;
+  /** dd/mm/yyyy */
+  submitted_to_supervisor_date?: string | null;
+  submitted_increase_quantity?: number | null;
+  /** dd/mm/yyyy */
+  submitted_change_date?: string | null;
   total_contract_sum: number;
   estimated_quantity: number;
   quantity_submitted: number;
@@ -259,6 +267,8 @@ export interface ConcentrationEntryExportRequest {
   include_left_submitted: boolean;
   include_internal_quantity: boolean;
   include_approved_by_project_manager: boolean;
+  /** Include the approved-quantity column with every value left blank. */
+  blank_approved_quantity?: boolean;
   include_notes: boolean;
   include_supervisor_notes: boolean;
   /** PDF page size for concentration sheet export (landscape) */
@@ -357,7 +367,9 @@ export interface NonBoqItem {
   description?: string;
   unit?: string;
   quantity?: number;
+  quantity_submitted?: number;
   price?: number;
+  system?: string;
   moved_to_project_id?: string | null;
   moved_to_project_name?: string | null;
   moved_at?: string | null;

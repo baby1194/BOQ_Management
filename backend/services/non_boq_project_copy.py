@@ -14,6 +14,87 @@ from services.calculation_sheet_sync import push_calculation_sheet_to_concentrat
 IMPORT_NOTE = "Imported from non-BOQ calculation sheets"
 
 
+def _fill_missing_entry_systems(db: Session) -> bool:
+    """Read Excel row 4 once for entries that have never stored a system code."""
+    from pathlib import Path
+
+    from services.excel_service import ExcelService
+
+    empty_sections = {
+        (item.section_number or "").strip()
+        for item in db.query(models.BOQItem).all()
+        if not (item.system or "").strip()
+    }
+    empty_sections.discard("")
+    if not empty_sections:
+        return False
+    pending = [
+        entry
+        for entry in db.query(models.CalculationEntry).all()
+        if entry.system is None and (entry.section_number or "").strip() in empty_sections
+    ]
+    if not pending:
+        return False
+    by_sheet: dict[int, list] = {}
+    updated = False
+    for entry in pending:
+        by_sheet.setdefault(entry.calculation_sheet_id, []).append(entry)
+
+    reader = ExcelService()
+    for sheet_id, entries in by_sheet.items():
+        sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
+        systems: dict[str, str] = {}
+        path = Path(sheet.source_file_path) if sheet and sheet.source_file_path else None
+        if path and path.is_file():
+            try:
+                data = reader.read_calculation_sheet_data(str(path))
+                for row in data.get("entries") or []:
+                    section = (row.get("section_number") or "").strip()
+                    system = (row.get("system") or "").strip()
+                    if section and system and section not in systems:
+                        systems[section] = system
+            except Exception:
+                systems = {}
+        for entry in entries:
+            entry.system = systems.get((entry.section_number or "").strip(), "") or ""
+            updated = True
+    return updated
+
+
+def sync_boq_fields_from_calculation_entries(db: Session) -> bool:
+    """Fill an empty system and a missing submitted price from the calculation sheet.
+
+    Submitted price is written once. Later edits to the BOQ price leave it as imported.
+    """
+    entries_changed = _fill_missing_entry_systems(db)
+    by_section: dict[str, dict] = {}
+    for entry in db.query(models.CalculationEntry).all():
+        section = (entry.section_number or "").strip()
+        if not section:
+            continue
+        slot = by_section.setdefault(section, {"price": None, "system": None})
+        if slot["price"] is None and entry.unit_price is not None:
+            slot["price"] = float(entry.unit_price)
+        system = (entry.system or "").strip()
+        if system and not slot["system"]:
+            slot["system"] = system
+
+    changed = False
+    for item in db.query(models.BOQItem).all():
+        slot = by_section.get((item.section_number or "").strip())
+        if not slot:
+            continue
+        if item.submitted_price is None and slot["price"] is not None:
+            item.submitted_price = slot["price"]
+            changed = True
+        if not (item.system or "").strip() and slot["system"]:
+            item.system = slot["system"]
+            changed = True
+    if changed or entries_changed:
+        db.commit()
+    return changed or entries_changed
+
+
 def _add_boq_items(
     target: Session,
     rows: List[dict],
@@ -29,6 +110,8 @@ def _add_boq_items(
             unit=row["unit"],
             original_contract_quantity=row["quantity"],
             price=row["price"],
+            submitted_price=row["price"],
+            system=row.get("system") or None,
             total_contract_sum=row["total"],
             estimated_quantity=row["quantity"],
             total_estimate=row["total"],
@@ -64,6 +147,7 @@ def _clone_calculation_entry(sheet_id: int, entry: models.CalculationEntry) -> m
         submission_breakdown=copy.deepcopy(entry.submission_breakdown),
         notes=entry.notes,
         unit_price=entry.unit_price,
+        system=entry.system,
     )
 
 

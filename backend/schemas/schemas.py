@@ -12,6 +12,11 @@ class BOQItemBase(BaseModel):
     unit: str = Field(..., min_length=1, max_length=20)
     original_contract_quantity: float = Field(..., ge=0)
     price: float = Field(..., ge=0)
+    submitted_price: Optional[float] = None
+    submitted_to_supervisor: Optional[bool] = None
+    submitted_to_supervisor_date: Optional[str] = Field(None, max_length=20)
+    submitted_increase_quantity: Optional[float] = None
+    submitted_change_date: Optional[str] = Field(None, max_length=20)
     total_contract_sum: float = Field(..., ge=0)
     estimated_quantity: float = Field(0.0, ge=0)
     quantity_submitted: float = Field(0.0, ge=0)
@@ -49,6 +54,11 @@ class BOQItemUpdate(BaseModel):
     unit: Optional[str] = Field(None, min_length=1, max_length=20)
     original_contract_quantity: Optional[float] = Field(None, ge=0)
     price: Optional[float] = Field(None, ge=0)
+    submitted_price: Optional[float] = None
+    submitted_to_supervisor: Optional[bool] = None
+    submitted_to_supervisor_date: Optional[str] = Field(None, max_length=20)
+    submitted_increase_quantity: Optional[float] = None
+    submitted_change_date: Optional[str] = Field(None, max_length=20)
     total_contract_sum: Optional[float] = Field(None, ge=0)
     estimated_quantity: Optional[float] = Field(None, ge=0)
     quantity_submitted: Optional[float] = Field(None, ge=0)
@@ -249,6 +259,8 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_left_submitted: bool = False
     include_internal_quantity: bool = True
     include_approved_by_project_manager: bool = True
+    # Keep the approved-quantity column, but print every cell blank.
+    blank_approved_quantity: bool = False
     include_notes: bool = True
     include_supervisor_notes: bool = True
     # PDF page size for concentration sheet export (landscape)
