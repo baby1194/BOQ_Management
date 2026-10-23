@@ -1778,7 +1778,7 @@ const ConcentrationSheets: React.FC = () => {
         <div className="w-full min-h-0 flex-1 lg:h-full lg:min-w-0">
           <div className="bg-white rounded-lg shadow h-full min-h-0 flex flex-col overflow-hidden">
             {selectedSheet ? (
-              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {/* Header Information */}
                 <div className="p-6 border-b border-gray-200 shrink-0">
                   <div
@@ -1970,9 +1970,9 @@ const ConcentrationSheets: React.FC = () => {
                 </div>
 
                 {/* Entries Table */}
-                <div className="p-6 flex flex-col">
+                <div className="p-6 flex flex-col flex-1 min-h-0 overflow-hidden">
                   <div
-                    className={`flex justify-between items-center mb-4 ${
+                    className={`flex justify-between items-center mb-4 shrink-0 ${
                       isRTL ? "flex-row-reverse" : ""
                     }`}
                   >
@@ -2064,10 +2064,10 @@ const ConcentrationSheets: React.FC = () => {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="flex-1 min-h-0 overflow-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead
-                            className="bg-gray-50 sticky top-0 z-10"
+                            className="sticky top-0 z-20 bg-gray-50 shadow-sm [&_th]:bg-gray-50"
                             onPointerDown={(event) =>
                               startHeaderColumnResize(
                                 event,

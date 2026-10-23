@@ -106,6 +106,26 @@ type BoqEditingColumnKey =
   | "internal_field_2"
   | `contractQty:${number}`;
 
+const TEXT_EDIT_COLUMNS = new Set<string>([
+  "serial_number",
+  "structure",
+  "system",
+  "description",
+  "price",
+  "submitted_to_supervisor_date",
+  "submitted_increase_quantity",
+  "submitted_change_date",
+  "original_contract_quantity",
+  "approved_signed_quantity",
+  "notes",
+  "internal_field_1",
+  "internal_field_2",
+]);
+
+function isTextEditColumn(column: string): boolean {
+  return TEXT_EDIT_COLUMNS.has(column) || column.startsWith("contractQty:");
+}
+
 const BOQItems: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -196,6 +216,7 @@ const BOQItems: React.FC = () => {
       original_contract_quantity: "",
       price: "",
       submitted_price: "",
+      submitted_to_supervisor: "",
       submitted_to_supervisor_date: "",
       total_contract_sum: "",
       estimated_quantity: "",
@@ -964,6 +985,12 @@ const BOQItems: React.FC = () => {
         filters.submitted_price,
         item.submitted_price || 0
       );
+      const submittedFlag = filters.submitted_to_supervisor;
+      const matchesSubmittedFlag =
+        submittedFlag === "" ||
+        (submittedFlag === "yes"
+          ? Boolean(item.submitted_to_supervisor)
+          : !item.submitted_to_supervisor);
       const matchesSubmittedDate = (item.submitted_to_supervisor_date || "")
         .toLowerCase()
         .includes(filters.submitted_to_supervisor_date.trim().toLowerCase());
@@ -1101,6 +1128,7 @@ const BOQItems: React.FC = () => {
         matchesQuantityDecrease &&
         matchesQuantityIncrease &&
         matchesSubmittedPrice &&
+        matchesSubmittedFlag &&
         matchesSubmittedDate &&
         matchesSubmittedIncrease &&
         matchesSubmittedChangeDate &&
@@ -1374,10 +1402,59 @@ const BOQItems: React.FC = () => {
     setEditingFocusColumn(null);
   };
 
+  const focusBoqCell = (rowId: number, cellIndex: number) => {
+    const tr = document.querySelector(
+      `tr[data-boq-row-id="${rowId}"]`
+    ) as HTMLTableRowElement | null;
+    const td = tr?.cells[cellIndex];
+    if (!td) return;
+    const nav = td.dataset.boqNav || "";
+    const rowItem = items.find((entry) => entry.id === rowId);
+    if (rowItem && isTextEditColumn(nav)) {
+      startEditing(rowItem, nav as BoqEditingColumnKey);
+      return;
+    }
+    const focusable = td.querySelector(
+      "input, select, textarea"
+    ) as HTMLElement | null;
+    if (focusable) {
+      focusable.focus();
+    } else {
+      td.tabIndex = -1;
+      td.focus();
+    }
+    td.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
+
+  const advanceEditing = (
+    item: BOQItem,
+    column: BoqEditingColumnKey,
+    delta: number
+  ) => {
+    const idx = items.findIndex((entry) => entry.id === item.id);
+    const next = idx >= 0 ? items[idx + delta] : undefined;
+    if (next && isTextEditColumn(column)) {
+      setEditingId(next.id);
+      setEditingValues({});
+      setEditingFocusColumn(column);
+      return;
+    }
+    setEditingId(null);
+    setEditingValues({});
+    setEditingFocusColumn(null);
+    if (!next) return;
+    const currentInput = document.querySelector(
+      `input[data-boq-item-id="${item.id}"][data-boq-edit-column="${column}"]`
+    );
+    const cellIndex = currentInput?.closest("td")?.cellIndex;
+    if (cellIndex == null) return;
+    requestAnimationFrame(() => focusBoqCell(next.id, cellIndex));
+  };
+
   // Save changes to database
   const saveChanges = async (
     item: BOQItem,
-    options?: { advanceToColumn?: BoqEditingColumnKey }
+    options?: { advanceToColumn?: BoqEditingColumnKey; delta?: number }
   ) => {
     try {
       setSavingId(item.id);
@@ -1421,25 +1498,17 @@ const BOQItems: React.FC = () => {
 
       const advanceCol = options?.advanceToColumn;
       if (advanceCol) {
-        const idx = items.findIndex((i) => i.id === item.id);
-        const next = idx >= 0 && idx < items.length - 1 ? items[idx + 1] : null;
-        if (next) {
-          setEditingId(next.id);
-          setEditingValues({});
-          setEditingFocusColumn(advanceCol);
-        } else {
-          setEditingId(null);
-          setEditingValues({});
-          setEditingFocusColumn(null);
-        }
+        advanceEditing(item, advanceCol, options?.delta ?? 1);
       } else {
         setEditingId(null);
         setEditingValues({});
         setEditingFocusColumn(null);
       }
+      return true;
     } catch (err) {
       console.error("Error saving changes:", err);
       setError("Failed to save changes");
+      return false;
     } finally {
       setSavingId(null);
     }
@@ -1461,6 +1530,7 @@ const BOQItems: React.FC = () => {
         `input[data-boq-item-id="${editingId}"][data-boq-edit-column="${editingFocusColumn}"]`
       ) as HTMLInputElement | null;
       el?.focus();
+      el?.scrollIntoView({ block: "nearest", inline: "nearest" });
       if (
         el &&
         (el.type === "text" || el.type === "number") &&
@@ -1472,7 +1542,7 @@ const BOQItems: React.FC = () => {
     return () => cancelAnimationFrame(raf);
   }, [editingId, editingFocusColumn]);
 
-  /** Enter: save and move to same column on next row (or exit if last row). Esc: unchanged. Contract qty saves per keystroke — Enter only advances. */
+  /** Enter or ArrowDown: save and move to the same column on the next row. ArrowUp moves up. Esc leaves the cell unchanged. */
   const handleEditColumnKeyDown = (
     e: React.KeyboardEvent,
     item: BOQItem,
@@ -1483,25 +1553,56 @@ const BOQItems: React.FC = () => {
       cancelEditing();
       return;
     }
-    if (e.key !== "Enter") return;
+    const delta =
+      e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" || e.key === "Enter" ? 1 : 0;
+    if (!delta) return;
     e.preventDefault();
+    e.stopPropagation();
 
     if (String(column).startsWith("contractQty:")) {
-      const idx = items.findIndex((i) => i.id === item.id);
-      const next = idx >= 0 && idx < items.length - 1 ? items[idx + 1] : null;
-      if (next) {
-        setEditingId(next.id);
-        setEditingValues({});
-        setEditingFocusColumn(column);
-      } else {
-        setEditingId(null);
-        setEditingValues({});
-        setEditingFocusColumn(null);
-      }
+      advanceEditing(item, column, delta);
       return;
     }
 
-    void saveChanges(item, { advanceToColumn: column });
+    void saveChanges(item, { advanceToColumn: column, delta });
+  };
+
+  const handleBoqRowKeyDown = (
+    e: React.KeyboardEvent<HTMLTableRowElement>,
+    item: BOQItem
+  ) => {
+    const target = e.target as HTMLElement;
+    const field = target.closest("input, textarea, select") as
+      | HTMLInputElement
+      | null;
+    if (field && field.type !== "checkbox") return;
+    const delta =
+      e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" || e.key === "Enter" ? 1 : 0;
+    if (!delta) return;
+    if (e.key === "Enter" && target.closest("button, a")) return;
+    const td = target.closest("td");
+    if (!td) return;
+    const nav = td.dataset.boqNav || "";
+    if (e.key === "Enter" && isTextEditColumn(nav) && editingId !== item.id) {
+      e.preventDefault();
+      startEditing(item, nav as BoqEditingColumnKey);
+      return;
+    }
+    e.preventDefault();
+    const idx = items.findIndex((entry) => entry.id === item.id);
+    const next = idx >= 0 ? items[idx + delta] : undefined;
+    if (!next) return;
+    const cellIndex = td.cellIndex;
+    const move = () => {
+      requestAnimationFrame(() => focusBoqCell(next.id, cellIndex));
+    };
+    if (editingId === item.id) {
+      void saveChanges(item).then((saved) => {
+        if (saved) move();
+      });
+      return;
+    }
+    move();
   };
 
   // Navigate to concentration sheet for specific item
@@ -2280,6 +2381,7 @@ const BOQItems: React.FC = () => {
       original_contract_quantity: "",
       price: "",
       submitted_price: "",
+      submitted_to_supervisor: "",
       submitted_to_supervisor_date: "",
       total_contract_sum: "",
       estimated_quantity: "",
@@ -3333,7 +3435,7 @@ const BOQItems: React.FC = () => {
           ref={tableScrollContainerRef}
           className="overflow-auto max-h-[70vh]"
         >
-          <table className="min-w-full border border-gray-300">
+          <table className="min-w-full border border-gray-300 [&_td:focus]:outline [&_td:focus]:outline-2 [&_td:focus]:outline-blue-500 [&_td:focus]:-outline-offset-2">
             {/* Frozen Header */}
             <thead
               className="sticky top-0 z-10 bg-gray-50 shadow-sm border-t-2"
@@ -3636,7 +3738,24 @@ const BOQItems: React.FC = () => {
                   aria-hidden
                 />
                 {columnVisibility.submitted_to_supervisor && (
-                  <th className="px-2 py-2 border-r border-gray-300" />
+                  <th className="px-2 py-2 border-r border-gray-300">
+                    <select
+                      value={filters.submitted_to_supervisor}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "submitted_to_supervisor",
+                          e.target.value
+                        )
+                      }
+                      className={`w-full px-1 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
+                        "submitted_to_supervisor"
+                      )}`}
+                    >
+                      <option value="">{t("boq.filterAll")}</option>
+                      <option value="yes">{t("boq.filterYes")}</option>
+                      <option value="no">{t("boq.filterNo")}</option>
+                    </select>
+                  </th>
                 )}
                 {columnVisibility.submitted_to_supervisor_date && (
                   <th className="px-2 py-2 border-r border-gray-300">
@@ -4306,6 +4425,22 @@ const BOQItems: React.FC = () => {
                 return (
                   <tr
                     key={item.id}
+                    data-boq-row-id={item.id}
+                    onKeyDown={(e) => handleBoqRowKeyDown(e, item)}
+                    onMouseDown={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (
+                        target.closest(
+                          "input, button, a, select, textarea, label"
+                        )
+                      ) {
+                        return;
+                      }
+                      const td = target.closest("td");
+                      if (!td) return;
+                      td.tabIndex = -1;
+                      td.focus();
+                    }}
                     onClick={() => setSelectedBoqRowId(item.id)}
                     onDragOver={(ev) => handleBoqRowDragOver(ev, item)}
                     onDrop={(ev) => handleBoqRowDrop(ev, item)}
@@ -4370,6 +4505,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.submitted_to_supervisor_date && (
                       <td
+                        data-boq-nav="submitted_to_supervisor_date"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer"
                         onDoubleClick={() =>
                           !isEditing &&
@@ -4412,6 +4548,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.serial_number && (
                       <td
+                        data-boq-nav="serial_number"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "serial_number")
@@ -4448,6 +4585,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.structure && (
                       <td
+                        data-boq-nav="structure"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "structure")
@@ -4484,6 +4622,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.system && (
                       <td
+                        data-boq-nav="system"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "system")
@@ -4541,6 +4680,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.description && (
                       <td
+                        data-boq-nav="description"
                         className="px-3 py-4 text-sm text-gray-900 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "description")
@@ -4578,6 +4718,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.price && (
                       <td
+                        data-boq-nav="price"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "price")
@@ -4622,6 +4763,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.original_contract_quantity && (
                       <td
+                        data-boq-nav="original_contract_quantity"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing &&
@@ -4680,6 +4822,7 @@ const BOQItems: React.FC = () => {
                       return columnVisibility[qtyKey] ? (
                         <td
                           key={update.id}
+                          data-boq-nav={contractQtyCol}
                           className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer transition-colors"
                           onDoubleClick={() =>
                             !isEditing && startEditing(item, contractQtyCol)
@@ -4776,6 +4919,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.approved_signed_quantity && (
                       <td
+                        data-boq-nav="approved_signed_quantity"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-green-100 cursor-pointer hover:bg-green-200 transition-colors"
                         onDoubleClick={() =>
                           !isEditing &&
@@ -4842,6 +4986,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.submitted_increase_quantity && (
                       <td
+                        data-boq-nav="submitted_increase_quantity"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-blue-50 cursor-pointer"
                         onDoubleClick={() =>
                           !isEditing &&
@@ -4888,6 +5033,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.submitted_change_date && (
                       <td
+                        data-boq-nav="submitted_change_date"
                         className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "submitted_change_date")
@@ -4998,6 +5144,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.notes && (
                       <td
+                        data-boq-nav="notes"
                         className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "notes")
@@ -5030,6 +5177,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.internal_field_1 && (
                       <td
+                        data-boq-nav="internal_field_1"
                         className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "internal_field_1")
@@ -5070,6 +5218,7 @@ const BOQItems: React.FC = () => {
                     )}
                     {columnVisibility.internal_field_2 && (
                       <td
+                        data-boq-nav="internal_field_2"
                         className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words border-r border-gray-300 cursor-pointer transition-colors"
                         onDoubleClick={() =>
                           !isEditing && startEditing(item, "internal_field_2")

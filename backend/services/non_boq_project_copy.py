@@ -235,6 +235,7 @@ def add_non_boq_items_to_project(source: Session, target: Session, rows: List[di
         return {
             "item_count": 0,
             "skipped_count": len(skipped),
+            "skipped_sections": skipped,
             "calculation_sheet_count": 0,
             "added_sections": [],
         }
@@ -247,6 +248,7 @@ def add_non_boq_items_to_project(source: Session, target: Session, rows: List[di
     return {
         "item_count": len(fresh),
         "skipped_count": len(skipped),
+        "skipped_sections": skipped,
         "calculation_sheet_count": sheet_count,
         "added_sections": [row["section_number"] for row in fresh],
     }

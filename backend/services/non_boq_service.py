@@ -131,8 +131,8 @@ def delete_section_from_linked_project(project_id: str, section_number: str) -> 
 def reconcile_missing_non_boq_items(db: Session) -> tuple[list[str], bool]:
     """Mark non-BOQ sections that are no longer on any calculation sheet.
 
-    A section that was copied into a sub-project is removed from that project.
-    Sections that show up on a sheet again are cleared back to a normal row.
+    A section already copied into a sub-project stays there. Tracking must not
+    treat that row as new or replace the sub-project data.
     Returns notice sentences and whether any row changed.
     """
     items = db.query(models.NonBoqItem).all()
@@ -156,54 +156,26 @@ def reconcile_missing_non_boq_items(db: Session) -> tuple[list[str], bool]:
             if item.source_sheet_nos != joined:
                 item.source_sheet_nos = joined
                 changed = True
-            if item.removed_at is not None:
+            if item.removed_at is not None and not item.removed_from_project:
                 item.removed_at = None
-                item.removed_from_project = False
-                item.moved_to_project_id = None
-                item.moved_at = None
                 changed = True
             continue
 
-        if item.removed_at is None:
-            item.removed_at = now
-            changed = True
-            project_name = project_names.get(item.moved_to_project_id or "", "")
-            if item.moved_to_project_id and not item.removed_from_project:
-                removed = delete_section_from_linked_project(
-                    item.moved_to_project_id, item.section_number
-                )
-                project_missing = project_registry.get_project(item.moved_to_project_id) is None
-                if removed or project_missing:
-                    item.removed_from_project = True
-                    label = project_name or item.moved_to_project_id
-                    notices.append(
-                        f"{item.section_number} was deleted from the calculation sheets "
-                        f"and removed from project {label}."
-                    )
-                else:
-                    label = project_name or item.moved_to_project_id
-                    notices.append(
-                        f"{item.section_number} was deleted from the calculation sheets. "
-                        f"It could not be removed from project {label}."
-                    )
-            else:
-                notices.append(
-                    f"{item.section_number} was deleted from the calculation sheets."
-                )
+        if item.removed_at is not None:
             continue
 
-        if item.moved_to_project_id and not item.removed_from_project:
-            removed = delete_section_from_linked_project(
-                item.moved_to_project_id, item.section_number
+        item.removed_at = now
+        changed = True
+        if item.moved_to_project_id:
+            label = project_names.get(item.moved_to_project_id, item.moved_to_project_id)
+            notices.append(
+                f"{item.section_number} was deleted from the calculation sheets. "
+                f"It is still in project {label}, and that project was left unchanged."
             )
-            project_missing = project_registry.get_project(item.moved_to_project_id) is None
-            if removed or project_missing:
-                item.removed_from_project = True
-                changed = True
-                label = project_names.get(item.moved_to_project_id, item.moved_to_project_id)
-                notices.append(
-                    f"{item.section_number} was removed from project {label}."
-                )
+        else:
+            notices.append(
+                f"{item.section_number} was deleted from the calculation sheets."
+            )
 
     return notices, changed
 

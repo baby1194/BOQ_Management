@@ -116,10 +116,11 @@ async def add_non_boq_to_existing_project(
     finally:
         target.close()
 
-    if added["item_count"] == 0:
-        raise HTTPException(status_code=400, detail="already_in_project")
+    already_there = added["added_sections"] + added.get("skipped_sections", [])
+    if not already_there:
+        raise HTTPException(status_code=400, detail="no_items")
 
-    mark_non_boq_items_moved(db, added["added_sections"], project["id"])
+    mark_non_boq_items_moved(db, already_there, project["id"])
     db.commit()
 
     added_rows = [row for row in rows if row["section_number"] in set(added["added_sections"])]

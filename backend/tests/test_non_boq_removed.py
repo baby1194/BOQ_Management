@@ -3,10 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 from models import models
 from services import non_boq_service
-from services.non_boq_service import (
-    delete_section_from_database,
-    reconcile_missing_non_boq_items,
-)
+from services.non_boq_service import reconcile_missing_non_boq_items
 
 
 def _session():
@@ -27,7 +24,7 @@ def _sheet(db, number):
     return sheet
 
 
-def test_removed_section_is_marked_and_deleted_from_the_sub_project(monkeypatch):
+def test_removed_section_is_marked_and_the_sub_project_is_kept(monkeypatch):
     source = _session()
     target = _session()
     sheet = _sheet(source, "32/7/1")
@@ -83,10 +80,7 @@ def test_removed_section_is_marked_and_deleted_from_the_sub_project(monkeypatch)
     )
 
     def fake_delete(project_id, section_number):
-        assert project_id == "proj"
-        delete_section_from_database(target, section_number)
-        target.commit()
-        return True
+        raise AssertionError(f"must not delete {section_number} from {project_id}")
 
     monkeypatch.setattr(non_boq_service, "delete_section_from_linked_project", fake_delete)
 
@@ -96,14 +90,17 @@ def test_removed_section_is_marked_and_deleted_from_the_sub_project(monkeypatch)
     assert changed is True
     row = source.query(models.NonBoqItem).one()
     assert row.removed_at is not None
-    assert row.removed_from_project is True
+    assert row.removed_from_project is not True
+    assert row.moved_to_project_id == "proj"
     assert row.source_sheet_nos == "32/7/1"
     assert "99.41.01.1340" in notices[0]
     assert "Extras" in notices[0]
-    assert target.query(models.BOQItem).count() == 0
-    assert target.query(models.ConcentrationSheet).count() == 0
-    assert target.query(models.CalculationEntry).count() == 0
-    assert target.query(models.CalculationSheet).count() == 0
+    assert "left unchanged" in notices[0]
+    kept = target.query(models.BOQItem).one()
+    assert kept.price == 2
+    assert kept.description == "Cancelled"
+    assert target.query(models.ConcentrationSheet).count() == 1
+    assert target.query(models.CalculationEntry).count() == 1
 
 
 def test_section_still_on_a_sheet_keeps_the_sheet_number(monkeypatch):
@@ -126,3 +123,34 @@ def test_section_still_on_a_sheet_keeps_the_sheet_number(monkeypatch):
     assert changed is True
     assert row.removed_at is None
     assert row.source_sheet_nos == "26/1"
+
+
+def test_tracking_again_keeps_the_link_to_the_sub_project(monkeypatch):
+    source = _session()
+    sheet = _sheet(source, "26/1")
+    source.add(
+        models.CalculationEntry(
+            calculation_sheet_id=sheet.id,
+            section_number="99.41.01.1340",
+        )
+    )
+    source.add(
+        models.NonBoqItem(
+            section_number="99.41.01.1340",
+            moved_to_project_id="proj",
+            source_sheet_nos="26/1",
+        )
+    )
+    source.commit()
+
+    monkeypatch.setattr(
+        non_boq_service.project_registry,
+        "list_projects",
+        lambda: [{"id": "proj", "name": "Extras"}],
+    )
+    notices, _changed = reconcile_missing_non_boq_items(source)
+
+    row = source.query(models.NonBoqItem).one()
+    assert notices == []
+    assert row.removed_at is None
+    assert row.moved_to_project_id == "proj"
