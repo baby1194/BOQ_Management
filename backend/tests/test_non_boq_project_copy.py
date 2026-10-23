@@ -51,6 +51,7 @@ def test_new_project_gets_only_non_boq_rows_of_mixed_sheets():
             "quantity": 3.0,
             "price": 40.0,
             "total": 120.0,
+            "system": "919",
         }
     ]
     result = fill_non_boq_project(source, target, rows)
@@ -61,6 +62,10 @@ def test_new_project_gets_only_non_boq_rows_of_mixed_sheets():
     assert [s.calculation_sheet_no for s in sheets] == ["CS-1"]
     assert sheets[0].source_file_path == "C:/sheets/CS-1.xlsx"
     assert [e.section_number for e in sheets[0].entries] == ["99.01.0001"]
+
+    item = target.query(models.BOQItem).one()
+    assert item.structure == 99
+    assert item.system == "Sheet CS-1"
 
     concentration = target.query(models.ConcentrationEntry).all()
     assert len(concentration) == 1
@@ -113,8 +118,12 @@ def test_add_to_existing_project_appends_items_and_merges_sheets():
     assert items[0].description == "First"
     assert items[0].price == 40.0
     assert items[0].submitted_price == 40.0
+    assert items[0].structure == 99
+    assert items[0].system == "Sheet CS-1"
     assert items[1].description == "Second"
     assert items[1].serial_number == 2
+    assert items[1].structure == 99
+    assert items[1].system == "Sheet CS-1"
 
     sheets = {
         sheet.calculation_sheet_no: sheet
@@ -185,13 +194,15 @@ def test_sync_fills_system_once_and_leaves_an_edited_price_alone():
     fill_non_boq_project(source, target, [_row("99.01.0001", "First", 3.0, 40.0)])
     item = target.query(models.BOQItem).one()
     item.system = None
+    item.structure = None
     item.submitted_price = None
     item.price = 55.0
     target.commit()
 
     assert sync_boq_fields_from_calculation_entries(target) is True
     target.refresh(item)
-    assert item.system == "919"
+    assert item.structure == 99
+    assert item.system == "Sheet CS-1"
     assert item.submitted_price == 40.0
     assert item.price == 55.0
 

@@ -12,6 +12,7 @@ from models import models
 from services.calculation_sheet_sync import push_calculation_sheet_to_concentration_entries
 
 IMPORT_NOTE = "Imported from non-BOQ calculation sheets"
+EXCEPTIONAL_STRUCTURE = 99
 
 
 def _fill_missing_entry_systems(db: Session) -> bool:
@@ -65,6 +66,8 @@ def sync_boq_fields_from_calculation_entries(db: Session) -> bool:
     """Fill an empty system and a missing submitted price from the calculation sheet.
 
     Submitted price is written once. Later edits to the BOQ price leave it as imported.
+    Items brought in from non-BOQ sheets get structure 99 and cell C3 as the system
+    when those cells are still empty. A main-project upload is left as it was read.
     """
     entries_changed = _fill_missing_entry_systems(db)
     by_section: dict[str, dict] = {}
@@ -79,15 +82,34 @@ def sync_boq_fields_from_calculation_entries(db: Session) -> bool:
         if system and not slot["system"]:
             slot["system"] = system
 
+    imported_sections = {
+        (item.section_number or "").strip()
+        for item in db.query(models.BOQItem).all()
+        if item.notes == IMPORT_NOTE and (item.section_number or "").strip()
+    }
+    c3_by_section = _system_by_section_from_c3(db, imported_sections)
+
     changed = False
     for item in db.query(models.BOQItem).all():
-        slot = by_section.get((item.section_number or "").strip())
+        section = (item.section_number or "").strip()
+        slot = by_section.get(section)
+        from_non_boq = item.notes == IMPORT_NOTE
+        if from_non_boq and item.structure is None:
+            item.structure = EXCEPTIONAL_STRUCTURE
+            changed = True
+        if from_non_boq and not (item.system or "").strip() and c3_by_section.get(section):
+            item.system = c3_by_section[section]
+            changed = True
         if not slot:
             continue
         if item.submitted_price is None and slot["price"] is not None:
             item.submitted_price = slot["price"]
             changed = True
-        if not (item.system or "").strip() and slot["system"]:
+        if (
+            not from_non_boq
+            and not (item.system or "").strip()
+            and slot["system"]
+        ):
             item.system = slot["system"]
             changed = True
     if changed or entries_changed:
@@ -95,12 +117,42 @@ def sync_boq_fields_from_calculation_entries(db: Session) -> bool:
     return changed or entries_changed
 
 
+def _system_by_section_from_c3(source: Session, sections: set[str]) -> dict[str, str]:
+    """Cell C3 of the calculation sheet, the first sheet number that has the section."""
+    if not sections:
+        return {}
+    rows = (
+        source.query(
+            models.CalculationEntry.section_number,
+            models.CalculationSheet.description,
+        )
+        .join(
+            models.CalculationSheet,
+            models.CalculationEntry.calculation_sheet_id == models.CalculationSheet.id,
+        )
+        .filter(models.CalculationEntry.section_number.in_(sections))
+        .order_by(
+            models.CalculationSheet.calculation_sheet_no.asc(),
+            models.CalculationEntry.id.asc(),
+        )
+        .all()
+    )
+    found: dict[str, str] = {}
+    for section, description in rows:
+        text = (description or "").strip()
+        if section and text and section not in found:
+            found[section] = text
+    return found
+
+
 def _add_boq_items(
     target: Session,
     rows: List[dict],
     start_order: int = 0,
     start_serial: int = 1,
+    systems: dict[str, str] | None = None,
 ) -> None:
+    systems = systems or {}
     for offset, row in enumerate(rows):
         item = models.BOQItem(
             display_order=start_order + offset,
@@ -111,7 +163,8 @@ def _add_boq_items(
             original_contract_quantity=row["quantity"],
             price=row["price"],
             submitted_price=row["price"],
-            system=row.get("system") or None,
+            structure=EXCEPTIONAL_STRUCTURE,
+            system=systems.get(row["section_number"]) or None,
             total_contract_sum=row["total"],
             estimated_quantity=row["quantity"],
             total_estimate=row["total"],
@@ -216,7 +269,7 @@ def _copy_calculation_sheets(source: Session, target: Session, sections: set[str
 def fill_non_boq_project(source: Session, target: Session, rows: List[dict]) -> dict:
     """BOQ rows, concentration sheets, and trimmed calculation sheets in the new project."""
     sections = {row["section_number"] for row in rows}
-    _add_boq_items(target, rows)
+    _add_boq_items(target, rows, systems=_system_by_section_from_c3(source, sections))
     target.flush()
     sheet_count = _copy_calculation_sheets(source, target, sections)
     return {"item_count": len(rows), "calculation_sheet_count": sheet_count}
@@ -240,7 +293,15 @@ def add_non_boq_items_to_project(source: Session, target: Session, rows: List[di
             "added_sections": [],
         }
     start_order, start_serial = _next_item_indexes(target)
-    _add_boq_items(target, fresh, start_order, start_serial)
+    _add_boq_items(
+        target,
+        fresh,
+        start_order,
+        start_serial,
+        systems=_system_by_section_from_c3(
+            source, {row["section_number"] for row in fresh}
+        ),
+    )
     target.flush()
     sheet_count = _copy_calculation_sheets(
         source, target, {row["section_number"] for row in fresh}
