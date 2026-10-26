@@ -171,6 +171,43 @@ def test_reads_quantities_beyond_row_100():
     assert breakdown["periods"]["01"] == 99.0
 
 
+def test_detail_line_of_0_835_is_rounded_half_up_to_two_decimals():
+    import math
+
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    period_col = _period_col(col)
+    df.iloc[27, period_col] = "10"
+    df.iloc[27, col] = 0.835
+
+    entry_periods = collect_entry_periods(df, col, item_count=2)
+    breakdown, current = compute_submission_breakdown(
+        df, col, "10", sheet_periods=entry_periods, item_count=2
+    )
+
+    assert current == 0.84
+    assert breakdown["periods"]["10"] == 0.84
+
+    df.iloc[27, col] = math.nextafter(0.835, 0)
+    breakdown, current = compute_submission_breakdown(
+        df, col, "10", sheet_periods=entry_periods, item_count=2
+    )
+    assert current == 0.84
+
+
+def test_concentration_pdf_prints_0_835_as_0_84():
+    import math
+
+    from utils.calculation_sheet_utils import format_concentration_export_row_for_pdf
+
+    headers = ["Estimated Quantity"]
+    for raw in (0.835, math.nextafter(0.835, 0)):
+        formatted = format_concentration_export_row_for_pdf(
+            {"Estimated Quantity": raw}, headers
+        )
+        assert formatted == ["0.84"]
+
+
 def test_concentration_export_totals_row_leaves_percentage_blank():
     from types import SimpleNamespace
 
@@ -587,6 +624,53 @@ def test_build_concentration_export_row_uses_period_details_when_present():
     assert row["Internal Quantity"] == 5.0
     assert row["Approved by Project Manager"] == 4.0
     assert row["Notes"] == "period"
+
+
+def test_unmatched_quantity_line_can_print_in_red():
+    from utils.calculation_sheet_utils import (
+        concentration_export_red_cells,
+        unmatched_quantity_headers,
+    )
+
+    row = {
+        "Quantity Submitted": 194.69,
+        "Estimated Quantity": 389.38,
+        "Approved by Project Manager": 180.0,
+    }
+    assert unmatched_quantity_headers(row, "submitted") == [
+        "Quantity Submitted",
+        "Approved by Project Manager",
+    ]
+    assert unmatched_quantity_headers(row, "estimated") == [
+        "Estimated Quantity",
+        "Approved by Project Manager",
+    ]
+    assert (
+        unmatched_quantity_headers(
+            {**row, "Approved by Project Manager": 194.69}, "submitted"
+        )
+        == []
+    )
+    headers = [
+        "Quantity Submitted",
+        "Estimated Quantity",
+        "Approved by Project Manager",
+    ]
+    assert (
+        concentration_export_red_cells(
+            [object()],
+            [row],
+            headers,
+            {"print_unmatched_in_red": False, "mismatch_against": "submitted"},
+        )
+        == []
+    )
+    assert concentration_export_red_cells(
+        [object()],
+        [row],
+        headers,
+        {"print_unmatched_in_red": True, "mismatch_against": "submitted"},
+    ) == [(0, 0), (0, 2)]
 
 
 def test_blank_approved_quantity_keeps_the_column_and_clears_the_values():

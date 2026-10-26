@@ -261,6 +261,9 @@ class ConcentrationEntryExportRequest(BaseModel):
     include_approved_by_project_manager: bool = True
     # Keep the approved-quantity column, but print every cell blank.
     blank_approved_quantity: bool = False
+    # Print the on-screen red quantity line in red. Otherwise it prints in black.
+    print_unmatched_in_red: bool = False
+    mismatch_against: str = Field("submitted", pattern="^(submitted|estimated)$")
     include_notes: bool = True
     include_supervisor_notes: bool = True
     # PDF page size for concentration sheet export (landscape)
@@ -489,6 +492,27 @@ class CalculationSheetsTrackResponse(BaseModel):
     sheets_skipped: int
     entries_updated: int
     errors: List[str] = []
+
+
+class TrackSelectedCalculationSheetsRequest(AutoExportColumnsRequest):
+    sheet_ids: List[int] = Field(..., min_items=1)
+
+
+class CalculationSheetFreshnessItem(BaseModel):
+    id: int
+    calculation_sheet_no: str
+    drawing_no: str = ""
+    file_name: str = ""
+    source_file_path: Optional[str] = None
+    status: str
+    system_updated_at: Optional[datetime] = None
+    file_updated_at: Optional[datetime] = None
+
+
+class CalculationSheetFreshnessResponse(BaseModel):
+    count: int
+    checked: int
+    items: List[CalculationSheetFreshnessItem] = []
 
 # Populate Concentration Entries Response
 class PopulateConcentrationEntriesResponse(BaseModel):

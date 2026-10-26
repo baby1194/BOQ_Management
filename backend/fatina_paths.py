@@ -334,6 +334,74 @@ def calculation_file_uri(
     ).resolve().as_uri()
 
 
+def link_path_for_exported_calc_sheet(
+    fatina_path: Path,
+    source_path: str | None,
+    upload_matches: list[Path] | None = None,
+) -> Path:
+    """File a concentration-sheet link should open.
+
+    The Fatina copy is used when that export folder was written. When the
+    folder was skipped, the original workbook is used instead.
+    """
+    if fatina_path.is_file():
+        return fatina_path
+    if source_path:
+        source = Path(source_path)
+        if source.is_file() and source.resolve() != fatina_path.resolve():
+            return source
+    for match in upload_matches or []:
+        if match.is_file():
+            return match
+    return fatina_path
+
+
+def upload_root_for_db(db) -> Path:
+    """Project uploads directory for this database session, or the uploads root."""
+    try:
+        database = getattr(db.get_bind().url, "database", None)
+        if database:
+            project_id = Path(database).parent.name
+            candidate = Path("uploads") / project_id
+            if candidate.is_dir():
+                return candidate
+    except Exception:
+        pass
+    return Path("uploads")
+
+
+def calculation_sheet_link_uri(
+    db,
+    section_number: str,
+    calculation_sheet_no: str | None,
+) -> str | None:
+    """file:// URI for the calc sheet a concentration PDF or Excel should open."""
+    from models import models
+
+    sheet_no = str(calculation_sheet_no or "").strip()
+    if db is None or not sheet_no:
+        return None
+    sheet = (
+        db.query(models.CalculationSheet)
+        .filter(models.CalculationSheet.calculation_sheet_no == sheet_no)
+        .first()
+    )
+    if not sheet or not sheet.file_name:
+        return None
+
+    fatina_path = calculation_file_path(section_number, sheet.file_name, sheet_no)
+    upload_root = upload_root_for_db(db)
+    matches: list[Path] = []
+    if upload_root.is_dir() and sheet.file_name:
+        matches = [path for path in upload_root.rglob(sheet.file_name) if path.is_file()]
+    target = link_path_for_exported_calc_sheet(
+        fatina_path,
+        getattr(sheet, "source_file_path", None),
+        matches,
+    )
+    return target.resolve().as_uri()
+
+
 def is_upload_copy_path(path: str, upload_root: Path) -> bool:
     """True when path points at a file inside the project uploads directory."""
     try:

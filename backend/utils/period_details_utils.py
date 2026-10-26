@@ -319,6 +319,25 @@ def set_period_detail_fields(
         apply_current_period_to_entry_fields(entry)
 
 
+def clear_period_drawing_files(entry: Any, period: str) -> None:
+    """Remove every drawing on one invoice, or on the whole entry when period is blank.
+
+    The current invoice is also stored on the entry itself. An empty period list
+    is treated as "keep the entry list", so that copy has to be cleared first.
+    """
+    period = str(period or "").strip()
+    current = resolve_entry_current_period(entry) or ""
+    if not period or period == current:
+        entry.drawing_files = []
+    if period:
+        set_period_detail_fields(entry, period, {"drawing_files": []})
+        return
+    for key in list(
+        get_period_details_map(getattr(entry, "submission_breakdown", None)).keys()
+    ):
+        set_period_detail_fields(entry, key, {"drawing_files": []})
+
+
 def entry_total_internal_quantity(entry: Any) -> float:
     breakdown = getattr(entry, "submission_breakdown", None)
     details = get_period_details_map(breakdown)

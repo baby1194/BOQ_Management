@@ -71,7 +71,7 @@ const ConcentrationDrawingFilesCell: React.FC<
       onClick={onRemoveAll}
       onDoubleClick={(e) => e.stopPropagation()}
       disabled={isUploading || isDeletingAll}
-      className="inline-flex items-center justify-center gap-1 bg-red-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
+      className="inline-flex shrink-0 items-center justify-center gap-1 bg-red-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
       title={t("concentration.deleteAllDrawingsTitle")}
     >
       <Trash2 className="h-3.5 w-3.5" />
@@ -89,7 +89,7 @@ const ConcentrationDrawingFilesCell: React.FC<
       onClick={onAttach}
       onDoubleClick={(e) => e.stopPropagation()}
       disabled={isUploading || isDeletingAll}
-      className="inline-flex items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 whitespace-nowrap"
+      className="inline-flex shrink-0 items-center justify-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
     >
       <Paperclip className="h-3.5 w-3.5" />
       <span>
@@ -100,45 +100,43 @@ const ConcentrationDrawingFilesCell: React.FC<
     </button>
   );
 
+  const showMoreButton = showToggle ? (
+    <button
+      type="button"
+      onClick={onToggleExpanded}
+      onDoubleClick={(e) => e.stopPropagation()}
+      className="shrink-0 whitespace-nowrap text-xs font-medium px-2 py-1 rounded border bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100"
+    >
+      {t("concentration.showMoreDrawings")}
+    </button>
+  ) : null;
+
   if (drawingFiles.length === 0) {
     return (
-      <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
-        <div className="flex justify-center w-full">{attachButton}</div>
+      <div className="flex w-full min-w-0 items-center justify-center">
+        {attachButton}
       </div>
     );
   }
 
   if (!isExpanded) {
     return (
-      <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
-        <div
-          className={`flex items-center gap-1 w-full min-w-0 ${
-            isRTL ? "flex-row-reverse" : ""
-          }`}
-        >
-          <div className="flex-1 min-w-0">
-            {renderDrawingFile(drawingFiles[0])}
-          </div>
-          {showToggle && (
-            <button
-              type="button"
-              onClick={onToggleExpanded}
-              onDoubleClick={(e) => e.stopPropagation()}
-              className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100 whitespace-nowrap"
-            >
-              {t("concentration.showMoreDrawings")}
-            </button>
-          )}
-          {deleteAllButton}
-          {attachButton}
-        </div>
+      <div
+        className={`flex w-full min-w-0 items-center gap-1 overflow-hidden ${
+          isRTL ? "flex-row-reverse" : ""
+        }`}
+      >
+        <div className="min-w-0 flex-1">{renderDrawingFile(drawingFiles[0])}</div>
+        {showMoreButton}
+        {deleteAllButton}
+        {attachButton}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-stretch justify-center gap-2 min-h-[2.5rem]">
-      <div className="w-full space-y-1">
+    <div className="flex w-full min-w-0 flex-col items-stretch gap-1 overflow-hidden">
+      <div className="w-full min-w-0 space-y-1">
         {drawingFiles.map((filePath) => renderDrawingFile(filePath))}
         <button
           type="button"
@@ -150,8 +148,8 @@ const ConcentrationDrawingFilesCell: React.FC<
         </button>
       </div>
       <div
-        className={`flex justify-center gap-1 ${
-          isRTL ? "flex-row-reverse" : ""
+        className={`flex w-full min-w-0 items-center gap-1 overflow-hidden ${
+          isRTL ? "flex-row-reverse justify-end" : ""
         }`}
       >
         {deleteAllButton}

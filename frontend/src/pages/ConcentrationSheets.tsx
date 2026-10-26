@@ -8,6 +8,7 @@ import React, {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../contexts/LanguageContext";
+import WordItemsExport from "../components/WordItemsExport";
 import {
   concentrationApi,
   exportApi,
@@ -271,7 +272,7 @@ const ConcentrationSheets: React.FC = () => {
       calculation_sheet_no: 110,
       drawing_no: 90,
       invoice_description: 160,
-      drawings: 140,
+      drawings: 460,
       estimated_quantity: 110,
       submission_percentage: 90,
       quantity_submitted: 110,
@@ -280,7 +281,13 @@ const ConcentrationSheets: React.FC = () => {
       notes: 140,
       supervisor_notes: 140,
       actions: 160,
-    });
+    }, { columnMinWidth: { drawings: 460 } });
+  const drawingsColumnStyle = () => {
+    const style = entryColStyle("drawings");
+    const saved = typeof style.width === "number" ? style.width : 460;
+    const width = Math.max(saved, 460);
+    return { width, minWidth: width, maxWidth: width };
+  };
   const [sidebarWidthPercent, setSidebarWidthPercent] = useState(() => {
     const saved = getProjectItem(SIDEBAR_WIDTH_STORAGE_KEY);
     const parsed = saved !== null ? Number(saved) : NaN;
@@ -1582,6 +1589,7 @@ const ConcentrationSheets: React.FC = () => {
                     {t("concentration.clearFilter")}
                   </button>
                 )}
+                <WordItemsExport language={isRTL ? "he" : "en"} />
               </div>
             </div>
 
@@ -2122,7 +2130,7 @@ const ConcentrationSheets: React.FC = () => {
                                 <th
                                   data-col-key="drawings"
                                   className="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  style={entryColStyle("drawings")}
+                                  style={drawingsColumnStyle()}
                                 >
                                   {t("concentration.drawings")}
                                 </th>
@@ -2288,6 +2296,7 @@ const ConcentrationSheets: React.FC = () => {
                                         onToggleDrawingExpanded={
                                           toggleDrawingFilesExpanded
                                         }
+                                        drawingsCellStyle={drawingsColumnStyle()}
                                         deletingAllDrawingKey={
                                           deletingAllDrawingKey
                                         }
@@ -2486,7 +2495,10 @@ const ConcentrationSheets: React.FC = () => {
                                       </td>
                                       )}
                                       {showEntryCol("drawings") && (
-                                      <td className="px-3 py-2 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
+                                      <td
+                                        className="px-2 py-2 text-sm text-gray-500 align-middle overflow-hidden"
+                                        style={drawingsColumnStyle()}
+                                      >
                                         <ConcentrationDrawingFilesCell
                                           drawingFiles={getPeriodDrawingFiles(
                                             entry,
@@ -3007,6 +3019,7 @@ const ConcentrationSheets: React.FC = () => {
         }
         exportFormat={pendingExportAction?.format || "pdf"}
         exportScope={pendingExportAction?.type}
+        mismatchMode={qtyMismatchMode}
       />
 
       <PopulateConcentrationEntryModal

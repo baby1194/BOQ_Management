@@ -32,26 +32,32 @@ def get_excel_service(project_id: str = Depends(get_project_id)) -> ExcelService
 
 
 def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
-    """Keep sheets whose BOQ item has PSQ != 0 and quantity_submitted > 0.
+    """Keep sheets whose printed submitted and approved quantities differ.
 
-    Values are rounded to 2 decimal places before comparison so the filter
-    matches the BOQ Items page (formatNumber uses 2 decimals).
+    Comparison uses the same two-decimal rounding as the PDF, not the
+    database round, which can split numbers that print as the same value.
     """
-    from sqlalchemy import func
+    from utils.quantity_utils import boq_has_non_zero_psq
 
-    q_sub = func.coalesce(models.BOQItem.quantity_submitted, 0)
-    q_app = func.coalesce(models.BOQItem.approved_signed_quantity, 0)
-    rounded_sub = func.round(q_sub, 2)
-    rounded_app = func.round(q_app, 2)
-    sheet_ids_with_psq = {
-        row[0]
-        for row in db.query(models.ConcentrationSheet.id)
+    if not sheets:
+        return []
+    wanted = {sheet.id for sheet in sheets}
+    rows = (
+        db.query(
+            models.ConcentrationSheet.id,
+            models.BOQItem.quantity_submitted,
+            models.BOQItem.approved_signed_quantity,
+        )
         .join(models.BOQItem, models.BOQItem.id == models.ConcentrationSheet.boq_item_id)
-        .filter(rounded_sub != rounded_app, rounded_sub > 0)
-        .distinct()
+        .filter(models.ConcentrationSheet.id.in_(wanted))
         .all()
+    )
+    sheet_ids_with_psq = {
+        sheet_id
+        for sheet_id, submitted, approved in rows
+        if boq_has_non_zero_psq(submitted, approved)
     }
-    return [s for s in sheets if s.id in sheet_ids_with_psq]
+    return [sheet for sheet in sheets if sheet.id in sheet_ids_with_psq]
 
 
 def _filter_sheets_with_estimated_gt_contract(sheets: List, db: Session) -> List:
@@ -200,6 +206,7 @@ async def export_concentration_sheets(
                     entry_columns,
                     language,
                     skip_fully_approved_calc_sheet_folders=skip_fully_approved_calc_sheet_folders,
+                    skip_equal_quantity_folders=export_non_zero_psq_only,
                 )
                 export_records.append((pdf_path, str(boq_item.section_number).strip()))
             except Exception as e:
@@ -395,6 +402,7 @@ async def export_all_concentration_sheets_excel(
             db,
             entry_columns=entry_columns,
             skip_fully_approved_calc_sheet_folders=skip_fully_approved_calc_sheet_folders,
+            skip_equal_quantity_folders=bool(request.export_non_zero_psq_only),
         )
 
         # Files are saved server-side to C:/Fatina/{section_number}/, no download needed

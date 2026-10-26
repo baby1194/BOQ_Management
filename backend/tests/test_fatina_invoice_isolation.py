@@ -12,6 +12,16 @@ def test_drops_invoice_that_belongs_only_to_another_item():
     assert invoices_exclusive_to_other_items(entries, "1.51.02.0020") == {"05"}
 
 
+def test_keeps_a_previous_invoice_still_listed_on_this_item():
+    entries = [
+        SimpleNamespace(section_number="1.05.01.0011", current_invoice_id=""),
+        SimpleNamespace(section_number="1.05.01.0040", current_invoice_id="09"),
+    ]
+    assert invoices_exclusive_to_other_items(
+        entries, "1.05.01.0011", also_own=["09"]
+    ) == set()
+
+
 def test_keeps_invoice_when_this_item_also_uses_it():
     entries = [
         SimpleNamespace(section_number="1.51.02.0020", current_invoice_id="06"),

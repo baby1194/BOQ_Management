@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from utils.concentration_utils import apply_calculation_entry_quantities
 from utils.period_details_utils import (
     apply_current_period_to_entry_fields,
+    clear_period_drawing_files,
     entry_total_approved_quantity,
     entry_total_internal_quantity,
     hydrate_entry_period_details,
@@ -429,6 +430,38 @@ def test_hydrate_preserves_qty_update_when_only_period_details_exist():
     assert (
         entry.submission_breakdown["period_details"]["01"]["internal_quantity"]
         == 50.0
+    )
+
+
+def test_delete_all_drawings_on_the_current_invoice_stays_empty():
+    entry = SimpleNamespace(
+        drawing_no="05",
+        invoice_description=None,
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes=None,
+        supervisor_notes=None,
+        submission_percentage=100.0,
+        drawing_files=["/tmp/a.pdf", "/tmp/b.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "05",
+            "periods": {"05": 17.57},
+            "period_details": {
+                "05": {
+                    "internal_quantity": 0.0,
+                    "approved_by_project_manager": 17.57,
+                    "notes": "",
+                    "supervisor_notes": "",
+                    "drawing_files": ["/tmp/a.pdf", "/tmp/b.pdf"],
+                }
+            },
+        },
+    )
+    clear_period_drawing_files(entry, "05")
+    hydrate_entry_period_details(entry)
+    assert entry.drawing_files == []
+    assert (
+        entry.submission_breakdown["period_details"]["05"]["drawing_files"] == []
     )
 
 

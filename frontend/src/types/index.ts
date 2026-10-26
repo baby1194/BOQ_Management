@@ -269,6 +269,10 @@ export interface ConcentrationEntryExportRequest {
   include_approved_by_project_manager: boolean;
   /** Include the approved-quantity column with every value left blank. */
   blank_approved_quantity?: boolean;
+  /** Print unmatched quantity figures in red. Otherwise they print in black. */
+  print_unmatched_in_red?: boolean;
+  /** Which quantity the red highlight compares with approved quantity. */
+  mismatch_against?: "submitted" | "estimated";
   include_notes: boolean;
   include_supervisor_notes: boolean;
   /** PDF page size for concentration sheet export (landscape) */

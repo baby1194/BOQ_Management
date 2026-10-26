@@ -110,6 +110,183 @@ def test_calc_sheet_nos_to_skip_for_selective_export_combines_rules():
     }
 
 
+def test_a_previous_invoice_with_a_quantity_difference_is_still_exported(monkeypatch):
+    from utils.concentration_utils import calc_sheet_nos_to_skip_for_selective_export
+
+    monkeypatch.setattr(
+        "utils.concentration_utils.calc_sheet_nos_not_submitted_for_section",
+        lambda db, section_number: {"DC-38"},
+    )
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="DC-38",
+            drawing_no="09",
+            current_invoice_id=None,
+            quantity_submitted=486.70,
+            approved_by_project_manager=200.00,
+            submission_breakdown={
+                "current_drawing_no": "09",
+                "periods": {"09": 486.70},
+            },
+        )
+    ]
+
+    assert "DC-38" not in calc_sheet_nos_to_skip_for_selective_export(
+        entries, db=object(), section_number="1.05.01.0011"
+    )
+
+
+def test_a_previous_invoice_that_matches_approved_is_still_skipped(monkeypatch):
+    from utils.concentration_utils import calc_sheet_nos_to_skip_for_selective_export
+
+    monkeypatch.setattr(
+        "utils.concentration_utils.calc_sheet_nos_not_submitted_for_section",
+        lambda db, section_number: set(),
+    )
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="DC-38",
+            drawing_no="09",
+            current_invoice_id=None,
+            quantity_submitted=200.00,
+            approved_by_project_manager=200.00,
+            submission_breakdown=None,
+        )
+    ]
+
+    assert "DC-38" in calc_sheet_nos_to_skip_for_selective_export(
+        entries, db=object(), section_number="1.05.01.0011"
+    )
+
+
+def test_pdf_link_opens_the_original_workbook_when_the_fatina_copy_is_missing(tmp_path):
+    from fatina_paths import link_path_for_exported_calc_sheet
+
+    source = tmp_path / "DC-80.xlsx"
+    source.write_bytes(b"sheet")
+    missing = tmp_path / "32_10_1" / "DC-80.xlsx"
+
+    assert link_path_for_exported_calc_sheet(missing, str(source)) == source
+
+
+def test_pdf_link_keeps_the_fatina_copy_when_that_file_exists(tmp_path):
+    from fatina_paths import link_path_for_exported_calc_sheet
+
+    copied = tmp_path / "DC-80.xlsx"
+    copied.write_bytes(b"copy")
+    source = tmp_path / "original.xlsx"
+    source.write_bytes(b"original")
+
+    assert link_path_for_exported_calc_sheet(copied, str(source)) == copied
+
+
+def test_non_zero_export_skips_a_calc_sheet_when_estimated_equals_submitted():
+    from utils.concentration_utils import calc_sheet_nos_to_copy_for_non_zero_export
+
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="41/24",
+            estimated_quantity=0,
+            quantity_submitted=0,
+            approved_by_project_manager=0,
+            drawing_no="",
+            submission_breakdown=None,
+        ),
+        SimpleNamespace(
+            calculation_sheet_no="41/21",
+            estimated_quantity=21.70,
+            quantity_submitted=10,
+            approved_by_project_manager=10,
+            drawing_no="07",
+            submission_breakdown=None,
+        ),
+        SimpleNamespace(
+            calculation_sheet_no="32/01",
+            estimated_quantity=194.89,
+            quantity_submitted=194.89,
+            approved_by_project_manager=160,
+            drawing_no="06",
+            submission_breakdown=None,
+        ),
+    ]
+
+    assert calc_sheet_nos_to_copy_for_non_zero_export(entries) == {"41/21"}
+
+
+def test_invoice_folder_is_omitted_when_that_invoice_is_equal():
+    from utils.concentration_utils import invoices_to_omit_for_equal_quantities
+
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="32/01",
+            estimated_quantity=400,
+            quantity_submitted=194.89,
+            approved_by_project_manager=194.89,
+            drawing_no="07",
+            submission_breakdown={
+                "current_drawing_no": "07",
+                "periods": {"07": 194.89, "06": 194.89},
+                "period_details": {
+                    "07": {"approved_by_project_manager": 194.89},
+                    "06": {"approved_by_project_manager": 160.00},
+                },
+            },
+        ),
+        SimpleNamespace(
+            calculation_sheet_no="32/01",
+            estimated_quantity=50,
+            quantity_submitted=22.15,
+            approved_by_project_manager=22.15,
+            drawing_no="06",
+            submission_breakdown={
+                "current_drawing_no": "06",
+                "periods": {"06": 22.15},
+                "period_details": {
+                    "06": {"approved_by_project_manager": 22.15},
+                },
+            },
+        ),
+    ]
+
+    omitted = invoices_to_omit_for_equal_quantities(entries, "32/01")
+    assert "07" in omitted
+    assert "06" not in omitted
+
+
+def test_invoice_folder_is_omitted_when_submitted_equals_estimated():
+    from utils.concentration_utils import invoices_to_omit_for_equal_quantities
+
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="32/01",
+            estimated_quantity=194.89,
+            quantity_submitted=194.89,
+            approved_by_project_manager=160.00,
+            drawing_no="06",
+            submission_breakdown=None,
+        )
+    ]
+
+    assert invoices_to_omit_for_equal_quantities(entries, "32/01") == {"06"}
+
+
+def test_a_previous_invoice_with_a_real_difference_is_still_exported():
+    from utils.concentration_utils import invoices_to_omit_for_equal_quantities
+
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="DC-38",
+            estimated_quantity=500,
+            quantity_submitted=486.70,
+            approved_by_project_manager=200.00,
+            drawing_no="09",
+            submission_breakdown=None,
+        )
+    ]
+
+    assert "09" not in invoices_to_omit_for_equal_quantities(entries, "DC-38")
+
+
 def test_calc_sheet_nos_submitted_equals_approved_sums_multiple_entries_per_sheet():
     entries = [
         SimpleNamespace(

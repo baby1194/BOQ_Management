@@ -16,20 +16,10 @@ from bidi.algorithm import get_display
 import arabic_reshaper
 from fatina_paths import (
     FATINA_BASE_DIR,
-    calculation_file_uri,
+    calculation_sheet_link_uri,
     mirror_concentration_sheet_to_fatina_invoice,
     sanitize_folder_name,
 )
-
-
-def _get_calculation_sheet_file_name(db_session, calculation_sheet_no):
-    """Resolve calculation_sheet_no to CalculationSheet.file_name, or None."""
-    if not db_session or not calculation_sheet_no:
-        return None
-    sheet = db_session.query(models.CalculationSheet).filter(
-        models.CalculationSheet.calculation_sheet_no == calculation_sheet_no,
-    ).first()
-    return sheet.file_name if sheet else None
 
 
 def _is_auto_generated_note(notes: str) -> bool:
@@ -43,6 +33,19 @@ def _notes_for_pdf_export(entry) -> str:
     if _is_auto_generated_note(notes):
         return ""
     return notes
+
+
+def _paint_unmatched_quantity_cells(style, cells, column_count: int, language: str) -> None:
+    """Paint unmatched quantity figures red. cells are (export row, column) before RTL reversal."""
+    red = colors.HexColor("#DC2626")
+    for row_index, col_index in cells:
+        table_row = row_index + 1
+        table_col = (column_count - 1 - col_index) if language == "he" else col_index
+        command = ("TEXTCOLOR", (table_col, table_row), (table_col, table_row), red)
+        if hasattr(style, "add"):
+            style.add(*command)
+        else:
+            style.append(command)
 
 
 logger = logging.getLogger(__name__)
@@ -914,7 +917,7 @@ class PDFService:
             # Fallback to A4 size
             return (8.5*72, 11*72)
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en", skip_fully_approved_calc_sheet_folders=False):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, db_session=None, entry_columns=None, language="en", skip_fully_approved_calc_sheet_folders=False, skip_equal_quantity_folders=False):
         """Export a single concentration sheet to PDF with custom page sizing"""
         try:
             from utils.concentration_utils import (
@@ -945,12 +948,14 @@ class PDFService:
                     link_section,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
                     entries=entries,
+                    skip_equal_quantity_folders=skip_equal_quantity_folders,
                 )
                 copy_concentration_entry_drawing_files_to_fatina(
                     db_session,
                     link_section,
                     entries=entries,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
+                    skip_equal_quantity_folders=skip_equal_quantity_folders,
                 )
 
             # Use section number in filename if available, otherwise use sheet ID
@@ -1047,6 +1052,7 @@ class PDFService:
                 build_all_concentration_export_rows,
                 build_concentration_export_totals_row,
                 concentration_export_entry_row_groups,
+                concentration_export_red_cells,
                 concentration_export_header_translations,
                 filter_concentration_export_headers,
                 format_concentration_export_row_for_pdf,
@@ -1273,6 +1279,9 @@ class PDFService:
                     entry_columns,
                     notes_getter=_notes_for_pdf_export,
                 )
+                red_quantity_cells = concentration_export_red_cells(
+                    entries, export_rows, filtered_headers, entry_columns
+                )
                 entry_index = 0
 
                 for row_index, row_values in enumerate(export_rows):
@@ -1285,16 +1294,15 @@ class PDFService:
                     ):
                         entry = entries[entry_index]
                         if calc_sheet_col >= 0 and db_session and boq_item and boq_item.section_number:
-                            file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
-                            if file_name:
+                            href_uri = calculation_sheet_link_uri(
+                                db_session,
+                                str(boq_item.section_number).strip(),
+                                entry.calculation_sheet_no,
+                            )
+                            if href_uri:
                                 display_text = entry.calculation_sheet_no or ''
                                 display_escaped = (display_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                                                   .replace('"', '&quot;'))
-                                href_uri = calculation_file_uri(
-                                    str(boq_item.section_number).strip(),
-                                    file_name,
-                                    entry.calculation_sheet_no,
-                                )
                                 file_escaped = (href_uri.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                                                 .replace('"', '&quot;'))
                                 link_markup = f'<a href="{file_escaped}" color="blue">{display_escaped}</a>'
@@ -1397,6 +1405,12 @@ class PDFService:
                     add_concentration_export_subrow_pdf_spans(
                         override_style, subrow_groups, merge_col_indices
                     )
+                    _paint_unmatched_quantity_cells(
+                        override_style,
+                        red_quantity_cells,
+                        len(filtered_headers),
+                        language,
+                    )
                     entries_table.setStyle(override_style)
                 except Exception as e:
                     logger.warning(f"Failed to create robust Hebrew table, falling back to regular table: {e}")
@@ -1434,6 +1448,12 @@ class PDFService:
                         entries_table_style.append(('ALIGN', (col_idx, 0), (col_idx, -1), 'CENTER'))
                     add_concentration_export_subrow_pdf_spans(
                         entries_table_style, subrow_groups, merge_col_indices
+                    )
+                    _paint_unmatched_quantity_cells(
+                        entries_table_style,
+                        red_quantity_cells,
+                        len(filtered_headers),
+                        language,
                     )
                     
                     # Create table with processed data (Hebrew text reversed)

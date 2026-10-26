@@ -1,4 +1,8 @@
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
@@ -167,34 +171,8 @@ def element_submission(element: str, db: Session = Depends(get_db)):
     from services.element_progress import items_for_element
 
     needle = element.strip()
-    drawings = (
-        db.query(models.DrawingListItem)
-        .filter(models.DrawingListItem.element == needle)
-        .all()
-    )
-    drawing_names = [row.drawing_name for row in drawings if row.drawing_name]
-    boq_items = []
-    for item in db.query(models.BOQItem).all():
-        boq_items.append(
-            {
-                "section_number": item.section_number,
-                "description": item.description,
-                "contract_quantity": item.original_contract_quantity,
-                "estimated_quantity": item.estimated_quantity,
-                "quantity_submitted": item.quantity_submitted,
-            }
-        )
-    entries_by_section = {}
-    for entry in db.query(models.ConcentrationEntry).all():
-        entries_by_section.setdefault(entry.section_number, []).append(
-            {
-                "description": entry.description,
-                "invoice_description": entry.invoice_description,
-                "calculation_sheet_no": entry.calculation_sheet_no,
-                "estimated_quantity": entry.estimated_quantity,
-                "quantity_submitted": entry.quantity_submitted,
-            }
-        )
+    boq_items, entries_by_section, drawing_names_by_element = _element_lookup(db)
+    drawing_names = drawing_names_by_element.get(needle.casefold(), [])
     rows = items_for_element(needle, boq_items, entries_by_section, drawing_names)
     return {
         "element": needle,
@@ -202,6 +180,60 @@ def element_submission(element: str, db: Session = Depends(get_db)):
         "not_submitted_count": sum(1 for row in rows if not row["submitted"]),
         "items": rows,
     }
+
+
+class WordItemsRequest(BaseModel):
+    words: str = ""
+    language: str = Field("en", pattern="^(en|he)$")
+
+
+def _element_lookup(db: Session):
+    boq_items = [
+        {
+            "section_number": item.section_number,
+            "description": item.description,
+            "contract_quantity": item.original_contract_quantity,
+            "estimated_quantity": item.estimated_quantity,
+            "quantity_submitted": item.quantity_submitted,
+        }
+        for item in db.query(models.BOQItem).all()
+    ]
+    entries_by_section = {}
+    for entry in db.query(models.ConcentrationEntry).all():
+        entries_by_section.setdefault(entry.section_number, []).append(
+            {
+                "description": entry.description,
+                "invoice_description": entry.invoice_description,
+                "drawing_no": entry.drawing_no,
+                "calculation_sheet_no": entry.calculation_sheet_no,
+                "estimated_quantity": entry.estimated_quantity,
+                "quantity_submitted": entry.quantity_submitted,
+            }
+        )
+    drawing_names_by_element = {}
+    for row in db.query(models.DrawingListItem).all():
+        if not row.element or not row.drawing_name:
+            continue
+        drawing_names_by_element.setdefault(str(row.element).strip().casefold(), []).append(
+            row.drawing_name
+        )
+    return boq_items, entries_by_section, drawing_names_by_element
+
+
+@router.post("/word-items/excel")
+def word_items_excel(body: WordItemsRequest, db: Session = Depends(get_db)):
+    from services.element_progress import rows_for_words, split_search_words, word_items_workbook
+
+    if not split_search_words(body.words):
+        raise HTTPException(status_code=400, detail="Enter at least one word")
+    boq_items, entries_by_section, drawing_names = _element_lookup(db)
+    rows = rows_for_words(body.words, boq_items, entries_by_section, drawing_names)
+    content = word_items_workbook(rows, body.language)
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="word-items.xlsx"'},
+    )
 
 
 @router.get("/", response_model=List[schemas.DrawingListItem])

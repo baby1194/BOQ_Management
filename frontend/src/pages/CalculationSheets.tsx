@@ -34,6 +34,30 @@ function clampCalcSidebarWidth(value: number): number {
   return Math.min(CALC_MAX_WIDTH, Math.max(CALC_MIN_WIDTH, value));
 }
 
+type FreshnessItem = {
+  id: number;
+  calculation_sheet_no: string;
+  drawing_no: string;
+  file_name: string;
+  source_file_path?: string | null;
+  status: "newer" | "missing";
+  system_updated_at?: string | null;
+  file_updated_at?: string | null;
+};
+
+type FreshnessReport = {
+  count: number;
+  checked: number;
+  items: FreshnessItem[];
+};
+
+function formatFileDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString();
+}
+
 const CalculationSheets: React.FC = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
@@ -70,12 +94,14 @@ const CalculationSheets: React.FC = () => {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [tracking, setTracking] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [trackingListed, setTrackingListed] = useState(false);
+  const [freshness, setFreshness] = useState<FreshnessReport | null>(null);
   const { checking: checkingQuantities, runCheck: handleQuantityCheck } =
     useQuantityCheck();
   const [printingSheets, setPrintingSheets] = useState(false);
   const [printOrientation, setPrintOrientation] = useState<"landscape" | "portrait">("landscape");
   const [printMargin, setPrintMargin] = useState("10");
-  const [printColumns, setPrintColumns] = useState("");
   const [trackingSheetId, setTrackingSheetId] = useState<number | null>(null);
   const [expandedBreakdownEntryIds, setExpandedBreakdownEntryIds] = useState<
     Set<number>
@@ -624,7 +650,6 @@ const CalculationSheets: React.FC = () => {
       const result = await calculationSheetsApi.printPdfs({
         orientation: printOrientation,
         margin_mm: printMargin.trim() === "" ? 10 : Number(printMargin),
-        columns: printColumns,
         include_invoice: true,
       });
       alert(
@@ -635,6 +660,58 @@ const CalculationSheets: React.FC = () => {
       setError(t("calculationSheets.printFailed"));
     } finally {
       setPrintingSheets(false);
+    }
+  };
+
+  const handleCheckUpdates = async () => {
+    try {
+      setCheckingUpdates(true);
+      setError(null);
+      const report = await calculationSheetsApi.freshness();
+      setFreshness(report);
+    } catch (err) {
+      console.error("Error checking calculation sheet dates:", err);
+      setError(t("calculationSheets.updatesFailed"));
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
+
+  const handleTrackListed = async () => {
+    if (!freshness) return;
+    const ids = freshness.items
+      .filter((item) => item.status === "newer")
+      .map((item) => item.id);
+    if (ids.length === 0) return;
+
+    try {
+      setTrackingListed(true);
+      setError(null);
+      const response = await calculationSheetsApi.trackSelected(
+        ids,
+        isRTL ? "he" : "en"
+      );
+      alert(
+        `${response.success ? "✅" : "⚠️"} ${response.message}\n\nSheets Updated: ${
+          response.sheets_updated
+        }\nEntries Refreshed: ${response.entries_updated}\nSheets Skipped: ${
+          response.sheets_skipped
+        }${
+          response.errors.length > 0
+            ? `\n\nIssues:\n${response.errors.slice(0, 10).join("\n")}`
+            : ""
+        }`
+      );
+      await fetchSheets();
+      if (selectedSheet) {
+        await fetchEntries(selectedSheet.id);
+      }
+      setFreshness(await calculationSheetsApi.freshness());
+    } catch (err) {
+      console.error("Error tracking outdated calculation sheets:", err);
+      setError(t("calculationSheets.failedToTrack"));
+    } finally {
+      setTrackingListed(false);
     }
   };
 
@@ -825,12 +902,6 @@ const CalculationSheets: React.FC = () => {
           className="border border-gray-300 rounded-md px-2 py-2 text-sm w-16"
           aria-label={t("calculationSheets.printMargin")}
         />
-        <input
-          value={printColumns}
-          onChange={(event) => setPrintColumns(event.target.value)}
-          placeholder={t("calculationSheets.printColumns")}
-          className="border border-gray-300 rounded-md px-2 py-2 text-sm w-28"
-        />
         <button
           type="button"
           onClick={handlePrintPdfs}
@@ -849,6 +920,17 @@ const CalculationSheets: React.FC = () => {
           {checkingQuantities
             ? t("calculationSheets.quantityChecking")
             : t("calculationSheets.quantityCheck")}
+        </button>
+        <button
+          type="button"
+          onClick={handleCheckUpdates}
+          disabled={checkingUpdates || trackingListed || sheets.length === 0}
+          className="bg-white text-indigo-700 border border-indigo-300 px-4 py-2 rounded-md hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title={t("calculationSheets.checkUpdatesTooltip")}
+        >
+          {checkingUpdates
+            ? t("calculationSheets.checkingUpdates")
+            : t("calculationSheets.checkUpdates")}
         </button>
         <button
           onClick={handleTrack}
@@ -922,6 +1004,94 @@ const CalculationSheets: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {freshness && (
+        <div className="bg-white border border-indigo-200 rounded-md p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-gray-900">
+                {t("calculationSheets.updatesTitle")}
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                {freshness.count === 0
+                  ? t("calculationSheets.updatesEmpty")
+                  : t("calculationSheets.updatesChecked", {
+                      checked: freshness.checked,
+                      count: freshness.count,
+                    })}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {freshness.items.some((item) => item.status === "newer") && (
+                <button
+                  type="button"
+                  onClick={handleTrackListed}
+                  disabled={trackingListed || tracking}
+                  className="bg-indigo-600 text-white px-3 py-2 rounded-md text-sm disabled:opacity-50"
+                >
+                  {trackingListed
+                    ? t("calculationSheets.trackingThese")
+                    : t("calculationSheets.trackThese")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setFreshness(null)}
+                className="px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-100"
+              >
+                {t("calculationSheets.updatesClose")}
+              </button>
+            </div>
+          </div>
+          {freshness.items.length > 0 && (
+            <div className="mt-3 max-h-72 overflow-auto border border-gray-200 rounded-md">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="px-3 py-2 text-start font-medium">
+                      {t("calculationSheets.sheetNumber")}
+                    </th>
+                    <th className="px-3 py-2 text-start font-medium">
+                      {t("calculationSheets.systemDate")}
+                    </th>
+                    <th className="px-3 py-2 text-start font-medium">
+                      {t("calculationSheets.fileDate")}
+                    </th>
+                    <th className="px-3 py-2 text-start font-medium">
+                      {t("calculationSheets.actions")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {freshness.items.map((item) => (
+                    <tr key={item.id} className="border-t border-gray-100">
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-medium text-gray-900">
+                          {item.calculation_sheet_no}
+                        </div>
+                        <div className="text-xs text-gray-500 break-all">
+                          {item.source_file_path || item.file_name}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-top whitespace-nowrap">
+                        {formatFileDate(item.system_updated_at)}
+                      </td>
+                      <td className="px-3 py-2 align-top whitespace-nowrap">
+                        {formatFileDate(item.file_updated_at)}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {item.status === "missing"
+                          ? t("calculationSheets.fileMissing")
+                          : t("calculationSheets.fileNewer")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

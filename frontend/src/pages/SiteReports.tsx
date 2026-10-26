@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
-import { ClipboardList, Trash2 } from "lucide-react";
+import { ClipboardList, FileText, Trash2 } from "lucide-react";
 import { siteWorkApi, SiteWorkItem } from "../services/api";
 
 const SiteReports: React.FC = () => {
@@ -27,6 +27,7 @@ const SiteReports: React.FC = () => {
   const [filterClassification, setFilterClassification] = useState("");
   const [filterSource, setFilterSource] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -62,9 +63,7 @@ const SiteReports: React.FC = () => {
     form.append("source", source);
     form.append("text", text);
     if (workDate) form.append("work_date", workDate);
-    if (source === "whatsapp") {
-      photos.forEach((file) => form.append("photos", file));
-    }
+    photos.forEach((file) => form.append("photos", file));
     try {
       setProcessing(true);
       const result = await siteWorkApi.ingest(form);
@@ -122,6 +121,30 @@ const SiteReports: React.FC = () => {
     }
   };
 
+  const onNotesBlur = async (item: SiteWorkItem) => {
+    if (!(item.id in noteDrafts)) return;
+    const next = noteDrafts[item.id];
+    if (next === (item.notes || "")) {
+      setNoteDrafts((current) => {
+        const copy = { ...current };
+        delete copy[item.id];
+        return copy;
+      });
+      return;
+    }
+    try {
+      const updated = await siteWorkApi.updateNotes(item.id, next);
+      setItems((current) => current.map((row) => (row.id === item.id ? updated : row)));
+      setNoteDrafts((current) => {
+        const copy = { ...current };
+        delete copy[item.id];
+        return copy;
+      });
+    } catch {
+      toast.error(t("siteWork.processFailed"));
+    }
+  };
+
   const onDelete = async (id: number) => {
     try {
       await siteWorkApi.delete(id);
@@ -160,7 +183,10 @@ const SiteReports: React.FC = () => {
             <button
               key={option}
               type="button"
-              onClick={() => setSource(option)}
+              onClick={() => {
+                setSource(option);
+                setPhotos([]);
+              }}
               className={`px-4 py-2 rounded-md text-sm font-medium ${
                 source === option
                   ? "bg-blue-600 text-white"
@@ -193,12 +219,25 @@ const SiteReports: React.FC = () => {
             className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
           />
         </label>
-        {source === "whatsapp" && (
+        {source === "whatsapp" ? (
           <label className="block text-sm text-gray-700">
             {t("siteWork.photos")}
             <input
+              key="whatsapp-photos"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              onChange={(event) => setPhotos(Array.from(event.target.files || []))}
+              className="mt-1 block w-full text-sm"
+            />
+          </label>
+        ) : (
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.reportPdf")}
+            <input
+              key="site-report-pdf"
+              type="file"
+              accept="application/pdf,.pdf"
               multiple
               onChange={(event) => setPhotos(Array.from(event.target.files || []))}
               className="mt-1 block w-full text-sm"
@@ -348,6 +387,7 @@ const SiteReports: React.FC = () => {
               <th className="px-3 py-2 text-start">{t("siteWork.classification")}</th>
               <th className="px-3 py-2 text-start">{t("siteWork.source")}</th>
               <th className="px-3 py-2 text-start">{t("siteWork.date")}</th>
+              <th className="px-3 py-2 text-start">{t("siteWork.notes")}</th>
               <th className="px-3 py-2 text-start">{t("siteWork.photosCol")}</th>
               <th className="px-3 py-2" />
             </tr>
@@ -355,13 +395,13 @@ const SiteReports: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={8} className="px-3 py-6 text-center text-gray-500">
                   {t("projects.loading")}
                 </td>
               </tr>
             ) : visibleItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={8} className="px-3 py-6 text-center text-gray-500">
                   {items.length === 0 ? t("siteWork.empty") : t("siteWork.noMatches")}
                 </td>
               </tr>
@@ -410,12 +450,40 @@ const SiteReports: React.FC = () => {
                   <td className="px-3 py-2">{sourceLabel(item.source)}</td>
                   <td className="px-3 py-2">{item.work_date || "—"}</td>
                   <td className="px-3 py-2">
+                    <textarea
+                      aria-label={t("siteWork.notes")}
+                      value={noteDrafts[item.id] ?? item.notes ?? ""}
+                      onChange={(event) =>
+                        setNoteDrafts((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      onBlur={() => void onNotesBlur(item)}
+                      rows={2}
+                      className="w-52 border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-900"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
                     <div className="flex gap-2">
-                      {(item.photo_paths || []).map((path) => (
-                        <a key={path} href={path} target="_blank" rel="noreferrer">
-                          <img src={path} alt="" className="h-10 w-10 object-cover rounded" />
-                        </a>
-                      ))}
+                      {(item.photo_paths || []).map((path) =>
+                        path.toLowerCase().endsWith(".pdf") ? (
+                          <a
+                            key={path}
+                            href={path}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-700 underline"
+                          >
+                            <FileText className="h-4 w-4" />
+                            PDF
+                          </a>
+                        ) : (
+                          <a key={path} href={path} target="_blank" rel="noreferrer">
+                            <img src={path} alt="" className="h-10 w-10 object-cover rounded" />
+                          </a>
+                        )
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2">

@@ -26,10 +26,15 @@ function loadWidths(
 export function useResizableColumns(
   storageKey: string,
   defaults: Record<string, number>,
-  options?: { minWidth?: number; maxWidth?: number }
+  options?: {
+    minWidth?: number;
+    maxWidth?: number;
+    columnMinWidth?: Record<string, number>;
+  }
 ) {
   const minWidth = options?.minWidth ?? 56;
   const maxWidth = options?.maxWidth ?? 720;
+  const columnMinWidth = options?.columnMinWidth;
   const [widths, setWidths] = useState(() => loadWidths(storageKey, defaults));
 
   useEffect(() => {
@@ -41,10 +46,11 @@ export function useResizableColumns(
       const startWidth = widths[columnKey] ?? defaults[columnKey] ?? 120;
       const handleMove = (event: PointerEvent) => {
         const delta = event.clientX - startX;
-        const next = Math.min(
-          maxWidth,
-          Math.max(minWidth, startWidth + delta)
-        );
+        const columnFloor = columnMinWidth?.[columnKey] ?? minWidth;
+      const next = Math.min(
+        maxWidth,
+        Math.max(columnFloor, startWidth + delta)
+      );
         setWidths((prev) => ({ ...prev, [columnKey]: next }));
       };
       const handleUp = () => {
@@ -58,16 +64,19 @@ export function useResizableColumns(
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
     },
-    [defaults, maxWidth, minWidth, widths]
+    [columnMinWidth, defaults, maxWidth, minWidth, widths]
   );
 
   const colStyle = useCallback(
     (columnKey: string): React.CSSProperties => {
-      const width = widths[columnKey] ?? defaults[columnKey];
+      const width = Math.max(
+        widths[columnKey] ?? defaults[columnKey] ?? 0,
+        columnMinWidth?.[columnKey] ?? 0
+      );
       if (!width) return {};
       return { width, minWidth: width, maxWidth: width };
     },
-    [defaults, widths]
+    [columnMinWidth, defaults, widths]
   );
 
   const tableWidth = useMemo(

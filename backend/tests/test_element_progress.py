@@ -1,7 +1,13 @@
+from openpyxl import load_workbook
+from io import BytesIO
+
 from services.element_progress import (
     element_names_from_entries,
     items_for_element,
     mentions,
+    rows_for_words,
+    split_search_words,
+    word_items_workbook,
 )
 
 CLIENT_ENTRIES = {
@@ -80,6 +86,32 @@ def test_splits_submitted_and_not_submitted_for_one_element():
     assert [row["section_number"] for row in rows] == ["1.1", "1.2"]
     assert rows[0]["submitted"] is True
     assert rows[1]["submitted"] is False
+
+
+def test_typed_words_list_the_section_numbers_connected_to_each_word():
+    assert split_search_words(" RW-18 / DC-50 / rails / RW-18 ") == ["RW-18", "DC-50", "rails"]
+    boq = [
+        {"section_number": "1.02.01.0010", "description": "Concrete for RW-18", "contract_quantity": 1},
+        {"section_number": "1.02.01.0041", "description": "Formwork", "contract_quantity": 1},
+        {"section_number": "9.1", "description": "Steel rails along the road", "contract_quantity": 1},
+    ]
+    entries = {
+        "1.02.01.0041": [{"description": "DC-50 wall", "invoice_description": ""}],
+    }
+    rows = rows_for_words("RW-18 / DC-50 / rails / missing", boq, entries)
+    by_word = {}
+    for row in rows:
+        by_word.setdefault(row["word"], []).append(row["section_number"])
+    assert by_word["RW-18"] == ["1.02.01.0010"]
+    assert by_word["DC-50"] == ["1.02.01.0041"]
+    assert by_word["rails"] == ["9.1"]
+    assert by_word["missing"] == [""]
+
+    book = load_workbook(BytesIO(word_items_workbook(rows, "en")))
+    sheet = book.active
+    assert [cell.value for cell in sheet[1]] == ["Word", "Section number", "Description"]
+    assert sheet["A2"].value == "RW-18"
+    assert sheet["B2"].value == "1.02.01.0010"
 
 
 def test_links_an_item_through_a_drawing_name_on_the_entry():

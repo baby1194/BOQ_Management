@@ -18,12 +18,16 @@ interface ConcentrationEntryExportModalProps {
   exportFormat: "pdf" | "excel";
   /** When "all", show export modes: all items, without empty sheets, non-zero BOQ PSQ, estimated > contract */
   exportScope?: "single" | "all";
+  /** Same comparison the sheet uses for the red quantity line. */
+  mismatchMode?: "submitted" | "estimated";
 }
 
 type ConcentrationColumnKey = Exclude<
   keyof ConcentrationEntryExportRequest,
   | "page_size"
   | "blank_approved_quantity"
+  | "print_unmatched_in_red"
+  | "mismatch_against"
   | "export_non_empty_only"
   | "export_non_zero_psq_only"
   | "export_estimated_gt_contract_only"
@@ -57,6 +61,7 @@ const ConcentrationEntryExportModal: React.FC<
   loading = false,
   exportFormat,
   exportScope = "single",
+  mismatchMode = "submitted",
 }) => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
@@ -76,6 +81,8 @@ const ConcentrationEntryExportModal: React.FC<
     if (exportRequest.page_size === "A4" || exportRequest.page_size === "A3") {
       prefsToSave.page_size = exportRequest.page_size;
     }
+    prefsToSave.print_unmatched_in_red =
+      exportRequest.print_unmatched_in_red === true;
     saveExportColumnPrefs(EXPORT_PREFS_KEYS.concentrationEntry, prefsToSave);
   }, [exportRequest]);
 
@@ -99,6 +106,7 @@ const ConcentrationEntryExportModal: React.FC<
     setExportRequest((prev) => ({
       ...buildDefaultConcentrationEntryExportRequest(),
       page_size: prev.page_size === "A4" ? "A4" : "A3",
+      print_unmatched_in_red: prev.print_unmatched_in_red === true,
     }));
   };
 
@@ -107,6 +115,7 @@ const ConcentrationEntryExportModal: React.FC<
       const allOff: ConcentrationEntryExportRequest = {
         ...buildDefaultConcentrationEntryExportRequest(),
         page_size: prev.page_size === "A4" ? "A4" : "A3",
+        print_unmatched_in_red: prev.print_unmatched_in_red === true,
       };
       for (const key of COLUMN_KEYS) {
         allOff[key] = false;
@@ -127,7 +136,11 @@ const ConcentrationEntryExportModal: React.FC<
     | "estimated_gt_contract";
 
   const handleExport = (mode?: AllSheetsMode) => {
-    const request: ConcentrationEntryExportRequest = { ...exportRequest };
+    const request: ConcentrationEntryExportRequest = {
+      ...exportRequest,
+      mismatch_against: mismatchMode,
+      print_unmatched_in_red: exportRequest.print_unmatched_in_red === true,
+    };
     if (exportScope === "all" && mode !== undefined) {
       request.export_non_empty_only = mode === "non_empty";
       request.export_non_zero_psq_only =
@@ -400,6 +413,65 @@ const ConcentrationEntryExportModal: React.FC<
               />
               <span className="text-sm">
                 {t("concentration.supervisorNotes")}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <p className="text-sm font-medium text-gray-700 mb-1">
+            {t("concentration.printHighlightedLine")}
+          </p>
+          <p className="text-xs text-gray-500 mb-3">
+            {t("concentration.printHighlightedLineHint")}
+          </p>
+          <div className="flex gap-3">
+            <label
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 border rounded-md cursor-pointer transition-colors ${
+                !exportRequest.print_unmatched_in_red
+                  ? "border-gray-800 bg-gray-50 text-gray-900"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="radio"
+                name="print-highlighted-line"
+                checked={!exportRequest.print_unmatched_in_red}
+                onChange={() =>
+                  setExportRequest((prev) => ({
+                    ...prev,
+                    print_unmatched_in_red: false,
+                  }))
+                }
+                className="sr-only"
+                disabled={loading}
+              />
+              <span className="text-sm font-medium">
+                {t("concentration.printInBlack")}
+              </span>
+            </label>
+            <label
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 border rounded-md cursor-pointer transition-colors ${
+                exportRequest.print_unmatched_in_red
+                  ? "border-red-600 bg-red-50 text-red-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="radio"
+                name="print-highlighted-line"
+                checked={exportRequest.print_unmatched_in_red === true}
+                onChange={() =>
+                  setExportRequest((prev) => ({
+                    ...prev,
+                    print_unmatched_in_red: true,
+                  }))
+                }
+                className="sr-only"
+                disabled={loading}
+              />
+              <span className="text-sm font-medium">
+                {t("concentration.printInRed")}
               </span>
             </label>
           </div>

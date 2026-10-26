@@ -354,6 +354,43 @@ def _ensure_boq_submission_columns(engine) -> None:
         conn.commit()
 
 
+def _ensure_calculation_sheet_source_modified_at(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = [
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(calculation_sheets)"))
+        ]
+        if "source_modified_at" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE calculation_sheets "
+                    "ADD COLUMN source_modified_at DATETIME"
+                )
+            )
+        conn.commit()
+
+
+def _ensure_site_work_notes_column(engine) -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        table = conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='site_work_items'"
+            )
+        ).fetchone()
+        if table is None:
+            return
+        columns = [
+            row[1] for row in conn.execute(text("PRAGMA table_info(site_work_items)"))
+        ]
+        if "notes" not in columns:
+            conn.execute(text("ALTER TABLE site_work_items ADD COLUMN notes TEXT"))
+        conn.commit()
+
+
 def _ensure_non_boq_move_columns(engine) -> None:
     from sqlalchemy import text
 
@@ -392,7 +429,9 @@ def init_project_database(project_id: str) -> None:
     _ensure_calculation_entry_unit_price(engine)
     _ensure_boq_submission_columns(engine)
     _ensure_non_boq_move_columns(engine)
+    _ensure_site_work_notes_column(engine)
     _ensure_calculation_sheet_no_unique(engine)
+    _ensure_calculation_sheet_source_modified_at(engine)
 
 
 def get_project_upload_dir(project_id: str) -> Path:

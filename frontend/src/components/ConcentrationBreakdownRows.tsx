@@ -46,6 +46,7 @@ interface ConcentrationBreakdownRowsProps {
   onToggleDrawingExpanded: (key: string) => void;
   deletingAllDrawingKey: string | null;
   drawingFileName: (path: string) => string;
+  drawingsCellStyle?: React.CSSProperties;
 }
 
 const TOTAL_ROW_CLASS = "bg-gray-200/80 text-gray-700";
@@ -74,6 +75,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
   onToggleDrawingExpanded,
   deletingAllDrawingKey,
   drawingFileName,
+  drawingsCellStyle,
 }) => {
   const { t } = useTranslation();
   const rows = getBreakdownPeriodRows(entry).filter((row) => !row.isCurrent);
@@ -119,7 +121,10 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 {row.detail.invoice_description || "-"}
               </div>
             </td>
-            <td className="px-3 py-1 text-sm text-gray-500 align-middle min-w-[10rem] max-w-[14rem]">
+            <td
+              className="px-2 py-1 text-sm text-gray-500 align-middle overflow-hidden"
+              style={drawingsCellStyle}
+            >
               <ConcentrationDrawingFilesCell
                 drawingFiles={drawingFiles}
                 isRTL={isRTL}

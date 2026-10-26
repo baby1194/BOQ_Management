@@ -35,8 +35,16 @@ export function numberDraftToValue(value: NumberDraft): number {
 export const QUANTITY_DECIMALS = 2;
 
 export function roundQuantity(value: number): number {
-  const factor = 10 ** QUANTITY_DECIMALS;
-  return Math.round(value * factor) / factor;
+  if (!Number.isFinite(value)) return 0;
+  const negative = value < 0;
+  // toFixed(8) turns the binary value Excel stores for 0.835
+  // (0.8349999999999999) into "0.83500000" before the half-up step.
+  const [whole, frac = ""] = Math.abs(value).toFixed(8).split(".");
+  const digits = (frac + "00000000").slice(0, 8);
+  let cents = Number(whole) * 100 + Number(digits.slice(0, 2));
+  if (digits[2] >= "5") cents += 1;
+  const rounded = cents / 100;
+  return negative ? -rounded : rounded;
 }
 
 /**

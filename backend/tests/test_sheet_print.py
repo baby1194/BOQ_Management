@@ -5,6 +5,7 @@ from openpyxl import Workbook
 from services.sheet_print import (
     build_print_grid,
     calculation_worksheet,
+    filled_cell_boxes,
     format_cell,
     pdf_beside_workbook,
     print_workbooks,
@@ -69,6 +70,39 @@ def test_merged_title_spans_the_kept_columns():
     ws["C2"] = "c"
     grid = build_print_grid(ws)
     assert grid.spans == [((0, 0), (2, 0))]
+
+
+def test_a_long_sheet_repeats_its_first_27_rows_and_keeps_its_own_columns():
+    book = Workbook()
+    ws = book.active
+    ws["A1"] = "title"
+    ws["C28"] = "item"
+    ws["E28"] = 4
+    grid = build_print_grid(ws)
+    assert grid.repeat_rows == 27
+    assert len(grid.rows) == 28
+    assert grid.rows[0] == ["title", "", ""]
+    assert grid.rows[1] == ["", "", ""]
+    assert grid.rows[27] == ["", "item", "4"]
+    assert all(len(row) == 3 for row in grid.rows)
+
+
+def test_a_short_sheet_does_not_pad_empty_title_rows():
+    book = Workbook()
+    ws = book.active
+    ws["A1"] = "only"
+    ws["B3"] = 2
+    grid = build_print_grid(ws)
+    assert grid.repeat_rows == 0
+    assert grid.rows == [["only", ""], ["", "2"]]
+
+
+def test_borders_are_only_drawn_around_filled_cells():
+    boxes = filled_cell_boxes(
+        [["title", "", ""], ["", "1", ""]],
+        [((0, 0), (1, 0))],
+    )
+    assert boxes == [((0, 0), (1, 0)), ((1, 1), (1, 1))]
 
 
 def test_calculation_sheet_is_printed_instead_of_the_first_worksheet():

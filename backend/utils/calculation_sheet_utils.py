@@ -302,7 +302,7 @@ def compute_submission_breakdown(
         if col_index >= df.shape[1]:
             break
 
-        qty = _safe_float(df.iloc[row_idx, col_index])
+        qty = round_quantity(_safe_float(df.iloc[row_idx, col_index]))
         period = None
         if 0 <= period_col < df.shape[1]:
             period = _normalize_period_value(df.iloc[row_idx, period_col])
@@ -922,6 +922,54 @@ def format_concentration_export_row_for_pdf(
             qty = round_quantity(numeric)
             formatted.append("" if qty == 0 else f"{qty:,.2f}")
     return formatted
+
+
+def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List[str]:
+    """Column names the screen paints red when approved quantity does not match."""
+    if compare == "estimated":
+        left_header = "Estimated Quantity"
+    elif compare == "submitted":
+        left_header = "Quantity Submitted"
+    else:
+        return []
+    approved_header = "Approved by Project Manager"
+    left = row_values.get(left_header)
+    approved = row_values.get(approved_header)
+    if left in ("", None) or approved in ("", None):
+        return []
+    try:
+        left_qty = round_quantity(float(left))
+        approved_qty = round_quantity(float(approved))
+    except (TypeError, ValueError):
+        return []
+    if left_qty == approved_qty:
+        return []
+    return [left_header, approved_header]
+
+
+def concentration_export_red_cells(
+    entries: Iterable[Any],
+    export_rows: List[Dict[str, Any]],
+    filtered_headers: List[str],
+    entry_columns: Optional[Dict[str, Any]],
+) -> List[Tuple[int, int]]:
+    """(export row, column) pairs to print in red. Empty unless red print is chosen.
+
+    Indexes are 0-based in export_rows and filtered_headers, before any RTL reversal.
+    Only the current invoice line is colored, matching the sheet on screen.
+    """
+    if not entry_columns or not entry_columns.get("print_unmatched_in_red"):
+        return []
+    compare = entry_columns.get("mismatch_against") or "submitted"
+    main_rows = set(concentration_export_main_row_offsets(entries, entry_columns))
+    cells: List[Tuple[int, int]] = []
+    for row_index, row_values in enumerate(export_rows):
+        if row_index not in main_rows:
+            continue
+        for header in unmatched_quantity_headers(row_values, str(compare)):
+            if header in filtered_headers:
+                cells.append((row_index, filtered_headers.index(header)))
+    return cells
 
 
 def build_concentration_export_totals_row(

@@ -24,6 +24,24 @@ ALLOWED_PHOTO_TYPES = {
     "image/gif": ".gif",
 }
 
+ALLOWED_PDF_TYPES = {
+    "application/pdf": ".pdf",
+    "application/x-pdf": ".pdf",
+}
+
+
+def attachment_extension(filename: str, content_type: str, allowed: dict) -> Optional[str]:
+    """Return a safe suffix for an upload, or None when the type is not allowed."""
+    normalized = (content_type or "").split(";")[0].strip().lower()
+    ext = allowed.get(normalized)
+    if ext:
+        return ext
+    name = (filename or "").lower()
+    for candidate in set(allowed.values()):
+        if name.endswith(candidate):
+            return candidate
+    return None
+
 
 def _known_systems(db: Session) -> List[str]:
     rows = db.query(models.BOQItem.system).distinct().all()
@@ -45,37 +63,40 @@ def _to_dict(item: models.SiteWorkItem) -> dict:
         "classification": item.classification,
         "source": item.source,
         "work_date": item.work_date,
+        "notes": item.notes,
         "photo_paths": item.photo_paths or [],
         "created_at": item.created_at.isoformat() if item.created_at else None,
     }
 
 
-async def _save_photos(project_id: str, photos: List[UploadFile]) -> List[str]:
-    if not photos:
+async def _save_attachments(
+    project_id: str, uploads: List[UploadFile], allowed: dict
+) -> List[str]:
+    if not uploads:
         return []
     folder = Path(get_project_upload_dir(project_id)) / "site-work"
     folder.mkdir(parents=True, exist_ok=True)
     saved: List[str] = []
-    for photo in photos:
-        if not photo or not photo.filename:
+    for upload in uploads:
+        if not upload or not upload.filename:
             continue
-        content_type = (photo.content_type or "").lower()
-        ext = ALLOWED_PHOTO_TYPES.get(content_type)
+        ext = attachment_extension(upload.filename, upload.content_type or "", allowed)
         if ext is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported photo type: {photo.filename}",
+                detail=f"Unsupported file type: {upload.filename}",
             )
         name = f"{uuid.uuid4().hex}{ext}"
         target = folder / name
-        data = await photo.read()
+        data = await upload.read()
         target.write_bytes(data)
         saved.append(f"/uploads/{project_id}/site-work/{name}")
     return saved
 
 
-class SiteWorkSystemUpdate(BaseModel):
-    system_name: str = Field(..., min_length=1, max_length=200)
+class SiteWorkUpdate(BaseModel):
+    system_name: Optional[str] = Field(None, max_length=200)
+    notes: Optional[str] = Field(None, max_length=5000)
 
 
 class SiteWorkCreate(BaseModel):
@@ -150,7 +171,8 @@ async def ingest_site_work(
     if source not in ("site_report", "whatsapp"):
         raise HTTPException(status_code=400, detail="Source must be site_report or whatsapp")
     parsed = parse_work_lines(text, _known_systems(db))
-    photo_paths = await _save_photos(project_id, photos) if source == "whatsapp" else []
+    allowed = ALLOWED_PHOTO_TYPES if source == "whatsapp" else ALLOWED_PDF_TYPES
+    photo_paths = await _save_attachments(project_id, photos, allowed)
 
     created = []
     skipped = 0
@@ -185,19 +207,26 @@ async def ingest_site_work(
 
 
 @router.patch("/{item_id}")
-def update_site_work_system(
+def update_site_work(
     item_id: int,
-    payload: SiteWorkSystemUpdate,
+    payload: SiteWorkUpdate,
     db: Session = Depends(get_db),
 ):
+    if payload.system_name is None and payload.notes is None:
+        raise HTTPException(status_code=400, detail="Nothing to update")
     item = db.query(models.SiteWorkItem).filter(models.SiteWorkItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Site work item not found")
-    system_name = payload.system_name.strip()
-    if not system_name:
-        raise HTTPException(status_code=400, detail="System is required")
-    item.system_name = system_name
-    item.classification = classification_after_system_change(item.classification, system_name)
+    if payload.system_name is not None:
+        system_name = payload.system_name.strip()
+        if not system_name:
+            raise HTTPException(status_code=400, detail="System is required")
+        item.system_name = system_name
+        item.classification = classification_after_system_change(
+            item.classification, system_name
+        )
+    if payload.notes is not None:
+        item.notes = payload.notes.strip() or None
     db.commit()
     db.refresh(item)
     return _to_dict(item)

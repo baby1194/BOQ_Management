@@ -6,6 +6,7 @@ from typing import Iterable, List
 _ELEMENT_CODE = re.compile(r"(?<![\w.])([A-Za-z]{1,5})\s?-\s?(\d{1,4}[A-Za-z]?)(?!\w)")
 _SHORT_NAME = re.compile(r"^(?=.*[^\W\d_])(?=.*\d)[\w\- /]{2,20}$")
 _DASH = re.compile(r"\s*-\s*")
+_WORD_SPLIT = re.compile(r"[\n,;/|]+")
 
 
 def _normalize(text) -> str:
@@ -30,6 +31,20 @@ def element_names_from_entries(entries: Iterable[dict]) -> List[str]:
         for name in names:
             found.setdefault(name.casefold(), name)
     return sorted(found.values(), key=str.casefold)
+
+
+def split_search_words(text: str) -> List[str]:
+    """Words typed as RW-18 / DC-50 / rails, in the order they were written."""
+    words = []
+    seen = set()
+    for part in _WORD_SPLIT.split(str(text or "")):
+        word = part.strip()
+        key = _normalize(word)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        words.append(word)
+    return words
 
 
 def mentions(text, element: str) -> bool:
@@ -58,7 +73,10 @@ def items_for_element(
         section = item.get("section_number") or ""
         entries = [
             entry for entry in entries_by_section.get(section, [])
-            if linked(entry.get("description")) or linked(entry.get("invoice_description"))
+            if linked(entry.get("description"))
+            or linked(entry.get("invoice_description"))
+            or linked(entry.get("drawing_no"))
+            or linked(entry.get("calculation_sheet_no"))
         ]
         if not entries and not linked(item.get("description")):
             continue
@@ -83,3 +101,72 @@ def items_for_element(
         )
     rows.sort(key=lambda row: (not row["submitted"], row["section_number"]))
     return rows
+
+
+def rows_for_words(
+    text: str,
+    boq_items: Iterable[dict],
+    entries_by_section: dict,
+    drawing_names_by_element: dict = None,
+) -> List[dict]:
+    """One row per word and connected section number. A word with no items stays visible."""
+    drawing_names_by_element = drawing_names_by_element or {}
+    boq_items = list(boq_items)
+    table = []
+    for word in split_search_words(text):
+        names = drawing_names_by_element.get(_normalize(word), [])
+        found = items_for_element(word, boq_items, entries_by_section, names)
+        known = {row["section_number"] for row in found}
+        needle = _normalize(word)
+        for item in boq_items:
+            section = item.get("section_number") or ""
+            if section in known or needle not in _normalize(section):
+                continue
+            found.append(
+                {
+                    "section_number": section,
+                    "description": item.get("description") or "",
+                }
+            )
+            known.add(section)
+        if not found:
+            table.append({"word": word, "section_number": "", "description": ""})
+            continue
+        for row in found:
+            table.append(
+                {
+                    "word": word,
+                    "section_number": row["section_number"],
+                    "description": row.get("description") or "",
+                }
+            )
+    return table
+
+
+def word_items_workbook(rows: List[dict], language: str = "en") -> bytes:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    hebrew = language == "he"
+    headers = (
+        ["מילה", "מספר סעיף", "תיאור"]
+        if hebrew
+        else ["Word", "Section number", "Description"]
+    )
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Items"
+    sheet.sheet_view.rightToLeft = hebrew
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    for row in rows:
+        sheet.append([row["word"], row["section_number"], row["description"]])
+    sheet.column_dimensions["A"].width = 22
+    sheet.column_dimensions["B"].width = 22
+    sheet.column_dimensions["C"].width = 60
+    buffer = BytesIO()
+    book.save(buffer)
+    return buffer.getvalue()

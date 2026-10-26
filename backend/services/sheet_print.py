@@ -22,6 +22,8 @@ CALCULATION_SHEET_NAME = "Calculation"
 _FONT_NAME = "SheetPrintHebrew"
 _DEFAULT_COLUMN_WIDTH = 8.43
 _MIN_FONT_SIZE = 6.5
+# The title block of a calculation sheet. Repeated on every page, as in Excel.
+HEADER_ROW_COUNT = 27
 
 
 @dataclass
@@ -31,6 +33,7 @@ class PrintGrid:
     right_to_left: bool
     spans: List[Tuple[Tuple[int, int], Tuple[int, int]]] = field(default_factory=list)
     numeric: List[Tuple[int, int]] = field(default_factory=list)
+    repeat_rows: int = 0
 
 
 def pdf_beside_workbook(workbook: Path) -> Path:
@@ -116,8 +119,31 @@ def _column_width(ws: Worksheet, column: int) -> float:
     return _DEFAULT_COLUMN_WIDTH
 
 
+def filled_cell_boxes(
+    rows: List[List[str]],
+    spans: List[Tuple[Tuple[int, int], Tuple[int, int]]],
+) -> List[Tuple[Tuple[int, int], Tuple[int, int]]]:
+    """Border each filled cell, and each merged block that holds a value."""
+    covered = set()
+    boxes = []
+    for (c0, r0), (c1, r1) in spans:
+        cells = [(c, r) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)]
+        covered.update(cells)
+        if any(rows[r][c] for c, r in cells):
+            boxes.append(((c0, r0), (c1, r1)))
+    for ri, row in enumerate(rows):
+        for ci, text in enumerate(row):
+            if text and (ci, ri) not in covered:
+                boxes.append(((ci, ri), (ci, ri)))
+    return boxes
+
+
 def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> PrintGrid:
-    """The filled block of the sheet, empty rows and columns removed, laid out like Excel."""
+    """Filled columns of the sheet, laid out like Excel.
+
+    Columns come from the sheet itself. When the sheet continues past the title
+    block, every one of those title rows is kept so it can repeat on each page.
+    """
     bounds = _filled_bounds(ws)
     if bounds is None:
         return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False)
@@ -130,23 +156,37 @@ def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> 
         if (not chosen or c in chosen) and c not in hidden
     ]
 
+    header_rows = (
+        [r for r in range(1, HEADER_ROW_COUNT + 1) if not _row_hidden(ws, r)]
+        if max_row > HEADER_ROW_COUNT
+        else []
+    )
+    body_rows = [
+        r for r in range(min_row, max_row + 1)
+        if r > HEADER_ROW_COUNT and not _row_hidden(ws, r)
+    ]
+    if not header_rows:
+        body_rows = [r for r in range(min_row, max_row + 1) if not _row_hidden(ws, r)]
+
+    rows_to_read = header_rows + [r for r in body_rows if r not in header_rows]
     values = {
         (r, c): ws.cell(row=r, column=c).value
-        for r in range(min_row, max_row + 1)
+        for r in rows_to_read
         for c in column_range
     }
     # Formula columns that only hold 0 are part of Excel's used range but not of the sheet.
-    visible_rows = [r for r in range(min_row, max_row + 1) if not _row_hidden(ws, r)]
     kept_cols = [
         c for c in column_range
-        if any(_meaningful(values[(r, c)]) for r in visible_rows)
+        if any(_meaningful(values[(r, c)]) for r in rows_to_read)
     ]
-    kept_rows = [
-        r for r in visible_rows
+    kept_body = [
+        r for r in body_rows
         if any(format_cell(values[(r, c)]) for c in kept_cols)
     ]
+    kept_rows = header_rows + [r for r in kept_body if r not in header_rows] if header_rows else kept_body
     if not kept_rows or not kept_cols:
         return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False)
+    repeat_rows = len(header_rows) if kept_body else 0
 
     texts = [[format_cell(values[(r, c)]) for c in kept_cols] for r in kept_rows]
     right_to_left = bool(ws.sheet_view.rightToLeft) or any(
@@ -184,7 +224,14 @@ def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> 
         widths = list(reversed(widths))
     for start, end in spans:
         _move_text_to_span_start(shown, start, end)
-    return PrintGrid(rows=shown, widths=widths, right_to_left=right_to_left, spans=spans, numeric=numeric)
+    return PrintGrid(
+        rows=shown,
+        widths=widths,
+        right_to_left=right_to_left,
+        spans=spans,
+        numeric=numeric,
+        repeat_rows=repeat_rows,
+    )
 
 
 def _move_text_to_span_start(rows: List[List[str]], start, end) -> None:
@@ -323,17 +370,25 @@ def write_sheet_pdf(
         ("FONTNAME", (0, 0), (-1, -1), font_name),
         ("FONTSIZE", (0, 0), (-1, -1), font_size),
         ("LEADING", (0, 0), (-1, -1), font_size * 1.2),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (-1, -1), align),
         ("LEFTPADDING", (0, 0), (-1, -1), padding),
         ("RIGHTPADDING", (0, 0), (-1, -1), padding),
     ]
     style += [("SPAN", start, end) for start, end in grid.spans + extra_spans]
+    style += [
+        ("BOX", start, end, 0.25, colors.grey)
+        for start, end in filled_cell_boxes(grid.rows, grid.spans)
+    ]
     style += [("ALIGN", cell, cell, "CENTER") for cell in grid.numeric]
     style += [("FONTSIZE", cell, cell, size) for cell, size in sizes]
     style += [("LEADING", cell, cell, size * 1.2) for cell, size in sizes]
-    table = Table(grid.rows, colWidths=col_widths, hAlign="RIGHT" if grid.right_to_left else "LEFT")
+    table = Table(
+        grid.rows,
+        colWidths=col_widths,
+        repeatRows=grid.repeat_rows,
+        hAlign="RIGHT" if grid.right_to_left else "LEFT",
+    )
     table.setStyle(TableStyle(style))
     document.build([table])
 

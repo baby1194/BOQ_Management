@@ -8,7 +8,7 @@ import os
 
 from fatina_paths import (
     FATINA_BASE_DIR,
-    calculation_file_uri,
+    calculation_sheet_link_uri,
     mirror_concentration_sheet_to_fatina_invoice,
     sanitize_folder_name,
 )
@@ -343,16 +343,6 @@ def _write_aggregated_summary_excel(
     return str(filepath)
 
 
-def _get_calculation_sheet_file_name(db_session, calculation_sheet_no):
-    """Resolve calculation_sheet_no to CalculationSheet.file_name, or None."""
-    if not db_session or not calculation_sheet_no:
-        return None
-    sheet = db_session.query(models.CalculationSheet).filter(
-        models.CalculationSheet.calculation_sheet_no == calculation_sheet_no,
-    ).first()
-    return sheet.file_name if sheet else None
-
-
 def _add_calculation_sheet_hyperlinks(
     worksheet,
     entries,
@@ -370,15 +360,15 @@ def _add_calculation_sheet_hyperlinks(
 
     for i in range(len(entries)):
         entry = entries[i]
-        file_name = _get_calculation_sheet_file_name(db_session, entry.calculation_sheet_no)
-        if not file_name:
+        href_uri = calculation_sheet_link_uri(
+            db_session, section_number, entry.calculation_sheet_no
+        )
+        if not href_uri:
             continue
         row_offset = link_row_offsets[i] if link_row_offsets is not None else i
         row_1based = start_row_1based + 1 + row_offset
         cell = worksheet.cell(row=row_1based, column=col_index_0based + 1)
-        cell.hyperlink = calculation_file_uri(
-            section_number, file_name, entry.calculation_sheet_no
-        )
+        cell.hyperlink = href_uri
         cell.font = link_font
 
 
@@ -680,7 +670,7 @@ class ExcelService:
             errors.append(error_msg)
             return items, errors 
 
-    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None, db_session=None, skip_fully_approved_calc_sheet_folders=False):
+    def export_single_concentration_sheet(self, sheet, boq_item, entries, entry_columns=None, db_session=None, skip_fully_approved_calc_sheet_folders=False, skip_equal_quantity_folders=False):
         """Export a single concentration sheet to Excel with specific format: 3 tables.
         entry_columns: optional dict with include_* keys to filter which columns to include.
         db_session: optional DB session to resolve Calculation Sheet No -> file link under C:/Fatina."""
@@ -718,12 +708,14 @@ class ExcelService:
                     link_section,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
                     entries=entries,
+                    skip_equal_quantity_folders=skip_equal_quantity_folders,
                 )
                 copy_concentration_entry_drawing_files_to_fatina(
                     db_session,
                     link_section,
                     entries=entries,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
+                    skip_equal_quantity_folders=skip_equal_quantity_folders,
                 )
 
             folder_key = link_section if link_section else str(sheet.id)
@@ -740,6 +732,7 @@ class ExcelService:
                 build_all_concentration_export_rows,
                 build_concentration_export_totals_row,
                 concentration_export_entry_row_groups,
+                concentration_export_red_cells,
                 concentration_export_link_row_offsets,
                 concentration_export_merge_column_indices,
                 filter_concentration_export_headers,
@@ -795,6 +788,9 @@ class ExcelService:
                         period_keys,
                         filtered_headers,
                         entry_columns,
+                    )
+                    red_quantity_cells = concentration_export_red_cells(
+                        entries, export_rows, filtered_headers, entry_columns
                     )
                     entries_data = [entries_headers]
                     for row_values in export_rows:
@@ -916,6 +912,13 @@ class ExcelService:
                             cell = worksheet.cell(row=r, column=col_i)
                             if isinstance(cell.value, (int, float)):
                                 cell.number_format = QUANTITY_EXCEL_FORMAT
+                    red_font = Font(color="FFDC2626")
+                    for row_index, col_index in red_quantity_cells:
+                        cell = worksheet.cell(
+                            row=entries_block_header_1based + 1 + row_index,
+                            column=col_index + 1,
+                        )
+                        cell.font = red_font
             
             logger.info(f"Generated concentration sheet Excel with single sheet RTL layout: {filepath}")
             if link_section:
@@ -927,7 +930,7 @@ class ExcelService:
             raise
 
     def export_all_concentration_sheets(
-        self, sheets, db_session, entry_columns=None, skip_fully_approved_calc_sheet_folders=False
+        self, sheets, db_session, entry_columns=None, skip_fully_approved_calc_sheet_folders=False, skip_equal_quantity_folders=False
     ):
         """Export all concentration sheets to Excel - saves individual files to C:/Fatina/{section_number}/"""
         try:
@@ -982,12 +985,14 @@ class ExcelService:
                     link_section,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
                     entries=entries,
+                    skip_equal_quantity_folders=skip_equal_quantity_folders,
                 )
                 copy_concentration_entry_drawing_files_to_fatina(
                     db_session,
                     link_section,
                     entries=entries,
                     skip_calc_sheet_nos=skip_calc_sheet_nos,
+                    skip_equal_quantity_folders=skip_equal_quantity_folders,
                 )
 
                 folder_name = sanitize_folder_name(link_section)

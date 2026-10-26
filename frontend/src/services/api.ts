@@ -386,7 +386,6 @@ export const calculationSheetsApi = {
   printPdfs: (settings: {
     orientation: "landscape" | "portrait";
     margin_mm: number;
-    columns: string;
     include_invoice: boolean;
   }) =>
     api
@@ -507,6 +506,40 @@ export const calculationSheetsApi = {
       .post<{ success: boolean; message: string; details: any }>(
         `/calculation-sheets/sync-all`,
         autoExportColumnsBody(),
+        { params: { language: language || "en" } }
+      )
+      .then((res) => res.data),
+
+  freshness: () =>
+    api
+      .post<{
+        count: number;
+        checked: number;
+        items: {
+          id: number;
+          calculation_sheet_no: string;
+          drawing_no: string;
+          file_name: string;
+          source_file_path?: string | null;
+          status: "newer" | "missing";
+          system_updated_at?: string | null;
+          file_updated_at?: string | null;
+        }[];
+      }>("/calculation-sheets/freshness")
+      .then((res) => res.data),
+
+  trackSelected: (sheetIds: number[], language?: string) =>
+    api
+      .post<{
+        success: boolean;
+        message: string;
+        sheets_updated: number;
+        sheets_skipped: number;
+        entries_updated: number;
+        errors: string[];
+      }>(
+        "/calculation-sheets/track-selected",
+        { ...autoExportColumnsBody(), sheet_ids: sheetIds },
         { params: { language: language || "en" } }
       )
       .then((res) => res.data),
@@ -1108,6 +1141,15 @@ export const drawingListApi = {
 
   elements: () => api.get<string[]>("/drawing-list/elements").then((res) => res.data),
 
+  downloadWordItemsExcel: async (words: string, language: string) => {
+    const response = await api.post(
+      "/drawing-list/word-items/excel",
+      { words, language },
+      { responseType: "blob" }
+    );
+    triggerBrowserDownload(response.data, "word-items.xlsx");
+  },
+
   measurePlan: (filePath: string) =>
     api
       .post<{
@@ -1153,6 +1195,7 @@ export interface SiteWorkItem {
   classification: "system" | "exception" | "additional_work";
   source: "site_report" | "whatsapp";
   work_date: string | null;
+  notes: string | null;
   photo_paths: string[];
   created_at: string | null;
 }
@@ -1189,6 +1232,11 @@ export const siteWorkApi = {
   updateSystem: (id: number, systemName: string) =>
     api
       .patch<SiteWorkItem>(`/site-work/${id}`, { system_name: systemName })
+      .then((res) => res.data),
+
+  updateNotes: (id: number, notes: string) =>
+    api
+      .patch<SiteWorkItem>(`/site-work/${id}`, { notes })
       .then((res) => res.data),
 
   delete: (id: number) =>

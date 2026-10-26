@@ -33,8 +33,8 @@ from utils.period_details_utils import (
     entry_total_approved_quantity,
     entry_total_internal_quantity,
     find_period_for_drawing_path,
+    clear_period_drawing_files,
     get_period_detail,
-    get_period_details_map,
     hydrate_entry_period_details,
     resolve_entry_current_period,
     set_period_detail_fields,
@@ -1233,14 +1233,7 @@ async def remove_all_entry_drawing_files(
             )
         pending.append((path, resolved, period_for_path))
 
-    if target_period:
-        set_period_detail_fields(db_entry, target_period, {"drawing_files": []})
-    else:
-        db_entry.drawing_files = []
-        for period in list(
-            get_period_details_map(db_entry.submission_breakdown).keys()
-        ):
-            set_period_detail_fields(db_entry, period, {"drawing_files": []})
+    clear_period_drawing_files(db_entry, target_period)
 
     db.commit()
     db.refresh(db_entry)
@@ -1312,6 +1305,11 @@ async def remove_entry_drawing_file(
             p for p in period_paths
             if str(Path(p).resolve()) != requested_resolved
         ]
+        if (
+            not period_paths
+            and target_period == (resolve_entry_current_period(db_entry) or "")
+        ):
+            db_entry.drawing_files = []
         set_period_detail_fields(
             db_entry, target_period, {"drawing_files": period_paths}
         )

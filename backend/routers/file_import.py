@@ -41,6 +41,7 @@ from fatina_paths import (
     primary_fatina_source_path,
     resolve_original_source_path,
 )
+from utils.calc_sheet_freshness import remember_source_modified_at
 from utils.source_file_paths import (
     collect_missing_source_locations,
     detect_moved_source_locations,
@@ -198,6 +199,8 @@ def import_calculation_sheet_from_disk(
         original_filename=file_path.name,
     )
 
+    remember_source_modified_at(current_sheet, Path(current_sheet.source_file_path or source_file_path))
+
     action = "updated" if was_existing else "imported"
     logger.info(
         f"Successfully {action} calculation sheet {file_path.name} with {entries_created} entries "
@@ -296,6 +299,7 @@ def copy_calculation_sheets_to_item_folder(
     section_number: str,
     skip_calc_sheet_nos: set[str] | None = None,
     entries: List[models.ConcentrationEntry] | None = None,
+    skip_equal_quantity_folders: bool = False,
 ) -> int:
     """
     Copy calculation sheet files related to the given section_number into Fatina.
@@ -315,6 +319,10 @@ def copy_calculation_sheets_to_item_folder(
         Number of calculation sheet files copied
     """
     from fatina_paths import copy_files_to_invoice_dir
+    from utils.concentration_utils import (
+        calc_sheet_nos_to_copy_for_non_zero_export,
+        invoices_to_omit_for_equal_quantities,
+    )
     from utils.period_details_utils import invoice_numbers_for_calculation_sheet
 
     if not section_number or not str(section_number).strip():
@@ -339,6 +347,11 @@ def copy_calculation_sheets_to_item_folder(
         ).all()
 
         copied = 0
+        copy_only = (
+            calc_sheet_nos_to_copy_for_non_zero_export(entries or [])
+            if skip_equal_quantity_folders
+            else None
+        )
         for sheet in sheets:
             src = Path(sheet.source_file_path) if isinstance(sheet.source_file_path, str) else sheet.source_file_path
             if not src.exists():
@@ -352,6 +365,12 @@ def copy_calculation_sheets_to_item_folder(
             if skip_calc_sheet_nos and sheet.calculation_sheet_no in skip_calc_sheet_nos:
                 logger.info(
                     "Skipping Fatina calc sheet folder for %s (selective export)",
+                    sheet.calculation_sheet_no,
+                )
+                continue
+            if copy_only is not None and sheet.calculation_sheet_no not in copy_only:
+                logger.info(
+                    "Skipping Fatina calc sheet folder for %s (estimated equals submitted)",
                     sheet.calculation_sheet_no,
                 )
                 continue
@@ -395,12 +414,22 @@ def copy_calculation_sheets_to_item_folder(
                 .filter(models.CalculationEntry.calculation_sheet_id == sheet.id)
                 .all(),
                 section_number,
+                also_own=invoice_numbers,
             )
             invoice_numbers = [
                 invoice_no
                 for invoice_no in invoice_numbers
                 if invoice_no not in foreign_invoices
             ]
+            if skip_equal_quantity_folders:
+                equal_invoices = invoices_to_omit_for_equal_quantities(
+                    entries or [], sheet.calculation_sheet_no
+                )
+                invoice_numbers = [
+                    invoice_no
+                    for invoice_no in invoice_numbers
+                    if invoice_no not in equal_invoices
+                ]
             for invoice_no in invoice_numbers:
                 copied += copy_files_to_invoice_dir(
                     section_number, invoice_no, [str(src)]
@@ -417,6 +446,7 @@ def copy_concentration_entry_drawing_files_to_fatina(
     entries: List[models.ConcentrationEntry] | None = None,
     sheet_id: int | None = None,
     skip_calc_sheet_nos: set[str] | None = None,
+    skip_equal_quantity_folders: bool = False,
 ) -> int:
     """Copy drawing files into Fatina calc-sheet folders and invoice folders when present."""
     from fatina_paths import copy_files_to_calc_sheet_dir, copy_files_to_invoice_dir
@@ -439,6 +469,17 @@ def copy_concentration_entry_drawing_files_to_fatina(
         return 0
 
     copied = 0
+    from utils.concentration_utils import (
+        calc_sheet_nos_to_copy_for_non_zero_export,
+        invoices_to_omit_for_equal_quantities,
+    )
+
+    copy_only = (
+        calc_sheet_nos_to_copy_for_non_zero_export(entries)
+        if skip_equal_quantity_folders
+        else None
+    )
+    equal_invoices_by_sheet: dict[str, set[str]] = {}
     for entry in entries:
         calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
         skip_calc = bool(
@@ -446,14 +487,21 @@ def copy_concentration_entry_drawing_files_to_fatina(
         )
         if skip_calc:
             continue
+        if copy_only is not None and calc_no not in copy_only:
+            continue
 
         if calc_no:
             paths = entry_all_drawing_files(entry)
             if paths:
                 copied += copy_files_to_calc_sheet_dir(section_number, calc_no, paths)
 
+        if skip_equal_quantity_folders and calc_no not in equal_invoices_by_sheet:
+            equal_invoices_by_sheet[calc_no] = invoices_to_omit_for_equal_quantities(
+                entries, calc_no
+            )
+        omitted_invoices = equal_invoices_by_sheet.get(calc_no, set())
         for invoice_no, paths in entry_drawing_files_by_invoice(entry).items():
-            if not paths:
+            if not paths or invoice_no in omitted_invoices:
                 continue
             copied += copy_files_to_invoice_dir(section_number, invoice_no, paths)
     return copied
@@ -1118,6 +1166,7 @@ async def import_calculation_sheets(
                 if fatina_source and is_upload_copy_path(source_file_path, upload_dir):
                     source_file_path = fatina_source
                     current_sheet.source_file_path = fatina_source
+                remember_source_modified_at(current_sheet)
 
                 if previous_path and source_paths_differ(previous_path, current_sheet.source_file_path):
                     import_location_changes.append({

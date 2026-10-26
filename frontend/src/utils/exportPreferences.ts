@@ -23,6 +23,7 @@ export const buildDefaultConcentrationEntryExportRequest =
     include_internal_quantity: true,
     include_approved_by_project_manager: true,
     blank_approved_quantity: false,
+    print_unmatched_in_red: false,
     include_notes: true,
     include_supervisor_notes: true,
     page_size: "A3",

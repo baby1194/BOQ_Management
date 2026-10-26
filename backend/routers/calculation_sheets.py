@@ -24,6 +24,7 @@ from services.non_boq_service import (
     register_non_boq_items_from_calculation_entries,
 )
 from services.pdf_service import PDFService
+from utils.calc_sheet_freshness import remember_source_modified_at, sheet_freshness
 from utils.concentration_utils import (
     entry_cumulative_submitted,
     sync_calc_entry_to_concentration,
@@ -116,6 +117,7 @@ def refresh_calculation_sheet_from_disk(
             lookup_calculation_sheet_no=previous_calculation_sheet_no,
         )
 
+        remember_source_modified_at(sheet, file_path)
         logger.info(f"Tracked calculation sheet {label} from {file_path}")
         return entries_refreshed, None, push_result
     except Exception as e:
@@ -138,15 +140,11 @@ async def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)
     if orientation not in ("landscape", "portrait"):
         raise HTTPException(status_code=400, detail="orientation must be landscape or portrait")
     margin = float(body.get("margin_mm") or 10)
-    raw_columns = str(body.get("columns") or "")
-    columns = []
-    for part in raw_columns.replace(" ", "").split(","):
-        if part.isdigit():
-            columns.append(int(part))
     roots = [Path(FATINA_BASE_DIR)]
     if body.get("include_invoice", True):
         roots.append(Path(FATINA_INVOICE_BASE_DIR))
-    written = print_workbooks(roots, orientation=orientation, margin_mm=margin, columns=columns)
+    # Each workbook keeps the columns that actually hold values.
+    written = print_workbooks(roots, orientation=orientation, margin_mm=margin)
     return {"count": len(written), "files": written[:30]}
 
 
@@ -165,6 +163,37 @@ async def check_calculation_quantities(db: Session = Depends(get_db)):
 
     rows = mismatches_from_db(db)
     return {"count": len(rows), "items": rows}
+
+
+@router.post("/freshness", response_model=schemas.CalculationSheetFreshnessResponse)
+def check_calculation_sheet_freshness(db: Session = Depends(get_db)):
+    """List sheets whose file on this computer is newer than the copy in the project.
+
+    Sheets that already match get their file date stored, so a later save is
+    visible even if someone edits a comment in the system afterwards.
+    """
+    sheets = (
+        db.query(models.CalculationSheet)
+        .order_by(models.CalculationSheet.calculation_sheet_no)
+        .all()
+    )
+    items = []
+    sealed = False
+    for sheet in sheets:
+        item = sheet_freshness(sheet)
+        if item is None:
+            if sheet.source_modified_at is None and sheet.source_file_path:
+                remember_source_modified_at(sheet)
+                sealed = True
+            continue
+        items.append(item)
+    if sealed:
+        db.commit()
+    return schemas.CalculationSheetFreshnessResponse(
+        count=len(items),
+        checked=len(sheets),
+        items=items,
+    )
 
 
 @router.get("/", response_model=List[schemas.CalculationSheet])
@@ -591,21 +620,15 @@ async def update_calculation_entry(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating calculation entry: {str(e)}")
 
-@router.post("/track", response_model=schemas.CalculationSheetsTrackResponse)
-async def track_calculation_sheets(
-    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
-    db: Session = Depends(get_db),
-    project_id: str = Depends(get_project_id),
-    language: str = Query("en"),
-):
-    """
-    Reread all calculation sheets from their saved source file paths on disk
-    and refresh calculation entry values.
-    """
+def _track_sheets(
+    sheets: List[models.CalculationSheet],
+    db: Session,
+    project_id: str,
+    language: str,
+    entry_columns,
+) -> schemas.CalculationSheetsTrackResponse:
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
-    sheets = db.query(models.CalculationSheet).all()
     removed_notices: List[str] = []
-
     sheets_updated = 0
     sheets_skipped = 0
     entries_updated = 0
@@ -640,7 +663,7 @@ async def track_calculation_sheets(
             message,
             merge_push_results(push_results),
             language=language,
-            entry_columns=_entry_columns_dict(body),
+            entry_columns=entry_columns,
         )
     if removed_notices:
         message = f"{message} " + " ".join(removed_notices)
@@ -652,6 +675,57 @@ async def track_calculation_sheets(
         sheets_skipped=sheets_skipped,
         entries_updated=entries_updated,
         errors=errors,
+    )
+
+
+@router.post("/track-selected", response_model=schemas.CalculationSheetsTrackResponse)
+async def track_selected_calculation_sheets(
+    body: schemas.TrackSelectedCalculationSheetsRequest,
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
+):
+    """Reread only the listed calculation sheets from their files on disk."""
+    sheets = (
+        db.query(models.CalculationSheet)
+        .filter(models.CalculationSheet.id.in_(body.sheet_ids))
+        .all()
+    )
+    found = {sheet.id for sheet in sheets}
+    missing = [sheet_id for sheet_id in body.sheet_ids if sheet_id not in found]
+    result = _track_sheets(
+        sheets,
+        db,
+        project_id,
+        language,
+        _entry_columns_dict(entry_columns=body.entry_columns),
+    )
+    if missing:
+        result.errors = [
+            f"Sheet ID {sheet_id} not found" for sheet_id in missing
+        ] + result.errors
+        result.sheets_skipped += len(missing)
+    return result
+
+
+@router.post("/track", response_model=schemas.CalculationSheetsTrackResponse)
+async def track_calculation_sheets(
+    body: Optional[schemas.AutoExportColumnsRequest] = Body(None),
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+    language: str = Query("en"),
+):
+    """
+    Reread all calculation sheets from their saved source file paths on disk
+    and refresh calculation entry values.
+    """
+    sheets = db.query(models.CalculationSheet).all()
+    return _track_sheets(
+        sheets,
+        db,
+        project_id,
+        language,
+        _entry_columns_dict(body),
     )
 
 

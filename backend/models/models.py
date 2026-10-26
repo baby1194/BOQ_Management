@@ -151,6 +151,8 @@ class CalculationSheet(Base):
     comment = Column(Text, nullable=True)  # User-editable comment field
     source_file_path = Column(String(500), nullable=True)  # Original file path when imported
     import_date = Column(DateTime(timezone=True), server_default=func.now())
+    # File modification time captured at the last import or track.
+    source_modified_at = Column(DateTime(timezone=True), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -327,6 +329,7 @@ class SiteWorkItem(Base):
     # site_report | whatsapp
     source = Column(String(50), nullable=False)
     work_date = Column(String(20), nullable=True)
+    notes = Column(Text, nullable=True)
     photo_paths = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
