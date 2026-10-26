@@ -17,9 +17,26 @@ export type PeriodEditDraft = {
   supervisor_notes: string;
 };
 
+export type BreakdownColumnVisibility = {
+  description: boolean;
+  calculation_sheet_no: boolean;
+  drawing_no: boolean;
+  invoice_description: boolean;
+  drawings: boolean;
+  estimated_quantity: boolean;
+  submission_percentage: boolean;
+  quantity_submitted: boolean;
+  internal_quantity: boolean;
+  approved_qty: boolean;
+  notes: boolean;
+  supervisor_notes: boolean;
+  actions: boolean;
+};
+
 interface ConcentrationBreakdownRowsProps {
   entry: ConcentrationEntry;
   columnCount: number;
+  columns: BreakdownColumnVisibility;
   isRTL: boolean;
   saving: boolean;
   periodEdit:
@@ -59,6 +76,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
   ConcentrationBreakdownRowsProps
 > = ({
   entry,
+  columns,
   isRTL,
   saving,
   periodEdit,
@@ -108,11 +126,14 @@ export const ConcentrationBreakdownPastRows: React.FC<
             title={t("concentration.doubleClickToEdit")}
           >
             <td className="px-2 py-1" />
-            <td className="px-3 py-1" />
-            <td className="px-3 py-1" />
+            {columns.description && <td className="px-3 py-1" />}
+            {columns.calculation_sheet_no && <td className="px-3 py-1" />}
+            {columns.drawing_no && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               <span className="font-medium text-gray-700">{row.period}</span>
             </td>
+            )}
+            {columns.invoice_description && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top max-w-[14rem]">
               <div
                 className="truncate py-1"
@@ -121,6 +142,8 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 {row.detail.invoice_description || "-"}
               </div>
             </td>
+            )}
+            {columns.drawings && (
             <td
               className="px-2 py-1 text-sm text-gray-500 align-middle overflow-hidden"
               style={drawingsCellStyle}
@@ -145,7 +168,9 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 drawingFileName={drawingFileName}
               />
             </td>
-            <td className="px-3 py-1" />
+            )}
+            {columns.estimated_quantity && <td className="px-3 py-1" />}
+            {columns.submission_percentage && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               {isEditing && draft ? (
                 <div className="flex items-center gap-1">
@@ -171,9 +196,13 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 `${formatNumber(row.submissionPercentage, 1)}%`
               )}
             </td>
+            )}
+            {columns.quantity_submitted && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               {formatNumber(row.qty)}
             </td>
+            )}
+            {columns.internal_quantity && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               {isEditing && draft ? (
                 <input
@@ -193,6 +222,8 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 formatNumber(row.detail.internal_quantity || 0)
               )}
             </td>
+            )}
+            {columns.approved_qty && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
               {isEditing && draft ? (
                 <input
@@ -214,6 +245,8 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 formatNumber(row.detail.approved_by_project_manager || 0)
               )}
             </td>
+            )}
+            {columns.notes && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top max-w-[10rem]">
               {isEditing && draft ? (
                 <textarea
@@ -231,6 +264,8 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 </div>
               )}
             </td>
+            )}
+            {columns.supervisor_notes && (
             <td className="px-3 py-1 text-sm text-gray-600 align-top max-w-[10rem]">
               {isEditing && draft ? (
                 <textarea
@@ -254,6 +289,8 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 </div>
               )}
             </td>
+            )}
+            {columns.actions && (
             <td className="px-3 py-1 text-sm text-gray-500 align-top whitespace-nowrap">
               {isEditing ? (
                 <div
@@ -289,6 +326,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
                 </button>
               )}
             </td>
+            )}
           </tr>
         );
       })}
@@ -299,7 +337,8 @@ export const ConcentrationBreakdownPastRows: React.FC<
 export const ConcentrationBreakdownTotalRow: React.FC<{
   entry: ConcentrationEntry;
   columnCount: number;
-}> = ({ entry, columnCount }) => {
+  columns: BreakdownColumnVisibility;
+}> = ({ entry, columns }) => {
   const { t } = useTranslation();
   if (!entry.submission_breakdown) {
     return null;
@@ -315,35 +354,45 @@ export const ConcentrationBreakdownTotalRow: React.FC<{
   return (
     <tr className={`${TOTAL_ROW_CLASS} border-t border-gray-300`}>
       <td className="px-2 py-1.5" />
-      <td className="px-3 py-1.5" />
-      <td className="px-3 py-1.5" />
+      {columns.description && <td className="px-3 py-1.5" />}
+      {columns.calculation_sheet_no && <td className="px-3 py-1.5" />}
+      {columns.drawing_no && (
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
         <span className="font-semibold text-gray-800">{t("common.total")}</span>
       </td>
-      <td className="px-3 py-1.5" />
-      <td className="px-3 py-1.5" />
-      <td className="px-3 py-1.5" />
+      )}
+      {columns.invoice_description && <td className="px-3 py-1.5" />}
+      {columns.drawings && <td className="px-3 py-1.5" />}
+      {columns.estimated_quantity && <td className="px-3 py-1.5" />}
+      {columns.submission_percentage && (
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
         <span className="font-semibold text-gray-800">{percentageLabel}</span>
       </td>
+      )}
+      {columns.quantity_submitted && (
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
         <span className="font-semibold text-gray-800">
           {formatNumber(totals.submittedTotal)}
         </span>
       </td>
+      )}
+      {columns.internal_quantity && (
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
         <span className="font-semibold text-gray-800">
           {formatNumber(totals.internalTotal)}
         </span>
       </td>
+      )}
+      {columns.approved_qty && (
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
         <span className="font-semibold text-gray-800">
           {formatNumber(totals.approvedTotal)}
         </span>
       </td>
-      <td className="px-3 py-1.5" />
-      <td className="px-3 py-1.5" />
-      <td className="px-3 py-1.5" />
+      )}
+      {columns.notes && <td className="px-3 py-1.5" />}
+      {columns.supervisor_notes && <td className="px-3 py-1.5" />}
+      {columns.actions && <td className="px-3 py-1.5" />}
     </tr>
   );
 };

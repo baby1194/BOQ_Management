@@ -35,12 +35,23 @@ def _notes_for_pdf_export(entry) -> str:
     return notes
 
 
-def _paint_unmatched_quantity_cells(style, cells, column_count: int, language: str) -> None:
-    """Paint unmatched quantity figures red. cells are (export row, column) before RTL reversal."""
-    red = colors.HexColor("#DC2626")
+def _unmatched_quantity_display_cells(cells, column_count: int, language: str):
+    """Table coordinates of unmatched quantities. Row 0 is the header.
+
+    cells are (export row, column) before the Hebrew column reversal.
+    """
+    shown = []
     for row_index, col_index in cells:
         table_row = row_index + 1
         table_col = (column_count - 1 - col_index) if language == "he" else col_index
+        shown.append((table_row, table_col))
+    return shown
+
+
+def _paint_unmatched_quantity_cells(style, cells, column_count: int, language: str) -> None:
+    """Paint unmatched quantity figures red. cells are (export row, column) before RTL reversal."""
+    red = colors.HexColor("#DC2626")
+    for table_row, table_col in _unmatched_quantity_display_cells(cells, column_count, language):
         command = ("TEXTCOLOR", (table_col, table_row), (table_col, table_row), red)
         if hasattr(style, "add"):
             style.add(*command)
@@ -335,6 +346,7 @@ class PDFService:
         font_size=12,
         cell_padding=None,
         center_column_indices=None,
+        red_cells=None,
     ):
         """Create a table with robust Hebrew support using Paragraph objects"""
         from reportlab.platypus import Paragraph
@@ -397,6 +409,22 @@ class PDFService:
             rightIndent=0,
             wordWrap='LTR',
         )
+        # Paragraphs ignore the table TEXTCOLOR command, so unmatched
+        # quantities carry the red in the paragraph style itself.
+        red_color = colors.HexColor("#DC2626")
+        red_cells = set(red_cells or [])
+
+        def _with_red(style, name):
+            return ParagraphStyle(
+                name,
+                parent=style,
+                textColor=red_color,
+            )
+
+        red_hebrew_style = _with_red(hebrew_style, "RedHebrewStyle")
+        red_latin_style = _with_red(latin_style, "RedLatinStyle")
+        red_center_hebrew_style = _with_red(center_hebrew_style, "RedCenterHebrewStyle")
+        red_center_latin_style = _with_red(center_latin_style, "RedCenterLatinStyle")
         
         # Convert data to Paragraph objects for better text rendering
         from reportlab.platypus import Flowable
@@ -412,10 +440,16 @@ class PDFService:
                     # Use actual column width for accurate wrapping
                     col_width = column_widths[col_idx] if col_idx < len(column_widths) else 100
                     wrapped_text = self._wrap_hebrew_text(str(cell_value), col_width)
-                    style = center_hebrew_style if col_idx in center_cols else hebrew_style
+                    if (row_idx, col_idx) in red_cells:
+                        style = red_center_hebrew_style if col_idx in center_cols else red_hebrew_style
+                    else:
+                        style = center_hebrew_style if col_idx in center_cols else hebrew_style
                     paragraph_row.append(Paragraph(wrapped_text, style))
                 else:
-                    style = center_latin_style if col_idx in center_cols else latin_style
+                    if (row_idx, col_idx) in red_cells:
+                        style = red_center_latin_style if col_idx in center_cols else red_latin_style
+                    else:
+                        style = center_latin_style if col_idx in center_cols else latin_style
                     paragraph_row.append(
                         Paragraph(self._escape_paragraph_text(cell_value) if cell_value else "", style)
                     )
@@ -1381,6 +1415,11 @@ class PDFService:
                         font_size=font_size,
                         cell_padding=cell_padding,
                         center_column_indices=numerical_column_indices,
+                        red_cells=_unmatched_quantity_display_cells(
+                            red_quantity_cells,
+                            len(filtered_headers),
+                            language,
+                        ),
                     )
                     logger.info("Successfully created robust Hebrew table for concentration entries with repeatRows")
                     # Override grey backgrounds - remove header and totals row grey backgrounds

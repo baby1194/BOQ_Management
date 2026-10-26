@@ -1247,6 +1247,21 @@ const ConcentrationSheets: React.FC = () => {
 
   const showEntryCol = (key: EntryColumnKey) =>
     entryColumnVisibility[key] !== false;
+  const breakdownColumns = {
+    description: showEntryCol("description"),
+    calculation_sheet_no: showEntryCol("calculation_sheet_no"),
+    drawing_no: showEntryCol("drawing_no"),
+    invoice_description: showEntryCol("invoice_description"),
+    drawings: showEntryCol("drawings"),
+    estimated_quantity: showEntryCol("estimated_quantity"),
+    submission_percentage: showEntryCol("submission_percentage"),
+    quantity_submitted: showEntryCol("quantity_submitted"),
+    internal_quantity: showEntryCol("internal_quantity"),
+    approved_qty: showEntryCol("approved_qty"),
+    notes: showEntryCol("notes"),
+    supervisor_notes: showEntryCol("supervisor_notes"),
+    actions: showEntryCol("actions"),
+  };
   const visibleEntryColumnCount =
     1 + ENTRY_COLUMN_KEYS.filter((key) => showEntryCol(key)).length;
 
@@ -2270,6 +2285,7 @@ const ConcentrationSheets: React.FC = () => {
                                       <ConcentrationBreakdownPastRows
                                         entry={entry}
                                         columnCount={visibleEntryColumnCount}
+                                        columns={breakdownColumns}
                                         isRTL={isRTL}
                                         saving={saving}
                                         periodEdit={periodEdit}
@@ -2879,6 +2895,7 @@ const ConcentrationSheets: React.FC = () => {
                                       <ConcentrationBreakdownTotalRow
                                         entry={entry}
                                         columnCount={visibleEntryColumnCount}
+                                        columns={breakdownColumns}
                                       />
                                     )}
                                   </React.Fragment>

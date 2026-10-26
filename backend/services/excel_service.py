@@ -912,7 +912,7 @@ class ExcelService:
                             cell = worksheet.cell(row=r, column=col_i)
                             if isinstance(cell.value, (int, float)):
                                 cell.number_format = QUANTITY_EXCEL_FORMAT
-                    red_font = Font(color="FFDC2626")
+                    red_font = Font(color="DC2626")
                     for row_index, col_index in red_quantity_cells:
                         cell = worksheet.cell(
                             row=entries_block_header_1based + 1 + row_index,

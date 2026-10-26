@@ -712,6 +712,9 @@ def build_concentration_export_rows_for_entry(
         _apply_subrow_merge_column_values(rows, filtered_headers)
     if entry_columns and entry_columns.get("blank_approved_quantity"):
         for row in rows:
+            # Keep the real approved figure for the red check. The printed
+            # cell stays blank, but a mismatch must still color the other qty.
+            row["_approved_compare"] = row.get("Approved by Project Manager")
             row["Approved by Project Manager"] = ""
     return rows
 
@@ -934,9 +937,17 @@ def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List
         return []
     approved_header = "Approved by Project Manager"
     left = row_values.get(left_header)
-    approved = row_values.get(approved_header)
-    if left in ("", None) or approved in ("", None):
+    # A blank printed approved cell can still have the real figure saved
+    # for comparison (_approved_compare). Otherwise a blank cell is zero,
+    # matching the 0.00 the screen paints red.
+    if "_approved_compare" in row_values:
+        approved = row_values.get("_approved_compare")
+    else:
+        approved = row_values.get(approved_header)
+    if left in ("", None):
         return []
+    if approved in ("", None):
+        approved = 0
     try:
         left_qty = round_quantity(float(left))
         approved_qty = round_quantity(float(approved))
@@ -944,7 +955,11 @@ def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List
         return []
     if left_qty == approved_qty:
         return []
-    return [left_header, approved_header]
+    headers = [left_header]
+    printed_approved = row_values.get(approved_header)
+    if printed_approved not in ("", None):
+        headers.append(approved_header)
+    return headers
 
 
 def concentration_export_red_cells(

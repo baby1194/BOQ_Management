@@ -699,5 +699,25 @@ def test_blank_approved_quantity_keeps_the_column_and_clears_the_values():
     columns = {"blank_approved_quantity": True, "include_approved_by_project_manager": True}
     rows = build_concentration_export_rows_for_entry(entry, [], headers, columns)
     assert rows[0]["Approved by Project Manager"] == ""
+    from utils.calculation_sheet_utils import concentration_export_red_cells
+
+    red_headers = [
+        "Quantity Submitted",
+        "Approved by Project Manager",
+    ]
+    red_rows = build_concentration_export_rows_for_entry(
+        entry, [], red_headers, {**columns, "print_unmatched_in_red": True}
+    )
+    assert red_rows[0]["Approved by Project Manager"] == ""
+    assert concentration_export_red_cells(
+        [entry],
+        red_rows,
+        red_headers,
+        {
+            "blank_approved_quantity": True,
+            "print_unmatched_in_red": True,
+            "mismatch_against": "submitted",
+        },
+    ) == [(0, 0)]
     totals = build_concentration_export_totals_row([entry], headers, [], "Total", columns)
     assert totals["Approved by Project Manager"] == ""
