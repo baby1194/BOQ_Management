@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ConcentrationEntry } from "../types";
-import { formatNumber, parseNumberDraft, type NumberDraft } from "../utils/format";
+import { formatNumber, numberDraftToValue, parseNumberDraft, roundQuantity, type NumberDraft } from "../utils/format";
 import ConcentrationDrawingFilesCell from "./ConcentrationDrawingFilesCell";
 import {
   breakdownTotalsForEntry,
@@ -110,6 +110,15 @@ export const ConcentrationBreakdownPastRows: React.FC<
         const draft = isEditing ? periodEdit.draft : null;
         const drawingFiles = getPeriodDrawingFiles(entry, row.period);
         const key = drawingKey(entry.id, row.period);
+        const approvedValue =
+          isEditing && draft
+            ? numberDraftToValue(draft.approved_by_project_manager)
+            : row.detail.approved_by_project_manager || 0;
+        const pastMismatch =
+          roundQuantity(row.qty || 0) !== roundQuantity(approvedValue || 0);
+        const mismatchClass = pastMismatch
+          ? "text-red-600 font-semibold"
+          : "text-gray-600";
         const isUploading = uploadingDrawingKey === key;
         const isDrawingExpanded = expandedDrawingKeys.has(key);
 
@@ -198,7 +207,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
             </td>
             )}
             {columns.quantity_submitted && (
-            <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
+            <td className={`px-3 py-1 text-sm align-top whitespace-nowrap ${mismatchClass}`}>
               {formatNumber(row.qty)}
             </td>
             )}
@@ -224,7 +233,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
             </td>
             )}
             {columns.approved_qty && (
-            <td className="px-3 py-1 text-sm text-gray-600 align-top whitespace-nowrap">
+            <td className={`px-3 py-1 text-sm align-top whitespace-nowrap ${mismatchClass}`}>
               {isEditing && draft ? (
                 <input
                   type="number"

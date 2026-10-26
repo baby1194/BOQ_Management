@@ -673,6 +673,53 @@ def test_unmatched_quantity_line_can_print_in_red():
     ) == [(0, 0), (0, 2)]
 
 
+def test_old_invoice_is_red_when_approved_differs_from_submitted():
+    from types import SimpleNamespace
+
+    from utils.calculation_sheet_utils import (
+        build_concentration_export_rows_for_entry,
+        concentration_export_red_cells,
+    )
+
+    entry = SimpleNamespace(
+        description="item",
+        calculation_sheet_no="36/1",
+        drawing_no="05",
+        estimated_quantity=12.0,
+        submission_percentage=100.0,
+        quantity_submitted=1.0,
+        internal_quantity=0.0,
+        approved_by_project_manager=0.0,
+        notes="",
+        supervisor_notes="",
+        current_invoice_id="05",
+        submission_breakdown={
+            "current_drawing_no": "05",
+            "periods": {"02": 5.0, "04": 1.0, "05": 1.0},
+            "period_details": {
+                "02": {"approved_by_project_manager": 5.0},
+                "04": {"approved_by_project_manager": 0.0},
+                "05": {"approved_by_project_manager": 0.0},
+            },
+        },
+    )
+    headers = ["Invoice No", "Quantity Submitted", "Approved by Project Manager"]
+    columns = {
+        "include_past_months_submitted_subrows": True,
+        "print_unmatched_in_red": True,
+        "mismatch_against": "submitted",
+    }
+    rows = build_concentration_export_rows_for_entry(entry, [], headers, columns)
+    invoices = [row["Invoice No"] for row in rows]
+    assert invoices == ["02", "04", "05"]
+    red = concentration_export_red_cells([entry], rows, headers, columns)
+    submitted_col = headers.index("Quantity Submitted")
+    red_rows = {row_index for row_index, col in red if col == submitted_col}
+    assert invoices.index("02") not in red_rows
+    assert invoices.index("04") in red_rows
+    assert invoices.index("05") in red_rows
+
+
 def test_blank_approved_quantity_keeps_the_column_and_clears_the_values():
     from types import SimpleNamespace
 

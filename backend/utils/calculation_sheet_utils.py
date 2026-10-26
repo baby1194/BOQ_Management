@@ -973,16 +973,14 @@ def concentration_export_red_cells(
     """(export row, column) pairs to print in red. Empty unless red print is chosen.
 
     Indexes are 0-based in export_rows and filtered_headers, before any RTL reversal.
-    Only the current invoice line is colored, matching the sheet on screen.
+    Every invoice line is colored, including older invoices, when approved
+    quantity does not match the compared quantity.
     """
     if not entry_columns or not entry_columns.get("print_unmatched_in_red"):
         return []
     compare = entry_columns.get("mismatch_against") or "submitted"
-    main_rows = set(concentration_export_main_row_offsets(entries, entry_columns))
     cells: List[Tuple[int, int]] = []
     for row_index, row_values in enumerate(export_rows):
-        if row_index not in main_rows:
-            continue
         for header in unmatched_quantity_headers(row_values, str(compare)):
             if header in filtered_headers:
                 cells.append((row_index, filtered_headers.index(header)))
