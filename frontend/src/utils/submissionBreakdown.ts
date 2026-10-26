@@ -94,6 +94,23 @@ export const entryCumulativeSubmittedQuantity = (
   return quantitySubmitted || 0;
 };
 
+/** Keep a row when estimated is zero but submitted quantity was still entered. */
+export const entryHasEstimatedOrSubmitted = (entry: {
+  estimated_quantity?: number | null;
+  quantity_submitted?: number | null;
+  submission_breakdown?: SubmissionBreakdown | null;
+}): boolean => {
+  if ((entry.estimated_quantity ?? 0) !== 0) {
+    return true;
+  }
+  return (
+    entryCumulativeSubmittedQuantity(
+      entry.quantity_submitted ?? 0,
+      entry.submission_breakdown,
+    ) !== 0
+  );
+};
+
 export const pastSubmittedQuantity = (
   breakdown?: SubmissionBreakdown | null,
   currentInvoiceId?: string | null,

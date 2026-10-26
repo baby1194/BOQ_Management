@@ -109,9 +109,47 @@ def test_typed_words_list_the_section_numbers_connected_to_each_word():
 
     book = load_workbook(BytesIO(word_items_workbook(rows, "en")))
     sheet = book.active
-    assert [cell.value for cell in sheet[1]] == ["Word", "Section number", "Description"]
+    headers = [cell.value for cell in sheet[1]]
+    assert headers[0] == "Word"
+    assert "Section Number" in headers
+    assert "Estimated Quantity" in headers
+    assert "Quantity Submitted" in headers
+    assert "Total Estimate" in headers
+    assert "Total Submitted" in headers
     assert sheet["A2"].value == "RW-18"
-    assert sheet["B2"].value == "1.02.01.0010"
+    assert sheet.cell(2, headers.index("Section Number") + 1).value == "1.02.01.0010"
+
+
+def test_word_excel_includes_the_boq_table_figures():
+    boq = [
+        {
+            "section_number": "1.02.01.0010",
+            "description": "Concrete for RW-18",
+            "unit": "m3",
+            "price": 10,
+            "original_contract_quantity": 5,
+            "estimated_quantity": 4.5,
+            "quantity_submitted": 3,
+            "approved_signed_quantity": 1,
+            "total_estimate": 45,
+            "total_submitted": 30,
+            "submitted_to_supervisor": True,
+        }
+    ]
+    rows = rows_for_words("RW-18", boq, {})
+    assert rows[0]["estimated_quantity"] == 4.5
+    assert rows[0]["quantity_submitted"] == 3
+    assert rows[0]["partially_submitted_quantity"] == 2
+    assert rows[0]["total_estimate"] == 45
+    assert rows[0]["unit"] == "m3"
+
+    book = load_workbook(BytesIO(word_items_workbook(rows, "en")))
+    sheet = book.active
+    headers = [cell.value for cell in sheet[1]]
+    assert sheet.cell(2, headers.index("Estimated Quantity") + 1).value == 4.5
+    assert sheet.cell(2, headers.index("Quantity Submitted") + 1).value == 3
+    assert sheet.cell(2, headers.index("Total Estimate") + 1).value == 45
+    assert sheet.cell(2, headers.index("Submitted Increase/Decrease") + 1).value == "Yes"
 
 
 def test_links_an_item_through_a_drawing_name_on_the_entry():

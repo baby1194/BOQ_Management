@@ -21,7 +21,7 @@ import {
   SubmissionBreakdownCalcSheetRows,
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
-import { entryCumulativeSubmittedQuantity } from "../utils/submissionBreakdown";
+import { entryCumulativeSubmittedQuantity, entryHasEstimatedOrSubmitted } from "../utils/submissionBreakdown";
 import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
 import { useQuantityCheck } from "../contexts/QuantityCheckContext";
 
@@ -107,7 +107,7 @@ const CalculationSheets: React.FC = () => {
     Set<number>
   >(new Set());
   const visibleEntries = useMemo(
-    () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
+    () => entries.filter((entry) => entryHasEstimatedOrSubmitted(entry)),
     [entries]
   );
   const sheetsWithChangedLocation = useMemo(
@@ -115,6 +115,9 @@ const CalculationSheets: React.FC = () => {
     [sheets]
   );
   const [openingFile, setOpeningFile] = useState(false);
+  const [openingListedFileId, setOpeningListedFileId] = useState<number | null>(
+    null
+  );
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<number>>(
     new Set()
   );
@@ -518,6 +521,24 @@ const CalculationSheets: React.FC = () => {
       alert(`Error: ${errorMessage}`);
     } finally {
       setOpeningFile(false);
+    }
+  };
+
+  const handleOpenListedFile = async (item: FreshnessItem) => {
+    if (item.status === "missing") return;
+
+    try {
+      setOpeningListedFileId(item.id);
+      setError(null);
+      await calculationSheetsApi.openSourceFile(item.id);
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        t("calculationSheets.openFileFailed");
+      setError(errorMessage);
+    } finally {
+      setOpeningListedFileId(null);
     }
   };
 
@@ -1082,9 +1103,28 @@ const CalculationSheets: React.FC = () => {
                         {formatFileDate(item.file_updated_at)}
                       </td>
                       <td className="px-3 py-2 align-top">
-                        {item.status === "missing"
-                          ? t("calculationSheets.fileMissing")
-                          : t("calculationSheets.fileNewer")}
+                        <div className="flex flex-col items-start gap-1">
+                          <button
+                            type="button"
+                            onClick={() => void handleOpenListedFile(item)}
+                            disabled={
+                              item.status === "missing" ||
+                              openingListedFileId === item.id
+                            }
+                            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={t("calculationSheets.openFile")}
+                          >
+                            <FolderOpen className="h-3 w-3" />
+                            {openingListedFileId === item.id
+                              ? t("calculationSheets.openingFile")
+                              : t("calculationSheets.openFile")}
+                          </button>
+                          <span>
+                            {item.status === "missing"
+                              ? t("calculationSheets.fileMissing")
+                              : t("calculationSheets.fileNewer")}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -26,8 +26,10 @@ def filter_concentration_entries_for_export(
 ) -> List[T]:
     """Filter concentration entries for PDF/Excel export.
 
-    When Estimated Quantity is included (default), exclude rows with zero estimated qty.
-    When Estimated Quantity is excluded, exclude rows with zero submitted qty instead.
+    When Estimated Quantity is included (default), keep a row that has an
+    estimated quantity or a submitted quantity. A submitted quantity is kept
+    even when estimated is zero. When Estimated Quantity is excluded, exclude
+    rows with zero submitted qty instead.
     """
     include_estimated = True
     if entry_columns is not None:
@@ -38,7 +40,7 @@ def filter_concentration_entries_for_export(
         estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
         submitted = entry_cumulative_submitted(entry)
         if include_estimated:
-            if estimated != 0:
+            if estimated != 0 or submitted != 0:
                 filtered.append(entry)
         elif submitted != 0:
             filtered.append(entry)

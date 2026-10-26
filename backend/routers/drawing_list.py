@@ -171,7 +171,7 @@ def element_submission(element: str, db: Session = Depends(get_db)):
     from services.element_progress import items_for_element
 
     needle = element.strip()
-    boq_items, entries_by_section, drawing_names_by_element = _element_lookup(db)
+    boq_items, entries_by_section, drawing_names_by_element, _updates = _element_lookup(db)
     drawing_names = drawing_names_by_element.get(needle.casefold(), [])
     rows = items_for_element(needle, boq_items, entries_by_section, drawing_names)
     return {
@@ -188,16 +188,62 @@ class WordItemsRequest(BaseModel):
 
 
 def _element_lookup(db: Session):
-    boq_items = [
-        {
-            "section_number": item.section_number,
-            "description": item.description,
-            "contract_quantity": item.original_contract_quantity,
-            "estimated_quantity": item.estimated_quantity,
-            "quantity_submitted": item.quantity_submitted,
-        }
-        for item in db.query(models.BOQItem).all()
-    ]
+    from services.element_progress import boq_table_fields
+
+    contract_updates = (
+        db.query(models.ContractQuantityUpdate)
+        .order_by(models.ContractQuantityUpdate.update_index)
+        .all()
+    )
+    updates_by_item = {}
+    for row in db.query(models.BOQItemQuantityUpdate).all():
+        updates_by_item.setdefault(row.boq_item_id, {})[row.contract_update_id] = row
+    boq_items = []
+    for item in db.query(models.BOQItem).all():
+        item_updates = updates_by_item.get(item.id, {})
+        boq_items.append(
+            boq_table_fields(
+                {
+                    "serial_number": item.serial_number,
+                    "structure": item.structure,
+                    "system": item.system,
+                    "section_number": item.section_number,
+                    "description": item.description,
+                    "unit": item.unit,
+                    "original_contract_quantity": item.original_contract_quantity,
+                    "price": item.price,
+                    "submitted_price": item.submitted_price,
+                    "submitted_to_supervisor": item.submitted_to_supervisor,
+                    "submitted_to_supervisor_date": item.submitted_to_supervisor_date,
+                    "total_contract_sum": item.total_contract_sum,
+                    "estimated_quantity": item.estimated_quantity,
+                    "quantity_submitted": item.quantity_submitted,
+                    "internal_quantity": item.internal_quantity,
+                    "approved_by_project_manager": item.approved_by_project_manager,
+                    "approved_signed_quantity": item.approved_signed_quantity,
+                    "submitted_increase_quantity": item.submitted_increase_quantity,
+                    "total_estimate": item.total_estimate,
+                    "total_submitted": item.total_submitted,
+                    "internal_total": item.internal_total,
+                    "total_approved_by_project_manager": item.total_approved_by_project_manager,
+                    "approved_signed_total": item.approved_signed_total,
+                    "subsection": item.subsection,
+                    "notes": item.notes,
+                },
+                [
+                    {
+                        "id": update.id,
+                        "quantity": item_updates[update.id].updated_contract_quantity
+                        if update.id in item_updates
+                        else None,
+                        "sum": item_updates[update.id].updated_contract_sum
+                        if update.id in item_updates
+                        else None,
+                    }
+                    for update in contract_updates
+                ],
+            )
+        )
     entries_by_section = {}
     for entry in db.query(models.ConcentrationEntry).all():
         entries_by_section.setdefault(entry.section_number, []).append(
@@ -217,7 +263,7 @@ def _element_lookup(db: Session):
         drawing_names_by_element.setdefault(str(row.element).strip().casefold(), []).append(
             row.drawing_name
         )
-    return boq_items, entries_by_section, drawing_names_by_element
+    return boq_items, entries_by_section, drawing_names_by_element, contract_updates
 
 
 @router.post("/word-items/excel")
@@ -226,9 +272,9 @@ def word_items_excel(body: WordItemsRequest, db: Session = Depends(get_db)):
 
     if not split_search_words(body.words):
         raise HTTPException(status_code=400, detail="Enter at least one word")
-    boq_items, entries_by_section, drawing_names = _element_lookup(db)
+    boq_items, entries_by_section, drawing_names, contract_updates = _element_lookup(db)
     rows = rows_for_words(body.words, boq_items, entries_by_section, drawing_names)
-    content = word_items_workbook(rows, body.language)
+    content = word_items_workbook(rows, body.language, contract_updates)
     return StreamingResponse(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

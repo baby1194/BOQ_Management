@@ -8,21 +8,26 @@ from utils.concentration_utils import (
 )
 
 
-def test_filter_concentration_entries_for_export_keeps_estimated_only_rows():
+def test_filter_keeps_submitted_when_estimated_is_zero():
     with_estimate = SimpleNamespace(
         estimated_quantity=120.0,
         quantity_submitted=0.0,
         submission_breakdown=None,
     )
-    without_estimate = SimpleNamespace(
+    submitted_without_estimate = SimpleNamespace(
         estimated_quantity=0.0,
         quantity_submitted=50.0,
         submission_breakdown=None,
     )
-    result = filter_concentration_entries_for_export(
-        [with_estimate, without_estimate]
+    empty = SimpleNamespace(
+        estimated_quantity=0.0,
+        quantity_submitted=0.0,
+        submission_breakdown=None,
     )
-    assert result == [with_estimate]
+    result = filter_concentration_entries_for_export(
+        [with_estimate, submitted_without_estimate, empty]
+    )
+    assert result == [with_estimate, submitted_without_estimate]
 
 
 def test_filter_concentration_entries_for_export_excludes_zero_submitted_when_est_hidden():

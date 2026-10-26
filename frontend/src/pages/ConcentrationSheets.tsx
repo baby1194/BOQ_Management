@@ -56,7 +56,7 @@ import {
   PeriodEditDraft,
 } from "../components/ConcentrationBreakdownRows";
 import { SubmissionBreakdownToggle } from "../components/SubmissionBreakdownPanel";
-import { concentrationEntriesQuantitySubmittedTotal } from "../utils/submissionBreakdown";
+import { concentrationEntriesQuantitySubmittedTotal, entryHasEstimatedOrSubmitted } from "../utils/submissionBreakdown";
 import {
   entryTotalApprovedQuantity,
   entryTotalInternalQuantity,
@@ -147,7 +147,7 @@ function expandedBreakdownIdsForEntries(
 ): Set<number> {
   return new Set(
     entryList
-      .filter((entry) => (entry.estimated_quantity ?? 0) !== 0)
+      .filter((entry) => entryHasEstimatedOrSubmitted(entry))
       .map((entry) => entry.id)
   );
 }
@@ -361,7 +361,7 @@ const ConcentrationSheets: React.FC = () => {
     Set<number>
   >(new Set());
   const visibleEntries = useMemo(
-    () => entries.filter((entry) => (entry.estimated_quantity ?? 0) !== 0),
+    () => entries.filter((entry) => entryHasEstimatedOrSubmitted(entry)),
     [entries]
   );
   const visibleEntriesSubmittedTotal = useMemo(
