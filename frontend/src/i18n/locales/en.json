@@ -115,7 +115,8 @@
     "added": "Task added",
     "alreadyListed": "This task is already listed",
     "all": "All",
-    "noMatches": "No tasks match these filters."
+    "noMatches": "No tasks match these filters.",
+    "openFailed": "Could not open the attached file"
   },
   "auth": {
     "signIn": "Sign In",

@@ -145,6 +145,15 @@ const SiteReports: React.FC = () => {
     }
   };
 
+  const onOpenAttachment = async (itemId: number, path: string) => {
+    try {
+      await siteWorkApi.openFile(itemId, path);
+    } catch (error) {
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      toast.error(typeof detail === "string" ? detail : t("siteWork.openFailed"));
+    }
+  };
+
   const onDelete = async (id: number) => {
     try {
       await siteWorkApi.delete(id);
@@ -468,16 +477,16 @@ const SiteReports: React.FC = () => {
                     <div className="flex gap-2">
                       {(item.photo_paths || []).map((path) =>
                         path.toLowerCase().endsWith(".pdf") ? (
-                          <a
+                          <button
                             key={path}
-                            href={path}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-700 underline"
+                            type="button"
+                            onClick={() => void onOpenAttachment(item.id, path)}
+                            className="inline-flex items-center gap-1 rounded border border-gray-400 bg-white px-1.5 py-0.5 text-blue-700"
+                            title={path}
                           >
                             <FileText className="h-4 w-4" />
                             PDF
-                          </a>
+                          </button>
                         ) : (
                           <a key={path} href={path} target="_blank" rel="noreferrer">
                             <img src={path} alt="" className="h-10 w-10 object-cover rounded" />

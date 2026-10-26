@@ -1241,6 +1241,11 @@ export const siteWorkApi = {
 
   delete: (id: number) =>
     api.delete(`/site-work/${id}`).then((res) => res.data),
+
+  openFile: (id: number, path: string) =>
+    api
+      .post<{ success: boolean }>(`/site-work/${id}/open-file`, { path })
+      .then((res) => res.data),
 };
 
 export default api;
