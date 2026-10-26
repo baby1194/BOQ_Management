@@ -370,7 +370,7 @@ def copy_calculation_sheets_to_item_folder(
                 continue
             if copy_only is not None and sheet.calculation_sheet_no not in copy_only:
                 logger.info(
-                    "Skipping Fatina calc sheet folder for %s (estimated equals submitted)",
+                    "Skipping Fatina calc sheet folder for %s (submitted equals approved)",
                     sheet.calculation_sheet_no,
                 )
                 continue

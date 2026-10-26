@@ -57,6 +57,25 @@ def _filter_sheets_with_non_zero_boq_psq(sheets: List, db: Session) -> List:
         for sheet_id, submitted, approved in rows
         if boq_has_non_zero_psq(submitted, approved)
     }
+    # A sheet whose totals match still belongs when one invoice line,
+    # including an older invoice, has submitted != approved.
+    remaining = wanted - sheet_ids_with_psq
+    if remaining:
+        from utils.concentration_utils import (
+            concentration_entries_have_invoice_mismatch,
+        )
+
+        entries = (
+            db.query(models.ConcentrationEntry)
+            .filter(models.ConcentrationEntry.concentration_sheet_id.in_(remaining))
+            .all()
+        )
+        by_sheet: dict = {}
+        for entry in entries:
+            by_sheet.setdefault(entry.concentration_sheet_id, []).append(entry)
+        for sheet_id, sheet_entries in by_sheet.items():
+            if concentration_entries_have_invoice_mismatch(sheet_entries):
+                sheet_ids_with_psq.add(sheet_id)
     return [sheet for sheet in sheets if sheet.id in sheet_ids_with_psq]
 
 
@@ -166,6 +185,7 @@ async def export_concentration_sheets(
         sheets = sort_concentration_sheets_by_boq_order(sheets, db)
 
         from utils.concentration_utils import (
+            concentration_entries_have_invoice_mismatch,
             concentration_sheet_cumulative_submitted_equals_approved,
             filter_concentration_entries_for_export,
         )
@@ -191,8 +211,13 @@ async def export_concentration_sheets(
                 filtered_entries = filter_concentration_entries_for_export(
                     entries, entry_columns
                 )
-                if concentration_sheet_cumulative_submitted_equals_approved(
-                    filtered_entries
+                if (
+                    concentration_sheet_cumulative_submitted_equals_approved(
+                        filtered_entries
+                    )
+                    and not concentration_entries_have_invoice_mismatch(
+                        filtered_entries
+                    )
                 ):
                     continue
 

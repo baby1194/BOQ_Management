@@ -937,6 +937,7 @@ class ExcelService:
             sheets = sort_concentration_sheets_by_boq_order(sheets, db_session)
             from utils.concentration_utils import (
                 calc_sheet_nos_to_skip_for_selective_export,
+                concentration_entries_have_invoice_mismatch,
                 concentration_sheet_cumulative_submitted_equals_approved,
                 filter_concentration_entries_for_export,
             )
@@ -970,6 +971,7 @@ class ExcelService:
                     and concentration_sheet_cumulative_submitted_equals_approved(
                         entries
                     )
+                    and not concentration_entries_have_invoice_mismatch(entries)
                 ):
                     continue
 

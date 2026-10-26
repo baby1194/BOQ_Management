@@ -112,8 +112,12 @@ def calc_sheet_nos_estimated_equals_submitted(entries: Iterable[T]) -> Set[str]:
 
 
 def calc_sheet_nos_to_copy_for_non_zero_export(entries: Iterable[T]) -> Set[str]:
-    """Calc sheets that still have an estimated/submitted difference."""
-    equal = calc_sheet_nos_estimated_equals_submitted(entries)
+    """Calc sheets with a submitted quantity that differs from approved.
+
+    A difference on an older invoice is enough. The sheet total matching is
+    not a reason to leave the file out.
+    """
+    equal = calc_sheet_nos_submitted_equals_approved(entries)
     present = {
         str(getattr(entry, "calculation_sheet_no", "") or "").strip()
         for entry in entries
@@ -127,61 +131,103 @@ def invoices_to_omit_for_equal_quantities(
 ) -> Set[str]:
     """Invoices that must not get a folder for this calc sheet.
 
-    An invoice is omitted when its submitted quantity equals its approved
-    quantity, or equals the estimated quantity, on the printed two decimals.
+    An invoice is omitted only when its submitted quantity equals its
+    approved quantity, on the printed two decimals. Older invoices are
+    included. Matching the estimated quantity does not omit the folder
+    when the approved quantity still differs.
     """
     from utils.quantity_utils import round_quantity
 
     sheet_no = str(calculation_sheet_no or "").strip()
     approved_totals: dict[str, dict[str, float]] = {}
-    estimated_totals: dict[str, dict[str, float]] = {}
     for entry in entries:
         calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
         if calc_no != sheet_no:
             continue
-        estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
-        seen_invoices: Set[str] = set()
         for invoice_no, submitted, approved in _invoice_quantity_rows(entry):
             approved_bucket = approved_totals.setdefault(
                 invoice_no, {"submitted": 0.0, "approved": 0.0}
             )
             approved_bucket["submitted"] += submitted
             approved_bucket["approved"] += approved
-            estimated_bucket = estimated_totals.setdefault(
-                invoice_no, {"submitted": 0.0, "estimated": 0.0}
-            )
-            estimated_bucket["submitted"] += submitted
-            if invoice_no not in seen_invoices:
-                estimated_bucket["estimated"] += estimated
-                seen_invoices.add(invoice_no)
 
-    omit: Set[str] = set()
-    for invoice_no, bucket in approved_totals.items():
-        if round_quantity(bucket["submitted"]) == round_quantity(bucket["approved"]):
-            omit.add(invoice_no)
-    for invoice_no, bucket in estimated_totals.items():
-        if round_quantity(bucket["submitted"]) == round_quantity(bucket["estimated"]):
-            omit.add(invoice_no)
-    return omit
+    return {
+        invoice_no
+        for invoice_no, bucket in approved_totals.items()
+        if round_quantity(bucket["submitted"]) == round_quantity(bucket["approved"])
+    }
+
+
+def _invoice_rows_by_calc_sheet(
+    entries: Iterable[T],
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Per calc sheet, per invoice: summed submitted and approved quantities."""
+    grouped: dict[str, dict[str, dict[str, float]]] = {}
+    for entry in entries:
+        calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
+        if not calc_no:
+            continue
+        for invoice_no, submitted, approved in _invoice_quantity_rows(entry):
+            invoices = grouped.setdefault(calc_no, {})
+            bucket = invoices.setdefault(
+                invoice_no, {"submitted": 0.0, "approved": 0.0}
+            )
+            bucket["submitted"] += submitted
+            bucket["approved"] += approved
+    return grouped
+
+
+def concentration_entries_have_invoice_mismatch(entries: Iterable[T]) -> bool:
+    """True when any invoice line, including an older one, has submitted != approved."""
+    from utils.period_details_utils import entry_total_approved_quantity
+    from utils.quantity_utils import round_quantity
+
+    saw_invoice_line = False
+    for invoices in _invoice_rows_by_calc_sheet(entries).values():
+        for bucket in invoices.values():
+            saw_invoice_line = True
+            if round_quantity(bucket["submitted"]) != round_quantity(bucket["approved"]):
+                return True
+    if saw_invoice_line:
+        return False
+
+    for entry in entries:
+        submitted = entry_cumulative_submitted_quantity(entry)
+        approved = entry_total_approved_quantity(entry)
+        if round_quantity(submitted) != round_quantity(approved):
+            return True
+    return False
 
 
 def calc_sheet_nos_submitted_equals_approved(entries: Iterable[T]) -> Set[str]:
-    """Return calc sheet numbers whose total submitted qty equals total approved qty."""
+    """Calc sheets whose submitted quantity matches approved on every invoice.
+
+    When a sheet has invoice lines, every line must match, including older
+    invoices. A matching total is not enough if one invoice still differs.
+    Sheets with no invoice line fall back to the entry totals.
+    """
     from utils.period_details_utils import entry_total_approved_quantity
+    from utils.quantity_utils import round_quantity
+
+    by_invoice = _invoice_rows_by_calc_sheet(entries)
+    skip: Set[str] = set()
+    for calc_no, invoices in by_invoice.items():
+        if invoices and all(
+            round_quantity(bucket["submitted"]) == round_quantity(bucket["approved"])
+            for bucket in invoices.values()
+        ):
+            skip.add(calc_no)
 
     totals: dict[str, dict[str, float]] = {}
     for entry in entries:
         calc_no = str(getattr(entry, "calculation_sheet_no", "") or "").strip()
-        if not calc_no:
+        if not calc_no or calc_no in by_invoice:
             continue
         bucket = totals.setdefault(calc_no, {"submitted": 0.0, "approved": 0.0})
         bucket["submitted"] += entry_cumulative_submitted_quantity(entry)
         bucket["approved"] += entry_total_approved_quantity(entry)
 
-    skip: Set[str] = set()
     for calc_no, bucket in totals.items():
-        from utils.quantity_utils import round_quantity
-
         if round_quantity(bucket["submitted"]) == round_quantity(bucket["approved"]):
             skip.add(calc_no)
     return skip
@@ -254,7 +300,10 @@ def calc_sheet_nos_to_skip_for_selective_export(
     an earlier invoice remains on the concentration row and its quantities differ.
     """
     skip = calc_sheet_nos_submitted_equals_approved(entries)
-    skip |= calc_sheet_nos_not_submitted(entries)
+    # A blank current invoice still counts when an older invoice is on the row.
+    not_submitted = calc_sheet_nos_not_submitted(entries)
+    not_submitted -= _calc_sheet_nos_with_an_invoice(entries)
+    skip |= not_submitted
     if db is not None and section_number:
         blank_on_the_calc_sheet = calc_sheet_nos_not_submitted_for_section(
             db, section_number

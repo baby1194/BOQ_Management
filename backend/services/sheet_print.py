@@ -34,6 +34,7 @@ class PrintGrid:
     spans: List[Tuple[Tuple[int, int], Tuple[int, int]]] = field(default_factory=list)
     numeric: List[Tuple[int, int]] = field(default_factory=list)
     repeat_rows: int = 0
+    row_heights: List[float] = field(default_factory=list)
 
 
 def pdf_beside_workbook(workbook: Path) -> Path:
@@ -97,6 +98,14 @@ def _filled_bounds(ws: Worksheet) -> Optional[Tuple[int, int, int, int]]:
     return tuple(bounds) if bounds else None
 
 
+def _row_height(ws: Worksheet, row: int) -> float:
+    """Excel's row height in points. A blank height is Excel's default of 15."""
+    dimension = ws.row_dimensions.get(row)
+    if dimension is not None and dimension.height:
+        return float(dimension.height)
+    return 15.0
+
+
 def _row_hidden(ws: Worksheet, row: int) -> bool:
     dimension = ws.row_dimensions.get(row)
     return bool(dimension is not None and dimension.hidden)
@@ -146,7 +155,7 @@ def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> 
     """
     bounds = _filled_bounds(ws)
     if bounds is None:
-        return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False)
+        return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False, row_heights=[15.0])
     min_row, min_col, max_row, max_col = bounds
 
     chosen = {int(col) for col in (columns or []) if int(col) >= 1}
@@ -185,7 +194,7 @@ def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> 
     ]
     kept_rows = header_rows + [r for r in kept_body if r not in header_rows] if header_rows else kept_body
     if not kept_rows or not kept_cols:
-        return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False)
+        return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False, row_heights=[15.0])
     repeat_rows = len(header_rows) if kept_body else 0
 
     texts = [[format_cell(values[(r, c)]) for c in kept_cols] for r in kept_rows]
@@ -218,6 +227,7 @@ def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> 
     ]
 
     widths = [_column_width(ws, c) for c in kept_cols]
+    row_heights = [_row_height(ws, r) for r in kept_rows]
     shown = [[_display(text) for text in row] for row in texts]
     if right_to_left:
         shown = [list(reversed(row)) for row in shown]
@@ -231,6 +241,7 @@ def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> 
         spans=spans,
         numeric=numeric,
         repeat_rows=repeat_rows,
+        row_heights=row_heights,
     )
 
 
@@ -244,6 +255,53 @@ def _move_text_to_span_start(rows: List[List[str]], start, end) -> None:
             if rows[r][c]:
                 rows[r0][c0], rows[r][c] = rows[r][c], ""
                 return
+
+
+def _lines_within_row(
+    text: str, font_name: str, room: float, row_height: float
+) -> Tuple[List[str], float]:
+    """Wrap text into the Excel row. Shrink the font when the row cannot hold every line."""
+    room = max(room, 1.0)
+    leading = _MIN_FONT_SIZE * 1.2
+    allowed = max(1, int(max(row_height - 2.0, leading) / leading))
+    lines = simpleSplit(text, font_name, _MIN_FONT_SIZE, room)
+    if len(lines) <= allowed:
+        return lines, _MIN_FONT_SIZE
+    width = pdfmetrics.stringWidth(text, font_name, _MIN_FONT_SIZE)
+    size = max(3.0, _MIN_FONT_SIZE * (room * allowed) / max(width, 1.0))
+    lines = simpleSplit(text, font_name, size, room)
+    while len(lines) > allowed and size > 3.0:
+        size = max(3.0, size * allowed / max(len(lines), 1))
+        lines = simpleSplit(text, font_name, size, room)
+        if size <= 3.0:
+            break
+    if len(lines) > allowed:
+        return [text], size
+    return lines, size
+
+
+def _heights_that_fit(heights: List[float], repeat_rows: int, frame_height: float) -> List[float]:
+    """Keep the repeated title block short enough that one more row still fits on the page."""
+    heights = [float(height or 15.0) for height in heights]
+    if not heights or frame_height <= 1:
+        return heights
+    repeat = min(max(repeat_rows, 0), len(heights))
+    if repeat and repeat < len(heights):
+        body = min(heights[repeat:])
+        budget = frame_height - body - 1
+        header = sum(heights[:repeat])
+        if header > budget > 0:
+            scale = budget / header
+            heights = [height * scale for height in heights]
+    elif sum(heights) > frame_height:
+        scale = (frame_height - 1) / sum(heights)
+        heights = [height * scale for height in heights]
+    cap = frame_height - 1
+    tallest = max(heights)
+    if tallest > cap > 0:
+        scale = cap / tallest
+        heights = [height * scale for height in heights]
+    return heights
 
 
 def overflow_spans(
@@ -273,13 +331,16 @@ def overflow_spans(
         if size >= _MIN_FONT_SIZE or cell in numeric:
             sizes.append((cell, max(4.0, size)))
             return
-        lines = simpleSplit(text, font_name, _MIN_FONT_SIZE, room)
+        lines, size = _lines_within_row(
+            text, font_name, room, grid.row_heights[cell[1]] if cell[1] < len(grid.row_heights) else 15.0
+        )
         if _has_hebrew(text):
             # The text is already in visual order, so its last words come first.
             lines.reverse()
         col, row_index = cell
-        grid.rows[row_index][col] = "\n".join(lines)
-        sizes.append((cell, _MIN_FONT_SIZE))
+        if len(lines) > 1:
+            grid.rows[row_index][col] = "\n".join(lines)
+        sizes.append((cell, size))
 
     for ri, row in enumerate(grid.rows):
         for ci, text in enumerate(row):
@@ -374,6 +435,8 @@ def write_sheet_pdf(
         ("ALIGN", (0, 0), (-1, -1), align),
         ("LEFTPADDING", (0, 0), (-1, -1), padding),
         ("RIGHTPADDING", (0, 0), (-1, -1), padding),
+        ("TOPPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
     ]
     style += [("SPAN", start, end) for start, end in grid.spans + extra_spans]
     style += [
@@ -383,9 +446,16 @@ def write_sheet_pdf(
     style += [("ALIGN", cell, cell, "CENTER") for cell in grid.numeric]
     style += [("FONTSIZE", cell, cell, size) for cell, size in sizes]
     style += [("LEADING", cell, cell, size * 1.2) for cell, size in sizes]
+    frame_height = page[1] - (2 * margin)
+    heights = _heights_that_fit(
+        grid.row_heights or [15.0] * len(grid.rows),
+        grid.repeat_rows,
+        frame_height,
+    )
     table = Table(
         grid.rows,
         colWidths=col_widths,
+        rowHeights=heights,
         repeatRows=grid.repeat_rows,
         hAlign="RIGHT" if grid.right_to_left else "LEFT",
     )

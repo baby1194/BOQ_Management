@@ -180,7 +180,7 @@ def test_pdf_link_keeps_the_fatina_copy_when_that_file_exists(tmp_path):
     assert link_path_for_exported_calc_sheet(copied, str(source)) == copied
 
 
-def test_non_zero_export_skips_a_calc_sheet_when_estimated_equals_submitted():
+def test_non_zero_export_copies_a_calc_sheet_when_an_invoice_differs():
     from utils.concentration_utils import calc_sheet_nos_to_copy_for_non_zero_export
 
     entries = [
@@ -210,7 +210,7 @@ def test_non_zero_export_skips_a_calc_sheet_when_estimated_equals_submitted():
         ),
     ]
 
-    assert calc_sheet_nos_to_copy_for_non_zero_export(entries) == {"41/21"}
+    assert calc_sheet_nos_to_copy_for_non_zero_export(entries) == {"32/01"}
 
 
 def test_invoice_folder_is_omitted_when_that_invoice_is_equal():
@@ -253,7 +253,7 @@ def test_invoice_folder_is_omitted_when_that_invoice_is_equal():
     assert "06" not in omitted
 
 
-def test_invoice_folder_is_omitted_when_submitted_equals_estimated():
+def test_invoice_folder_stays_when_submitted_equals_estimated_but_not_approved():
     from utils.concentration_utils import invoices_to_omit_for_equal_quantities
 
     entries = [
@@ -267,7 +267,7 @@ def test_invoice_folder_is_omitted_when_submitted_equals_estimated():
         )
     ]
 
-    assert invoices_to_omit_for_equal_quantities(entries, "32/01") == {"06"}
+    assert "06" not in invoices_to_omit_for_equal_quantities(entries, "32/01")
 
 
 def test_a_previous_invoice_with_a_real_difference_is_still_exported():
@@ -285,6 +285,63 @@ def test_a_previous_invoice_with_a_real_difference_is_still_exported():
     ]
 
     assert "09" not in invoices_to_omit_for_equal_quantities(entries, "DC-38")
+
+
+def test_old_invoice_difference_keeps_the_sheet_and_only_that_folder():
+    from utils.concentration_utils import (
+        calc_sheet_nos_submitted_equals_approved,
+        calc_sheet_nos_to_copy_for_non_zero_export,
+        concentration_entries_have_invoice_mismatch,
+        invoices_to_omit_for_equal_quantities,
+    )
+
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="32/3/8",
+            estimated_quantity=184.33,
+            quantity_submitted=180.33,
+            approved_by_project_manager=179.83,
+            drawing_no="10",
+            submission_breakdown={
+                "current_drawing_no": "10",
+                "periods": {"09": 4.00, "10": 180.33},
+                "period_details": {
+                    "09": {"approved_by_project_manager": 4.50},
+                    "10": {"approved_by_project_manager": 180.33},
+                },
+            },
+        )
+    ]
+
+    assert concentration_entries_have_invoice_mismatch(entries)
+    assert "32/3/8" not in calc_sheet_nos_submitted_equals_approved(entries)
+    assert calc_sheet_nos_to_copy_for_non_zero_export(entries) == {"32/3/8"}
+    omitted = invoices_to_omit_for_equal_quantities(entries, "32/3/8")
+    assert "09" not in omitted
+    assert "10" in omitted
+
+
+def test_matching_totals_do_not_hide_an_older_unequal_invoice():
+    from utils.concentration_utils import calc_sheet_nos_submitted_equals_approved
+
+    entries = [
+        SimpleNamespace(
+            calculation_sheet_no="32/3/8",
+            quantity_submitted=4.00,
+            approved_by_project_manager=4.50,
+            drawing_no="09",
+            submission_breakdown={
+                "current_drawing_no": "09",
+                "periods": {"07": 10.00, "09": 4.00},
+                "period_details": {
+                    "07": {"approved_by_project_manager": 9.50},
+                    "09": {"approved_by_project_manager": 4.50},
+                },
+            },
+        )
+    ]
+
+    assert "32/3/8" not in calc_sheet_nos_submitted_equals_approved(entries)
 
 
 def test_calc_sheet_nos_submitted_equals_approved_sums_multiple_entries_per_sheet():
