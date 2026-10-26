@@ -98,7 +98,6 @@ type BoqEditingColumnKey =
   | "price"
   | "submitted_to_supervisor_date"
   | "submitted_increase_quantity"
-  | "submitted_change_date"
   | "original_contract_quantity"
   | "approved_signed_quantity"
   | "notes"
@@ -114,7 +113,6 @@ const TEXT_EDIT_COLUMNS = new Set<string>([
   "price",
   "submitted_to_supervisor_date",
   "submitted_increase_quantity",
-  "submitted_change_date",
   "original_contract_quantity",
   "approved_signed_quantity",
   "notes",
@@ -236,7 +234,6 @@ const BOQItems: React.FC = () => {
       quantity_decrease: "",
       quantity_increase: "",
       submitted_increase_quantity: "",
-      submitted_change_date: "",
 
       // Contract update filters - will be populated dynamically
       contract_updates: {} as Record<number, { quantity: string; sum: string }>,
@@ -305,7 +302,6 @@ const BOQItems: React.FC = () => {
       quantity_decrease: true,
       quantity_increase: true,
       submitted_increase_quantity: true,
-      submitted_change_date: true,
       total_estimate: true,
       total_submitted: true,
       internal_total: true,
@@ -436,7 +432,6 @@ const BOQItems: React.FC = () => {
       quantity_decrease: true,
       quantity_increase: true,
       submitted_increase_quantity: true,
-      submitted_change_date: true,
       total_estimate: true,
       total_submitted: true,
       internal_total: true,
@@ -998,9 +993,6 @@ const BOQItems: React.FC = () => {
         filters.submitted_increase_quantity,
         item.submitted_increase_quantity || 0
       );
-      const matchesSubmittedChangeDate = (item.submitted_change_date || "")
-        .toLowerCase()
-        .includes(filters.submitted_change_date.trim().toLowerCase());
 
       const totalDecrease = calculateTotalDecrease(item);
       const matchesTotalDecrease = parseNumericFilter(
@@ -1131,7 +1123,6 @@ const BOQItems: React.FC = () => {
         matchesSubmittedFlag &&
         matchesSubmittedDate &&
         matchesSubmittedIncrease &&
-        matchesSubmittedChangeDate &&
         matchesTotalDecrease &&
         matchesTotalIncrease &&
         matchesContractUpdates
@@ -2401,7 +2392,6 @@ const BOQItems: React.FC = () => {
       quantity_decrease: "",
       quantity_increase: "",
       submitted_increase_quantity: "",
-      submitted_change_date: "",
       contract_updates: clearedContractUpdates,
     });
   };
@@ -3465,12 +3455,12 @@ const BOQItems: React.FC = () => {
                   {t("boq.move")}
                 </th>
                 {columnVisibility.submitted_to_supervisor && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[90px]">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[160px]">
                     {t("boq.submittedToSupervisor")}
                   </th>
                 )}
                 {columnVisibility.submitted_to_supervisor_date && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[120px]">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[180px]">
                     {t("boq.submittedToSupervisorDate")}
                   </th>
                 )}
@@ -3653,11 +3643,6 @@ const BOQItems: React.FC = () => {
                 {columnVisibility.submitted_increase_quantity && (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[140px] bg-blue-50">
                     {t("boq.submittedIncreaseQuantity")}
-                  </th>
-                )}
-                {columnVisibility.submitted_change_date && (
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 min-w-[140px]">
-                    {t("boq.submittedChangeDate")}
                   </th>
                 )}
                 {columnVisibility.total_estimate && (
@@ -4157,22 +4142,6 @@ const BOQItems: React.FC = () => {
                       placeholder=">100, <50, =25..."
                       className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
                         "submitted_increase_quantity"
-                      )}`}
-                    />
-                  </th>
-                )}
-                {columnVisibility.submitted_change_date && (
-                  <th className="px-2 py-2 border-r border-gray-300">
-                    <input
-                      type="text"
-                      value={filters.submitted_change_date}
-                      onChange={(e) =>
-                        handleFilterChange("submitted_change_date", e.target.value)
-                      }
-                      onKeyDown={handleFilterKeyDown}
-                      placeholder="dd/mm/yyyy"
-                      className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${getFilterInputClass(
-                        "submitted_change_date"
                       )}`}
                     />
                   </th>
@@ -5031,46 +5000,6 @@ const BOQItems: React.FC = () => {
                         )}
                       </td>
                     )}
-                    {columnVisibility.submitted_change_date && (
-                      <td
-                        data-boq-nav="submitted_change_date"
-                        className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 cursor-pointer"
-                        onDoubleClick={() =>
-                          !isEditing && startEditing(item, "submitted_change_date")
-                        }
-                      >
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            placeholder="dd/mm/yyyy"
-                            data-boq-item-id={item.id}
-                            data-boq-edit-column="submitted_change_date"
-                            value={
-                              currentValues.submitted_change_date !== undefined
-                                ? currentValues.submitted_change_date || ""
-                                : item.submitted_change_date || ""
-                            }
-                            onChange={(e) =>
-                              handleInputChange(
-                                "submitted_change_date",
-                                e.target.value
-                              )
-                            }
-                            onKeyDown={(e) =>
-                              handleEditColumnKeyDown(
-                                e,
-                                item,
-                                "submitted_change_date"
-                              )
-                            }
-                            className="w-28 px-2 py-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
-                        ) : (
-                          item.submitted_change_date || "-"
-                        )}
-                      </td>
-                    )}
                     {columnVisibility.total_estimate && (
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-300 bg-red-100">
                         {formatCurrency(
@@ -5429,9 +5358,6 @@ const BOQItems: React.FC = () => {
                 )}
                 {columnVisibility.submitted_increase_quantity && (
                   <td className="px-3 py-4 bg-blue-50"></td>
-                )}
-                {columnVisibility.submitted_change_date && (
-                  <td className="px-3 py-4 bg-gray-50"></td>
                 )}
                 {/* Total Estimate - WITH TOTAL */}
                 {columnVisibility.total_estimate && (
@@ -5886,20 +5812,6 @@ const BOQItems: React.FC = () => {
                   {t("boq.submittedIncreaseQuantity")}
                 </span>
               </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={columnVisibility.submitted_change_date}
-                  onChange={() =>
-                    toggleColumnVisibility("submitted_change_date")
-                  }
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">
-                  {t("boq.submittedChangeDate")}
-                </span>
-              </label>
-
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"

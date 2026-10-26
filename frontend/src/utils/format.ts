@@ -38,11 +38,14 @@ export function roundQuantity(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const negative = value < 0;
   // toFixed(8) turns the binary value Excel stores for 0.835
-  // (0.8349999999999999) into "0.83500000" before the half-up step.
+  // (0.8349999999999999) into "0.83500000". Round the third decimal
+  // first, then to two places, so a sheet value shown as 0.835 becomes 0.84.
   const [whole, frac = ""] = Math.abs(value).toFixed(8).split(".");
   const digits = (frac + "00000000").slice(0, 8);
-  let cents = Number(whole) * 100 + Number(digits.slice(0, 2));
-  if (digits[2] >= "5") cents += 1;
+  let milli = Number(whole) * 1000 + Number(digits.slice(0, 3));
+  if (digits[3] >= "5") milli += 1;
+  let cents = Math.floor(milli / 10);
+  if (milli % 10 >= 5) cents += 1;
   const rounded = cents / 100;
   return negative ? -rounded : rounded;
 }

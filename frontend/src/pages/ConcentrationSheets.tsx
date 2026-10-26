@@ -39,6 +39,12 @@ import {
   RefreshCw,
   GripVertical,
   Settings,
+  Eye,
+  EyeOff,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import ColumnSettingsModal from "../components/ColumnSettingsModal";
@@ -59,7 +65,11 @@ import {
   getPeriodDrawingFiles,
   resolveCurrentPeriod,
 } from "../utils/periodDetails";
-import { getProjectItem, setProjectItem } from "../utils/localStorage";
+import {
+  getProjectItem,
+  removeProjectItem,
+  setProjectItem,
+} from "../utils/localStorage";
 import {
   startHeaderColumnResize,
   useResizableColumns,
@@ -146,6 +156,9 @@ const SIDEBAR_WIDTH_STORAGE_KEY = "concentration-sidebar-width-percent";
 const DEFAULT_SIDEBAR_WIDTH_PERCENT = 33.333;
 const MIN_SIDEBAR_WIDTH_PERCENT = 18;
 const MAX_SIDEBAR_WIDTH_PERCENT = 60;
+const LIST_HEADER_HEIGHT_KEY = "concentration-list-header-height";
+const MIN_LIST_HEADER_HEIGHT = 72;
+const MIN_SHEET_LIST_HEIGHT = 120;
 
 function clampSidebarWidthPercent(value: number): number {
   return Math.min(
@@ -250,6 +263,9 @@ const ConcentrationSheets: React.FC = () => {
     const saved = getProjectItem("concentration-qty-mismatch-mode");
     return saved === "estimated" ? "estimated" : "submitted";
   });
+  const [hideSheetDetails, setHideSheetDetails] = useState(
+    () => getProjectItem("concentration-hide-sheet-details") === "1"
+  );
   const [entryColumnVisibility, setEntryColumnVisibility] = useState<
     Record<EntryColumnKey, boolean>
   >(() => {
@@ -296,7 +312,20 @@ const ConcentrationSheets: React.FC = () => {
       : DEFAULT_SIDEBAR_WIDTH_PERCENT;
   });
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [listHeaderHeight, setListHeaderHeight] = useState<number | null>(
+    () => {
+      const saved = getProjectItem(LIST_HEADER_HEIGHT_KEY);
+      const parsed = saved !== null ? Number(saved) : NaN;
+      return Number.isFinite(parsed) && parsed >= MIN_LIST_HEADER_HEIGHT
+        ? parsed
+        : null;
+    }
+  );
+  const [isResizingListHeader, setIsResizingListHeader] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const sheetListRef = useRef<HTMLDivElement>(null);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
+  const listHeaderRef = useRef<HTMLDivElement>(null);
   const [showEntryColumnModal, setShowEntryColumnModal] = useState(false);
   const [pendingExportAction, setPendingExportAction] = useState<{
     type: "single" | "all";
@@ -857,7 +886,22 @@ const ConcentrationSheets: React.FC = () => {
     showExportModal("all", "excel", t("concentration.exportAllSheetsExcel"));
   };
 
-  // Fetch all concentration sheets with BOQ item data
+  const scrollSheetIntoList = (sheetId: number) => {
+    const list = sheetListRef.current;
+    const element = document.getElementById(`sheet-${sheetId}`);
+    if (!list || !element) return;
+    const listRect = list.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    list.scrollBy({
+      top:
+        elementRect.top -
+        listRect.top -
+        list.clientHeight / 2 +
+        elementRect.height / 2,
+      behavior: "smooth",
+    });
+  };
+
   const fetchSheets = async () => {
     try {
       setLoading(true);
@@ -895,12 +939,7 @@ const ConcentrationSheets: React.FC = () => {
           targetSheet.id.toString()
         );
 
-        setTimeout(() => {
-          const element = document.getElementById(`sheet-${targetSheet.id}`);
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        }, 100);
+        setTimeout(() => scrollSheetIntoList(targetSheet.id), 100);
 
         return; // Don't set default selection
       }
@@ -916,13 +955,7 @@ const ConcentrationSheets: React.FC = () => {
           loadProjectInfoFromSheet(savedSheet);
           fetchEntries(savedSheet.id);
 
-          // Scroll to the selected sheet in the sidebar
-          setTimeout(() => {
-            const element = document.getElementById(`sheet-${savedSheet.id}`);
-            if (element) {
-              element.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }, 100);
+          setTimeout(() => scrollSheetIntoList(savedSheet.id), 100);
           return;
         }
       }
@@ -1280,6 +1313,13 @@ const ConcentrationSheets: React.FC = () => {
 
   useEffect(() => {
     setProjectItem(
+      "concentration-hide-sheet-details",
+      hideSheetDetails ? "1" : "0"
+    );
+  }, [hideSheetDetails]);
+
+  useEffect(() => {
+    setProjectItem(
       "concentration-entry-column-visibility",
       JSON.stringify(entryColumnVisibility)
     );
@@ -1292,10 +1332,16 @@ const ConcentrationSheets: React.FC = () => {
     );
   }, [sidebarWidthPercent]);
 
-  useEffect(() => {
-    if (!isResizingSidebar) {
-      return;
-    }
+  const startSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    setIsResizingSidebar(true);
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
 
     const updateWidthFromClientX = (clientX: number) => {
       const container = splitContainerRef.current;
@@ -1312,31 +1358,79 @@ const ConcentrationSheets: React.FC = () => {
       );
     };
 
-    const handlePointerMove = (event: PointerEvent) => {
-      updateWidthFromClientX(event.clientX);
+    const finish = () => {
+      setIsResizingSidebar(false);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", finish);
+      handle.removeEventListener("pointercancel", finish);
     };
 
-    const handlePointerUp = () => {
-      setIsResizingSidebar(false);
+    const onMove = (pointerEvent: PointerEvent) => {
+      updateWidthFromClientX(pointerEvent.clientX);
     };
+
+    updateWidthFromClientX(event.clientX);
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", finish);
+    handle.addEventListener("pointercancel", finish);
+  };
+
+  useEffect(() => {
+    if (listHeaderHeight === null) {
+      removeProjectItem(LIST_HEADER_HEIGHT_KEY);
+      return;
+    }
+    setProjectItem(LIST_HEADER_HEIGHT_KEY, String(Math.round(listHeaderHeight)));
+  }, [listHeaderHeight]);
+
+  const clampListHeaderHeight = (height: number) => {
+    const panel = leftPanelRef.current;
+    const max = panel
+      ? panel.getBoundingClientRect().height - MIN_SHEET_LIST_HEIGHT - 12
+      : height;
+    return Math.min(
+      Math.max(height, MIN_LIST_HEADER_HEIGHT),
+      Math.max(MIN_LIST_HEADER_HEIGHT, max)
+    );
+  };
+
+  const startListHeaderResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const handle = event.currentTarget;
+    const header = listHeaderRef.current;
+    if (!header) {
+      return;
+    }
+    handle.setPointerCapture(event.pointerId);
+    setIsResizingListHeader(true);
+    const headerTop = header.getBoundingClientRect().top;
 
     const previousCursor = document.body.style.cursor;
     const previousUserSelect = document.body.style.userSelect;
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = "row-resize";
     document.body.style.userSelect = "none";
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("pointercancel", handlePointerUp);
-
-    return () => {
+    const onMove = (pointerEvent: PointerEvent) => {
+      setListHeaderHeight(
+        clampListHeaderHeight(pointerEvent.clientY - headerTop)
+      );
+    };
+    const finish = () => {
+      setIsResizingListHeader(false);
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("pointercancel", handlePointerUp);
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", finish);
+      handle.removeEventListener("pointercancel", finish);
     };
-  }, [isResizingSidebar, isRTL]);
+
+    onMove(event.nativeEvent);
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", finish);
+    handle.addEventListener("pointercancel", finish);
+  };
 
   // Refresh data when page becomes visible (e.g., user navigates back from BOQ Items)
   useEffect(() => {
@@ -1375,13 +1469,7 @@ const ConcentrationSheets: React.FC = () => {
         targetSheet.id.toString()
       );
 
-      // Scroll to the selected item in the sidebar
-      setTimeout(() => {
-        const element = document.getElementById(`sheet-${targetSheet.id}`);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }, 100);
+      setTimeout(() => scrollSheetIntoList(targetSheet.id), 100);
     }
   }, [searchParams, sheets]);
 
@@ -1404,7 +1492,7 @@ const ConcentrationSheets: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col gap-4">
       <input
         ref={drawingFileInputRef}
         type="file"
@@ -1421,7 +1509,7 @@ const ConcentrationSheets: React.FC = () => {
           e.target.value = "";
         }}
       />
-      <div className="flex justify-between items-start">
+      <div className="flex shrink-0 justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
             {t("concentration.title")}
@@ -1511,7 +1599,7 @@ const ConcentrationSheets: React.FC = () => {
 
       <div
         ref={splitContainerRef}
-        className={`flex flex-col lg:flex-row h-screen max-h-[calc(100vh-200px)] min-h-0 ${
+        className={`flex min-h-0 flex-1 flex-col lg:flex-row ${
           isResizingSidebar ? "select-none" : ""
         }`}
         style={
@@ -1521,9 +1609,24 @@ const ConcentrationSheets: React.FC = () => {
         }
       >
         {/* Left Side - Items List */}
-        <div className="w-full min-h-0 lg:h-full lg:w-[var(--concentration-sidebar-width)] lg:flex-none lg:min-w-[14rem] lg:max-w-[60%]">
-          <div className="bg-white rounded-lg shadow h-full min-h-0 flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 shrink-0">
+        <div className="flex w-full min-h-0 flex-col lg:h-full lg:w-[var(--concentration-sidebar-width)] lg:flex-none lg:min-w-[14rem] lg:max-w-[60%]">
+          <div
+            ref={leftPanelRef}
+            className={`bg-white rounded-lg shadow flex-1 min-h-0 flex flex-col overflow-hidden ${
+              isResizingListHeader ? "select-none" : ""
+            }`}
+          >
+            <div
+              ref={listHeaderRef}
+              className={`overflow-x-hidden p-4 ${
+                listHeaderHeight === null ? "shrink-0" : "shrink-0 overflow-y-auto"
+              }`}
+              style={
+                listHeaderHeight === null
+                  ? undefined
+                  : { height: listHeaderHeight }
+              }
+            >
               <h2 className="text-lg font-semibold text-gray-900">
                 {t("concentration.boqItems")}
               </h2>
@@ -1608,7 +1711,45 @@ const ConcentrationSheets: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label={t("concentration.resizeListHeader")}
+              tabIndex={0}
+              title={t("concentration.resizeListHeader")}
+              className={`relative z-10 h-3 shrink-0 cursor-row-resize touch-none select-none border-y border-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                isResizingListHeader ? "bg-blue-100" : "bg-gray-50 hover:bg-gray-100"
+              }`}
+              onPointerDown={startListHeaderResize}
+              onDoubleClick={() => setListHeaderHeight(null)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+                  return;
+                }
+                event.preventDefault();
+                const current =
+                  listHeaderHeight ??
+                  listHeaderRef.current?.getBoundingClientRect().height ??
+                  MIN_LIST_HEADER_HEIGHT;
+                const step = event.shiftKey ? 40 : 16;
+                const direction = event.key === "ArrowDown" ? 1 : -1;
+                setListHeaderHeight(
+                  clampListHeaderHeight(current + direction * step)
+                );
+              }}
+            >
+              <div
+                className={`absolute inset-x-3 top-1/2 h-0.5 -translate-y-1/2 ${
+                  isResizingListHeader ? "bg-blue-500" : "bg-gray-300"
+                }`}
+              />
+              <span className="absolute left-1/2 top-1/2 flex h-5 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border border-gray-300 bg-white text-gray-500 shadow-sm">
+                <ChevronUp className="h-3 w-3" aria-hidden />
+                <ChevronDown className="h-3 w-3" aria-hidden />
+              </span>
+            </div>
+
+            <div ref={sheetListRef} className="flex-1 min-h-0 overflow-y-auto">
               {filteredSheets.length === 0 ? (
                 <div
                   className={`p-4 text-gray-500 ${
@@ -1755,13 +1896,10 @@ const ConcentrationSheets: React.FC = () => {
           aria-valuemax={MAX_SIDEBAR_WIDTH_PERCENT}
           aria-valuenow={Math.round(sidebarWidthPercent)}
           tabIndex={0}
-          className={`hidden lg:flex relative w-3 shrink-0 mx-1.5 self-stretch items-center justify-center cursor-col-resize group touch-none select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded ${
+          className={`hidden lg:flex relative w-4 shrink-0 self-stretch items-start justify-center cursor-col-resize group touch-none select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
             isResizingSidebar ? "bg-blue-100" : "hover:bg-gray-100"
           }`}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            setIsResizingSidebar(true);
-          }}
+          onPointerDown={startSidebarResize}
           onKeyDown={(event) => {
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
               return;
@@ -1780,20 +1918,24 @@ const ConcentrationSheets: React.FC = () => {
           title={t("concentration.resizePanels")}
         >
           <div
-            className={`absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full transition-colors ${
+            className={`absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 transition-colors ${
               isResizingSidebar
                 ? "bg-blue-500"
                 : "bg-gray-300 group-hover:bg-blue-400"
             }`}
           />
           <span
-            className={`relative z-10 flex h-8 w-5 items-center justify-center rounded-md border shadow-sm transition-colors ${
+            className={`relative z-10 mt-16 flex h-10 w-6 flex-col items-center justify-center rounded-md border shadow-sm transition-colors ${
               isResizingSidebar
                 ? "border-blue-500 bg-blue-50 text-blue-600"
                 : "border-gray-300 bg-white text-gray-500 group-hover:border-blue-400 group-hover:text-blue-500"
             }`}
           >
-            <GripVertical className="h-4 w-4" aria-hidden />
+            <span className="flex items-center">
+              <ChevronLeft className="h-3 w-3" aria-hidden />
+              <ChevronRight className="h-3 w-3" aria-hidden />
+            </span>
+            <GripVertical className="h-3 w-3" aria-hidden />
           </span>
         </div>
 
@@ -1803,11 +1945,15 @@ const ConcentrationSheets: React.FC = () => {
             {selectedSheet ? (
               <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {/* Header Information */}
-                <div className="p-6 border-b border-gray-200 shrink-0">
+                <div
+                  className={`border-b border-gray-200 shrink-0 ${
+                    hideSheetDetails ? "px-6 py-3" : "p-6"
+                  }`}
+                >
                   <div
-                    className={`flex justify-between items-start mb-4 ${
-                      isRTL ? "flex-row-reverse" : ""
-                    }`}
+                    className={`flex justify-between items-start ${
+                      hideSheetDetails ? "" : "mb-4"
+                    } ${isRTL ? "flex-row-reverse" : ""}`}
                   >
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900">
@@ -1816,6 +1962,23 @@ const ConcentrationSheets: React.FC = () => {
                       </h2>
                     </div>
                     <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setHideSheetDetails((current) => !current)}
+                        className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 inline-flex items-center gap-2"
+                        title={t("concentration.hideSheetDetailsHint")}
+                      >
+                        {hideSheetDetails ? (
+                          <Eye className="h-4 w-4" />
+                        ) : (
+                          <EyeOff className="h-4 w-4" />
+                        )}
+                        <span>
+                          {hideSheetDetails
+                            ? t("concentration.showSheetDetails")
+                            : t("concentration.hideSheetDetails")}
+                        </span>
+                      </button>
                       <button
                         onClick={handleTrackCalculationSheets}
                         disabled={trackingCalculationSheets}
@@ -1855,6 +2018,8 @@ const ConcentrationSheets: React.FC = () => {
                     </div>
                   </div>
 
+                  {!hideSheetDetails && (
+                  <>
                   {/* Project Information Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
@@ -1989,6 +2154,8 @@ const ConcentrationSheets: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
 

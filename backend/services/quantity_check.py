@@ -9,8 +9,6 @@ from utils.calculation_sheet_utils import (
     period_column_index,
 )
 
-TOLERANCE = 0.01
-
 # Row 2 of an item column is that item's invoice number. The sheet invoice in
 # C2 is not used. Row 5 is the section number. Detail quantities start at row 28.
 # The invoice for each detail quantity is the prior column (column B when the
@@ -23,10 +21,6 @@ SheetTotals = Dict[str, Tuple[float, float]]
 logger = logging.getLogger(__name__)
 
 
-def _round3(value: float) -> float:
-    return round(float(value or 0), 3)
-
-
 def quantity_mismatches(
     sheet_totals: SheetTotals,
     boq_totals: SheetTotals,
@@ -35,27 +29,38 @@ def quantity_mismatches(
     """Rows where sheet calculated or submitted totals differ from the BOQ.
 
     Each map is section_number -> (calculated quantity, submitted quantity).
-    Difference is sheet minus system, rounded to 3 decimals.
-    A row is a mismatch when either absolute difference is at least 0.01.
+    Both sides are rounded to two decimals before they are compared.
+    A row is a mismatch only when those two-decimal totals differ.
     """
+    from decimal import Decimal
+
+    from utils.quantity_utils import round_quantity
+
+    def _cents(value) -> Decimal:
+        return Decimal(str(round_quantity(value)))
+
     manual = {section for section in (manual_sections or []) if section}
     rows = []
     for section in sorted(set(sheet_totals) | set(boq_totals)):
         sheet_calculated, sheet_submitted = sheet_totals.get(section, (0.0, 0.0))
         system_calculated, system_submitted = boq_totals.get(section, (0.0, 0.0))
-        calculated_diff = _round3(sheet_calculated - system_calculated)
-        submitted_diff = _round3(sheet_submitted - system_submitted)
-        if abs(calculated_diff) < TOLERANCE and abs(submitted_diff) < TOLERANCE:
+        sheet_calculated_cents = _cents(sheet_calculated)
+        system_calculated_cents = _cents(system_calculated)
+        sheet_submitted_cents = _cents(sheet_submitted)
+        system_submitted_cents = _cents(system_submitted)
+        calculated_diff = sheet_calculated_cents - system_calculated_cents
+        submitted_diff = sheet_submitted_cents - system_submitted_cents
+        if calculated_diff == 0 and submitted_diff == 0:
             continue
         rows.append(
             {
                 "section_number": section,
-                "sheet_calculated": _round3(sheet_calculated),
-                "system_calculated": _round3(system_calculated),
-                "calculated_diff": calculated_diff,
-                "sheet_submitted": _round3(sheet_submitted),
-                "system_submitted": _round3(system_submitted),
-                "submitted_diff": submitted_diff,
+                "sheet_calculated": float(sheet_calculated_cents),
+                "system_calculated": float(system_calculated_cents),
+                "calculated_diff": float(calculated_diff),
+                "sheet_submitted": float(sheet_submitted_cents),
+                "system_submitted": float(system_submitted_cents),
+                "submitted_diff": float(submitted_diff),
                 "status": "שגיאה/חריגה",
                 "has_manual_entries": section in manual,
                 "is_non_boq": section not in boq_totals,
@@ -93,6 +98,8 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
     from row 28 down is added only when the invoice cell in the prior column
     is filled. A line with no invoice, and the row 24 subtotal, are left out.
     """
+    from decimal import Decimal
+
     from utils.quantity_utils import round_quantity
 
     rows = rows or ()
@@ -104,18 +111,18 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
             item_columns.append((col, section))
 
     item_count = len(item_columns)
-    totals: Dict[str, float] = {}
+    totals: Dict[str, Decimal] = {}
     for col, section in item_columns:
         if not _section_text(_cell(rows, EXCEL_INVOICE_ROW, col)):
             continue
         invoice_col = period_column_index(col, item_count)
-        quantity = 0.0
+        quantity = Decimal("0")
         for excel_row in range(EXCEL_DETAIL_START_ROW, len(rows) + 1):
             if not _section_text(_cell(rows, excel_row, invoice_col)):
                 continue
-            quantity += round_quantity(_cell(rows, excel_row, col))
-        totals[section] = totals.get(section, 0.0) + quantity
-    return totals
+            quantity += Decimal(str(round_quantity(_cell(rows, excel_row, col))))
+        totals[section] = totals.get(section, Decimal("0")) + quantity
+    return {section: float(total) for section, total in totals.items()}
 
 
 def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:

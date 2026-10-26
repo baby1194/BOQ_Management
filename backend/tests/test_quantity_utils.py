@@ -19,6 +19,10 @@ def test_round_quantity_half_up():
     # The float just under 0.835 is what Excel stores for a cell that shows 0.835.
     assert round_quantity(math.nextafter(0.835, 0)) == 0.84
     assert round_quantity(-0.835) == -0.84
+    # 0.8345 is the low edge of a cell Excel shows as 0.835.
+    assert round_quantity(0.8345) == 0.84
+    assert round_quantity("0.8345") == 0.84
+    assert round_quantity(0.8344) == 0.83
 
 
 def test_equal_printed_quantities_are_not_a_psq_difference():

@@ -7,6 +7,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
+from decimal import Decimal
+
 from utils.quantity_utils import QUANTITY_DECIMALS, round_quantity
 
 
@@ -294,15 +296,15 @@ def compute_submission_breakdown(
     if current_drawing_no and current_drawing_no not in period_keys:
         period_keys = _sort_period_keys(period_keys + [current_drawing_no])
 
-    periods = {period: 0.0 for period in period_keys}
-    left_submitted = 0.0
+    periods = {period: Decimal("0") for period in period_keys}
+    left_submitted = Decimal("0")
 
     row_limit = get_detail_row_end_exclusive(df)
     for row_idx in range(DETAIL_START_ROW, row_limit):
         if col_index >= df.shape[1]:
             break
 
-        qty = round_quantity(_safe_float(df.iloc[row_idx, col_index]))
+        qty = Decimal(str(round_quantity(_safe_float(df.iloc[row_idx, col_index]))))
         period = None
         if 0 <= period_col < df.shape[1]:
             period = _normalize_period_value(df.iloc[row_idx, period_col])
@@ -313,13 +315,11 @@ def compute_submission_breakdown(
             periods[period] += qty
         else:
             # Unexpected period not seen in sheet scan; still count it.
-            periods[period] = periods.get(period, 0.0) + qty
+            periods[period] = periods.get(period, Decimal("0")) + qty
 
-    periods = {key: round_quantity(val) for key, val in periods.items()}
-    left_submitted = round_quantity(left_submitted)
-    current_submitted = round_quantity(
-        float(periods.get(current_drawing_no, 0.0) or 0.0)
-    )
+    periods = {key: float(val) for key, val in periods.items()}
+    left_submitted = float(left_submitted)
+    current_submitted = float(periods.get(current_drawing_no, 0.0) or 0.0)
 
     breakdown = {
         "current_drawing_no": current_drawing_no,
@@ -388,8 +388,10 @@ def left_submitted_quantity(breakdown: Optional[Dict[str, Any]]) -> float:
 
 def cumulative_submitted_quantity(breakdown: Optional[Dict[str, Any]]) -> float:
     """Sum all invoice-period quantities; excludes left_submitted."""
+    from utils.quantity_utils import sum_quantities
+
     periods = _breakdown_periods(breakdown)
-    return float(sum(float(value or 0) for value in periods.values()))
+    return sum_quantities(periods.values())
 
 
 def entry_cumulative_submitted_quantity(entry: Any) -> float:

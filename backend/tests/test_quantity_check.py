@@ -30,6 +30,17 @@ def test_difference_under_one_hundredth_is_ok():
     assert quantity_mismatches(sheets, boq) == []
 
 
+def test_totals_that_match_on_two_decimals_are_not_listed():
+    sheets = {"1.1": (411.944, 184.444)}
+    boq = {"1.1": (411.935, 184.435)}
+    assert quantity_mismatches(sheets, boq) == []
+
+
+def test_a_real_cent_of_submitted_difference_is_listed():
+    rows = quantity_mismatches({"1.1": (10.0, 184.44)}, {"1.1": (10.0, 184.33)})
+    assert rows[0]["submitted_diff"] == 0.11
+
+
 def test_manual_badge_follows_the_boq_item():
     rows = quantity_mismatches(
         {"1.08.10.3296": (10.0, 1.0)},
