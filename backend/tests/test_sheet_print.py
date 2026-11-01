@@ -72,19 +72,20 @@ def test_merged_title_spans_the_kept_columns():
     assert grid.spans == [((0, 0), (2, 0))]
 
 
-def test_a_long_sheet_repeats_its_first_27_rows_and_keeps_its_own_columns():
+def test_a_long_sheet_repeats_its_title_and_keeps_the_table_columns():
     book = Workbook()
     ws = book.active
     ws["A1"] = "title"
     ws["C28"] = "item"
     ws["E28"] = 4
     grid = build_print_grid(ws)
-    assert grid.repeat_rows == 27
+    assert grid.repeat_rows == 26
     assert len(grid.rows) == 28
-    assert grid.rows[0] == ["title", "", ""]
-    assert grid.rows[1] == ["", "", ""]
-    assert grid.rows[27] == ["", "item", "4"]
-    assert all(len(row) == 3 for row in grid.rows)
+    assert grid.rows[0] == ["title", "", "", ""]
+    assert grid.rows[1] == ["", "", "", ""]
+    assert grid.rows[26] == ["", "", "", ""]
+    assert grid.rows[27] == ["", "item", "", "4"]
+    assert all(len(row) == 4 for row in grid.rows)
 
 
 def test_a_short_sheet_does_not_pad_empty_title_rows():
@@ -95,6 +96,48 @@ def test_a_short_sheet_does_not_pad_empty_title_rows():
     grid = build_print_grid(ws)
     assert grid.repeat_rows == 0
     assert grid.rows == [["only", ""], ["", "2"]]
+
+
+def test_table_prints_through_the_last_value_in_column_c_with_full_borders():
+    book = Workbook()
+    ws = book.active
+    ws["B5"] = "title"
+    ws["C27"] = "account"
+    ws["D27"] = "length"
+    ws["C28"] = "09"
+    ws["D28"] = 4
+    ws["D29"] = 1
+    ws["C30"] = "10"
+    ws["D30"] = 2
+    ws["D31"] = 99
+    grid = build_print_grid(ws)
+    assert grid.repeat_rows == 26
+    assert grid.table_start == 26
+    assert len(grid.rows) == 30
+    assert grid.rows[4] == ["title", "", ""]
+    assert grid.rows[26] == ["", "account", "length"]
+    assert grid.rows[28] == ["", "", "1"]
+    assert grid.rows[29] == ["", "10", "2"]
+    assert all("99" not in row for row in grid.rows)
+    boxes = filled_cell_boxes(grid.rows, grid.spans, grid.table_start, grid.table_columns)
+    assert ((0, 4), (0, 4)) in boxes
+    assert ((1, 4), (1, 4)) not in boxes
+    assert ((1, 28), (1, 28)) in boxes
+    assert ((2, 28), (2, 28)) in boxes
+
+
+def test_long_text_wraps_inside_its_cell():
+    from services.sheet_print import _ensure_font, wrap_cells
+
+    book = Workbook()
+    ws = book.active
+    ws["A1"] = "one two three four"
+    ws["B1"] = "keep"
+    grid = build_print_grid(ws)
+    wrap_cells(grid, [40, 80], _ensure_font(), 8, 2)
+    assert "\n" in grid.rows[0][0]
+    assert grid.rows[0][1] == "keep"
+    assert grid.row_heights[0] > 15
 
 
 def test_borders_are_only_drawn_around_filled_cells():
