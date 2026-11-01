@@ -94,6 +94,26 @@ export const entryCumulativeSubmittedQuantity = (
   return quantitySubmitted || 0;
 };
 
+/** Submitted quantity shown for a row.
+
+When estimated is zero, detail lines that are not on an invoice yet are still
+the calculated total and are shown. Other rows stay on the invoiced total.
+*/
+export const submittedQuantityWhenEstimatedIsZero = (
+  estimatedQuantity: number | null | undefined,
+  quantitySubmitted: number,
+  breakdown?: SubmissionBreakdown | null,
+): number => {
+  const cumulative = entryCumulativeSubmittedQuantity(
+    quantitySubmitted,
+    breakdown,
+  );
+  if ((estimatedQuantity ?? 0) !== 0 || cumulative !== 0) {
+    return cumulative;
+  }
+  return breakdown?.left_submitted ?? 0;
+};
+
 /** Keep a row when estimated is zero but submitted quantity was still entered. */
 export const entryHasEstimatedOrSubmitted = (entry: {
   estimated_quantity?: number | null;
@@ -104,7 +124,8 @@ export const entryHasEstimatedOrSubmitted = (entry: {
     return true;
   }
   return (
-    entryCumulativeSubmittedQuantity(
+    submittedQuantityWhenEstimatedIsZero(
+      entry.estimated_quantity,
       entry.quantity_submitted ?? 0,
       entry.submission_breakdown,
     ) !== 0
@@ -127,6 +148,7 @@ export const pastSubmittedQuantity = (
 
 interface ConcentrationEntrySubmittedLike {
   id: number;
+  estimated_quantity?: number | null;
   quantity_submitted?: number;
   submission_breakdown?: SubmissionBreakdown | null;
   drawing_no?: string;
@@ -149,6 +171,16 @@ export const concentrationEntriesQuantitySubmittedTotal = (
   expandedEntryIds: Set<number>,
 ): number =>
   entries.reduce((sum, entry) => {
+    if ((entry.estimated_quantity ?? 0) === 0) {
+      return (
+        sum +
+        submittedQuantityWhenEstimatedIsZero(
+          entry.estimated_quantity,
+          entry.quantity_submitted || 0,
+          entry.submission_breakdown,
+        )
+      );
+    }
     const currentSubmitted = entry.quantity_submitted || 0;
     if (expandedEntryIds.has(entry.id)) {
       return (

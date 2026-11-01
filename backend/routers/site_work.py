@@ -16,6 +16,7 @@ from services.site_work_parser import (
     EXCEPTION_SYSTEM,
     classification_after_system_change,
     manual_task,
+    normalize_key,
     parse_work_lines,
 )
 
@@ -101,6 +102,7 @@ async def _save_attachments(
 class SiteWorkUpdate(BaseModel):
     system_name: Optional[str] = Field(None, max_length=200)
     notes: Optional[str] = Field(None, max_length=5000)
+    description: Optional[str] = Field(None, max_length=5000)
 
 
 class SiteWorkOpenFile(BaseModel):
@@ -281,11 +283,32 @@ def update_site_work(
     payload: SiteWorkUpdate,
     db: Session = Depends(get_db),
 ):
-    if payload.system_name is None and payload.notes is None:
+    if (
+        payload.system_name is None
+        and payload.notes is None
+        and payload.description is None
+    ):
         raise HTTPException(status_code=400, detail="Nothing to update")
     item = db.query(models.SiteWorkItem).filter(models.SiteWorkItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Site work item not found")
+    if payload.description is not None:
+        text = payload.description.strip()
+        key = normalize_key(text)
+        if len(text) < 3 or not key:
+            raise HTTPException(status_code=400, detail="Description is required")
+        taken = (
+            db.query(models.SiteWorkItem)
+            .filter(
+                models.SiteWorkItem.dedupe_key == key,
+                models.SiteWorkItem.id != item.id,
+            )
+            .first()
+        )
+        if taken:
+            raise HTTPException(status_code=409, detail="This task is already listed")
+        item.description = text
+        item.dedupe_key = key
     if payload.system_name is not None:
         system_name = payload.system_name.strip()
         if not system_name:

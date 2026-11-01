@@ -351,6 +351,8 @@ def _ensure_boq_submission_columns(engine) -> None:
         ]
         if "system" not in entry_columns:
             conn.execute(text("ALTER TABLE calculation_entries ADD COLUMN system VARCHAR(100)"))
+        if "unit" not in entry_columns:
+            conn.execute(text("ALTER TABLE calculation_entries ADD COLUMN unit VARCHAR(40)"))
         conn.commit()
 
 

@@ -1,6 +1,7 @@
 """Which contract items for one concrete element have been submitted."""
 
 import re
+from types import SimpleNamespace
 from typing import Iterable, List
 
 _ELEMENT_CODE = re.compile(r"(?<![\w.])([A-Za-z]{1,5})\s?-\s?(\d{1,4}[A-Za-z]?)(?!\w)")
@@ -54,6 +55,51 @@ def mentions(text, element: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", _normalize(text)) is not None
 
 
+def _entry_view(entry) -> SimpleNamespace:
+    """Concentration row as an object the quantity helpers can read."""
+    if isinstance(entry, dict):
+        return SimpleNamespace(
+            estimated_quantity=entry.get("estimated_quantity"),
+            quantity_submitted=entry.get("quantity_submitted"),
+            approved_by_project_manager=entry.get("approved_by_project_manager"),
+            submission_breakdown=entry.get("submission_breakdown"),
+        )
+    return entry
+
+
+def _element_quantities(entries: List) -> dict:
+    """Estimated, submitted, and approved for the concentration rows of one element.
+
+    Submitted and approved follow the concentration-sheet total for that row:
+    every invoice period counts, including an older one. Estimated is the row's
+    estimated quantity, summed when several rows name the same element.
+    """
+    from utils.calculation_sheet_utils import (
+        entry_cumulative_submitted_quantity,
+        submitted_quantity_when_estimated_is_zero,
+    )
+    from utils.period_details_utils import entry_total_approved_quantity
+    from utils.quantity_utils import sum_quantities
+
+    estimated_values = []
+    submitted_values = []
+    approved_values = []
+    for entry in entries:
+        view = _entry_view(entry)
+        estimated = float(getattr(view, "estimated_quantity", 0) or 0)
+        estimated_values.append(estimated)
+        if estimated == 0:
+            submitted_values.append(submitted_quantity_when_estimated_is_zero(view))
+        else:
+            submitted_values.append(entry_cumulative_submitted_quantity(view))
+        approved_values.append(entry_total_approved_quantity(view))
+    return {
+        "estimated_quantity": sum_quantities(estimated_values),
+        "quantity_submitted": sum_quantities(submitted_values),
+        "approved_by_project_manager": sum_quantities(approved_values),
+    }
+
+
 def items_for_element(
     element: str,
     boq_items: Iterable[dict],
@@ -81,19 +127,23 @@ def items_for_element(
         if not entries and not linked(item.get("description")):
             continue
         if entries:
-            estimated = sum(float(e.get("estimated_quantity") or 0) for e in entries)
-            submitted = sum(float(e.get("quantity_submitted") or 0) for e in entries)
+            quantities = _element_quantities(entries)
         else:
-            estimated = float(item.get("estimated_quantity") or 0)
-            submitted = float(item.get("quantity_submitted") or 0)
+            quantities = {
+                "estimated_quantity": float(item.get("estimated_quantity") or 0),
+                "quantity_submitted": float(item.get("quantity_submitted") or 0),
+                "approved_by_project_manager": float(item.get("approved_by_project_manager") or 0),
+            }
         rows.append(
             {
                 "section_number": section,
                 "description": item.get("description") or "",
                 "contract_quantity": float(item.get("contract_quantity") or 0),
-                "estimated_quantity": round(estimated, 3),
-                "quantity_submitted": round(submitted, 3),
-                "submitted": submitted > 0,
+                "estimated_quantity": quantities["estimated_quantity"],
+                "quantity_submitted": quantities["quantity_submitted"],
+                "approved_by_project_manager": quantities["approved_by_project_manager"],
+                "from_concentration": bool(entries),
+                "submitted": quantities["quantity_submitted"] > 0,
                 "calculation_sheet_nos": sorted(
                     {str(e.get("calculation_sheet_no")) for e in entries if e.get("calculation_sheet_no")}
                 ),
@@ -243,6 +293,29 @@ def _blank_boq_row() -> dict:
     return blank
 
 
+def _boq_row_for_element(item: dict, element_row: dict) -> dict:
+    """One BOQ table row. Element quantities replace the item totals when the concentration sheet names the element."""
+    merged = {
+        key: item.get(key, "")
+        for key in list(BOQ_TABLE_KEYS) + [
+            key for key in item if str(key).startswith("updated_contract_")
+        ]
+    }
+    if not element_row.get("from_concentration"):
+        return merged
+    estimated = _number(element_row.get("estimated_quantity"))
+    submitted = _number(element_row.get("quantity_submitted"))
+    approved = _number(element_row.get("approved_by_project_manager"))
+    price = _number(item.get("price"))
+    merged["estimated_quantity"] = estimated
+    merged["quantity_submitted"] = submitted
+    merged["approved_by_project_manager"] = approved
+    merged["total_estimate"] = estimated * price
+    merged["total_submitted"] = submitted * price
+    merged["total_approved_by_project_manager"] = approved * price
+    return merged
+
+
 def rows_for_words(
     text: str,
     boq_items: Iterable[dict],
@@ -273,12 +346,7 @@ def rows_for_words(
             continue
         for row in found:
             item = by_section.get(row["section_number"], {})
-            table.append({"word": word, **_blank_boq_row(), **{
-                key: item.get(key, "")
-                for key in list(BOQ_TABLE_KEYS) + [
-                    key for key in item if str(key).startswith("updated_contract_")
-                ]
-            }})
+            table.append({"word": word, **_blank_boq_row(), **_boq_row_for_element(item, row)})
     return table
 
 

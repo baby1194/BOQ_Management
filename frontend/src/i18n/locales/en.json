@@ -116,7 +116,12 @@
     "alreadyListed": "This task is already listed",
     "all": "All",
     "noMatches": "No tasks match these filters.",
-    "openFailed": "Could not open the attached file"
+    "openFailed": "Could not open the attached file",
+    "hideEntry": "Hide entry area",
+    "showEntry": "Show entry area",
+    "notesFilter": "Filter notes",
+    "editReport": "Edit report or messages",
+    "descriptionTooShort": "Report text must be at least 3 characters"
   },
   "auth": {
     "signIn": "Sign In",

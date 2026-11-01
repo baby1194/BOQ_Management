@@ -57,6 +57,46 @@ def test_a_note_can_be_saved_without_changing_the_system():
     session.close()
 
 
+def test_report_text_can_be_edited_and_a_duplicate_is_rejected():
+    engine = create_engine("sqlite://")
+    SiteWorkItem.__table__.create(engine)
+    session = sessionmaker(bind=engine)()
+    first = SiteWorkItem(
+        description="Pour the ramp",
+        dedupe_key="pour the ramp",
+        system_name="Exception",
+        classification="exception",
+        source="site_report",
+    )
+    second = SiteWorkItem(
+        description="Paint the wall",
+        dedupe_key="paint the wall",
+        system_name="Exception",
+        classification="exception",
+        source="whatsapp",
+    )
+    session.add_all([first, second])
+    session.commit()
+
+    updated = update_site_work(
+        first.id,
+        SiteWorkUpdate(description="  Pour the north ramp  "),
+        session,
+    )
+    assert updated["description"] == "Pour the north ramp"
+    session.refresh(first)
+    assert first.dedupe_key == "pour the north ramp"
+
+    try:
+        update_site_work(first.id, SiteWorkUpdate(description="Paint the wall"), session)
+        raised = False
+    except Exception as exc:
+        raised = True
+        assert getattr(exc, "status_code", None) == 409
+    assert raised
+    session.close()
+
+
 def test_an_existing_task_keeps_a_newly_attached_pdf():
     merged = merge_photo_paths(
         ["/uploads/proj/site-work/old.pdf"],

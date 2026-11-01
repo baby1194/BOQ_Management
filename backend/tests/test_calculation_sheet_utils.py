@@ -412,6 +412,64 @@ def test_read_entry_current_invoice_id_from_column_row_2():
     assert read_entry_current_invoice_id(df, col, "06") == "07"
 
 
+def test_section_number_falls_back_to_the_typed_row_when_row_5_is_blank():
+    from utils.calculation_sheet_utils import read_entry_section_number
+
+    df = pd.DataFrame([[None] * 8 for _ in range(30)])
+    df.iloc[20, 4] = "1.02.01.0010"
+    assert read_entry_section_number(df, 4) == "1.02.01.0010"
+    df.iloc[4, 4] = "1.02.01.0041"
+    assert read_entry_section_number(df, 4) == "1.02.01.0041"
+
+
+def test_one_invoice_on_the_item_keeps_the_detail_quantity():
+    from utils.calculation_sheet_utils import submission_for_item_column
+
+    df = pd.DataFrame([[None] * 8 for _ in range(40)])
+    col = 5
+    df.iloc[1, col] = "09"
+    df.iloc[27, col] = 4.5
+    df.iloc[28, col] = 5.29
+    current, breakdown, submitted = submission_for_item_column(
+        df, col, "09", item_count=2, estimated_quantity=9.79
+    )
+    assert current == "09"
+    assert submitted == 9.79
+    assert breakdown["left_submitted"] == 0
+    assert breakdown["periods"]["09"] == 9.79
+
+
+def test_invoice_numbers_beside_the_item_are_used_without_a_header_cell():
+    from utils.calculation_sheet_utils import submission_for_item_column
+
+    df = pd.DataFrame([[None] * 8 for _ in range(40)])
+    col = 5
+    df.iloc[27, col - 1] = "09"
+    df.iloc[27, col] = 4.5
+    df.iloc[28, col - 1] = "09"
+    df.iloc[28, col] = 5.0
+    current, breakdown, submitted = submission_for_item_column(
+        df, col, "", item_count=2, estimated_quantity=9.5
+    )
+    assert current == "09"
+    assert submitted == 9.5
+    assert breakdown["periods"]["09"] == 9.5
+
+
+def test_sheet_invoice_alone_does_not_submit_a_multi_item_sheet():
+    from utils.calculation_sheet_utils import submission_for_item_column
+
+    df = pd.DataFrame([[None] * 8 for _ in range(40)])
+    col = 5
+    df.iloc[27, col] = 4.5
+    current, breakdown, submitted = submission_for_item_column(
+        df, col, "09", item_count=2, estimated_quantity=4.5
+    )
+    assert current == ""
+    assert breakdown is None
+    assert submitted == 0
+
+
 def test_read_entry_current_invoice_id_falls_back_to_sheet_c2():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
     col = 10

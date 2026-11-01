@@ -56,7 +56,7 @@ import {
   PeriodEditDraft,
 } from "../components/ConcentrationBreakdownRows";
 import { SubmissionBreakdownToggle } from "../components/SubmissionBreakdownPanel";
-import { concentrationEntriesQuantitySubmittedTotal, entryHasEstimatedOrSubmitted } from "../utils/submissionBreakdown";
+import { concentrationEntriesQuantitySubmittedTotal, entryHasEstimatedOrSubmitted, submittedQuantityWhenEstimatedIsZero } from "../utils/submissionBreakdown";
 import {
   entryTotalApprovedQuantity,
   entryTotalInternalQuantity,
@@ -2843,7 +2843,11 @@ const ConcentrationSheets: React.FC = () => {
                                         {formatNumber(
                                           isEditingRow
                                             ? editDraft.quantity_submitted
-                                            : entry.quantity_submitted
+                                            : submittedQuantityWhenEstimatedIsZero(
+                                                entry.estimated_quantity,
+                                                entry.quantity_submitted,
+                                                entry.submission_breakdown,
+                                              )
                                         )}
                                       </td>
                                       )}

@@ -39,6 +39,12 @@ def filter_concentration_entries_for_export(
     for entry in entries:
         estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
         submitted = entry_cumulative_submitted(entry)
+        if estimated == 0 and submitted == 0:
+            from utils.calculation_sheet_utils import (
+                submitted_quantity_when_estimated_is_zero,
+            )
+
+            submitted = submitted_quantity_when_estimated_is_zero(entry)
         if include_estimated:
             if estimated != 0 or submitted != 0:
                 filtered.append(entry)
@@ -448,19 +454,35 @@ def sync_calc_entry_to_concentration(
         if concentration_entry:
             break
 
+    from utils.calculation_sheet_utils import (
+        submitted_quantity_when_estimated_is_zero,
+    )
     from utils.quantity_utils import round_quantity
 
     submitted = calc_entry_is_submitted(calc_entry)
     estimated = round_quantity(calc_entry.estimated_quantity)
+    # A zero estimate still belongs on the concentration sheet when the
+    # calculation sheet has a submitted or calculated quantity.
+    carried_submitted = (
+        round_quantity(submitted_quantity_when_estimated_is_zero(calc_entry))
+        if estimated <= 0
+        else 0.0
+    )
+    keep_submitted = submitted or carried_submitted > 0
 
     if concentration_entry:
         if getattr(concentration_entry, "is_manual", False):
             return None
-        if submitted:
+        if keep_submitted:
             invoice_id = str(calc_entry.current_invoice_id or "").strip()
             apply_calculation_entry_quantities(
-                concentration_entry, calc_entry, drawing_no=invoice_id
+                concentration_entry, calc_entry, drawing_no=invoice_id or None
             )
+            if not submitted and carried_submitted > 0:
+                concentration_entry.quantity_submitted = carried_submitted
+                concentration_entry.submission_percentage = (
+                    compute_submission_percentage(estimated, carried_submitted)
+                )
             invoice_description = (
                 getattr(calc_entry, "invoice_description", None) or None
             )
@@ -480,11 +502,13 @@ def sync_calc_entry_to_concentration(
             concentration_entry.notes = calc_entry.notes
         return boq_item.id
 
-    if estimated <= 0 and not submitted:
+    if estimated <= 0 and not keep_submitted:
         return None
 
     submitted_qty = (
-        round_quantity(calc_entry.quantity_submitted) if submitted else 0.0
+        round_quantity(calc_entry.quantity_submitted)
+        if submitted
+        else carried_submitted
     )
     invoice_id = (
         str(calc_entry.current_invoice_id or "").strip() if submitted else None
@@ -507,7 +531,9 @@ def sync_calc_entry_to_concentration(
             estimated, submitted_qty
         ),
         submission_breakdown=(
-            getattr(calc_entry, "submission_breakdown", None) if submitted else None
+            getattr(calc_entry, "submission_breakdown", None)
+            if keep_submitted
+            else None
         ),
         internal_quantity=0.0,
         approved_by_project_manager=0.0,

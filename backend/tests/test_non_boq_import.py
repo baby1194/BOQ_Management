@@ -9,7 +9,7 @@ from services.non_boq_service import (
     non_boq_import_rows,
     select_import_rows,
 )
-from utils.calculation_sheet_utils import read_entry_system, read_non_boq_price
+from utils.calculation_sheet_utils import read_entry_system, read_entry_unit, read_non_boq_price
 
 
 def _session():
@@ -59,6 +59,17 @@ def test_system_is_read_from_excel_row_4():
     assert read_entry_system(df, 4) == "919"
 
 
+def test_unit_is_read_from_excel_row_23():
+    df = pd.DataFrame([[None] * 12 for _ in range(24)])
+    df.iloc[22, 4] = 'מ"ר'
+    assert read_entry_unit(df, 4) == 'מ"ר'
+    df.iloc[22, 4] = "36,600.74"
+    assert read_entry_unit(df, 4) is None
+    df.iloc[4, 10] = "99.01"
+    df.iloc[22, 9] = "מ\"ק"
+    assert read_entry_unit(df, 10) == "מ\"ק"
+
+
 def test_import_rows_sum_quantity_and_keep_the_first_price():
     rows = build_non_boq_import_rows(
         [
@@ -68,6 +79,7 @@ def test_import_rows_sum_quantity_and_keep_the_first_price():
                 "estimated_quantity": 10,
                 "quantity_submitted": 4,
                 "unit_price": 50,
+                "unit": 'מ"ר',
                 "system": "919",
             },
             {
@@ -89,6 +101,8 @@ def test_import_rows_sum_quantity_and_keep_the_first_price():
     assert by_section["99.02.01.0640"]["price"] == 50
     assert by_section["99.02.01.0640"]["quantity_submitted"] == 4
     assert by_section["99.02.01.0640"]["system"] == "919"
+    assert by_section["99.02.01.0640"]["unit"] == 'מ"ר'
+    assert by_section["99.05.031.0012"]["unit"] == "יח'"
     assert by_section["99.02.01.0640"]["total"] == 625
     assert by_section["99.05.031.0012"]["description"] == "99.05.031.0012"
     assert by_section["99.05.031.0012"]["missing_price"] is True
@@ -161,6 +175,7 @@ def test_saved_sheet_picks_up_row_22_from_the_source_file(tmp_path):
     ws.cell(row=6, column=5, value=10)
     ws.cell(row=7, column=5, value=7.92)
     ws.cell(row=22, column=5, value="specification from row 22")
+    ws.cell(row=23, column=5, value='מ"ר')
     ws.cell(row=40, column=1, value=" ")
     path = tmp_path / "41-8-1.xlsx"
     book.save(path)
@@ -189,5 +204,7 @@ def test_saved_sheet_picks_up_row_22_from_the_source_file(tmp_path):
 
     rows = non_boq_import_rows(db)
     assert rows[0]["description"] == "specification from row 22"
+    assert rows[0]["unit"] == 'מ"ר'
     stored = db.query(models.CalculationEntry).one()
     assert stored.item_description == "specification from row 22"
+    assert stored.unit == 'מ"ר'

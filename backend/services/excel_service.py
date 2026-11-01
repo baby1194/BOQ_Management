@@ -505,9 +505,11 @@ class ExcelService:
                 count_calculation_sheet_items,
                 read_non_boq_price,
                 read_entry_system,
-                read_entry_current_invoice_id,
                 read_entry_invoice_description,
                 read_entry_item_description,
+                read_entry_section_number,
+                submission_for_item_column,
+                read_entry_unit,
                 validate_calculation_sheet_header_fields,
             )
 
@@ -539,11 +541,9 @@ class ExcelService:
             col_index = 4
             
             while col_index < df.shape[1]:
-                section_number = df.iloc[4, col_index]
+                section_number = read_entry_section_number(df, col_index)
                 
-                if pd.notna(section_number) and str(section_number).strip():
-                    section_number = str(section_number).strip()
-                    
+                if section_number:
                     from utils.quantity_utils import round_quantity
 
                     estimated_quantity = df.iloc[5, col_index]
@@ -553,22 +553,42 @@ class ExcelService:
                         else 0.0
                     )
 
-                    entry_current_invoice_id = read_entry_current_invoice_id(
-                        df, col_index, drawing_no, item_count=item_count
-                    )
                     entry_invoice_description = read_entry_invoice_description(
                         df, col_index
                     )
                     entry_item_description = read_entry_item_description(
                         df, col_index
                     )
-                    if entry_current_invoice_id:
-                        submission_breakdown, quantity_submitted = compute_submission_breakdown(
-                            df, col_index, entry_current_invoice_id, item_count=item_count
+                    entry_unit = read_entry_unit(df, col_index)
+                    (
+                        entry_current_invoice_id,
+                        submission_breakdown,
+                        quantity_submitted,
+                    ) = submission_for_item_column(
+                        df,
+                        col_index,
+                        drawing_no,
+                        item_count,
+                        estimated_quantity,
+                    )
+
+                    if estimated_quantity <= 0 and submission_breakdown:
+                        from utils.calculation_sheet_utils import (
+                            cumulative_submitted_quantity,
+                            left_submitted_quantity,
                         )
-                    else:
-                        submission_breakdown = None
-                        quantity_submitted = 0.0
+
+                        if cumulative_submitted_quantity(submission_breakdown) <= 0:
+                            uninvoiced = left_submitted_quantity(submission_breakdown)
+                            if uninvoiced > 0:
+                                quantity_submitted = uninvoiced
+                        if (
+                            quantity_submitted <= 0
+                            and cumulative_submitted_quantity(submission_breakdown) <= 0
+                            and left_submitted_quantity(submission_breakdown) <= 0
+                        ):
+                            submission_breakdown = None
+                            quantity_submitted = 0.0
 
                     notes = df.iloc[17, col_index]
                     notes = str(notes).strip() if pd.notna(notes) else ""
@@ -583,6 +603,7 @@ class ExcelService:
                         'submission_breakdown': submission_breakdown,
                         'notes': notes,
                         'unit_price': read_non_boq_price(df, col_index),
+                        'unit': entry_unit,
                         'system': read_entry_system(df, col_index),
                     }
                     entries.append(entry)

@@ -47,7 +47,7 @@ def test_new_project_gets_only_non_boq_rows_of_mixed_sheets():
         {
             "section_number": "99.01.0001",
             "description": "Extra",
-            "unit": "יח'",
+            "unit": 'מ"ר',
             "quantity": 3.0,
             "price": 40.0,
             "total": 120.0,
@@ -66,6 +66,7 @@ def test_new_project_gets_only_non_boq_rows_of_mixed_sheets():
     item = target.query(models.BOQItem).one()
     assert item.structure == 99
     assert item.system == "Sheet CS-1"
+    assert item.unit == 'מ"ר'
 
     concentration = target.query(models.ConcentrationEntry).all()
     assert len(concentration) == 1
@@ -181,6 +182,35 @@ def test_add_to_existing_project_skips_when_every_item_is_already_there():
     assert len(items) == 1
     assert items[0].description == "First"
     assert target.query(models.CalculationSheet).count() == 1
+
+
+def test_sync_replaces_the_placeholder_unit_with_the_sheet_unit():
+    source = _session()
+    _sheet(source, "CS-1", [("99.01.0001", 3.0)])
+    entry = source.query(models.CalculationEntry).one()
+    entry.unit = 'מ"ר'
+    source.commit()
+
+    target = _session()
+    fill_non_boq_project(source, target, [_row("99.01.0001", "First", 3.0, 40.0)])
+    item = target.query(models.BOQItem).one()
+    item.unit = "יח'"
+    copied = target.query(models.CalculationEntry).one()
+    copied.unit = None
+    target.commit()
+
+    assert sync_boq_fields_from_calculation_entries(target) is False
+    copied.unit = 'מ"ר'
+    target.commit()
+    assert sync_boq_fields_from_calculation_entries(target) is True
+    target.refresh(item)
+    assert item.unit == 'מ"ר'
+
+    item.unit = "טון"
+    target.commit()
+    sync_boq_fields_from_calculation_entries(target)
+    target.refresh(item)
+    assert item.unit == "טון"
 
 
 def test_sync_fills_system_once_and_leaves_an_edited_price_alone():

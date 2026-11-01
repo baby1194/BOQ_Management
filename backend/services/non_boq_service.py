@@ -221,7 +221,7 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
             {
                 "section_number": section,
                 "description": "",
-                "unit": "יח'",
+                "unit": "",
                 "quantity": 0.0,
                 "quantity_submitted": 0.0,
                 "price": 0.0,
@@ -234,6 +234,9 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
         system = (record.get("system") or "").strip()
         if system and not row["system"]:
             row["system"] = system
+        unit = (record.get("unit") or "").strip()
+        if unit and not row["unit"]:
+            row["unit"] = unit
         row["quantity"] += float(record.get("estimated_quantity") or 0)
         row["quantity_submitted"] += float(record.get("quantity_submitted") or 0)
         price = record.get("unit_price")
@@ -246,6 +249,8 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
         price = round(float(row["price"] or 0), 2)
         if not row["description"]:
             row["description"] = section
+        if not row["unit"]:
+            row["unit"] = "יח'"
         rows.append(
             {
                 "section_number": section,
@@ -262,27 +267,33 @@ def build_non_boq_import_rows(records: List[dict]) -> list[dict]:
     return rows
 
 
-def _item_descriptions_from_workbook(path: str) -> dict[str, str]:
-    """Section number to Excel row 22 text. Empty when the file cannot be read."""
+def _item_fields_from_workbook(path: str) -> dict[str, dict]:
+    """Section number to Excel row 22 description and row 23 unit."""
     try:
         from services.excel_service import ExcelService
 
         sheet_data = ExcelService().read_calculation_sheet_data(path)
     except Exception as exc:
-        logger.warning("Could not read item descriptions from %s: %s", path, exc)
+        logger.warning("Could not read item text from %s: %s", path, exc)
         return {}
 
-    descriptions: dict[str, str] = {}
+    fields: dict[str, dict] = {}
     for entry in sheet_data.get("entries") or []:
         section = _normalize_section_number(entry.get("section_number"))
+        if not section:
+            continue
+        slot = fields.setdefault(section, {})
         text = (entry.get("item_description") or "").strip()
-        if section and text and section not in descriptions:
-            descriptions[section] = text
-    return descriptions
+        unit = (entry.get("unit") or "").strip()
+        if text and not slot.get("description"):
+            slot["description"] = text
+        if unit and not slot.get("unit"):
+            slot["unit"] = unit
+    return fields
 
 
 def backfill_item_descriptions(db: Session) -> int:
-    """Store Excel row 22 on entries that were imported before that cell was kept."""
+    """Store Excel row 22 and the row 23 unit on entries imported before those cells were kept."""
     sections = {
         item.section_number
         for item in db.query(models.NonBoqItem).all()
@@ -302,21 +313,30 @@ def backfill_item_descriptions(db: Session) -> int:
     missing = [
         (entry, sheet)
         for entry, sheet in rows
-        if not (entry.item_description or "").strip() and sheet.source_file_path
+        if sheet.source_file_path
+        and (
+            not (entry.item_description or "").strip()
+            or not (entry.unit or "").strip()
+        )
     ]
     if not missing:
         return 0
 
-    by_path: dict[str, dict[str, str]] = {}
+    by_path: dict[str, dict[str, dict]] = {}
     updated = 0
     for entry, sheet in missing:
         path = sheet.source_file_path
         if path not in by_path:
-            by_path[path] = _item_descriptions_from_workbook(path)
+            by_path[path] = _item_fields_from_workbook(path)
         section = _normalize_section_number(entry.section_number)
-        text = by_path[path].get(section or "", "")
-        if text:
+        found = by_path[path].get(section or "", {})
+        text = found.get("description") or ""
+        unit = found.get("unit") or ""
+        if text and not (entry.item_description or "").strip():
             entry.item_description = text
+            updated += 1
+        if unit and not (entry.unit or "").strip():
+            entry.unit = unit
             updated += 1
     if updated:
         db.commit()
@@ -354,6 +374,7 @@ def non_boq_import_rows(db: Session) -> list[dict]:
                 "estimated_quantity": entry.estimated_quantity,
                 "quantity_submitted": entry.quantity_submitted,
                 "unit_price": entry.unit_price,
+                "unit": entry.unit,
                 "system": entry.system,
             }
         )

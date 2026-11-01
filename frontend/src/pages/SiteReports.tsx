@@ -3,8 +3,45 @@ import { useTranslation } from "react-i18next";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
-import { ClipboardList, FileText, Trash2 } from "lucide-react";
+import { ClipboardList, Eye, EyeOff, FileText, Trash2 } from "lucide-react";
 import { siteWorkApi, SiteWorkItem } from "../services/api";
+import { getProjectItem, setProjectItem } from "../utils/localStorage";
+
+const FILTERS_KEY = "site-work-filters";
+const ENTRY_HIDDEN_KEY = "site-work-entry-hidden";
+
+type SiteWorkFilters = {
+  system: string;
+  classification: string;
+  source: string;
+  date: string;
+  notes: string;
+};
+
+const EMPTY_FILTERS: SiteWorkFilters = {
+  system: "",
+  classification: "",
+  source: "",
+  date: "",
+  notes: "",
+};
+
+function readSavedFilters(): SiteWorkFilters {
+  const raw = getProjectItem(FILTERS_KEY);
+  if (!raw) return EMPTY_FILTERS;
+  try {
+    const parsed = JSON.parse(raw) as Partial<SiteWorkFilters>;
+    return {
+      system: typeof parsed.system === "string" ? parsed.system : "",
+      classification: typeof parsed.classification === "string" ? parsed.classification : "",
+      source: typeof parsed.source === "string" ? parsed.source : "",
+      date: typeof parsed.date === "string" ? parsed.date : "",
+      notes: typeof parsed.notes === "string" ? parsed.notes : "",
+    };
+  } catch {
+    return EMPTY_FILTERS;
+  }
+}
 
 const SiteReports: React.FC = () => {
   const { t } = useTranslation();
@@ -23,11 +60,17 @@ const SiteReports: React.FC = () => {
   const [manualSource, setManualSource] = useState<SiteWorkItem["source"]>("site_report");
   const [manualDate, setManualDate] = useState("");
   const [adding, setAdding] = useState(false);
-  const [filterSystem, setFilterSystem] = useState("");
-  const [filterClassification, setFilterClassification] = useState("");
-  const [filterSource, setFilterSource] = useState("");
-  const [filterDate, setFilterDate] = useState("");
+  const [savedFilters] = useState(readSavedFilters);
+  const [filterSystem, setFilterSystem] = useState(savedFilters.system);
+  const [filterClassification, setFilterClassification] = useState(savedFilters.classification);
+  const [filterSource, setFilterSource] = useState(savedFilters.source);
+  const [filterDate, setFilterDate] = useState(savedFilters.date);
+  const [filterNotes, setFilterNotes] = useState(savedFilters.notes);
+  const [entryHidden, setEntryHidden] = useState(
+    () => getProjectItem(ENTRY_HIDDEN_KEY) === "1"
+  );
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [descriptionDrafts, setDescriptionDrafts] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -48,6 +91,23 @@ const SiteReports: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setProjectItem(
+      FILTERS_KEY,
+      JSON.stringify({
+        system: filterSystem,
+        classification: filterClassification,
+        source: filterSource,
+        date: filterDate,
+        notes: filterNotes,
+      })
+    );
+  }, [filterSystem, filterClassification, filterSource, filterDate, filterNotes]);
+
+  useEffect(() => {
+    setProjectItem(ENTRY_HIDDEN_KEY, entryHidden ? "1" : "0");
+  }, [entryHidden]);
 
   const classificationLabel = (value: SiteWorkItem["classification"]) => {
     if (value === "exception") return t("siteWork.exception");
@@ -145,6 +205,38 @@ const SiteReports: React.FC = () => {
     }
   };
 
+  const onDescriptionBlur = async (item: SiteWorkItem) => {
+    if (!(item.id in descriptionDrafts)) return;
+    const next = descriptionDrafts[item.id];
+    if (next === item.description) {
+      setDescriptionDrafts((current) => {
+        const copy = { ...current };
+        delete copy[item.id];
+        return copy;
+      });
+      return;
+    }
+    if (next.trim().length < 3) {
+      toast.error(t("siteWork.descriptionTooShort"));
+      return;
+    }
+    try {
+      const updated = await siteWorkApi.updateDescription(item.id, next);
+      setItems((current) => current.map((row) => (row.id === item.id ? updated : row)));
+      setDescriptionDrafts((current) => {
+        const copy = { ...current };
+        delete copy[item.id];
+        return copy;
+      });
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        toast.error(t("siteWork.alreadyListed"));
+      } else {
+        toast.error(t("siteWork.processFailed"));
+      }
+    }
+  };
+
   const onOpenAttachment = async (itemId: number, path: string) => {
     try {
       await siteWorkApi.openFile(itemId, path);
@@ -173,19 +265,37 @@ const SiteReports: React.FC = () => {
     if (filterClassification && item.classification !== filterClassification) return false;
     if (filterSource && item.source !== filterSource) return false;
     if (filterDate && (item.work_date || "") !== filterDate) return false;
+    const notesQuery = filterNotes.trim().toLocaleLowerCase();
+    if (notesQuery && !(item.notes || "").toLocaleLowerCase().includes(notesQuery)) {
+      return false;
+    }
     return true;
   });
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <ClipboardList className="h-7 w-7 text-blue-600" />
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{t("siteWork.title")}</h1>
-          <p className="text-sm text-gray-500">{t("siteWork.subtitle")}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <ClipboardList className="h-7 w-7 text-blue-600" />
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">{t("siteWork.title")}</h1>
+            {!entryHidden && (
+              <p className="text-sm text-gray-500">{t("siteWork.subtitle")}</p>
+            )}
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setEntryHidden((current) => !current)}
+          className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 inline-flex items-center gap-2 text-sm"
+        >
+          {entryHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          {entryHidden ? t("siteWork.showEntry") : t("siteWork.hideEntry")}
+        </button>
       </div>
 
+      {!entryHidden && (
+      <>
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div className="flex flex-wrap gap-2">
           {(["site_report", "whatsapp"] as const).map((option) => (
@@ -332,6 +442,8 @@ const SiteReports: React.FC = () => {
           {adding ? t("siteWork.processing") : t("siteWork.add")}
         </button>
       </div>
+      </>
+      )}
 
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-wrap gap-4">
@@ -384,6 +496,16 @@ const SiteReports: React.FC = () => {
               className="mt-1 block border border-gray-300 rounded-md px-3 py-2"
             />
           </label>
+          <label className="block text-sm text-gray-700">
+            {t("siteWork.notes")}
+            <input
+              type="text"
+              value={filterNotes}
+              onChange={(event) => setFilterNotes(event.target.value)}
+              placeholder={t("siteWork.notesFilter")}
+              className="mt-1 block border border-gray-300 rounded-md px-3 py-2"
+            />
+          </label>
         </div>
       </div>
 
@@ -428,7 +550,21 @@ const SiteReports: React.FC = () => {
                       : "border-t border-gray-100"
                   }
                 >
-                  <td className="px-3 py-2">{item.description}</td>
+                  <td className="px-3 py-2">
+                    <textarea
+                      aria-label={t("siteWork.editReport")}
+                      value={descriptionDrafts[item.id] ?? item.description}
+                      onChange={(event) =>
+                        setDescriptionDrafts((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      onBlur={() => void onDescriptionBlur(item)}
+                      rows={2}
+                      className="w-64 border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-900"
+                    />
+                  </td>
                   <td className="px-3 py-2">
                     <select
                       aria-label={t("siteWork.changeSystem")}

@@ -21,7 +21,7 @@ import {
   SubmissionBreakdownCalcSheetRows,
   SubmissionBreakdownToggle,
 } from "../components/SubmissionBreakdownPanel";
-import { entryCumulativeSubmittedQuantity, entryHasEstimatedOrSubmitted } from "../utils/submissionBreakdown";
+import { entryHasEstimatedOrSubmitted, submittedQuantityWhenEstimatedIsZero } from "../utils/submissionBreakdown";
 import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
 import { useQuantityCheck } from "../contexts/QuantityCheckContext";
 
@@ -1672,7 +1672,8 @@ const CalculationSheets: React.FC = () => {
                                 const isExpanded =
                                   expandedBreakdownEntryIds.has(entry.id);
                                 const cumulativeSubmitted =
-                                  entryCumulativeSubmittedQuantity(
+                                  submittedQuantityWhenEstimatedIsZero(
+                                    entry.estimated_quantity,
                                     entry.quantity_submitted,
                                     entry.submission_breakdown,
                                   );

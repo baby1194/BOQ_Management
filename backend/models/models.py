@@ -189,6 +189,8 @@ class CalculationEntry(Base):
     notes = Column(Text, nullable=True)
     # Excel row 7 of the item column. Used when this section is not on the BOQ.
     unit_price = Column(Float, nullable=True)
+    # Excel row 23 of the item column.
+    unit = Column(String(40), nullable=True)
     # Excel row 4 of the item column (the row above the section number).
     system = Column(String(100), nullable=True)
     

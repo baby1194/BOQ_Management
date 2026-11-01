@@ -116,7 +116,12 @@
     "alreadyListed": "המשימה כבר ברשימה",
     "all": "הכל",
     "noMatches": "אין משימות שתואמות לסינון.",
-    "openFailed": "לא ניתן לפתוח את הקובץ המצורף"
+    "openFailed": "לא ניתן לפתוח את הקובץ המצורף",
+    "hideEntry": "הסתר אזור הזנה",
+    "showEntry": "הצג אזור הזנה",
+    "notesFilter": "סינון הערות",
+    "editReport": "עריכת דוח או הודעות",
+    "descriptionTooShort": "הטקסט חייב להכיל לפחות 3 תווים"
   },
   "auth": {
     "signIn": "התחבר",

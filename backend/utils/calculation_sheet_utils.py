@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
@@ -16,8 +17,10 @@ DETAIL_START_ROW = 27  # Excel row 28 (0-based)
 INVOICE_ID_ROW = 1  # Excel row 2 (0-based)
 INVOICE_DESCRIPTION_ROW = 2  # Excel row 3 (0-based) — short invoice title, not the item description
 ITEM_DESCRIPTION_ROW = 21  # Excel row 22 (0-based) — BOQ item description
+UNIT_ROW = 22  # Excel row 23 (0-based) — unit of the item column
 SYSTEM_ROW = 3  # Excel row 4 (0-based) — system code, the row above the section number
 SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
+TYPED_SECTION_ROW = 20  # Excel row 21 — typed section number; row 5 often only copies it
 # Price for items that are not on the contract. Same item column, the row under the estimated quantity.
 NON_BOQ_PRICE_ROW = 6  # Excel row 7 (0-based)
 SHARED_PERIOD_COLUMN_INDEX = 1  # Column B — past invoices when the sheet has one item
@@ -39,11 +42,10 @@ def read_non_boq_price(df, col_index: int) -> float:
 
 
 def count_calculation_sheet_items(df, start_col: int = FIRST_ITEM_COLUMN_INDEX) -> int:
-    """Count item columns with a non-empty section number in row 5."""
+    """Count item columns with a section number."""
     count = 0
     for col_index in range(start_col, df.shape[1]):
-        section_number = df.iloc[SECTION_NUMBER_ROW, col_index]
-        if pd.notna(section_number) and str(section_number).strip():
+        if read_entry_section_number(df, col_index):
             count += 1
     return count
 
@@ -208,6 +210,24 @@ def _column_has_section_number(df, col_index: int) -> bool:
     return bool(section_number)
 
 
+_SECTION_NUMBER = re.compile(r"^\d+(?:\.\d+)+$")
+
+
+def read_entry_section_number(df, col_index: int) -> Optional[str]:
+    """Section number from row 5, or from the typed cell on row 21 when row 5 is blank.
+
+    Measurement sheets put the number on row 21 and a formula on row 5. A file
+    saved without a cached formula result would otherwise drop the item.
+    """
+    text = _read_text_cell(df, SECTION_NUMBER_ROW, col_index)
+    if text:
+        return text
+    typed = _read_text_cell(df, TYPED_SECTION_ROW, col_index)
+    if typed and _SECTION_NUMBER.match(typed.replace(" ", "")):
+        return typed
+    return None
+
+
 def read_entry_system(df, col_index: int) -> Optional[str]:
     """System code from Excel row 4 of the item column."""
     text = _read_text_cell(df, SYSTEM_ROW, col_index)
@@ -221,6 +241,39 @@ def read_entry_system(df, col_index: int) -> Optional[str]:
 def read_entry_invoice_description(df, col_index: int) -> Optional[str]:
     """Read the short invoice title from row 3 of an item column."""
     return _read_text_cell(df, INVOICE_DESCRIPTION_ROW, col_index)
+
+
+def _unit_text(text: Optional[str]) -> Optional[str]:
+    """A unit label such as מ\"ר. A quantity in that cell is not a unit."""
+    if not text:
+        return None
+    cleaned = text.strip()
+    if not cleaned or len(cleaned) > 40:
+        return None
+    number = cleaned.replace(",", "").replace(" ", "")
+    try:
+        float(number)
+    except ValueError:
+        return cleaned
+    return None
+
+
+def read_entry_unit(df, col_index: int) -> Optional[str]:
+    """Unit from Excel row 23 of the item column.
+
+    A merged unit cell keeps its text in the leftmost column of the merge, so
+    an empty item cell falls back to the columns before it until the previous item.
+    """
+    text = _unit_text(_read_text_cell(df, UNIT_ROW, col_index))
+    if text:
+        return text
+    for previous in range(col_index - 1, FIRST_ITEM_COLUMN_INDEX - 2, -1):
+        if _column_has_section_number(df, previous):
+            break
+        text = _unit_text(_read_text_cell(df, UNIT_ROW, previous))
+        if text:
+            return text
+    return None
 
 
 def read_entry_item_description(df, col_index: int) -> Optional[str]:
@@ -256,6 +309,49 @@ def read_entry_current_invoice_id(
     if item_count > 1:
         return ""
     return str(sheet_drawing_no or "").strip()
+
+
+def submission_for_item_column(
+    df,
+    col_index: int,
+    sheet_invoice: str,
+    item_count: int,
+    estimated_quantity: float,
+) -> Tuple[str, Optional[Dict[str, Any]], float]:
+    """Invoice and submitted quantity for one item column.
+
+    A multi-item sheet does not copy C2 onto every item. An invoice typed on
+    the item, or in the invoice column beside it, does count. When that
+    invoice is a single number for the whole item, detail lines with a blank
+    invoice cell belong to it. Otherwise they stay off the invoice.
+    """
+    current = read_entry_current_invoice_id(
+        df, col_index, sheet_invoice, item_count=item_count
+    )
+    line_periods = collect_entry_periods(df, col_index, item_count)
+    if not current and len(line_periods) == 1:
+        current = line_periods[0]
+    elif not current and line_periods:
+        current = line_periods[-1]
+
+    if not current and not line_periods and estimated_quantity > 0:
+        return "", None, 0.0
+
+    breakdown, quantity_submitted = compute_submission_breakdown(
+        df,
+        col_index,
+        current,
+        sheet_periods=line_periods,
+        item_count=item_count,
+    )
+    if current and not line_periods:
+        moved = float(breakdown.get("left_submitted") or 0)
+        for value in (breakdown.get("periods") or {}).values():
+            moved += float(value or 0)
+        breakdown["periods"][current] = moved
+        breakdown["left_submitted"] = 0.0
+        quantity_submitted = float(breakdown["periods"].get(current) or 0)
+    return current, breakdown, quantity_submitted
 
 
 def resolve_calc_entry_current_invoice_id(
@@ -402,6 +498,20 @@ def entry_cumulative_submitted_quantity(entry: Any) -> float:
         if cumulative > 0:
             return cumulative
     return float(getattr(entry, "quantity_submitted", 0) or 0)
+
+
+def submitted_quantity_when_estimated_is_zero(entry: Any) -> float:
+    """Submitted quantity to keep when the estimated cell is zero.
+
+    Invoiced detail lines count first. Detail lines that have no invoice yet
+    are the calculated total for work submitted under a temporary item, and
+    that total still counts.
+    """
+    cumulative = entry_cumulative_submitted_quantity(entry)
+    if cumulative > 0:
+        return cumulative
+    breakdown = getattr(entry, "submission_breakdown", None)
+    return left_submitted_quantity(breakdown if isinstance(breakdown, dict) else None)
 
 
 def breakdowns_equal(
@@ -581,6 +691,8 @@ def build_concentration_export_row_values(
         detail_notes = ""
         detail_supervisor_notes = ""
     current_qty = float(entry.quantity_submitted or 0)
+    if float(getattr(entry, "estimated_quantity", 0) or 0) == 0 and current_qty == 0:
+        current_qty = left_submitted_quantity(breakdown if isinstance(breakdown, dict) else None)
     if notes_value is not None:
         # Explicit override (e.g. PDF notes_getter). Empty string clears auto notes
         # without falling back to entry.notes.

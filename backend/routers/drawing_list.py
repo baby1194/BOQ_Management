@@ -254,6 +254,8 @@ def _element_lookup(db: Session):
                 "calculation_sheet_no": entry.calculation_sheet_no,
                 "estimated_quantity": entry.estimated_quantity,
                 "quantity_submitted": entry.quantity_submitted,
+                "approved_by_project_manager": entry.approved_by_project_manager,
+                "submission_breakdown": entry.submission_breakdown,
             }
         )
     drawing_names_by_element = {}

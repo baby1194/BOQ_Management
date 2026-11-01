@@ -62,25 +62,68 @@ def _fill_missing_entry_systems(db: Session) -> bool:
     return updated
 
 
+def _fill_missing_entry_units(db: Session) -> bool:
+    """Read Excel row 23 for imported items that still have no stored unit."""
+    from pathlib import Path
+
+    from services.non_boq_service import _item_fields_from_workbook
+
+    wanted = {
+        (item.section_number or "").strip()
+        for item in db.query(models.BOQItem).all()
+        if item.notes == IMPORT_NOTE
+        and (not (item.unit or "").strip() or (item.unit or "").strip() == "יח'")
+    }
+    wanted.discard("")
+    if not wanted:
+        return False
+    pending = [
+        entry
+        for entry in db.query(models.CalculationEntry).all()
+        if not (getattr(entry, "unit", None) or "").strip()
+        and (entry.section_number or "").strip() in wanted
+    ]
+    if not pending:
+        return False
+    by_sheet: dict[int, list] = {}
+    for entry in pending:
+        by_sheet.setdefault(entry.calculation_sheet_id, []).append(entry)
+    updated = False
+    for sheet_id, entries in by_sheet.items():
+        sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
+        path = Path(sheet.source_file_path) if sheet and sheet.source_file_path else None
+        found = _item_fields_from_workbook(str(path)) if path and path.is_file() else {}
+        for entry in entries:
+            unit = (found.get((entry.section_number or "").strip()) or {}).get("unit") or ""
+            if unit:
+                entry.unit = unit
+                updated = True
+    return updated
+
+
 def sync_boq_fields_from_calculation_entries(db: Session) -> bool:
     """Fill an empty system and a missing submitted price from the calculation sheet.
 
     Submitted price is written once. Later edits to the BOQ price leave it as imported.
-    Items brought in from non-BOQ sheets get structure 99 and cell C3 as the system
-    when those cells are still empty. A main-project upload is left as it was read.
+    Items brought in from non-BOQ sheets get structure 99, cell C3 as the system,
+    and Excel row 23 as the unit when those cells are still empty. A placeholder
+    unit of יח' is replaced by the sheet unit. A main-project upload is left as it was read.
     """
-    entries_changed = _fill_missing_entry_systems(db)
+    entries_changed = _fill_missing_entry_systems(db) or _fill_missing_entry_units(db)
     by_section: dict[str, dict] = {}
     for entry in db.query(models.CalculationEntry).all():
         section = (entry.section_number or "").strip()
         if not section:
             continue
-        slot = by_section.setdefault(section, {"price": None, "system": None})
+        slot = by_section.setdefault(section, {"price": None, "system": None, "unit": None})
         if slot["price"] is None and entry.unit_price is not None:
             slot["price"] = float(entry.unit_price)
         system = (entry.system or "").strip()
         if system and not slot["system"]:
             slot["system"] = system
+        unit = (getattr(entry, "unit", None) or "").strip()
+        if unit and not slot["unit"]:
+            slot["unit"] = unit
 
     imported_sections = {
         (item.section_number or "").strip()
@@ -99,6 +142,16 @@ def sync_boq_fields_from_calculation_entries(db: Session) -> bool:
             changed = True
         if from_non_boq and not (item.system or "").strip() and c3_by_section.get(section):
             item.system = c3_by_section[section]
+            changed = True
+        # יח' is the placeholder used before the calculation-sheet unit was read.
+        if (
+            from_non_boq
+            and slot
+            and slot["unit"]
+            and (not (item.unit or "").strip() or (item.unit or "").strip() == "יח'")
+            and slot["unit"] != (item.unit or "").strip()
+        ):
+            item.unit = slot["unit"]
             changed = True
         if not slot:
             continue
@@ -200,6 +253,7 @@ def _clone_calculation_entry(sheet_id: int, entry: models.CalculationEntry) -> m
         submission_breakdown=copy.deepcopy(entry.submission_breakdown),
         notes=entry.notes,
         unit_price=entry.unit_price,
+        unit=entry.unit,
         system=entry.system,
     )
 

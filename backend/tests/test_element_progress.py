@@ -120,6 +120,66 @@ def test_typed_words_list_the_section_numbers_connected_to_each_word():
     assert sheet.cell(2, headers.index("Section Number") + 1).value == "1.02.01.0010"
 
 
+def test_word_excel_uses_the_element_quantities_not_the_item_totals():
+    boq = [
+        {
+            "section_number": "1.02.01.0010",
+            "description": "Concrete",
+            "unit": "m3",
+            "price": 10,
+            "original_contract_quantity": 454.41,
+            "estimated_quantity": 374.03,
+            "quantity_submitted": 184.33,
+            "approved_by_project_manager": 184.17,
+            "total_estimate": 3740.3,
+            "total_submitted": 1843.3,
+            "total_approved_by_project_manager": 1841.7,
+        }
+    ]
+    entries = {
+        "1.02.01.0010": [
+            {
+                "description": "DC-64A",
+                "invoice_description": "",
+                "estimated_quantity": 9.79,
+                "quantity_submitted": 9.79,
+                "approved_by_project_manager": 0,
+            },
+            {
+                "description": "RW-18",
+                "invoice_description": "",
+                "calculation_sheet_no": "32/8/7",
+                "estimated_quantity": 54.33,
+                "quantity_submitted": 10.26,
+                "approved_by_project_manager": 10.26,
+                "submission_breakdown": {
+                    "current_drawing_no": "07",
+                    "periods": {"06": 44.07, "07": 10.26},
+                    "period_details": {
+                        "06": {"approved_by_project_manager": 44.07},
+                        "07": {"approved_by_project_manager": 10.26},
+                    },
+                },
+            },
+        ]
+    }
+    rows = rows_for_words("RW-18", boq, entries)
+    assert rows[0]["estimated_quantity"] == 54.33
+    assert rows[0]["quantity_submitted"] == 54.33
+    assert rows[0]["approved_by_project_manager"] == 54.33
+    assert round(rows[0]["total_estimate"], 2) == 543.3
+    assert round(rows[0]["total_submitted"], 2) == 543.3
+    assert round(rows[0]["total_approved_by_project_manager"], 2) == 543.3
+    assert rows[0]["original_contract_quantity"] == 454.41
+
+    book = load_workbook(BytesIO(word_items_workbook(rows, "en")))
+    sheet = book.active
+    headers = [cell.value for cell in sheet[1]]
+    assert sheet.cell(2, headers.index("Estimated Quantity") + 1).value == 54.33
+    assert sheet.cell(2, headers.index("Quantity Submitted") + 1).value == 54.33
+    assert sheet.cell(2, headers.index("Approved by Project Manager") + 1).value == 54.33
+
+
 def test_word_excel_includes_the_boq_table_figures():
     boq = [
         {

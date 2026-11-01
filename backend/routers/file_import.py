@@ -177,6 +177,7 @@ def import_calculation_sheet_from_disk(
                 submission_breakdown=entry_data.get("submission_breakdown"),
                 notes=entry_data.get("notes", ""),
                 unit_price=entry_data.get("unit_price"),
+                unit=entry_data.get("unit"),
                 system=entry_data.get("system"),
             )
         )
@@ -347,9 +348,12 @@ def copy_calculation_sheets_to_item_folder(
         ).all()
 
         copied = 0
+        # The plain non-zero PSQ export keeps every calc-sheet folder and only
+        # limits invoice folders. Skipping an approved calc-sheet folder is the
+        # separate option, which passes skip_calc_sheet_nos.
         copy_only = (
             calc_sheet_nos_to_copy_for_non_zero_export(entries or [])
-            if skip_equal_quantity_folders
+            if skip_equal_quantity_folders and skip_calc_sheet_nos is not None
             else None
         )
         for sheet in sheets:
@@ -476,7 +480,7 @@ def copy_concentration_entry_drawing_files_to_fatina(
 
     copy_only = (
         calc_sheet_nos_to_copy_for_non_zero_export(entries)
-        if skip_equal_quantity_folders
+        if skip_equal_quantity_folders and skip_calc_sheet_nos is not None
         else None
     )
     equal_invoices_by_sheet: dict[str, set[str]] = {}
@@ -1126,6 +1130,7 @@ async def import_calculation_sheets(
                         submission_breakdown=entry_data.get('submission_breakdown'),
                         notes=entry_data.get('notes', ''),
                         unit_price=entry_data.get('unit_price'),
+                        unit=entry_data.get('unit'),
                         system=entry_data.get('system'),
                     )
                     db.add(new_entry)

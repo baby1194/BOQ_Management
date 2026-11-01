@@ -461,6 +461,86 @@ def test_copy_drawing_files_to_fatina_skips_when_only_subrow_has_files(monkeypat
     ]
 
 
+def test_plain_non_zero_export_keeps_approved_calc_sheets_and_limits_invoices(monkeypatch):
+    from routers.file_import import copy_concentration_entry_drawing_files_to_fatina
+
+    copied_calc: list[str] = []
+    copied_invoice: list[str] = []
+
+    def fake_copy_calc(section_number, calculation_sheet_no, paths):
+        copied_calc.append(calculation_sheet_no)
+        return len(paths)
+
+    def fake_copy_invoice(section_number, invoice_no, paths):
+        copied_invoice.append(invoice_no)
+        return len(paths)
+
+    monkeypatch.setattr("fatina_paths.copy_files_to_calc_sheet_dir", fake_copy_calc)
+    monkeypatch.setattr("fatina_paths.copy_files_to_invoice_dir", fake_copy_invoice)
+
+    approved = SimpleNamespace(
+        calculation_sheet_no="20/1",
+        drawing_no="07",
+        quantity_submitted=10.0,
+        approved_by_project_manager=10.0,
+        drawing_files=["C:/uploads/approved.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "07",
+            "periods": {"07": 10.0},
+            "period_details": {
+                "07": {
+                    "approved_by_project_manager": 10.0,
+                    "drawing_files": ["C:/uploads/approved.pdf"],
+                },
+            },
+        },
+    )
+    mixed = SimpleNamespace(
+        calculation_sheet_no="32/3/8",
+        drawing_no="10",
+        quantity_submitted=180.33,
+        approved_by_project_manager=180.33,
+        drawing_files=["C:/uploads/current.pdf"],
+        submission_breakdown={
+            "current_drawing_no": "10",
+            "periods": {"09": 4.0, "10": 180.33},
+            "period_details": {
+                "09": {
+                    "approved_by_project_manager": 4.5,
+                    "drawing_files": ["C:/uploads/old.pdf"],
+                },
+                "10": {
+                    "approved_by_project_manager": 180.33,
+                    "drawing_files": ["C:/uploads/current.pdf"],
+                },
+            },
+        },
+    )
+
+    copy_concentration_entry_drawing_files_to_fatina(
+        db=None,
+        section_number="1.02",
+        entries=[approved, mixed],
+        skip_equal_quantity_folders=True,
+    )
+
+    assert copied_calc == ["20/1", "32/3/8"]
+    assert copied_invoice == ["09"]
+
+    copied_calc.clear()
+    copied_invoice.clear()
+    copy_concentration_entry_drawing_files_to_fatina(
+        db=None,
+        section_number="1.02",
+        entries=[approved, mixed],
+        skip_calc_sheet_nos={"20/1"},
+        skip_equal_quantity_folders=True,
+    )
+
+    assert copied_calc == ["32/3/8"]
+    assert copied_invoice == ["09"]
+
+
 def test_fatina_invoice_folder_name():
     from fatina_paths import fatina_invoice_folder_name
 

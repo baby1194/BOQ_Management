@@ -1239,6 +1239,11 @@ export const siteWorkApi = {
       .patch<SiteWorkItem>(`/site-work/${id}`, { notes })
       .then((res) => res.data),
 
+  updateDescription: (id: number, description: string) =>
+    api
+      .patch<SiteWorkItem>(`/site-work/${id}`, { description })
+      .then((res) => res.data),
+
   delete: (id: number) =>
     api.delete(`/site-work/${id}`).then((res) => res.data),
 
