@@ -94,6 +94,23 @@ export const entryCumulativeSubmittedQuantity = (
   return quantitySubmitted || 0;
 };
 
+/** Submitted quantity for the current invoice on a concentration row.
+
+Older invoices stay on their own rows. When nothing is on an invoice yet, the
+uninvoiced total is shown. Matches the concentration export.
+*/
+export const currentInvoiceSubmittedQuantity = (
+  estimatedQuantity: number | null | undefined,
+  quantitySubmitted: number,
+  breakdown?: SubmissionBreakdown | null,
+): number => {
+  const current = quantitySubmitted || 0;
+  if ((estimatedQuantity ?? 0) === 0 && current === 0) {
+    return breakdown?.left_submitted ?? 0;
+  }
+  return current;
+};
+
 /** Submitted quantity shown for a row.
 
 When estimated is zero, detail lines that are not on an invoice yet are still
