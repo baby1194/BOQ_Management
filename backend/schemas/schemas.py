@@ -873,3 +873,21 @@ class Project(ProjectBase):
 
     class Config:
         from_attributes = True
+
+
+class SubprojectTotals(BaseModel):
+    """Live BOQ sums of the projects linked to the open project. The open project is not included."""
+
+    project_ids: List[str] = []
+    boq_count: int = 0
+    concentration_count: int = 0
+    calculation_count: int = 0
+    items_with_concentration: int = 0
+    total_contract: float = 0
+    total_estimate: float = 0
+    total_submitted: float = 0
+    total_internal: float = 0
+    total_approved: float = 0
+    estimated_qty: float = 0
+    submitted_qty: float = 0
+    approved_qty: float = 0

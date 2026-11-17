@@ -10,6 +10,7 @@ import {
   calculationSheetsApi,
   nonBoqApi,
   exportApi,
+  projectsApi,
 } from "../services/api";
 import {
   BarChart3,
@@ -50,6 +51,7 @@ import {
   SummaryResponse,
   NonBoqItem,
   ApprovedSignedQtyImportResponse,
+  SubprojectTotals,
 } from "../types";
 import ReadApprovedSignedQtyModal from "../components/ReadApprovedSignedQtyModal";
 
@@ -75,6 +77,9 @@ const Dashboard: React.FC = () => {
     CalculationSheet[] | null
   >(null);
   const [nonBoqItems, setNonBoqItems] = useState<NonBoqItem[]>([]);
+  const [subprojectTotals, setSubprojectTotals] = useState<SubprojectTotals | null>(
+    null,
+  );
   const [removingNonBoqId, setRemovingNonBoqId] = useState<number | null>(null);
   const [selectedNonBoq, setSelectedNonBoq] = useState<Set<string>>(new Set());
   const [exportingNonBoq, setExportingNonBoq] = useState<"pdf" | "excel" | null>(
@@ -169,17 +174,19 @@ const Dashboard: React.FC = () => {
     Promise.all([
       boqApi.getAll(),
       searchApi.getSummary(),
-      concentrationApi.getAll(),
-      calculationSheetsApi.getAll(),
+      concentrationApi.getAll(0, 10000),
+      calculationSheetsApi.getAll(0, 10000),
       nonBoqApi.getAll(),
+      projectsApi.subprojectTotals(projectId),
     ])
-      .then(([boq, summaryData, concentration, calculation, nonBoq]) => {
+      .then(([boq, summaryData, concentration, calculation, nonBoq, linked]) => {
         if (cancelled) return;
         setBoqItems(boq);
         setSummary(summaryData);
         setConcentrationSheets(concentration);
         setCalculationSheets(calculation);
         setNonBoqItems(nonBoq);
+        setSubprojectTotals(linked);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -205,31 +212,34 @@ const Dashboard: React.FC = () => {
   const calculateStats = () => {
     if (!boqItems || !concentrationSheets || !calculationSheets) return {};
 
-    const totalBOQItems = boqItems.length;
-    const totalConcentrationSheets = concentrationSheets.length;
-    const totalCalculationSheets = calculationSheets.length;
+    const linked = subprojectTotals;
+    const linkedIds = new Set(linked?.project_ids ?? []);
 
-    // Financial totals
-    const totalContractValue = boqItems.reduce(
-      (sum, item) => sum + (item.total_contract_sum || 0),
-      0
-    );
-    const totalEstimateValue = boqItems.reduce(
-      (sum, item) => sum + (item.total_estimate || 0),
-      0
-    );
-    const totalSubmittedValue = boqItems.reduce(
-      (sum, item) => sum + (item.total_submitted || 0),
-      0
-    );
-    const totalInternalValue = boqItems.reduce(
-      (sum, item) => sum + (item.internal_total || 0),
-      0
-    );
-    const totalApprovedValue = boqItems.reduce(
-      (sum, item) => sum + (item.approved_signed_total || 0),
-      0
-    );
+    const totalBOQItems = boqItems.length + (linked?.boq_count || 0);
+    const totalConcentrationSheets =
+      concentrationSheets.length + (linked?.concentration_count || 0);
+    const totalCalculationSheets =
+      calculationSheets.length + (linked?.calculation_count || 0);
+
+    // Financial totals include linked subprojects. Their BOQ rows are the
+    // exception items after they leave this project, at the amounts saved there.
+    const totalContractValue =
+      boqItems.reduce((sum, item) => sum + (item.total_contract_sum || 0), 0) +
+      (linked?.total_contract || 0);
+    const totalEstimateValue =
+      boqItems.reduce((sum, item) => sum + (item.total_estimate || 0), 0) +
+      (linked?.total_estimate || 0);
+    const totalSubmittedValue =
+      boqItems.reduce((sum, item) => sum + (item.total_submitted || 0), 0) +
+      (linked?.total_submitted || 0);
+    const totalInternalValue =
+      boqItems.reduce((sum, item) => sum + (item.internal_total || 0), 0) +
+      (linked?.total_internal || 0);
+    const totalApprovedValue =
+      boqItems.reduce(
+        (sum, item) => sum + (item.approved_signed_total || 0),
+        0,
+      ) + (linked?.total_approved || 0);
 
     // Variances
     const estimateVariance = totalEstimateValue - totalContractValue;
@@ -251,35 +261,43 @@ const Dashboard: React.FC = () => {
         : 0;
 
     // Status counts
-    const itemsWithEntries = boqItems.filter((item) =>
-      concentrationSheets.some((sheet) => sheet.boq_item_id === item.id)
-    ).length;
+    const itemsWithEntries =
+      boqItems.filter((item) =>
+        concentrationSheets.some((sheet) => sheet.boq_item_id === item.id),
+      ).length + (linked?.items_with_concentration || 0);
 
-    const itemsWithoutEntries = totalBOQItems - itemsWithEntries;
+    const itemsWithoutEntries = Math.max(0, totalBOQItems - itemsWithEntries);
 
-    const estimatedQty = boqItems.reduce(
-      (sum, item) => sum + (item.estimated_quantity || 0),
-      0
-    );
-    const submittedQty = boqItems.reduce(
-      (sum, item) => sum + (item.quantity_submitted || 0),
-      0
-    );
-    const approvedQty = boqItems.reduce(
-      (sum, item) => sum + (item.approved_signed_quantity || 0),
-      0
-    );
+    const estimatedQty =
+      boqItems.reduce((sum, item) => sum + (item.estimated_quantity || 0), 0) +
+      (linked?.estimated_qty || 0);
+    const submittedQty =
+      boqItems.reduce((sum, item) => sum + (item.quantity_submitted || 0), 0) +
+      (linked?.submitted_qty || 0);
+    const approvedQty =
+      boqItems.reduce(
+        (sum, item) => sum + (item.approved_signed_quantity || 0),
+        0,
+      ) + (linked?.approved_qty || 0);
     const submittedOfEstimated =
       estimatedQty > 0 ? (submittedQty / estimatedQty) * 100 : 0;
     const approvedOfSubmitted =
       submittedQty > 0 ? (approvedQty / submittedQty) * 100 : 0;
 
-    const activeExceptions = nonBoqItems.filter((item) => !item.removed_at);
-    const exceptionEstimateValue = activeExceptions.reduce(
+    // Items already copied into a linked project are in that project's BOQ total.
+    // Adding the parent snapshot as well would count them twice, at the old amount.
+    const looseExceptions = nonBoqItems.filter((item) => {
+      if (item.removed_at) return false;
+      if (item.moved_to_project_id && linkedIds.has(item.moved_to_project_id)) {
+        return false;
+      }
+      return true;
+    });
+    const exceptionEstimateValue = looseExceptions.reduce(
       (sum, item) => sum + (item.quantity || 0) * (item.price || 0),
       0
     );
-    const exceptionSubmittedValue = activeExceptions.reduce(
+    const exceptionSubmittedValue = looseExceptions.reduce(
       (sum, item) => sum + (item.quantity_submitted || 0) * (item.price || 0),
       0
     );
@@ -310,10 +328,15 @@ const Dashboard: React.FC = () => {
         totalEstimateValue + exceptionEstimateValue,
       totalSubmittedIncludingExceptions:
         totalSubmittedValue + exceptionSubmittedValue,
+      subprojectCount: linkedIds.size,
     };
   };
 
   const stats = calculateStats();
+  const linkedProjectsNote =
+    (stats.subprojectCount || 0) > 0
+      ? t("dashboard.includesSubprojects", { count: stats.subprojectCount })
+      : "";
 
   const handleRemoveNonBoqItem = async (item: NonBoqItem) => {
     setRemovingNonBoqId(item.id);
@@ -427,19 +450,21 @@ const Dashboard: React.FC = () => {
       return;
     }
     try {
-      const [boq, summaryData, concentration, calculation, nonBoq] =
+      const [boq, summaryData, concentration, calculation, nonBoq, linked] =
         await Promise.all([
           boqApi.getAll(),
           searchApi.getSummary(),
-          concentrationApi.getAll(),
-          calculationSheetsApi.getAll(),
+          concentrationApi.getAll(0, 10000),
+          calculationSheetsApi.getAll(0, 10000),
           nonBoqApi.getAll(),
+          projectsApi.subprojectTotals(projectId),
         ]);
       setBoqItems(boq);
       setSummary(summaryData);
       setConcentrationSheets(concentration);
       setCalculationSheets(calculation);
       setNonBoqItems(nonBoq);
+      setSubprojectTotals(linked);
     } catch (error) {
       console.error("Dashboard reload failed:", error);
     }
@@ -467,7 +492,9 @@ const Dashboard: React.FC = () => {
       icon: FileText,
       color: "bg-blue-500",
       change: null,
-      description: t("dashboard.totalBillQuantitiesItems"),
+      description: linkedProjectsNote
+        ? `${t("dashboard.totalBillQuantitiesItems")} · ${linkedProjectsNote}`
+        : t("dashboard.totalBillQuantitiesItems"),
     },
     {
       name: t("dashboard.concentrationSheets"),
@@ -477,7 +504,9 @@ const Dashboard: React.FC = () => {
       change: stats.itemsWithEntries || 0,
       description: `${t("dashboard.active")}: ${
         stats.itemsWithEntries || 0
-      }, ${t("dashboard.pending")}: ${stats.itemsWithoutEntries || 0}`,
+      }, ${t("dashboard.pending")}: ${stats.itemsWithoutEntries || 0}${
+        linkedProjectsNote ? ` · ${linkedProjectsNote}` : ""
+      }`,
     },
     {
       name: t("dashboard.calculationSheets"),
@@ -485,7 +514,9 @@ const Dashboard: React.FC = () => {
       icon: TrendingUp,
       color: "bg-purple-500",
       change: null,
-      description: t("dashboard.importedCalculationSheets"),
+      description: linkedProjectsNote
+        ? `${t("dashboard.importedCalculationSheets")} · ${linkedProjectsNote}`
+        : t("dashboard.importedCalculationSheets"),
     },
     {
       name: t("dashboard.contractValue"),
@@ -493,7 +524,9 @@ const Dashboard: React.FC = () => {
       icon: DollarSign,
       color: "bg-yellow-500",
       change: null,
-      description: t("dashboard.totalContractValue"),
+      description: linkedProjectsNote
+        ? `${t("dashboard.totalContractValue")} · ${linkedProjectsNote}`
+        : t("dashboard.totalContractValue"),
     },
   ];
 
@@ -762,8 +795,9 @@ const Dashboard: React.FC = () => {
               </div>
               <p
                 className={`text-3xl font-bold text-gray-900 ${
-                  "includingExceptionsLabel" in metric &&
-                  metric.includingExceptionsLabel
+                  ("includingExceptionsLabel" in metric &&
+                    metric.includingExceptionsLabel) ||
+                  linkedProjectsNote
                     ? "mb-2"
                     : "mb-4"
                 }`}
@@ -772,10 +806,17 @@ const Dashboard: React.FC = () => {
               </p>
               {"includingExceptionsLabel" in metric &&
                 metric.includingExceptionsLabel && (
-                <p className="text-sm text-gray-600 mb-4">
+                <p
+                  className={`text-sm text-gray-600 ${
+                    linkedProjectsNote ? "mb-2" : "mb-4"
+                  }`}
+                >
                   {metric.includingExceptionsLabel}:{" "}
                   {formatCurrency(metric.includingExceptions || 0)}
                 </p>
+              )}
+              {linkedProjectsNote && (
+                <p className="text-xs text-gray-500 mb-4">{linkedProjectsNote}</p>
               )}
 
               {/* Progress bar */}

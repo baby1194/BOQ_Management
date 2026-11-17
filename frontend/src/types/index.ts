@@ -5,6 +5,23 @@ export interface WorkspaceProject {
   source_project_id?: string | null;
 }
 
+/** Live BOQ sums of the projects linked to the open project. The open project is not included. */
+export interface SubprojectTotals {
+  project_ids: string[];
+  boq_count: number;
+  concentration_count: number;
+  calculation_count: number;
+  items_with_concentration: number;
+  total_contract: number;
+  total_estimate: number;
+  total_submitted: number;
+  total_internal: number;
+  total_approved: number;
+  estimated_qty: number;
+  submitted_qty: number;
+  approved_qty: number;
+}
+
 export interface WorkspaceProjectCreate {
   name: string;
   copy_from_project_id?: string | null;

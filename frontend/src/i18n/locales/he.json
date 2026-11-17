@@ -636,6 +636,7 @@
     "totalEstimate": "סה\"כ מחושב",
     "totalSubmitted": "סה\"כ מוגש",
     "totalEstimateIncludingExceptions": "סה\"כ מחושב כולל חריגים",
+    "includesSubprojects": "כולל {{count}} פרויקטים מקושרים",
     "totalSubmittedIncludingExceptions": "סה\"כ מוגש כולל חריגים",
     "totalApproved": "סה\"כ מאושר",
     "progress": "התקדמות",

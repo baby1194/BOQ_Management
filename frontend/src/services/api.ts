@@ -41,6 +41,7 @@ import {
   SignupAllowed,
   WorkspaceProject,
   WorkspaceProjectCreate,
+  SubprojectTotals,
   ProjectInfoFile,
   ProjectInfoFileCreate,
   ProjectInfoFileUpdate,
@@ -1092,6 +1093,14 @@ export const projectsApi = {
 
   create: (data: WorkspaceProjectCreate) =>
     api.post<WorkspaceProject>("/projects", data).then((res) => res.data),
+
+  // /projects requests do not get the active project id attached automatically.
+  subprojectTotals: (projectId: string) =>
+    api
+      .get<SubprojectTotals>(
+        `/projects/subproject-totals?project_id=${encodeURIComponent(projectId)}`,
+      )
+      .then((res) => res.data),
 };
 
 export const projectInfoFilesApi = {
