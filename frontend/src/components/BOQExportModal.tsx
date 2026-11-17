@@ -10,6 +10,8 @@ import {
 } from "../utils/exportPreferences";
 
 interface BOQExportRequest {
+  include_submitted_to_supervisor: boolean;
+  include_submitted_to_supervisor_date: boolean;
   include_serial_number: boolean;
   include_structure: boolean;
   include_system: boolean;
@@ -54,6 +56,8 @@ const buildDefaultBOQExportRequest = (
   contractUpdates: ContractQuantityUpdate[] = [],
 ): BOQExportRequest => {
   const baseRequest: BOQExportRequest = {
+    include_submitted_to_supervisor: true,
+    include_submitted_to_supervisor_date: true,
     include_serial_number: true,
     include_structure: true,
     include_system: true,
@@ -192,6 +196,34 @@ const BOQExportModal: React.FC<BOQExportModalProps> = ({
 
           <div className="grid grid-cols-1 gap-2">
             {/* Columns ordered according to BOQ table display order */}
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_submitted_to_supervisor}
+                onChange={() =>
+                  handleCheckboxChange("include_submitted_to_supervisor")
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.submittedToSupervisor")}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={exportRequest.include_submitted_to_supervisor_date}
+                onChange={() =>
+                  handleCheckboxChange("include_submitted_to_supervisor_date")
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">
+                {t("boq.submittedToSupervisorDate")}
+              </span>
+            </label>
+
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"

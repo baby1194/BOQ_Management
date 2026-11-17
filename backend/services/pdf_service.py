@@ -2373,6 +2373,8 @@ class PDFService:
             # Define Hebrew translations for BOQ column headers
             if language == "he":
                 headers_translations = {
+                    'submitted_to_supervisor': 'הוגש הגדלה/הקטנה',
+                    'submitted_to_supervisor_date': 'תאריך הגשה הגדלה/הקטנה',
                     'serial_number': 'מספר סידורי',
                     'structure': 'מבנה',
                     'system': 'מערכת',
@@ -2401,6 +2403,8 @@ class PDFService:
                 }
             else:
                 headers_translations = {
+                    'submitted_to_supervisor': 'Submitted Increase/Decrease',
+                    'submitted_to_supervisor_date': 'Submitted date Increase/Decrease',
                     'serial_number': 'Serial Number',
                     'structure': 'Structure',
                     'system': 'System',
@@ -2434,6 +2438,7 @@ class PDFService:
 
             if items:
                 all_possible_headers = [
+                    'submitted_to_supervisor', 'submitted_to_supervisor_date',
                     'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
                     'original_contract_quantity'
                 ]
@@ -2490,7 +2495,14 @@ class PDFService:
                     row_data = []
                     for key in raw_headers:
                         value = item[key]
-                        if isinstance(value, (int, float)):
+                        if key == "submitted_to_supervisor":
+                            yes = "כן" if language == "he" else "Yes"
+                            no = "לא" if language == "he" else "No"
+                            checked = value in (True, 1, "1", "true", "True", "yes", "Yes", "כן")
+                            row_data.append(yes if checked else no)
+                        elif key == "submitted_to_supervisor_date":
+                            row_data.append("" if value in (None, "") else str(value))
+                        elif isinstance(value, (int, float)):
                             if ('total' in key.lower() or 'sum' in key.lower() or 'price' in key.lower()) and not str(key).endswith('_quantity'):
                                 row_data.append(self._format_currency(value))
                             else:

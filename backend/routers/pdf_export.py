@@ -1138,6 +1138,10 @@ async def export_boq_items_pdf(
                 filtered_item = {}
                 
                 # Process columns in BOQ table order
+                if request.get("include_submitted_to_supervisor"):
+                    filtered_item["submitted_to_supervisor"] = bool(item.submitted_to_supervisor)
+                if request.get("include_submitted_to_supervisor_date"):
+                    filtered_item["submitted_to_supervisor_date"] = item.submitted_to_supervisor_date or ""
                 if request.get("include_serial_number"):
                     filtered_item["serial_number"] = item.serial_number
                 if request.get("include_structure"):
@@ -1287,6 +1291,10 @@ async def export_boq_items_excel(
                 filtered_item = {}
                 
                 # Process columns in BOQ table order
+                if request.get("include_submitted_to_supervisor"):
+                    filtered_item["submitted_to_supervisor"] = bool(item.submitted_to_supervisor)
+                if request.get("include_submitted_to_supervisor_date"):
+                    filtered_item["submitted_to_supervisor_date"] = item.submitted_to_supervisor_date or ""
                 if request.get("include_serial_number"):
                     filtered_item["serial_number"] = item.serial_number
                 if request.get("include_structure"):

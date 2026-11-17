@@ -40,6 +40,8 @@ def _patch_openpyxl_custom_filters() -> None:
 
 # BOQ export: columns that must stay as text in Excel (not coerced to numeric).
 _BOQ_TEXT_COLUMNS = frozenset({
+    "submitted_to_supervisor",
+    "submitted_to_supervisor_date",
     "section_number",
     "description",
     "unit",
@@ -86,6 +88,8 @@ def _boq_excel_number_format(column_name: str) -> str:
 
 _BOQ_HEADER_TRANSLATIONS = {
     "en": {
+        "submitted_to_supervisor": "Submitted Increase/Decrease",
+        "submitted_to_supervisor_date": "Submitted date Increase/Decrease",
         "serial_number": "Serial Number",
         "structure": "Structure",
         "system": "System",
@@ -114,6 +118,8 @@ _BOQ_HEADER_TRANSLATIONS = {
         "overrun_invoice_no": "Invoice No. over contract",
     },
     "he": {
+        "submitted_to_supervisor": "הוגש הגדלה/הקטנה",
+        "submitted_to_supervisor_date": "תאריך הגשה הגדלה/הקטנה",
         "serial_number": "מספר סידורי",
         "structure": "מבנה",
         "system": "מערכת",
@@ -160,6 +166,15 @@ def _contract_update_sum_label(update, language="en") -> str:
     if language == "he":
         return f'סה"כ חוזה מעודכן מס\' {n}'
     return f"Updated Contract Sum {n}"
+
+
+def _submitted_flag_label(value, language="en"):
+    """Yes/No label for the Submitted Increase/Decrease checkbox."""
+    yes = "כן" if language == "he" else "Yes"
+    no = "לא" if language == "he" else "No"
+    if value in (True, 1, "1", "true", "True", "yes", "Yes", "כן"):
+        return yes
+    return no
 
 
 def _boq_header_label(key, language="en", contract_updates_by_id=None):
@@ -1259,9 +1274,25 @@ class ExcelService:
             
             if not items:
                 raise ValueError("No data to export")
+
+            normalized_items = []
+            for item in items:
+                row = dict(item)
+                if "submitted_to_supervisor" in row:
+                    row["submitted_to_supervisor"] = _submitted_flag_label(
+                        row.get("submitted_to_supervisor"), language
+                    )
+                if "submitted_to_supervisor_date" in row:
+                    date_value = row.get("submitted_to_supervisor_date")
+                    row["submitted_to_supervisor_date"] = (
+                        "" if date_value in (None, "") else str(date_value)
+                    )
+                normalized_items.append(row)
+            items = normalized_items
             
             # Define column order to match BOQ table order
             all_possible_headers = [
+                'submitted_to_supervisor', 'submitted_to_supervisor_date',
                 'serial_number', 'structure', 'system', 'section_number', 'description', 'unit',
                 'price', 'original_contract_quantity', 'total_contract_sum'
             ]

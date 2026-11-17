@@ -1859,6 +1859,13 @@ const BOQItems: React.FC = () => {
           boq_item_id: item.id,
         };
 
+        if (request.include_submitted_to_supervisor)
+          filteredItem.submitted_to_supervisor = Boolean(
+            item.submitted_to_supervisor
+          );
+        if (request.include_submitted_to_supervisor_date)
+          filteredItem.submitted_to_supervisor_date =
+            item.submitted_to_supervisor_date || "";
         if (request.include_serial_number)
           filteredItem.serial_number =
             serialNumberById.get(item.id) ?? item.serial_number;
