@@ -67,6 +67,10 @@ def test_new_project_gets_only_non_boq_rows_of_mixed_sheets():
     assert item.structure == 99
     assert item.system == "Sheet CS-1"
     assert item.unit == 'מ"ר'
+    assert item.original_contract_quantity == 0
+    assert item.total_contract_sum == 0
+    assert item.estimated_quantity == 3.0
+    assert item.total_estimate == 120.0
 
     concentration = target.query(models.ConcentrationEntry).all()
     assert len(concentration) == 1
@@ -125,6 +129,10 @@ def test_add_to_existing_project_appends_items_and_merges_sheets():
     assert items[1].serial_number == 2
     assert items[1].structure == 99
     assert items[1].system == "Sheet CS-1"
+    assert items[1].original_contract_quantity == 0
+    assert items[1].total_contract_sum == 0
+    assert items[1].estimated_quantity == 5.5
+    assert items[1].total_estimate == 55.0
 
     sheets = {
         sheet.calculation_sheet_no: sheet

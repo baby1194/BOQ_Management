@@ -213,12 +213,14 @@ def _add_boq_items(
             section_number=row["section_number"],
             description=row["description"],
             unit=row["unit"],
-            original_contract_quantity=row["quantity"],
+            # A subproject has no contract quantity until someone enters one.
+            # The calculation-sheet amount belongs in estimated quantity only.
+            original_contract_quantity=0.0,
             price=row["price"],
             submitted_price=row["price"],
             structure=EXCEPTIONAL_STRUCTURE,
             system=systems.get(row["section_number"]) or None,
-            total_contract_sum=row["total"],
+            total_contract_sum=0.0,
             estimated_quantity=row["quantity"],
             total_estimate=row["total"],
             notes=IMPORT_NOTE,
