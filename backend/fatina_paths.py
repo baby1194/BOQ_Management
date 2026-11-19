@@ -296,6 +296,70 @@ def fatina_calculation_sheet_dir(section_number: str, calculation_sheet_no: str)
     return fatina_section_dir(section_number) / sanitize_folder_name(calculation_sheet_no)
 
 
+def _workbook_in_dir(folder: Path, file_name: str) -> Path | None:
+    """The calculation-sheet workbook in this folder, when it is already there."""
+    if not folder.is_dir():
+        return None
+    wanted = Path(file_name or "").name
+    if not wanted:
+        return None
+    direct = folder / wanted
+    if direct.is_file():
+        return direct
+    wanted_lower = wanted.lower()
+    for child in folder.iterdir():
+        if child.is_file() and child.name.lower() == wanted_lower:
+            return child
+    return None
+
+
+def existing_workbook_pdf_destinations(
+    section_numbers,
+    calculation_sheet_no: str,
+    file_name: str,
+    fatina_root: Path | None = None,
+    invoice_root: Path | None = None,
+) -> list[Path]:
+    """PDF paths beside a workbook that is already in Fatina or Fatina Invoice.
+
+    A folder with no workbook is skipped. Invoice period folders count when
+    they already hold this workbook.
+    """
+    sheet_no = sanitize_folder_name(str(calculation_sheet_no or "").strip())
+    fatina = Path(fatina_root) if fatina_root is not None else FATINA_BASE_DIR
+    invoice = Path(invoice_root) if invoice_root is not None else fatina_invoice_root(fatina)
+    destinations: list[Path] = []
+    seen = set()
+
+    def consider(folder: Path) -> None:
+        workbook = _workbook_in_dir(folder, file_name)
+        if workbook is None:
+            return
+        dest = workbook.with_suffix(".pdf")
+        key = str(dest).lower()
+        if key in seen:
+            return
+        seen.add(key)
+        destinations.append(dest)
+
+    for section in section_numbers:
+        section_name = sanitize_folder_name(str(section or "").strip())
+        if not section_name or not sheet_no:
+            continue
+        consider(fatina / section_name / sheet_no)
+        section_invoice = invoice / section_name
+        consider(section_invoice / sheet_no)
+        if not section_invoice.is_dir():
+            continue
+        for child in section_invoice.iterdir():
+            if not child.is_dir():
+                continue
+            if child.name == sheet_no or child.name.endswith("_m"):
+                consider(child)
+                consider(child / sheet_no)
+    return destinations
+
+
 def calculation_sheet_pdf_destinations(
     section_numbers,
     calculation_sheet_no: str,

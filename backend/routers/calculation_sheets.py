@@ -181,9 +181,9 @@ def _concentration_sections_by_calc_sheet(db: Session) -> dict:
 def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
     """Print the calculation sheets that exist in this project.
 
-    Each PDF is copied into C:/Fatina/{section}/{calculation sheet no}/ for
-    every concentration sheet that uses it. Files left in the Fatina folders
-    from sheets deleted in the project are not printed.
+    Each PDF is copied next to the calculation-sheet workbook where that workbook
+    already exists under C:/Fatina and C:/Fatina Invoice. A folder without the
+    workbook is left unchanged.
 
     This stays a normal function so FastAPI runs it on a worker thread. An async
     endpoint would read the workbooks on the event loop and freeze every other
@@ -191,7 +191,7 @@ def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
     """
     from pathlib import Path
 
-    from fatina_paths import calculation_sheet_pdf_destinations
+    from fatina_paths import existing_workbook_pdf_destinations
     from services.sheet_print import publish_sheet_pdf
 
     orientation = body.get("orientation") or "landscape"
@@ -259,11 +259,19 @@ def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
                 logger.error(message)
                 errors.append(message)
                 continue
-            destinations = calculation_sheet_pdf_destinations(
+            destinations = existing_workbook_pdf_destinations(
                 job["sections"],
                 job["number"],
                 job["file_name"] or workbook.name,
             )
+            if not destinations:
+                message = (
+                    f"{number}: the workbook is not in a Fatina or "
+                    "Fatina Invoice calculation-sheet folder"
+                )
+                logger.error(message)
+                errors.append(message)
+                continue
             try:
                 written = publish_sheet_pdf(
                     workbook,

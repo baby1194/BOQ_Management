@@ -732,18 +732,36 @@ def _heights_that_fit(heights: List[float], repeat_rows: int, frame_height: floa
     return heights
 
 
+def measurement_content_height(row: List[str], line_height: float) -> float:
+    """One line when the text fits, taller when a cell has wrapped onto more lines."""
+    lines = 1
+    for text in row:
+        if text:
+            lines = max(lines, str(text).count("\n") + 1)
+    if lines <= 1:
+        return float(line_height)
+    leading = max(float(line_height) - 2, 1.0)
+    return lines * leading + 2
+
+
 def fit_print_row_heights(
     heights: List[float],
     repeat_rows: int,
     frame_height: float,
     line_height: float,
+    rows: Optional[List[List[str]]] = None,
 ) -> List[float]:
-    """Keep the column-title row, and give each measurement line a one-line height."""
+    """Keep the column-title row. Measurement rows stay one line unless text wraps."""
     heights = [float(height or 15.0) for height in heights]
     repeat = min(max(repeat_rows, 0), len(heights))
     if repeat and repeat < len(heights):
         heights = [
-            height if index < repeat else float(line_height)
+            height
+            if index < repeat
+            else measurement_content_height(
+                rows[index] if rows and index < len(rows) else [],
+                line_height,
+            )
             for index, height in enumerate(heights)
         ]
     return _heights_that_fit(heights, repeat_rows, frame_height)
@@ -917,7 +935,9 @@ def write_sheet_pdf(
     )
     before = [float(height or 15.0) for height in (grid.row_heights or [15.0] * len(grid.rows))]
     one_line = font_size * 1.2 + 2
-    heights = fit_print_row_heights(before, grid.repeat_rows, frame_height, one_line)
+    heights = fit_print_row_heights(
+        before, grid.repeat_rows, frame_height, one_line, grid.rows
+    )
     row_scale = []
     for index, (old, new) in enumerate(zip(before, heights)):
         if grid.repeat_rows and index >= grid.repeat_rows:
@@ -930,7 +950,8 @@ def write_sheet_pdf(
         line = drawn * 1.2 + 2
         for index in range(grid.repeat_rows, len(heights)):
             row_scale[index] = data_factor
-            heights[index] = line
+            row = grid.rows[index] if index < len(grid.rows) else []
+            heights[index] = measurement_content_height(row, line)
     sizes = [
         (cell, size * row_scale[cell[1]] if cell[1] < len(row_scale) else size)
         for cell, size in sizes

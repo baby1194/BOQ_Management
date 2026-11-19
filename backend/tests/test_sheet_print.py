@@ -232,6 +232,13 @@ def test_measurement_font_matches_the_title_scale():
     assert abs(_title_font_scale(before, heights, 27) - 0.5) < 0.001
 
 
+def test_a_wrapped_measurement_row_grows_to_fit():
+    from services.sheet_print import measurement_content_height
+
+    assert measurement_content_height(["5.04", "L"], 11.6) == 11.6
+    assert measurement_content_height(["תא\nניקוד\nמשולב"], 11.6) == 3 * 9.6 + 2
+
+
 def test_measurement_lines_are_one_row_tall():
     from services.sheet_print import fit_print_row_heights
 
@@ -334,6 +341,42 @@ def test_print_stops_before_a_phantom_millionth_row(tmp_path):
     assert loaded is not None
     assert all("999" not in row for row in grid.rows)
     assert any("09" in row for row in grid.rows)
+
+
+def test_pdf_is_copied_only_beside_an_existing_workbook(tmp_path):
+    from fatina_paths import existing_workbook_pdf_destinations
+
+    fatina = tmp_path / "Fatina"
+    invoice = tmp_path / "Fatina Invoice"
+    present = fatina / "01.02" / "12"
+    present.mkdir(parents=True)
+    (present / "12.xlsx").write_bytes(b"x")
+    missing = fatina / "08.10" / "12"
+    missing.mkdir(parents=True)
+    invoice_sheet = invoice / "01.02" / "12"
+    invoice_sheet.mkdir(parents=True)
+    (invoice_sheet / "12.xlsx").write_bytes(b"x")
+    invoice_hit = invoice / "01.02" / "05_m"
+    invoice_hit.mkdir(parents=True)
+    (invoice_hit / "12.xlsx").write_bytes(b"x")
+    invoice_miss = invoice / "01.02" / "06_m"
+    invoice_miss.mkdir(parents=True)
+
+    destinations = existing_workbook_pdf_destinations(
+        ["01.02", "08.10"],
+        "12",
+        "12.xlsx",
+        fatina_root=fatina,
+        invoice_root=invoice,
+    )
+
+    assert {path.as_posix() for path in destinations} == {
+        (present / "12.pdf").as_posix(),
+        (invoice_sheet / "12.pdf").as_posix(),
+        (invoice_hit / "12.pdf").as_posix(),
+    }
+    assert not (missing / "12.pdf").exists()
+    assert not (invoice_miss / "12.pdf").exists()
 
 
 def test_pdf_destinations_follow_the_concentration_items():

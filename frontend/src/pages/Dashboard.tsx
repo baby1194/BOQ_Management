@@ -221,25 +221,17 @@ const Dashboard: React.FC = () => {
     const totalCalculationSheets =
       calculationSheets.length + (linked?.calculation_count || 0);
 
-    // Financial totals include linked subprojects. Their BOQ rows are the
-    // exception items after they leave this project, at the amounts saved there.
-    const totalContractValue =
-      boqItems.reduce((sum, item) => sum + (item.total_contract_sum || 0), 0) +
-      (linked?.total_contract || 0);
-    const totalEstimateValue =
-      boqItems.reduce((sum, item) => sum + (item.total_estimate || 0), 0) +
-      (linked?.total_estimate || 0);
-    const totalSubmittedValue =
-      boqItems.reduce((sum, item) => sum + (item.total_submitted || 0), 0) +
-      (linked?.total_submitted || 0);
-    const totalInternalValue =
-      boqItems.reduce((sum, item) => sum + (item.internal_total || 0), 0) +
-      (linked?.total_internal || 0);
-    const totalApprovedValue =
-      boqItems.reduce(
-        (sum, item) => sum + (item.approved_signed_total || 0),
-        0,
-      ) + (linked?.total_approved || 0);
+    // Net totals are this project's contract items only.
+    // Exceptions still on this project, and the live BOQ of linked subprojects,
+    // belong on the "including exceptions" line — not in the headline.
+    const sumItems = (pick: (item: BOQItem) => number) =>
+      boqItems.reduce((sum, item) => sum + (pick(item) || 0), 0);
+
+    const totalContractValue = sumItems((item) => item.total_contract_sum);
+    const totalEstimateValue = sumItems((item) => item.total_estimate);
+    const totalSubmittedValue = sumItems((item) => item.total_submitted);
+    const totalInternalValue = sumItems((item) => item.internal_total);
+    const totalApprovedValue = sumItems((item) => item.approved_signed_total);
 
     // Variances
     const estimateVariance = totalEstimateValue - totalContractValue;
@@ -325,9 +317,15 @@ const Dashboard: React.FC = () => {
       submittedOfEstimated,
       approvedOfSubmitted,
       totalEstimateIncludingExceptions:
-        totalEstimateValue + exceptionEstimateValue,
+        totalEstimateValue +
+        exceptionEstimateValue +
+        (linked?.total_estimate || 0),
       totalSubmittedIncludingExceptions:
-        totalSubmittedValue + exceptionSubmittedValue,
+        totalSubmittedValue +
+        exceptionSubmittedValue +
+        (linked?.total_submitted || 0),
+      totalApprovedIncludingExceptions:
+        totalApprovedValue + (linked?.total_approved || 0),
       subprojectCount: linkedIds.size,
     };
   };
@@ -524,9 +522,7 @@ const Dashboard: React.FC = () => {
       icon: DollarSign,
       color: "bg-yellow-500",
       change: null,
-      description: linkedProjectsNote
-        ? `${t("dashboard.totalContractValue")} · ${linkedProjectsNote}`
-        : t("dashboard.totalContractValue"),
+      description: t("dashboard.totalContractValue"),
     },
   ];
 
@@ -535,6 +531,7 @@ const Dashboard: React.FC = () => {
     {
       name: t("dashboard.totalEstimate"),
       value: formatCurrency(stats.totalEstimateValue || 0),
+      rawValue: stats.totalEstimateValue || 0,
       change: formatCurrency(Math.abs(stats.estimateVariance || 0)),
       changeType: (stats.estimateVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.estimateProgress || 0,
@@ -545,6 +542,7 @@ const Dashboard: React.FC = () => {
     {
       name: t("dashboard.totalSubmitted"),
       value: formatCurrency(stats.totalSubmittedValue || 0),
+      rawValue: stats.totalSubmittedValue || 0,
       change: formatCurrency(Math.abs(stats.submittedVariance || 0)),
       changeType: (stats.submittedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.submittedProgress || 0,
@@ -555,10 +553,13 @@ const Dashboard: React.FC = () => {
     {
       name: t("dashboard.totalApproved"),
       value: formatCurrency(stats.totalApprovedValue || 0),
+      rawValue: stats.totalApprovedValue || 0,
       change: formatCurrency(Math.abs(stats.approvedVariance || 0)),
       changeType: (stats.approvedVariance || 0) >= 0 ? "positive" : "negative",
       progress: stats.approvedProgress || 0,
       icon: CheckCircle,
+      includingExceptions: stats.totalApprovedIncludingExceptions || 0,
+      includingExceptionsLabel: t("dashboard.totalApprovedIncludingExceptions"),
     },
   ];
 
@@ -765,6 +766,9 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {financialMetrics.map((metric) => {
           const Icon = metric.icon;
+          const including =
+            "includingExceptions" in metric ? metric.includingExceptions || 0 : 0;
+          const showIncluding = Math.abs(including - metric.rawValue) > 0.005;
           return (
             <div key={metric.name} className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
@@ -795,28 +799,17 @@ const Dashboard: React.FC = () => {
               </div>
               <p
                 className={`text-3xl font-bold text-gray-900 ${
-                  ("includingExceptionsLabel" in metric &&
-                    metric.includingExceptionsLabel) ||
-                  linkedProjectsNote
-                    ? "mb-2"
-                    : "mb-4"
+                  showIncluding ? "mb-2" : "mb-4"
                 }`}
               >
                 {metric.value}
               </p>
-              {"includingExceptionsLabel" in metric &&
-                metric.includingExceptionsLabel && (
-                <p
-                  className={`text-sm text-gray-600 ${
-                    linkedProjectsNote ? "mb-2" : "mb-4"
-                  }`}
-                >
+              {showIncluding && "includingExceptionsLabel" in metric && (
+                <p className="text-sm text-gray-600 mb-4">
                   {metric.includingExceptionsLabel}:{" "}
-                  {formatCurrency(metric.includingExceptions || 0)}
+                  {formatCurrency(including)}
+                  {linkedProjectsNote ? ` · ${linkedProjectsNote}` : ""}
                 </p>
-              )}
-              {linkedProjectsNote && (
-                <p className="text-xs text-gray-500 mb-4">{linkedProjectsNote}</p>
               )}
 
               {/* Progress bar */}
