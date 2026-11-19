@@ -360,6 +360,96 @@ def compute_submission_percentage(
     return 100.0
 
 
+def percentages_differ(left: Optional[float], right: Optional[float]) -> bool:
+    """True when two stored percentages are not the same rate."""
+    if left is None and right is None:
+        return False
+    if left is None or right is None:
+        return True
+    return abs(float(left) - float(right)) > 1e-4
+
+
+def write_current_submission_percentage(entry, percentage: float) -> None:
+    """Store a submission percentage on the entry and on its current invoice.
+
+    Approved quantity and drawings live in the same period record. Only the
+    percentage is replaced, so those fields stay put.
+    """
+    entry.submission_percentage = percentage
+    period = resolve_entry_current_period(entry)
+    if not period:
+        return
+    breakdown = getattr(entry, "submission_breakdown", None)
+    if not isinstance(breakdown, dict):
+        return
+    details = breakdown.get("period_details")
+    if isinstance(details, dict) and period in details:
+        set_period_detail_fields(
+            entry, period, {"submission_percentage": percentage}
+        )
+
+
+def align_auto_submission_percentage(entry) -> None:
+    """Make a calc-synced row's percentage match its submitted quantity.
+
+    The quantity comes from the calculation sheet. A stored 0% or 100% left
+    over from an earlier sync must not be treated as an instruction to
+    rebuild that quantity.
+    """
+    if getattr(entry, "is_manual", False):
+        return
+    estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
+    if estimated <= 0:
+        return
+    submitted = float(getattr(entry, "quantity_submitted", 0) or 0)
+    derived = compute_submission_percentage(estimated, submitted)
+    if not percentages_differ(getattr(entry, "submission_percentage", None), derived):
+        return
+    write_current_submission_percentage(entry, derived)
+
+
+def apply_edited_submission_quantity(
+    entry,
+    *,
+    editing_current_period: bool,
+    estimated_in_update: bool,
+    percentage_in_update: bool,
+    old_estimated: float,
+    old_percentage: Optional[float],
+) -> None:
+    """Keep submitted quantity unless this edit changed its inputs.
+
+    The edit form resends the current percentage with every approved-quantity
+    save. That resend is not a change. Submitted quantity is rebuilt only when
+    the estimate or the percentage itself moved. On a calc-synced row, a
+    percentage that no longer matches the quantity is corrected in place.
+    """
+    if not editing_current_period:
+        return
+
+    from utils.quantity_utils import round_quantity
+
+    estimated_changed = estimated_in_update and round_quantity(
+        old_estimated or 0
+    ) != round_quantity(getattr(entry, "estimated_quantity", 0) or 0)
+    percentage_changed = percentage_in_update and percentages_differ(
+        old_percentage, getattr(entry, "submission_percentage", None)
+    )
+    estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
+    if estimated_changed and estimated <= 0:
+        entry.quantity_submitted = 0.0
+        return
+    if estimated_changed or percentage_changed:
+        if estimated > 0:
+            percentage = getattr(entry, "submission_percentage", None)
+            entry.quantity_submitted = compute_quantity_submitted(
+                estimated,
+                100.0 if percentage is None else percentage,
+            )
+        return
+    align_auto_submission_percentage(entry)
+
+
 def apply_calculation_entry_quantities(
     concentration_entry, calc_entry, *, drawing_no: str | None = None
 ) -> None:
@@ -368,11 +458,10 @@ def apply_calculation_entry_quantities(
 
     estimated = round_quantity(calc_entry.estimated_quantity)
     submitted = round_quantity(calc_entry.quantity_submitted)
+    synced_percentage = compute_submission_percentage(estimated, submitted)
     concentration_entry.estimated_quantity = estimated
     concentration_entry.quantity_submitted = submitted
-    concentration_entry.submission_percentage = compute_submission_percentage(
-        estimated, submitted
-    )
+    concentration_entry.submission_percentage = synced_percentage
     old_breakdown = getattr(concentration_entry, "submission_breakdown", None)
     outgoing_period = (
         str(getattr(concentration_entry, "drawing_no", "") or "").strip()
@@ -391,6 +480,10 @@ def apply_calculation_entry_quantities(
     if drawing_no is not None:
         concentration_entry.drawing_no = drawing_no
     migrate_entry_period_details(concentration_entry)
+    # Period details survive a track, including a 0% written when the sheet
+    # was not submitted. Put the percentage just taken from the calc sheet
+    # on the current invoice before those details are copied back.
+    write_current_submission_percentage(concentration_entry, synced_percentage)
     apply_current_period_to_entry_fields(concentration_entry)
 
 
@@ -515,8 +608,9 @@ def sync_calc_entry_to_concentration(
             )
             if not submitted and carried_submitted > 0:
                 concentration_entry.quantity_submitted = carried_submitted
-                concentration_entry.submission_percentage = (
-                    compute_submission_percentage(estimated, carried_submitted)
+                write_current_submission_percentage(
+                    concentration_entry,
+                    compute_submission_percentage(estimated, carried_submitted),
                 )
             invoice_description = (
                 getattr(calc_entry, "invoice_description", None) or None

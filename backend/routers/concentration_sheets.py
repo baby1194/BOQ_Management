@@ -21,6 +21,7 @@ from services.calculation_sheet_sync import (
     merge_push_results,
 )
 from utils.concentration_utils import (
+    apply_edited_submission_quantity,
     compute_quantity_submitted,
     entry_cumulative_submitted,
     remove_orphan_concentration_entries,
@@ -759,8 +760,12 @@ async def update_concentration_entry(
         update_data = entry_update.dict(exclude_unset=True)
         update_data.pop("quantity_submitted", None)
         invoice_no = (update_data.pop("invoice_no", None) or "").strip() or None
+        percentage_in_update = "submission_percentage" in update_data
+        estimated_in_update = "estimated_quantity" in update_data
 
         _hydrate_entry_response(db_entry)
+        old_estimated = db_entry.estimated_quantity
+        old_percentage = db_entry.submission_percentage
         breakdown = (
             db_entry.submission_breakdown
             if isinstance(db_entry.submission_breakdown, dict)
@@ -815,17 +820,19 @@ async def update_concentration_entry(
                 value = round_quantity(value)
             setattr(db_entry, field, value)
 
-        should_sync_qty = (
-            db_entry.is_manual
-            or "submission_percentage" in period_updates
-            or "submission_percentage" in update_data
-        )
-        if should_sync_qty and (
+        editing_current_period = (
             not has_period_storage
             or not target_period
             or target_period == resolve_entry_current_period(db_entry)
-        ):
-            _sync_quantity_submitted(db_entry)
+        )
+        apply_edited_submission_quantity(
+            db_entry,
+            editing_current_period=editing_current_period,
+            estimated_in_update=estimated_in_update,
+            percentage_in_update=percentage_in_update,
+            old_estimated=old_estimated,
+            old_percentage=old_percentage,
+        )
         
         db.commit()
         db.refresh(db_entry)

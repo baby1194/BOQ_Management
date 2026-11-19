@@ -64,6 +64,7 @@ import {
   getCurrentPeriodFields,
   getPeriodDetail,
   getPeriodDrawingFiles,
+  periodSubmissionPercentage,
   resolveCurrentPeriod,
 } from "../utils/periodDetails";
 import {
@@ -137,6 +138,14 @@ function computeQuantitySubmitted(
   submissionPercentage: number
 ): number {
   return estimatedQuantity * (submissionPercentage / 100);
+}
+
+/** Resending an unchanged percentage makes the server rebuild submitted qty. */
+function submissionPercentageIfChanged(
+  original: number,
+  current: number
+): number | undefined {
+  return current === original ? undefined : current;
 }
 
 function drawingFileName(path: string): string {
@@ -1132,9 +1141,29 @@ const ConcentrationSheets: React.FC = () => {
     if (!periodEdit) return;
     try {
       setSaving(true);
+      const entry = entries.find((item) => item.id === periodEdit.entryId);
+      const breakdown = entry?.submission_breakdown;
+      const periodQty =
+        entry &&
+        periodEdit.period === resolveCurrentPeriod(entry, breakdown)
+          ? entry.quantity_submitted || 0
+          : breakdown?.periods?.[periodEdit.period] ||
+            breakdown?.past_months?.[periodEdit.period] ||
+            0;
+      const originalPercentage = entry
+        ? periodSubmissionPercentage(
+            entry,
+            breakdown,
+            periodEdit.period,
+            periodQty
+          )
+        : periodEdit.draft.submission_percentage;
       const updatedEntry = await concentrationApi.updateEntry(periodEdit.entryId, {
         invoice_no: periodEdit.period,
-        submission_percentage: periodEdit.draft.submission_percentage,
+        submission_percentage: submissionPercentageIfChanged(
+          originalPercentage,
+          periodEdit.draft.submission_percentage
+        ),
         internal_quantity: numberDraftToValue(
           periodEdit.draft.internal_quantity
         ),
@@ -1173,7 +1202,10 @@ const ConcentrationSheets: React.FC = () => {
     );
     const periodFields = {
       invoice_no: invoiceNo || undefined,
-      submission_percentage: editDraft.submission_percentage,
+      submission_percentage: submissionPercentageIfChanged(
+        getCurrentPeriodFields(editingEntry).submission_percentage,
+        editDraft.submission_percentage
+      ),
       internal_quantity: numberDraftToValue(editDraft.internal_quantity),
       approved_by_project_manager: numberDraftToValue(
         editDraft.approved_by_project_manager
