@@ -19,10 +19,18 @@ from openpyxl.worksheet.worksheet import Worksheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
-from reportlab.lib.utils import simpleSplit
+from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Table, TableStyle
+from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
+    Image,
+    PageBreak,
+    PageTemplate,
+    Table,
+    TableStyle,
+)
 
 CALCULATION_SHEET_NAME = "Calculation"
 _FONT_NAME = "SheetPrintHebrew"
@@ -891,6 +899,128 @@ def cell_alignment(grid: PrintGrid) -> str:
     return "CENTER"
 
 
+def _zip_target(base: str, target: str) -> str:
+    """Resolve a workbook relationship target against the file that owns it."""
+    if target.startswith("/"):
+        return target.lstrip("/")
+    parent = base.rsplit("/", 1)[0] if "/" in base else ""
+    parts: List[str] = []
+    for piece in f"{parent}/{target}".split("/"):
+        if piece == "..":
+            if parts:
+                parts.pop()
+        elif piece and piece != ".":
+            parts.append(piece)
+    return "/".join(parts)
+
+
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def sheet_pictures(path: Path, sheet_name: str) -> List[bytes]:
+    """Pictures on the calculation sheet, from the top of the sheet downward.
+
+    A screenshot pasted into the workbook is stored beside the cells. The PDF
+    prints the grid first and then these pictures, one after another.
+    """
+    book = None
+    try:
+        book = zipfile.ZipFile(path)
+    except (OSError, zipfile.BadZipFile):
+        return []
+    names = set(book.namelist())
+    try:
+        workbook_xml = ET.fromstring(book.read("xl/workbook.xml"))
+        sheets = workbook_xml.find(f"{_MAIN_NS}sheets")
+        relation_id = None
+        for sheet in list(sheets) if sheets is not None else []:
+            if sheet.attrib.get("name") == sheet_name:
+                relation_id = sheet.attrib.get(f"{_OFFICE_REL_NS}id")
+                break
+        if not relation_id or "xl/_rels/workbook.xml.rels" not in names:
+            return []
+        rels = ET.fromstring(book.read("xl/_rels/workbook.xml.rels"))
+        sheet_target = None
+        for rel in rels.findall(f"{_PKG_REL_NS}Relationship"):
+            if rel.attrib.get("Id") == relation_id:
+                sheet_target = rel.attrib.get("Target") or ""
+                break
+        if not sheet_target:
+            return []
+        sheet_path = _zip_target("xl/workbook.xml", sheet_target)
+        rels_path = sheet_path.rsplit("/", 1)[0] + "/_rels/" + sheet_path.rsplit("/", 1)[-1] + ".rels"
+        if rels_path not in names:
+            return []
+        drawing_paths = []
+        for rel in ET.fromstring(book.read(rels_path)).findall(f"{_PKG_REL_NS}Relationship"):
+            kind = rel.attrib.get("Type") or ""
+            if not kind.endswith("/drawing"):
+                continue
+            drawing_paths.append(_zip_target(sheet_path, rel.attrib.get("Target") or ""))
+        pictures = []
+        for drawing_path in drawing_paths:
+            if drawing_path not in names:
+                continue
+            drawing_rels = drawing_path.rsplit("/", 1)[0] + "/_rels/" + drawing_path.rsplit("/", 1)[-1] + ".rels"
+            media = {}
+            if drawing_rels in names:
+                for rel in ET.fromstring(book.read(drawing_rels)).findall(f"{_PKG_REL_NS}Relationship"):
+                    media[rel.attrib.get("Id")] = _zip_target(
+                        drawing_path, rel.attrib.get("Target") or ""
+                    )
+            root = ET.fromstring(book.read(drawing_path))
+            for anchor in root.iter():
+                if _local_name(anchor.tag) not in ("twoCellAnchor", "oneCellAnchor", "absoluteAnchor"):
+                    continue
+                row_number = 10**9
+                column_number = 0
+                for child in anchor:
+                    if _local_name(child.tag) != "from":
+                        continue
+                    for part in child:
+                        name = _local_name(part.tag)
+                        if name == "row" and part.text and part.text.isdigit():
+                            row_number = int(part.text)
+                        elif name == "col" and part.text and part.text.isdigit():
+                            column_number = int(part.text)
+                embed = None
+                for node in anchor.iter():
+                    if _local_name(node.tag) != "blip":
+                        continue
+                    for key, value in node.attrib.items():
+                        if key == "embed" or key.endswith("}embed"):
+                            embed = value
+                            break
+                if not embed or embed not in media or media[embed] not in names:
+                    continue
+                pictures.append((row_number, column_number, len(pictures), media[embed]))
+        pictures.sort()
+        return [book.read(item[3]) for item in pictures]
+    except (KeyError, ET.ParseError, OSError):
+        logger.exception("Could not read pictures from %s", path)
+        return []
+    finally:
+        book.close()
+
+
+def _picture_flowable(blob: bytes, max_width: float, max_height: float):
+    """One picture fitted on a page, keeping its shape."""
+    stream = io.BytesIO(blob)
+    try:
+        width, height = ImageReader(stream).getSize()
+    except Exception:
+        logger.warning("Skipped a calculation-sheet picture that could not be read")
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    scale = min(max_width / float(width), max_height / float(height))
+    stream.seek(0)
+    picture = Image(stream, width=width * scale, height=height * scale)
+    picture.hAlign = "CENTER"
+    return picture
+
+
 def _ensure_font() -> str:
     if _FONT_NAME in pdfmetrics.getRegisteredFontNames():
         return _FONT_NAME
@@ -1008,7 +1138,14 @@ def write_sheet_pdf(
         hAlign="RIGHT" if grid.right_to_left else "LEFT",
     )
     table.setStyle(TableStyle(style))
-    document.build([table])
+    story = [table]
+    for blob in sheet_pictures(workbook, info["sheet"]):
+        picture = _picture_flowable(blob, usable, frame_height)
+        if picture is None:
+            continue
+        story.append(PageBreak())
+        story.append(picture)
+    document.build(story)
     logger.info(
         "Wrote %s in %.2fs",
         destination,

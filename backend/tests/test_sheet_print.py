@@ -19,6 +19,7 @@ from services.sheet_print import (
     pdf_beside_workbook,
     print_workbooks,
     publish_sheet_pdf,
+    sheet_pictures,
 )
 
 
@@ -426,6 +427,37 @@ def test_one_workbook_is_copied_into_each_item_folder(tmp_path):
     assert first.is_file()
     assert second.is_file()
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_pictures_are_added_one_per_page_at_the_end(tmp_path):
+    from openpyxl.drawing.image import Image as XLImage
+    from PIL import Image as PILImage
+    from pypdf import PdfReader
+
+    folder = tmp_path / "sheet"
+    folder.mkdir()
+    top = folder / "top.png"
+    bottom = folder / "bottom.png"
+    PILImage.new("RGB", (20, 10), "red").save(top)
+    PILImage.new("RGB", (10, 30), "blue").save(bottom)
+    book = Workbook()
+    ws = book.active
+    ws.title = "Calculation"
+    ws["A1"] = "grid"
+    ws.add_image(XLImage(str(bottom)), "B40")
+    ws.add_image(XLImage(str(top)), "B10")
+    workbook = folder / "sheet.xlsx"
+    book.save(workbook)
+    book.close()
+
+    pictures = sheet_pictures(workbook, "Calculation")
+    assert pictures == [top.read_bytes(), bottom.read_bytes()]
+
+    destination = folder / "sheet.pdf"
+    from services.sheet_print import write_sheet_pdf
+
+    write_sheet_pdf(workbook, destination)
+    assert len(PdfReader(str(destination)).pages) == 3
 
 
 def test_one_bad_workbook_does_not_stop_the_rest(tmp_path):
