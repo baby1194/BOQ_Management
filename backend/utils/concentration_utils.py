@@ -394,17 +394,52 @@ def apply_calculation_entry_quantities(
     apply_current_period_to_entry_fields(concentration_entry)
 
 
+def _clear_withdrawn_submission(breakdown):
+    """Drop submitted quantities left from an earlier version of the calc sheet.
+
+    Check quantities and the BOQ total read submission_breakdown period sums,
+    not quantity_submitted. Zeroing only the field leaves the old submission
+    in place. Drawings, notes, and invoice text stay on the period.
+    """
+    if not isinstance(breakdown, dict) or not breakdown:
+        return breakdown
+    cleared = dict(breakdown)
+    periods = cleared.get("periods")
+    if isinstance(periods, dict):
+        cleared["periods"] = {str(key): 0.0 for key in periods}
+    cleared["left_submitted"] = 0.0
+    details = cleared.get("period_details")
+    if isinstance(details, dict):
+        cleared_details = {}
+        for period, detail in details.items():
+            if isinstance(detail, dict):
+                updated = dict(detail)
+                # A stored 100% is copied back onto the row and then turned
+                # into submitted quantity = estimated quantity.
+                updated["submission_percentage"] = 0.0
+                cleared_details[period] = updated
+            else:
+                cleared_details[period] = detail
+        cleared["period_details"] = cleared_details
+    return cleared
+
+
 def apply_calculation_entry_estimated_only(
     concentration_entry, calc_entry
 ) -> None:
-    """Sync estimated quantity only; clear submitted fields (no invoice / not submitted)."""
+    """Sync estimated quantity only; clear every stored submitted quantity.
+
+    Invoice labels and PDF attachments stay. The user deletes those.
+    """
     from utils.quantity_utils import round_quantity
 
     estimated = round_quantity(calc_entry.estimated_quantity)
     concentration_entry.estimated_quantity = estimated
     concentration_entry.quantity_submitted = 0.0
     concentration_entry.submission_percentage = 0.0
-    # Keep invoice metadata and PDF attachments; the user deletes those.
+    concentration_entry.submission_breakdown = _clear_withdrawn_submission(
+        getattr(concentration_entry, "submission_breakdown", None)
+    )
 
 
 def sync_calc_entry_to_concentration(

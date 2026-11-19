@@ -500,30 +500,45 @@ def test_apply_current_period_keeps_existing_pdfs_when_detail_empty():
     assert entry.drawing_files == ["/tmp/keep.pdf"]
 
 
-def test_estimated_only_keeps_breakdown_and_drawings():
-    from utils.concentration_utils import apply_calculation_entry_estimated_only
+def test_estimated_only_clears_old_submission_and_keeps_drawings():
+    from utils.concentration_utils import (
+        apply_calculation_entry_estimated_only,
+        entry_cumulative_submitted,
+    )
 
     concentration_entry = SimpleNamespace(
-        estimated_quantity=10.0,
-        quantity_submitted=4.0,
-        submission_percentage=40.0,
-        drawing_no="06",
+        estimated_quantity=216.0,
+        quantity_submitted=216.0,
+        submission_percentage=100.0,
+        drawing_no="45/1X",
         invoice_description="work",
         drawing_files=["/tmp/keep.pdf"],
         submission_breakdown={
-            "current_drawing_no": "06",
-            "periods": {"06": 4.0},
+            "current_drawing_no": "45/1X",
+            "periods": {"45/1X": 83.0},
+            "left_submitted": 133.0,
             "period_details": {
-                "06": {"drawing_files": ["/tmp/keep.pdf"]},
+                "45/1X": {
+                    "drawing_files": ["/tmp/keep.pdf"],
+                    "notes": "keep",
+                    "submission_percentage": 100.0,
+                },
             },
         },
     )
-    calc_entry = SimpleNamespace(estimated_quantity=12.0, quantity_submitted=0.0)
+    calc_entry = SimpleNamespace(estimated_quantity=216.0, quantity_submitted=0.0)
     apply_calculation_entry_estimated_only(concentration_entry, calc_entry)
-    assert concentration_entry.estimated_quantity == 12.0
+    assert concentration_entry.estimated_quantity == 216.0
     assert concentration_entry.quantity_submitted == 0.0
-    assert concentration_entry.drawing_no == "06"
+    assert concentration_entry.submission_percentage == 0.0
+    assert concentration_entry.drawing_no == "45/1X"
     assert concentration_entry.invoice_description == "work"
     assert concentration_entry.drawing_files == ["/tmp/keep.pdf"]
-    assert concentration_entry.submission_breakdown["periods"]["06"] == 4.0
+    breakdown = concentration_entry.submission_breakdown
+    assert breakdown["periods"]["45/1X"] == 0.0
+    assert breakdown["left_submitted"] == 0.0
+    assert breakdown["period_details"]["45/1X"]["drawing_files"] == ["/tmp/keep.pdf"]
+    assert breakdown["period_details"]["45/1X"]["notes"] == "keep"
+    assert breakdown["period_details"]["45/1X"]["submission_percentage"] == 0.0
+    assert entry_cumulative_submitted(concentration_entry) == 0.0
 
