@@ -169,7 +169,7 @@ class ConcentrationEntryBase(BaseModel):
     drawing_no: Optional[str] = Field(None, max_length=100)
     invoice_description: Optional[str] = None
     estimated_quantity: float = Field(0.0, ge=0)
-    submission_percentage: float = Field(100.0, ge=0, le=100)
+    submission_percentage: float = Field(100.0, ge=0)
     quantity_submitted: float = Field(0.0, ge=0)
     submission_breakdown: Optional[Dict[str, Any]] = None
     internal_quantity: float = Field(0.0, ge=0)
@@ -206,7 +206,7 @@ class ConcentrationEntryUpdate(BaseModel):
     drawing_no: Optional[str] = Field(None, max_length=100)
     invoice_description: Optional[str] = None
     estimated_quantity: Optional[float] = Field(None, ge=0)
-    submission_percentage: Optional[float] = Field(None, ge=0, le=100)
+    submission_percentage: Optional[float] = Field(None, ge=0)
     quantity_submitted: Optional[float] = Field(None, ge=0)
     internal_quantity: Optional[float] = Field(None, ge=0)
     approved_by_project_manager: Optional[float] = Field(None, ge=0)

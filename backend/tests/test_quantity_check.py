@@ -128,6 +128,17 @@ def test_workbook_sums_detail_lines_and_ignores_row_24(tmp_path):
     }
 
 
+def test_submitted_total_keeps_formula_precision_until_the_sum():
+    rows = _grid()
+    rows[1][9] = "07"
+    rows[4][9] = "1.02.01.0693"
+    for offset, qty in ((0, 1.004), (1, 1.004), (2, 1.004)):
+        rows[27 + offset][1] = "V"
+        rows[27 + offset][8] = "07"
+        rows[27 + offset][9] = qty
+    assert submitted_totals_from_rows(rows) == {"1.02.01.0693": 3.01}
+
+
 def test_invoice_on_an_unmarked_line_is_not_submitted():
     rows = _grid()
     rows[1][9] = "08"

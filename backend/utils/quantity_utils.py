@@ -23,6 +23,22 @@ def _as_decimal(value: Any) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
 
 
+def raw_quantity(value: Any) -> Decimal:
+    """Cached sheet number with float dust removed, still unrounded.
+
+    Detail lines are added at this precision. Round the finished total once
+    with round_quantity, so a formula result of 1.004 is not stored as 1.00
+    before the addition.
+    """
+    try:
+        number = _as_decimal(value)
+        if not number.is_finite():
+            return Decimal("0")
+        return number
+    except (TypeError, ValueError, InvalidOperation, ArithmeticError):
+        return Decimal("0")
+
+
 def round_quantity(value: Any) -> float:
     """Round a quantity half-up to the standard two decimals.
 

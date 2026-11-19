@@ -10,7 +10,7 @@ import pandas as pd
 
 from decimal import Decimal
 
-from utils.quantity_utils import QUANTITY_DECIMALS, round_quantity
+from utils.quantity_utils import QUANTITY_DECIMALS, raw_quantity, round_quantity
 
 
 DETAIL_START_ROW = 27  # Excel row 28 (0-based)
@@ -415,6 +415,10 @@ def compute_submission_breakdown(
     counts only when column B (בוצע/טרם בוצע) is marked done. Every unique period
     for this item gets a row (0 when no qty). Rows that were not submitted
     accumulate into left_submitted.
+
+    Each detail line keeps the cached formula result. A period total and
+    left_submitted are rounded once after the lines are added, so Excel's SUM
+    of those formula results is what gets stored.
     """
     current_drawing_no = str(current_drawing_no or "").strip()
     period_col = period_column_index(col_index, item_count)
@@ -433,7 +437,7 @@ def compute_submission_breakdown(
         if col_index >= df.shape[1]:
             break
 
-        qty = Decimal(str(round_quantity(_safe_float(df.iloc[row_idx, col_index]))))
+        qty = raw_quantity(df.iloc[row_idx, col_index])
         raw_period = (
             df.iloc[row_idx, period_col] if 0 <= period_col < df.shape[1] else None
         )
@@ -452,8 +456,8 @@ def compute_submission_breakdown(
             # Unexpected period not seen in sheet scan; still count it.
             periods[period] = periods.get(period, Decimal("0")) + qty
 
-    periods = {key: float(val) for key, val in periods.items()}
-    left_submitted = float(left_submitted)
+    periods = {key: round_quantity(val) for key, val in periods.items()}
+    left_submitted = round_quantity(left_submitted)
     current_submitted = float(periods.get(current_drawing_no, 0.0) or 0.0)
 
     breakdown = {

@@ -187,7 +187,6 @@ export const ConcentrationBreakdownPastRows: React.FC<
                     type="number"
                     step="0.1"
                     min={0}
-                    max={100}
                     value={draft.submission_percentage}
                     onChange={(e) =>
                       onPeriodDraftChange({

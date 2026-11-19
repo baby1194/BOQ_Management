@@ -2804,19 +2804,14 @@ const ConcentrationSheets: React.FC = () => {
                                               type="number"
                                               step="0.1"
                                               min="0"
-                                              max="100"
                                               value={
                                                 editDraft.submission_percentage
                                               }
                                               onChange={(e) => {
-                                                const percentage = Math.min(
-                                                  100,
-                                                  Math.max(
-                                                    0,
-                                                    parseFloat(
-                                                      e.target.value
-                                                    ) || 0
-                                                  )
+                                                const percentage = Math.max(
+                                                  0,
+                                                  parseFloat(e.target.value) ||
+                                                    0
                                                 );
                                                 setEditDraft((d) =>
                                                   d
@@ -3430,12 +3425,11 @@ const EntryForm: React.FC<EntryFormProps> = ({
               type="number"
               step="0.1"
               min="0"
-              max="100"
               value={formData.submission_percentage}
               onChange={(e) =>
                 handleChange(
                   "submission_percentage",
-                  Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                  Math.max(0, parseFloat(e.target.value) || 0)
                 )
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

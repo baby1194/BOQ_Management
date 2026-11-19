@@ -102,10 +102,11 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
     from row 28 down is added only when that line was submitted: the invoice
     cell is filled, and on a multi-item sheet column B is marked done. A line
     with no invoice, an unmarked line, and the row 24 subtotal, are left out.
+    Lines keep the cached formula result. The section total is rounded once.
     """
     from decimal import Decimal
 
-    from utils.quantity_utils import round_quantity
+    from utils.quantity_utils import raw_quantity, round_quantity
 
     rows = rows or ()
     width = max((len(line or ()) for line in rows), default=0)
@@ -130,10 +131,15 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
             )
             if not invoice:
                 continue
-            quantity += Decimal(str(round_quantity(_cell(rows, excel_row, col))))
+            quantity += raw_quantity(_cell(rows, excel_row, col))
         if quantity:
             totals[section] = totals.get(section, Decimal("0")) + quantity
-    return {section: float(total) for section, total in totals.items()}
+    rounded_totals = {}
+    for section, total in totals.items():
+        rounded = round_quantity(total)
+        if rounded:
+            rounded_totals[section] = rounded
+    return rounded_totals
 
 
 def submitted_by_section_from_workbook(path: str) -> Dict[str, float]:

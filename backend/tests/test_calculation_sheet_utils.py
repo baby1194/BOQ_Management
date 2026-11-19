@@ -207,6 +207,39 @@ def test_detail_line_of_0_835_is_rounded_half_up_to_two_decimals():
     assert current == 0.84
 
 
+def test_detail_lines_are_summed_before_they_are_rounded():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    period_col = _period_col(col)
+    for row_idx, qty in ((27, 1.004), (28, 1.004), (29, 1.004)):
+        df.iloc[row_idx, period_col] = "10"
+        df.iloc[row_idx, col] = qty
+        _mark_done(df, row_idx)
+
+    entry_periods = collect_entry_periods(df, col, item_count=2)
+    breakdown, current = compute_submission_breakdown(
+        df, col, "10", sheet_periods=entry_periods, item_count=2
+    )
+
+    assert current == 3.01
+    assert breakdown["periods"]["10"] == 3.01
+
+
+def test_left_submitted_sums_formula_results_before_rounding():
+    df = pd.DataFrame([[None] * 12 for _ in range(100)])
+    col = 10
+    df.iloc[27, col] = 1.004
+    df.iloc[28, col] = 1.004
+    df.iloc[29, col] = 1.004
+
+    breakdown, current = compute_submission_breakdown(
+        df, col, "", sheet_periods=[], item_count=2
+    )
+
+    assert current == 0.0
+    assert breakdown["left_submitted"] == 3.01
+
+
 def test_concentration_pdf_prints_0_835_as_0_84():
     import math
 

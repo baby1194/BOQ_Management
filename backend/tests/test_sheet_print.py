@@ -198,6 +198,24 @@ def test_table_prints_through_the_last_value_in_column_c_with_full_borders():
     assert not any(command[0] == "BOX" and command[1][1] >= 26 for command in commands)
 
 
+def test_measurement_rows_print_when_column_c_is_empty():
+    book = Workbook()
+    ws = book.active
+    ws["B5"] = "title"
+    ws["C27"] = "account"
+    ws["E27"] = "length"
+    ws["B28"] = "V"
+    ws["E28"] = "start"
+    ws["G28"] = 3.18
+    ws["B29"] = "V"
+    ws["E29"] = "next"
+    ws["G29"] = 1.92
+    grid = build_print_grid(ws)
+    assert grid.table_start == 26
+    assert any("start" in row and "3.18" in row for row in grid.rows)
+    assert any("next" in row and "1.92" in row for row in grid.rows)
+
+
 def test_repeated_title_leaves_room_for_several_measurement_rows():
     from services.sheet_print import _heights_that_fit
 

@@ -32,7 +32,8 @@ _OFFICE_REL_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relatio
 _PKG_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 logger = logging.getLogger(__name__)
 # Rows 1-27 repeat on every page. Row 27 is the measurement column titles.
-# The measurement lines start at row 28 and run through the last value in column C.
+# The lines below run through the last value in column C when that column is
+# filled, and otherwise through the last row that has any value.
 TITLE_ROW_COUNT = 26
 TABLE_START_ROW = 27
 REPEAT_THROUGH_ROW = 27
@@ -435,19 +436,39 @@ def _empty_grid() -> PrintGrid:
     return PrintGrid(rows=[[""]], widths=[1.0], right_to_left=False, row_heights=[15.0])
 
 
-def _last_table_row(ws: Worksheet, max_row: int) -> Optional[int]:
-    """Last row at or below row 27 whose column C has a value."""
-    last = None
+def _last_table_row(ws: Worksheet, max_row: int, min_col: int, max_col: int) -> Optional[int]:
+    """Last measurement row.
+
+    Column C marks the end of the table when the lines under row 27 use it.
+    A sheet whose lines leave column C empty runs through the last row that
+    has a value anywhere in the printed columns.
+    """
+    last_marker = None
+    last_any = None
     upper = max(int(max_row or TABLE_START_ROW), TABLE_START_ROW)
+    upper = min(upper, int(ws.max_row or upper))
+    last_col = max(int(max_col or min_col), min_col)
     for row in ws.iter_rows(
         min_row=TABLE_START_ROW,
         max_row=upper,
-        min_col=TABLE_MARKER_COLUMN,
-        max_col=TABLE_MARKER_COLUMN,
+        min_col=min_col,
+        max_col=last_col,
     ):
-        if format_cell(row[0].value) != "":
-            last = row[0].row
-    return last
+        saw_value = False
+        saw_marker = False
+        for cell in row:
+            if format_cell(cell.value) == "":
+                continue
+            saw_value = True
+            if cell.column == TABLE_MARKER_COLUMN:
+                saw_marker = True
+        if saw_value:
+            last_any = row[0].row
+        if saw_marker:
+            last_marker = row[0].row
+    if last_marker and last_marker > TABLE_START_ROW:
+        return last_marker
+    return last_any
 
 
 def _chosen_columns(columns: Optional[Iterable[int]]) -> set:
@@ -457,14 +478,15 @@ def _chosen_columns(columns: Optional[Iterable[int]]) -> set:
 def build_print_grid(ws: Worksheet, columns: Optional[Iterable[int]] = None) -> PrintGrid:
     """Title block, then the measurement table.
 
-    Rows 1 to 26 keep each cell that has a value. Row 27 through the last row
-    with a value in column C is printed in full, empty cells included. A sheet
-    with no such table keeps the smaller filled block.
+    Rows 1 to 26 keep each cell that has a value. Row 27 through the last
+    measurement row is printed in full, empty cells included. A sheet with no
+    such table keeps the smaller filled block.
     """
     area = _print_area_bounds(ws)
-    covers_marker = area is None or area[1] <= TABLE_MARKER_COLUMN <= area[3]
+    min_col = area[1] if area else 1
+    max_col = area[3] if area else (ws.max_column or 1)
     scan_end = area[2] if area else (ws.max_row or TABLE_START_ROW)
-    last_table = _last_table_row(ws, scan_end) if covers_marker else None
+    last_table = _last_table_row(ws, scan_end, min_col, max_col)
     if last_table and last_table >= TABLE_START_ROW:
         return _table_grid(ws, last_table, columns, area)
 
