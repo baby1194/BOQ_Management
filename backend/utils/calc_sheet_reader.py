@@ -8,7 +8,6 @@ through the last block of detail data.
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import Iterable, List, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
@@ -63,16 +62,16 @@ def load_calculation_sheet_rows(path: str) -> List[Tuple]:
     """Rows of the Calculation sheet. Index 0 is Excel row 1."""
     from openpyxl import load_workbook
 
-    from services.excel_service import _patch_openpyxl_custom_filters
+    from services.excel_service import (
+        _patch_openpyxl_custom_filters,
+        _patch_openpyxl_header_footer,
+        _patch_openpyxl_pattern_fill,
+    )
 
     _patch_openpyxl_custom_filters()
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="Cannot parse header or footer",
-            category=UserWarning,
-        )
-        workbook = load_workbook(path, read_only=True, data_only=True)
+    _patch_openpyxl_pattern_fill()
+    _patch_openpyxl_header_footer()
+    workbook = load_workbook(path, read_only=True, data_only=True)
     try:
         if "Calculation" not in workbook.sheetnames:
             raise ValueError(f"{path} has no Calculation sheet")

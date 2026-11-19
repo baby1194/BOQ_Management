@@ -23,8 +23,11 @@ SECTION_NUMBER_ROW = 4  # Excel row 5 (0-based)
 TYPED_SECTION_ROW = 20  # Excel row 21 — typed section number; row 5 often only copies it
 # Price for items that are not on the contract. Same item column, the row under the estimated quantity.
 NON_BOQ_PRICE_ROW = 6  # Excel row 7 (0-based)
-SHARED_PERIOD_COLUMN_INDEX = 1  # Column B — past invoices when the sheet has one item
+SHARED_PERIOD_COLUMN_INDEX = 1  # Column B — בוצע/טרם בוצע, and the invoice when the sheet has one item
 FIRST_ITEM_COLUMN_INDEX = 4
+# Column B marks a detail line as performed. X and 0 mean it was not.
+_NOT_DONE_MARKS = frozenset({"x", "0", "טרם", "טרם בוצע"})
+_DONE_MARKS = frozenset({"v", "כן"})
 
 
 def period_column_index(item_col_index: int, item_count: int) -> int:
@@ -32,6 +35,35 @@ def period_column_index(item_col_index: int, item_count: int) -> int:
     if item_count <= 1:
         return SHARED_PERIOD_COLUMN_INDEX
     return item_col_index - 1
+
+
+def row_marked_done(value) -> bool:
+    """True when column B contains the performed mark (V), not a note or X."""
+    text = _normalize_period_value(value)
+    if not text:
+        return False
+    if text in {"✓", "✔"}:
+        return True
+    return text.casefold() in _DONE_MARKS
+
+
+def detail_line_invoice_id(mark, period, item_count: int) -> Optional[str]:
+    """Invoice for one detail row, or None when that line was not submitted.
+
+    One item: column B itself is the invoice number. A blank cell, X, or 0
+    means the line was not submitted.
+    Several items: the column before the item is the invoice number, and the
+    line counts only when column B is marked V. An invoice number copied onto
+    a line that was not marked done is not a submission.
+    """
+    if item_count <= 1:
+        text = _normalize_period_value(period)
+        if not text or text.casefold() in _NOT_DONE_MARKS or len(text) > 40:
+            return None
+        return text
+    if not row_marked_done(mark):
+        return None
+    return _normalize_period_value(period)
 
 
 def read_non_boq_price(df, col_index: int) -> float:
@@ -135,7 +167,7 @@ def _sort_period_keys(periods: Iterable[str]) -> List[str]:
 
 
 def collect_entry_periods(df, col_index: int, item_count: int = 1) -> List[str]:
-    """Collect unique non-empty past invoice ids for an item (row 28+)."""
+    """Collect invoice ids from detail rows that were actually submitted."""
     period_col = period_column_index(col_index, item_count)
     if period_col < 0 or period_col >= df.shape[1]:
         return []
@@ -143,9 +175,16 @@ def collect_entry_periods(df, col_index: int, item_count: int = 1) -> List[str]:
     periods: set[str] = set()
     row_limit = get_detail_row_end_exclusive(df)
     for row_idx in range(DETAIL_START_ROW, row_limit):
-        period = _normalize_period_value(df.iloc[row_idx, period_col])
-        if period:
-            periods.add(period)
+        mark = (
+            df.iloc[row_idx, SHARED_PERIOD_COLUMN_INDEX]
+            if SHARED_PERIOD_COLUMN_INDEX < df.shape[1]
+            else None
+        )
+        invoice = detail_line_invoice_id(
+            mark, df.iloc[row_idx, period_col], item_count
+        )
+        if invoice:
+            periods.add(invoice)
     return _sort_period_keys(periods)
 
 
@@ -321,9 +360,9 @@ def submission_for_item_column(
     """Invoice and submitted quantity for one item column.
 
     A multi-item sheet does not copy C2 onto every item. An invoice typed on
-    the item, or in the invoice column beside it, does count. When that
-    invoice is a single number for the whole item, detail lines with a blank
-    invoice cell belong to it. Otherwise they stay off the invoice.
+    the item, or in the invoice column beside it, counts only for detail lines
+    marked done in column B. A blank בוצע/טרם בוצע cell is not a submission,
+    even when the invoice number is already filled in beside the quantity.
     """
     current = read_entry_current_invoice_id(
         df, col_index, sheet_invoice, item_count=item_count
@@ -344,13 +383,6 @@ def submission_for_item_column(
         sheet_periods=line_periods,
         item_count=item_count,
     )
-    if current and not line_periods:
-        moved = float(breakdown.get("left_submitted") or 0)
-        for value in (breakdown.get("periods") or {}).values():
-            moved += float(value or 0)
-        breakdown["periods"][current] = moved
-        breakdown["left_submitted"] = 0.0
-        quantity_submitted = float(breakdown["periods"].get(current) or 0)
     return current, breakdown, quantity_submitted
 
 
@@ -379,9 +411,10 @@ def compute_submission_breakdown(
     Sum submitted quantities from detail rows (row 28 through last sheet row with data).
 
     Past invoice ids come from column B when the sheet has one item, otherwise from
-    the column immediately before the item column. Every unique period for this item
-    gets a row (0 when no qty). Rows with empty/invalid invoice ids accumulate into
-    left_submitted.
+    the column immediately before the item column. On a multi-item sheet a line
+    counts only when column B (בוצע/טרם בוצע) is marked done. Every unique period
+    for this item gets a row (0 when no qty). Rows that were not submitted
+    accumulate into left_submitted.
     """
     current_drawing_no = str(current_drawing_no or "").strip()
     period_col = period_column_index(col_index, item_count)
@@ -401,9 +434,15 @@ def compute_submission_breakdown(
             break
 
         qty = Decimal(str(round_quantity(_safe_float(df.iloc[row_idx, col_index]))))
-        period = None
-        if 0 <= period_col < df.shape[1]:
-            period = _normalize_period_value(df.iloc[row_idx, period_col])
+        raw_period = (
+            df.iloc[row_idx, period_col] if 0 <= period_col < df.shape[1] else None
+        )
+        mark = (
+            df.iloc[row_idx, SHARED_PERIOD_COLUMN_INDEX]
+            if SHARED_PERIOD_COLUMN_INDEX < df.shape[1]
+            else None
+        )
+        period = detail_line_invoice_id(mark, raw_period, item_count)
 
         if period is None:
             left_submitted += qty

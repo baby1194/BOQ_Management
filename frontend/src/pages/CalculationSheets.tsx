@@ -23,6 +23,10 @@ import {
 } from "../components/SubmissionBreakdownPanel";
 import { entryHasEstimatedOrSubmitted, submittedQuantityWhenEstimatedIsZero } from "../utils/submissionBreakdown";
 import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
+import {
+  askDeleteSubprojectSheets,
+  offerSubprojectCalcUpdates,
+} from "../utils/subprojectCalcSync";
 import { useQuantityCheck } from "../contexts/QuantityCheckContext";
 
 const CALC_SIDEBAR_WIDTH_KEY = "calculation-sidebar-width-percent";
@@ -278,9 +282,19 @@ const CalculationSheets: React.FC = () => {
       return;
     }
 
+    let alsoDeleteSubprojects = false;
+    try {
+      alsoDeleteSubprojects = await askDeleteSubprojectSheets([sheetId], t);
+    } catch {
+      alsoDeleteSubprojects = false;
+    }
+
     try {
       setDeletingSheet(true);
-      const response = await calculationSheetsApi.delete(sheetId);
+      const response = await calculationSheetsApi.delete(
+        sheetId,
+        alsoDeleteSubprojects
+      );
 
       setSheets((prev) => prev.filter((sheet) => sheet.id !== sheetId));
       if (selectedSheet?.id === sheetId) {
@@ -301,6 +315,17 @@ const CalculationSheets: React.FC = () => {
         setError(null);
         // You could show a success message here instead of error
         console.log("Sync result:", syncMsg);
+      }
+      if (alsoDeleteSubprojects) {
+        const deleted = response.subprojects_deleted || 0;
+        const note = t("calculationSheets.subprojectSheetsDeleted", {
+          count: deleted,
+        });
+        if (response.subproject_errors?.length) {
+          alert(`${note}\n\n${response.subproject_errors.join("\n")}`);
+        } else {
+          alert(note);
+        }
       }
 
       setError(null);
@@ -332,12 +357,25 @@ const CalculationSheets: React.FC = () => {
       return;
     }
 
+    let alsoDeleteSubprojects = false;
+    try {
+      alsoDeleteSubprojects = await askDeleteSubprojectSheets(
+        Array.from(selectedSheetIds),
+        t
+      );
+    } catch {
+      alsoDeleteSubprojects = false;
+    }
+
     try {
       setBulkDeleting(true);
       setError(null);
 
       const sheetIdsArray = Array.from(selectedSheetIds);
-      const response = await calculationSheetsApi.bulkDelete(sheetIdsArray);
+      const response = await calculationSheetsApi.bulkDelete(
+        sheetIdsArray,
+        alsoDeleteSubprojects
+      );
 
       // Remove deleted sheets from state
       setSheets((prev) =>
@@ -566,6 +604,7 @@ const CalculationSheets: React.FC = () => {
         }
         await fetchEntries(sheet.id);
         alert(`✅ ${response.message}`);
+        await offerSubprojectCalcUpdates(response.subproject_updates, t);
       } else {
         const errorMessage =
           response.errors[0] ||
@@ -671,14 +710,25 @@ const CalculationSheets: React.FC = () => {
       const result = await calculationSheetsApi.printPdfs({
         orientation: printOrientation,
         margin_mm: printMargin.trim() === "" ? 10 : Number(printMargin),
-        include_invoice: true,
       });
-      alert(
-        t("calculationSheets.printDone", { count: result.count })
-      );
-    } catch (err) {
+      if (result.failed) {
+        const details = (result.errors || []).slice(0, 8).join("\n");
+        const summary = t("calculationSheets.printDoneWithErrors", {
+          count: result.count,
+          failed: result.failed,
+        });
+        setError(summary);
+        alert(details ? `${summary}\n\n${details}` : summary);
+      } else {
+        alert(t("calculationSheets.printDone", { count: result.count }));
+      }
+    } catch (err: any) {
       console.error("Error printing calculation sheets:", err);
-      setError(t("calculationSheets.printFailed"));
+      setError(
+        err.response?.data?.detail ||
+          err.message ||
+          t("calculationSheets.printFailed")
+      );
     } finally {
       setPrintingSheets(false);
     }
@@ -728,6 +778,7 @@ const CalculationSheets: React.FC = () => {
         await fetchEntries(selectedSheet.id);
       }
       setFreshness(await calculationSheetsApi.freshness());
+      await offerSubprojectCalcUpdates(response.subproject_updates, t);
     } catch (err) {
       console.error("Error tracking outdated calculation sheets:", err);
       setError(t("calculationSheets.failedToTrack"));
@@ -762,6 +813,7 @@ const CalculationSheets: React.FC = () => {
       if (selectedSheet) {
         await fetchEntries(selectedSheet.id);
       }
+      await offerSubprojectCalcUpdates(response.subproject_updates, t);
     } catch (err) {
       console.error("Error tracking calculation sheets:", err);
       setError(t("calculationSheets.failedToTrack"));

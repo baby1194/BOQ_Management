@@ -361,6 +361,29 @@ export interface CalculationSheetLocationChange {
   reason: string;
 }
 
+export interface SubprojectCalcUpdate {
+  project_id: string;
+  project_name: string;
+  calculation_sheet_no: string;
+  previous_calculation_sheet_no: string;
+  section_number: string;
+  quantity_changed: boolean;
+  price_changed: boolean;
+  old_estimated_quantity: number;
+  new_estimated_quantity: number;
+  old_quantity_submitted: number;
+  new_quantity_submitted: number;
+  old_price: number | null;
+  new_price: number | null;
+  details_changed: boolean;
+}
+
+export interface SubprojectSheetCopy {
+  project_id: string;
+  project_name: string;
+  calculation_sheet_no: string;
+}
+
 export interface CalculationImportResponse {
   success: boolean;
   message: string;
@@ -369,6 +392,7 @@ export interface CalculationImportResponse {
   entries_imported: number;
   errors: string[];
   location_changed?: CalculationSheetLocationChange[];
+  subproject_updates?: SubprojectCalcUpdate[];
 }
 
 export interface PopulateConcentrationEntriesResponse {

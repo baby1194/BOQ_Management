@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { formatLocationChangeLine } from "../utils/calculationSheetLocations";
+import { offerSubprojectCalcUpdates } from "../utils/subprojectCalcSync";
 
 const FileImport: React.FC = () => {
   const { t } = useTranslation();
@@ -77,6 +78,7 @@ const FileImport: React.FC = () => {
           );
         }
         queryClient.invalidateQueries("calculation-sheets");
+        void offerSubprojectCalcUpdates(data.subproject_updates, t);
 
         setTimeout(() => {
           toast.success(t("import.populationReminder"), {

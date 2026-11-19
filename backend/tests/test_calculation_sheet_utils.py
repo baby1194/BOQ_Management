@@ -17,6 +17,11 @@ def _period_col(item_col: int, item_count: int = 2) -> int:
     return period_column_index(item_col, item_count)
 
 
+def _mark_done(df, row_idx: int) -> None:
+    """Column B must say the line was performed before its invoice counts."""
+    df.iloc[row_idx, SHARED_PERIOD_COLUMN_INDEX] = "V"
+
+
 def test_compute_submission_breakdown_groups_by_period():
     df = pd.DataFrame([[None] * 12 for _ in range(100)])
 
@@ -41,6 +46,8 @@ def test_compute_submission_breakdown_groups_by_period():
     for row_idx, (period, qty) in rows.items():
         df.iloc[row_idx, period_col] = period
         df.iloc[row_idx, col] = qty
+        if period:
+            _mark_done(df, row_idx)
 
     entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
@@ -65,6 +72,7 @@ def test_empty_period_column_goes_to_left_not_period():
 
     df.iloc[27, period_col] = "01"
     df.iloc[27, col] = 100.0
+    _mark_done(df, 27)
     df.iloc[28, period_col] = float("nan")
     df.iloc[28, col] = 50.0
     df.iloc[29, period_col] = None
@@ -88,9 +96,11 @@ def test_all_entry_periods_included_even_when_item_qty_is_zero():
     for row_idx, period in enumerate(["01", "02", "03"], start=27):
         df.iloc[row_idx, period_col] = period
         df.iloc[row_idx, col] = 0.0
+        _mark_done(df, row_idx)
 
     df.iloc[30, period_col] = "04"
     df.iloc[30, col] = 12.0
+    _mark_done(df, 30)
 
     entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
@@ -161,6 +171,7 @@ def test_reads_quantities_beyond_row_100():
     period_col = _period_col(col)
     df.iloc[120, period_col] = "01"
     df.iloc[120, col] = 99.0
+    _mark_done(df, 120)
 
     entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
@@ -179,6 +190,7 @@ def test_detail_line_of_0_835_is_rounded_half_up_to_two_decimals():
     period_col = _period_col(col)
     df.iloc[27, period_col] = "10"
     df.iloc[27, col] = 0.835
+    _mark_done(df, 27)
 
     entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
@@ -422,7 +434,7 @@ def test_section_number_falls_back_to_the_typed_row_when_row_5_is_blank():
     assert read_entry_section_number(df, 4) == "1.02.01.0041"
 
 
-def test_one_invoice_on_the_item_keeps_the_detail_quantity():
+def test_one_invoice_on_the_item_does_not_submit_unmarked_lines():
     from utils.calculation_sheet_utils import submission_for_item_column
 
     df = pd.DataFrame([[None] * 8 for _ in range(40)])
@@ -434,9 +446,27 @@ def test_one_invoice_on_the_item_keeps_the_detail_quantity():
         df, col, "09", item_count=2, estimated_quantity=9.79
     )
     assert current == "09"
-    assert submitted == 9.79
-    assert breakdown["left_submitted"] == 0
-    assert breakdown["periods"]["09"] == 9.79
+    assert submitted == 0
+    assert breakdown["left_submitted"] == 9.79
+    assert breakdown["periods"]["09"] == 0
+
+
+def test_done_mark_without_a_line_invoice_is_not_a_submission():
+    from utils.calculation_sheet_utils import submission_for_item_column
+
+    df = pd.DataFrame([[None] * 8 for _ in range(40)])
+    col = 5
+    df.iloc[1, col] = "09"
+    df.iloc[27, col] = 4.5
+    df.iloc[28, col] = 5.29
+    _mark_done(df, 27)
+    _mark_done(df, 28)
+    current, breakdown, submitted = submission_for_item_column(
+        df, col, "09", item_count=2, estimated_quantity=9.79
+    )
+    assert current == "09"
+    assert submitted == 0
+    assert breakdown["left_submitted"] == 9.79
 
 
 def test_invoice_numbers_beside_the_item_are_used_without_a_header_cell():
@@ -446,14 +476,46 @@ def test_invoice_numbers_beside_the_item_are_used_without_a_header_cell():
     col = 5
     df.iloc[27, col - 1] = "09"
     df.iloc[27, col] = 4.5
+    _mark_done(df, 27)
     df.iloc[28, col - 1] = "09"
     df.iloc[28, col] = 5.0
+    _mark_done(df, 28)
     current, breakdown, submitted = submission_for_item_column(
         df, col, "", item_count=2, estimated_quantity=9.5
     )
     assert current == "09"
     assert submitted == 9.5
     assert breakdown["periods"]["09"] == 9.5
+
+
+def test_copied_invoice_without_a_done_mark_is_not_submitted():
+    from utils.calculation_sheet_utils import submission_for_item_column
+
+    df = pd.DataFrame([[None] * 8 for _ in range(40)])
+    col = 5
+    df.iloc[1, col] = "08"
+    df.iloc[27, col - 1] = "08"
+    df.iloc[27, col] = 22.0
+    current, breakdown, submitted = submission_for_item_column(
+        df, col, "08", item_count=2, estimated_quantity=22.0
+    )
+    assert current == "08"
+    assert submitted == 0.0
+    assert breakdown["periods"]["08"] == 0.0
+    assert breakdown["left_submitted"] == 22.0
+
+
+def test_blank_done_column_does_not_submit_a_single_item_sheet():
+    from utils.calculation_sheet_utils import submission_for_item_column
+
+    df = pd.DataFrame([[None] * 8 for _ in range(40)])
+    col = 5
+    df.iloc[27, col] = 22.0
+    current, breakdown, submitted = submission_for_item_column(
+        df, col, "24/10X", item_count=1, estimated_quantity=22.0
+    )
+    assert submitted == 0.0
+    assert breakdown["left_submitted"] == 22.0
 
 
 def test_sheet_invoice_alone_does_not_submit_a_multi_item_sheet():
@@ -549,8 +611,10 @@ def test_compute_submission_breakdown_uses_per_entry_invoice_id():
     period_col = _period_col(col)
     df.iloc[27, period_col] = "05"
     df.iloc[27, col] = 100.0
+    _mark_done(df, 27)
     df.iloc[28, period_col] = "06"
     df.iloc[28, col] = 50.0
+    _mark_done(df, 28)
 
     entry_periods = collect_entry_periods(df, col, item_count=2)
     breakdown, current = compute_submission_breakdown(
@@ -570,8 +634,10 @@ def test_each_item_uses_its_own_prior_column_for_periods():
     period_col_a = _period_col(col_a)
     df.iloc[27, period_col_a] = "01"
     df.iloc[27, col_a] = 100.0
+    _mark_done(df, 27)
     df.iloc[28, period_col_a] = "02"
     df.iloc[28, col_a] = 50.0
+    _mark_done(df, 28)
 
     col_b = 12
     period_col_b = _period_col(col_b)

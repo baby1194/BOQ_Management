@@ -454,6 +454,60 @@ class CalculationSheetLocationChange(BaseModel):
     reason: str
 
 
+class SubprojectCalcUpdate(BaseModel):
+    """A transferred non-BOQ row whose quantity or price changed on the main sheet."""
+
+    project_id: str
+    project_name: str
+    calculation_sheet_no: str
+    previous_calculation_sheet_no: str = ""
+    section_number: str
+    quantity_changed: bool = False
+    price_changed: bool = False
+    old_estimated_quantity: float = 0
+    new_estimated_quantity: float = 0
+    old_quantity_submitted: float = 0
+    new_quantity_submitted: float = 0
+    old_price: Optional[float] = None
+    new_price: Optional[float] = None
+    details_changed: bool = False
+
+
+class ApplySubprojectCalcUpdate(BaseModel):
+    project_id: str
+    calculation_sheet_no: str
+    previous_calculation_sheet_no: str = ""
+    section_number: str
+    update_quantity: bool = False
+    update_price: bool = False
+
+
+class ApplySubprojectCalcUpdatesRequest(BaseModel):
+    updates: List[ApplySubprojectCalcUpdate] = []
+
+
+class ApplySubprojectCalcUpdatesResponse(BaseModel):
+    success: bool
+    message: str
+    updated: int = 0
+    errors: List[str] = []
+
+
+class SubprojectSheetCopy(BaseModel):
+    project_id: str
+    project_name: str
+    calculation_sheet_no: str
+
+
+class SubprojectSheetCopyRequest(BaseModel):
+    sheet_ids: List[int] = []
+    calculation_sheet_nos: List[str] = []
+
+
+class SubprojectSheetCopiesResponse(BaseModel):
+    copies: List[SubprojectSheetCopy] = []
+
+
 # Calculation Import Response
 class CalculationImportResponse(BaseModel):
     success: bool
@@ -463,6 +517,7 @@ class CalculationImportResponse(BaseModel):
     entries_imported: int
     errors: List[str] = []
     location_changed: List[CalculationSheetLocationChange] = []
+    subproject_updates: List[SubprojectCalcUpdate] = []
 
 
 class CalculationSheetsPathRequest(BaseModel):
@@ -492,6 +547,7 @@ class CalculationSheetsTrackResponse(BaseModel):
     sheets_skipped: int
     entries_updated: int
     errors: List[str] = []
+    subproject_updates: List[SubprojectCalcUpdate] = []
 
 
 class TrackSelectedCalculationSheetsRequest(AutoExportColumnsRequest):
@@ -527,6 +583,7 @@ class PopulateConcentrationEntriesResponse(BaseModel):
 # Bulk Delete Request
 class BulkDeleteCalculationSheetsRequest(BaseModel):
     sheet_ids: List[int] = Field(..., min_items=1, description="List of calculation sheet IDs to delete")
+    also_delete_subprojects: bool = False
 
 # Bulk Delete Response
 class BulkDeleteCalculationSheetsResponse(BaseModel):
@@ -536,6 +593,8 @@ class BulkDeleteCalculationSheetsResponse(BaseModel):
     total_entries_deleted: int
     total_boq_items_updated: int
     errors: List[str] = []
+    subprojects_deleted: int = 0
+    subproject_errors: List[str] = []
 
 # Project Info Schemas
 class ProjectInfoBase(BaseModel):
@@ -626,6 +685,7 @@ class BOQItemWithLatestContractUpdate(BaseModel):
     total_submitted: Optional[float] = None
     internal_total: Optional[float] = None
     total_approved_by_project_manager: Optional[float] = None
+    approved_signed_quantity: Optional[float] = None
     subsection: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime

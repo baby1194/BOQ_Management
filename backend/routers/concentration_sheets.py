@@ -615,6 +615,7 @@ async def track_concentration_sheet_calculation_sheets(
     errors: List[str] = []
     push_results: List[CalcSheetPushResult] = []
     removed_notices: List[str] = []
+    subproject_updates: List[dict] = []
 
     for calc_no in sorted(calculation_sheet_nos - found_nos):
         sheets_skipped += 1
@@ -622,7 +623,7 @@ async def track_concentration_sheet_calculation_sheets(
 
     for calc_sheet in calculation_sheets:
         entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
-            calc_sheet, excel_service, db, removed_notices
+            calc_sheet, excel_service, db, removed_notices, subproject_updates
         )
         if error:
             sheets_skipped += 1
@@ -661,6 +662,7 @@ async def track_concentration_sheet_calculation_sheets(
         sheets_skipped=sheets_skipped,
         entries_updated=entries_updated,
         errors=errors,
+        subproject_updates=subproject_updates,
     )
 
 

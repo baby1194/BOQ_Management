@@ -45,6 +45,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 import ConcentrationEntryExportModal from "../components/ConcentrationEntryExportModal";
 import ColumnSettingsModal from "../components/ColumnSettingsModal";
@@ -70,6 +71,7 @@ import {
   removeProjectItem,
   setProjectItem,
 } from "../utils/localStorage";
+import { offerSubprojectCalcUpdates } from "../utils/subprojectCalcSync";
 import {
   startHeaderColumnResize,
   useResizableColumns,
@@ -372,6 +374,20 @@ const ConcentrationSheets: React.FC = () => {
       ),
     [visibleEntries, expandedBreakdownEntryIds],
   );
+  const visibleEntriesApprovedTotal = useMemo(
+    () =>
+      visibleEntries.reduce(
+        (sum, entry) => sum + entryTotalApprovedQuantity(entry),
+        0
+      ),
+    [visibleEntries]
+  );
+  const boqApprovedSignedQuantity =
+    selectedSheet?.boq_item.approved_signed_quantity ?? 0;
+  const approvedSignedMismatch =
+    !entriesLoading &&
+    selectedSheet != null &&
+    quantitiesMismatch(visibleEntriesApprovedTotal, boqApprovedSignedQuantity);
   const allBreakdownsExpanded = useMemo(
     () =>
       visibleEntries.length > 0 &&
@@ -836,6 +852,7 @@ const ConcentrationSheets: React.FC = () => {
       if (response.success) {
         await fetchEntries(selectedSheet.id);
         alert(`✅ ${response.message}`);
+        await offerSubprojectCalcUpdates(response.subproject_updates, t);
       } else {
         const errorMessage =
           response.errors[0] ||
@@ -3138,15 +3155,29 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                                 )}
                                 {showEntryCol("approved_qty") && (
-                                <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                                  {formatNumber(
-                                    visibleEntries.reduce(
-                                      (sum, entry) =>
-                                        sum +
-                                        entryTotalApprovedQuantity(entry),
-                                      0
-                                    )
-                                  )}
+                                <td
+                                  className={`px-3 py-3 text-sm font-bold ${
+                                    approvedSignedMismatch
+                                      ? "text-red-600"
+                                      : "text-gray-900"
+                                  }`}
+                                  title={
+                                    approvedSignedMismatch
+                                      ? t(
+                                          "concentration.approvedSignedMismatch",
+                                          {
+                                            sheetQty: formatNumber(
+                                              visibleEntriesApprovedTotal
+                                            ),
+                                            signedQty: formatNumber(
+                                              boqApprovedSignedQuantity
+                                            ),
+                                          }
+                                        )
+                                      : undefined
+                                  }
+                                >
+                                  {formatNumber(visibleEntriesApprovedTotal)}
                                 </td>
                                 )}
                                 {showEntryCol("notes") && (
@@ -3169,6 +3200,22 @@ const ConcentrationSheets: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
+                  )}
+                  {approvedSignedMismatch && (
+                    <div
+                      className={`mt-3 shrink-0 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 ${
+                        isRTL ? "flex-row-reverse text-right" : ""
+                      }`}
+                      role="status"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p>
+                        {t("concentration.approvedSignedMismatch", {
+                          sheetQty: formatNumber(visibleEntriesApprovedTotal),
+                          signedQty: formatNumber(boqApprovedSignedQuantity),
+                        })}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

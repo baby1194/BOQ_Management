@@ -59,6 +59,7 @@ def test_submitted_total_sums_detail_lines_that_have_a_prior_invoice():
     rows[1][9] = "07"
     rows[4][9] = "1.02.01.0693"
     rows[23][9] = 63.58
+    rows[27][1] = "V"
     rows[27][8] = "07"
     rows[27][9] = 36.30
     rows[28][9] = 27.28
@@ -77,6 +78,7 @@ def test_item_without_row_2_invoice_is_left_out():
     rows = _grid()
     rows[1][9] = "05"
     rows[4][9] = "1.02.01.0610"
+    rows[27][1] = "V"
     rows[27][8] = "05"
     rows[27][9] = 77.23
     rows[4][11] = "1.02.01.0641"
@@ -103,6 +105,7 @@ def test_workbook_sums_detail_lines_and_ignores_row_24(tmp_path):
     worksheet.cell(row=5, column=10, value="1.02.01.0693")
     worksheet.cell(row=6, column=10, value=63.58)
     worksheet.cell(row=24, column=10, value=63.58)
+    worksheet.cell(row=28, column=2, value="V")
     worksheet.cell(row=28, column=9, value="07")
     worksheet.cell(row=28, column=10, value=36.30)
     worksheet.cell(row=29, column=10, value=27.28)
@@ -123,6 +126,21 @@ def test_workbook_sums_detail_lines_and_ignores_row_24(tmp_path):
         "1.02.01.0693": 36.30,
         "1.02.01.0671": 4.25,
     }
+
+
+def test_invoice_on_an_unmarked_line_is_not_submitted():
+    rows = _grid()
+    rows[1][9] = "08"
+    rows[4][9] = "1.51.01.0410"
+    rows[27][8] = "08"
+    rows[27][9] = 22.0
+    assert submitted_totals_from_rows(rows) == {}
+
+    rows[27][1] = "X"
+    assert submitted_totals_from_rows(rows) == {}
+
+    rows[27][1] = "V"
+    assert submitted_totals_from_rows(rows) == {"1.51.01.0410": 22.0}
 
 
 def test_sheet_item_missing_from_boq_is_a_mismatch():

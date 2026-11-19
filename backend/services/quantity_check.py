@@ -6,13 +6,17 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from utils.calculation_sheet_utils import (
     DETAIL_START_ROW,
     FIRST_ITEM_COLUMN_INDEX,
+    SHARED_PERIOD_COLUMN_INDEX,
+    detail_line_invoice_id,
     period_column_index,
 )
 
 # Row 2 of an item column is that item's invoice number. The sheet invoice in
 # C2 is not used. Row 5 is the section number. Detail quantities start at row 28.
 # The invoice for each detail quantity is the prior column (column B when the
-# sheet has one item). Row 24 is not the submitted quantity.
+# sheet has one item). On a multi-item sheet the line also has to be marked
+# done in column B (בוצע/טרם בוצע). An invoice number filled in beside an
+# unmarked line is not a submission. Row 24 is not the submitted quantity.
 EXCEL_INVOICE_ROW = 2
 EXCEL_SECTION_ROW = 5
 EXCEL_DETAIL_START_ROW = DETAIL_START_ROW + 1
@@ -95,8 +99,9 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
 
     Rows are Excel rows starting at row 1. An item column is included only when
     its own row 2 has an invoice number. C2 is ignored. Each detail quantity
-    from row 28 down is added only when the invoice cell in the prior column
-    is filled. A line with no invoice, and the row 24 subtotal, are left out.
+    from row 28 down is added only when that line was submitted: the invoice
+    cell is filled, and on a multi-item sheet column B is marked done. A line
+    with no invoice, an unmarked line, and the row 24 subtotal, are left out.
     """
     from decimal import Decimal
 
@@ -118,10 +123,16 @@ def submitted_totals_from_rows(rows: Sequence[Sequence]) -> Dict[str, float]:
         invoice_col = period_column_index(col, item_count)
         quantity = Decimal("0")
         for excel_row in range(EXCEL_DETAIL_START_ROW, len(rows) + 1):
-            if not _section_text(_cell(rows, excel_row, invoice_col)):
+            invoice = detail_line_invoice_id(
+                _cell(rows, excel_row, SHARED_PERIOD_COLUMN_INDEX),
+                _cell(rows, excel_row, invoice_col),
+                item_count,
+            )
+            if not invoice:
                 continue
             quantity += Decimal(str(round_quantity(_cell(rows, excel_row, col))))
-        totals[section] = totals.get(section, Decimal("0")) + quantity
+        if quantity:
+            totals[section] = totals.get(section, Decimal("0")) + quantity
     return {section: float(total) for section, total in totals.items()}
 
 

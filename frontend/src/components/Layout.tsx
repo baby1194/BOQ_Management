@@ -23,6 +23,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useProject } from "../contexts/ProjectContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import NewProjectModal from "./NewProjectModal";
+import YesNoDialog from "./YesNoDialog";
 import CalculatorPanel from "./CalculatorPanel";
 import QuantityCheckPanel from "./QuantityCheckPanel";
 
@@ -410,6 +411,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         isOpen={showNewProjectModal}
         onClose={() => setShowNewProjectModal(false)}
       />
+      <YesNoDialog />
     </div>
   );
 };

@@ -296,6 +296,33 @@ def fatina_calculation_sheet_dir(section_number: str, calculation_sheet_no: str)
     return fatina_section_dir(section_number) / sanitize_folder_name(calculation_sheet_no)
 
 
+def calculation_sheet_pdf_destinations(
+    section_numbers,
+    calculation_sheet_no: str,
+    file_name: str,
+) -> list[Path]:
+    """Fatina folders of the concentration items that use this calculation sheet.
+
+    The PDF sits beside the workbook copy:
+    C:/Fatina/{section}/{calculation_sheet_no}/{workbook}.pdf
+    """
+    pdf_name = Path(file_name or calculation_sheet_no).with_suffix(".pdf").name
+    sheet_no = str(calculation_sheet_no or "").strip()
+    destinations: list[Path] = []
+    seen = set()
+    for section in section_numbers:
+        section = str(section or "").strip()
+        if not section or not sheet_no:
+            continue
+        dest = fatina_calculation_sheet_dir(section, sheet_no) / pdf_name
+        key = str(dest).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        destinations.append(dest)
+    return destinations
+
+
 def fatina_invoice_folder_name(invoice_no: str) -> str:
     """Invoice folder name under an item folder, e.g. invoice 05 -> 05_m."""
     base = sanitize_folder_name(str(invoice_no or "").strip())

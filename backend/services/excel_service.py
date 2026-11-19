@@ -38,6 +38,81 @@ def _patch_openpyxl_custom_filters() -> None:
     CustomFilter.__init__ = patched_init
     CustomFilter._spontaneous_caption_patch = True
 
+
+def _patch_openpyxl_pattern_fill() -> None:
+    """Ignore Excel's extLst inside a pattern fill.
+
+    Newer Excel writes an extension list under patternFill. openpyxl forwards
+    every child into PatternFill(), which has no such argument, so the workbook
+    cannot be opened.
+    """
+    try:
+        from openpyxl.styles.colors import Color
+        from openpyxl.styles.fills import PatternFill
+        from openpyxl.xml.functions import localname
+    except Exception:
+        return
+    if getattr(PatternFill, "_spontaneous_extlst_patch", False):
+        return
+
+    def _from_tree(cls, el):
+        attrib = dict(el.attrib)
+        for child in el:
+            desc = localname(child)
+            if desc not in ("fgColor", "bgColor"):
+                continue
+            attrib[desc] = Color.from_tree(child)
+        return cls(**attrib)
+
+    PatternFill._from_tree = classmethod(_from_tree)
+    PatternFill._spontaneous_extlst_patch = True
+
+
+def _patch_openpyxl_header_footer() -> None:
+    """Keep headers and footers that do not start with &L, &C, or &R.
+
+    Calculation sheets store a plain footer such as ``Page &P of &N``.
+    openpyxl's splitter only accepts a string that begins with a section
+    code, then warns and throws the footer away.
+    """
+    try:
+        from openpyxl.worksheet import header_footer
+    except Exception:
+        return
+    if getattr(header_footer, "_spontaneous_header_patch", False):
+        return
+
+    import re
+
+    section_code = re.compile(r"&([LCR])")
+    section_name = {"L": "left", "C": "center", "R": "right"}
+
+    def _split_string(text):
+        parts = {"left": None, "center": None, "right": None}
+        if not text:
+            return parts
+        # && is a literal ampersand, not the start of a section code.
+        shielded = text.replace("&&", "\x00")
+        markers = list(section_code.finditer(shielded))
+        if not markers:
+            parts["center"] = text
+            return parts
+
+        leading = shielded[: markers[0].start()].replace("\x00", "&&")
+        for index, marker in enumerate(markers):
+            end = markers[index + 1].start() if index + 1 < len(markers) else len(shielded)
+            name = section_name[marker.group(1)]
+            parts[name] = shielded[marker.end() : end].replace("\x00", "&&")
+        if leading:
+            if parts["left"] is None:
+                parts["left"] = leading
+            else:
+                parts["left"] = leading + parts["left"]
+        return parts
+
+    header_footer._split_string = _split_string
+    header_footer._spontaneous_header_patch = True
+
 # BOQ export: columns that must stay as text in Excel (not coerced to numeric).
 _BOQ_TEXT_COLUMNS = frozenset({
     "submitted_to_supervisor",

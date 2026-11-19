@@ -6,6 +6,7 @@ import logging
 import os
 import platform
 import subprocess
+import threading
 from database.database import get_db, get_project_id, get_project_upload_dir, get_project_export_dir
 from fatina_paths import resolve_calculation_sheet_open_path
 from models import models
@@ -22,6 +23,13 @@ from services.excel_service import ExcelService
 from services.non_boq_service import (
     reconcile_missing_non_boq_items,
     register_non_boq_items_from_calculation_entries,
+)
+from services.subproject_calc_sync import (
+    apply_subproject_calc_updates,
+    capture_sheet_entries,
+    delete_sheets_from_subprojects,
+    find_subproject_sheet_copies,
+    note_transferred_changes,
 )
 from services.pdf_service import PDFService
 from utils.calc_sheet_freshness import remember_source_modified_at, sheet_freshness
@@ -59,6 +67,7 @@ def refresh_calculation_sheet_from_disk(
     excel_service: ExcelService,
     db: Session,
     removed_notices: Optional[List[str]] = None,
+    subproject_updates: Optional[List[dict]] = None,
 ) -> tuple[int, str | None, CalcSheetPushResult]:
     """
     Reread one calculation sheet from its source file path.
@@ -76,6 +85,7 @@ def refresh_calculation_sheet_from_disk(
         logger.info("Reading calculation sheet %s", file_path)
         sheet_data = excel_service.read_calculation_sheet_data(str(file_path))
         previous_calculation_sheet_no = sheet.calculation_sheet_no
+        before_entries = capture_sheet_entries(db, sheet.id)
         sheet.file_name = file_path.name
         sheet.description = sheet_data["description"]
         sheet.calculation_sheet_no = sheet_data["calculation_sheet_no"]
@@ -106,6 +116,14 @@ def refresh_calculation_sheet_from_disk(
             entries_refreshed += 1
 
         register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
+        note_transferred_changes(
+            db,
+            sheet_data["calculation_sheet_no"],
+            previous_calculation_sheet_no,
+            before_entries,
+            sheet_data["entries"],
+            subproject_updates,
+        )
         notices, _changed = reconcile_missing_non_boq_items(db)
         if removed_notices is not None:
             for notice in notices:
@@ -128,25 +146,149 @@ def refresh_calculation_sheet_from_disk(
 
 
 router = APIRouter()
+_PRINT_LOCK = threading.Lock()
+
+def _concentration_sections_by_calc_sheet(db: Session) -> dict:
+    """BOQ section numbers whose concentration sheet uses each calculation sheet."""
+    rows = (
+        db.query(
+            models.ConcentrationEntry.calculation_sheet_no,
+            models.BOQItem.section_number,
+        )
+        .join(
+            models.ConcentrationSheet,
+            models.ConcentrationEntry.concentration_sheet_id == models.ConcentrationSheet.id,
+        )
+        .join(
+            models.BOQItem,
+            models.ConcentrationSheet.boq_item_id == models.BOQItem.id,
+        )
+        .all()
+    )
+    found = {}
+    for sheet_no, section in rows:
+        number = str(sheet_no or "").strip()
+        section_number = str(section or "").strip()
+        if not number or not section_number:
+            continue
+        sections = found.setdefault(number, [])
+        if section_number not in sections:
+            sections.append(section_number)
+    return found
+
 
 @router.post("/print-pdfs")
-async def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
-    """Save a PDF next to each Excel calculation sheet under FATINA and FATINA INVOICE."""
+def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
+    """Print the calculation sheets that exist in this project.
+
+    Each PDF is copied into C:/Fatina/{section}/{calculation sheet no}/ for
+    every concentration sheet that uses it. Files left in the Fatina folders
+    from sheets deleted in the project are not printed.
+
+    This stays a normal function so FastAPI runs it on a worker thread. An async
+    endpoint would read the workbooks on the event loop and freeze every other
+    request until the print finished.
+    """
     from pathlib import Path
 
-    from fatina_paths import FATINA_BASE_DIR, FATINA_INVOICE_BASE_DIR
-    from services.sheet_print import print_workbooks
+    from fatina_paths import calculation_sheet_pdf_destinations
+    from services.sheet_print import publish_sheet_pdf
 
     orientation = body.get("orientation") or "landscape"
     if orientation not in ("landscape", "portrait"):
         raise HTTPException(status_code=400, detail="orientation must be landscape or portrait")
     margin = float(body.get("margin_mm") or 10)
-    roots = [Path(FATINA_BASE_DIR)]
-    if body.get("include_invoice", True):
-        roots.append(Path(FATINA_INVOICE_BASE_DIR))
-    # Each workbook keeps the columns that actually hold values.
-    written = print_workbooks(roots, orientation=orientation, margin_mm=margin)
-    return {"count": len(written), "files": written[:30]}
+    if not _PRINT_LOCK.acquire(blocking=False):
+        raise HTTPException(
+            status_code=409,
+            detail="A calculation-sheet print is already running. Wait for it to finish.",
+        )
+    try:
+        sheets = (
+            db.query(models.CalculationSheet)
+            .order_by(models.CalculationSheet.calculation_sheet_no)
+            .all()
+        )
+        sections_by_sheet = _concentration_sections_by_calc_sheet(db)
+        jobs = [
+            {
+                "number": sheet.calculation_sheet_no,
+                "source": sheet.source_file_path,
+                "file_name": sheet.file_name,
+                "sections": sections_by_sheet.get(
+                    str(sheet.calculation_sheet_no or "").strip(), []
+                ),
+            }
+            for sheet in sheets
+        ]
+        db.close()
+        logger.info(
+            "Printing %s calculation sheet(s) from the project",
+            len(jobs),
+        )
+        files = []
+        errors = []
+        for index, job in enumerate(jobs, start=1):
+            number = job["number"] or "(no number)"
+            source = job["source"]
+            section_list = ", ".join(job["sections"]) or "none"
+            logger.info(
+                "[%s/%s] %s source=%s concentration sections=%s",
+                index,
+                len(jobs),
+                number,
+                source or "missing",
+                section_list,
+            )
+            if not source:
+                message = f"{number}: no source workbook is stored"
+                logger.error(message)
+                errors.append(message)
+                continue
+            workbook = Path(source)
+            if not workbook.is_file():
+                message = f"{number}: source workbook not found: {source}"
+                logger.error(message)
+                errors.append(message)
+                continue
+            if not job["sections"]:
+                message = (
+                    f"{number}: not used by a concentration sheet, "
+                    "so it has no Fatina folder"
+                )
+                logger.error(message)
+                errors.append(message)
+                continue
+            destinations = calculation_sheet_pdf_destinations(
+                job["sections"],
+                job["number"],
+                job["file_name"] or workbook.name,
+            )
+            try:
+                written = publish_sheet_pdf(
+                    workbook,
+                    destinations,
+                    orientation=orientation,
+                    margin_mm=margin,
+                )
+            except Exception as exc:
+                logger.exception("Print failed for %s", number)
+                errors.append(f"{number}: {type(exc).__name__}: {exc}")
+                continue
+            files.extend(written)
+        logger.info(
+            "Print finished: %s pdf(s), %s failed",
+            len(files),
+            len(errors),
+        )
+        return {
+            "count": len(files),
+            "failed": len(errors),
+            "files": files[:30],
+            "errors": errors[:30],
+        }
+    finally:
+        _PRINT_LOCK.release()
 
 
 @router.get("/for-system")
@@ -393,8 +535,9 @@ async def track_calculation_sheet(
 
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
     removed_notices: List[str] = []
+    subproject_updates: List[dict] = []
     entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
-        sheet, excel_service, db, removed_notices
+        sheet, excel_service, db, removed_notices, subproject_updates
     )
 
     if error:
@@ -431,12 +574,50 @@ async def track_calculation_sheet(
         sheets_skipped=0,
         entries_updated=entries_refreshed,
         errors=[],
+        subproject_updates=subproject_updates,
     )
+
+@router.post("/subproject-copies", response_model=schemas.SubprojectSheetCopiesResponse)
+async def subproject_calculation_sheet_copies(
+    body: schemas.SubprojectSheetCopyRequest,
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
+):
+    """Sheets with these numbers that also exist in a linked sub-project."""
+    numbers = list(body.calculation_sheet_nos)
+    if body.sheet_ids:
+        sheets = (
+            db.query(models.CalculationSheet)
+            .filter(models.CalculationSheet.id.in_(body.sheet_ids))
+            .all()
+        )
+        numbers.extend(sheet.calculation_sheet_no for sheet in sheets)
+    return schemas.SubprojectSheetCopiesResponse(
+        copies=find_subproject_sheet_copies(db, project_id, numbers)
+    )
+
+
+@router.post(
+    "/apply-subproject-updates",
+    response_model=schemas.ApplySubprojectCalcUpdatesResponse,
+)
+async def apply_subproject_calculation_updates(
+    body: schemas.ApplySubprojectCalcUpdatesRequest,
+    db: Session = Depends(get_db),
+):
+    """Copy confirmed quantity and price changes onto the sub-project sheets."""
+    result = apply_subproject_calc_updates(
+        db, [item.model_dump() for item in body.updates]
+    )
+    return schemas.ApplySubprojectCalcUpdatesResponse(**result)
+
 
 @router.delete("/{sheet_id}")
 async def delete_calculation_sheet(
     sheet_id: int,
-    db: Session = Depends(get_db)
+    also_delete_subprojects: bool = Query(False),
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Delete a calculation sheet and all its entries, with automatic synchronization
@@ -444,29 +625,33 @@ async def delete_calculation_sheet(
     sheet = db.query(models.CalculationSheet).filter(models.CalculationSheet.id == sheet_id).first()
     if not sheet:
         raise HTTPException(status_code=404, detail="Calculation sheet not found")
-    
+
+    sheet_no = sheet.calculation_sheet_no
     try:
-        # Initialize sync service
         sync_service = SyncService(db)
-        
-        # Sync the deletion (this will handle concentration entries and BOQ items)
         sync_result = sync_service.sync_calculation_sheet_deletion(sheet_id)
-        
+
         if not sync_result["success"]:
             logger.warning(f"Sync failed during calculation sheet deletion: {sync_result['message']}")
-        
-        # Delete the calculation sheet
+
         db.delete(sheet)
         db.commit()
-        
-        # Prepare response message
+
+        subproject_result = {"deleted": 0, "errors": [], "message": ""}
+        if also_delete_subprojects:
+            subproject_result = delete_sheets_from_subprojects(db, project_id, [sheet_no])
+
         message = "Calculation sheet deleted successfully"
         if sync_result["success"]:
             message += f". Synchronized: {sync_result['entries_deleted']} concentration entries deleted, {sync_result['boq_items_updated']} BOQ items updated"
-        
+        if subproject_result.get("message") and also_delete_subprojects:
+            message += " " + subproject_result["message"]
+
         return {
             "message": message,
-            "sync_result": sync_result
+            "sync_result": sync_result,
+            "subprojects_deleted": subproject_result.get("deleted", 0),
+            "subproject_errors": subproject_result.get("errors", []),
         }
     except Exception as e:
         db.rollback()
@@ -475,7 +660,8 @@ async def delete_calculation_sheet(
 @router.post("/bulk-delete", response_model=schemas.BulkDeleteCalculationSheetsResponse)
 async def bulk_delete_calculation_sheets(
     request: schemas.BulkDeleteCalculationSheetsRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    project_id: str = Depends(get_project_id),
 ):
     """
     Delete multiple calculation sheets at once with automatic synchronization
@@ -491,6 +677,7 @@ async def bulk_delete_calculation_sheets(
         total_entries_deleted = 0
         total_boq_items_updated = 0
         errors = []
+        deleted_sheet_numbers = []
         
         # Process each sheet deletion
         for sheet_id in request.sheet_ids:
@@ -499,6 +686,7 @@ async def bulk_delete_calculation_sheets(
                 if not sheet:
                     errors.append(f"Sheet ID {sheet_id} not found")
                     continue
+                sheet_no = sheet.calculation_sheet_no
                 
                 # Sync the deletion (this will handle concentration entries and BOQ items)
                 sync_result = sync_service.sync_calculation_sheet_deletion(sheet_id)
@@ -512,6 +700,7 @@ async def bulk_delete_calculation_sheets(
                 db.commit()
                 
                 sheets_deleted += 1
+                deleted_sheet_numbers.append(sheet_no)
                 total_entries_deleted += sync_result.get("entries_deleted", 0)
                 total_boq_items_updated += sync_result.get("boq_items_updated", 0)
                 
@@ -530,6 +719,17 @@ async def bulk_delete_calculation_sheets(
         
         if errors:
             message += f". {len(errors)} error(s) occurred during deletion."
+
+        subprojects_deleted = 0
+        subproject_errors: List[str] = []
+        if request.also_delete_subprojects and deleted_sheet_numbers:
+            subproject_result = delete_sheets_from_subprojects(
+                db, project_id, deleted_sheet_numbers
+            )
+            subprojects_deleted = subproject_result.get("deleted", 0)
+            subproject_errors = subproject_result.get("errors", [])
+            if subproject_result.get("message"):
+                message += " " + subproject_result["message"]
         
         return {
             "success": sheets_deleted > 0,
@@ -537,7 +737,9 @@ async def bulk_delete_calculation_sheets(
             "sheets_deleted": sheets_deleted,
             "total_entries_deleted": total_entries_deleted,
             "total_boq_items_updated": total_boq_items_updated,
-            "errors": errors
+            "errors": errors,
+            "subprojects_deleted": subprojects_deleted,
+            "subproject_errors": subproject_errors,
         }
         
     except Exception as e:
@@ -630,6 +832,7 @@ def _track_sheets(
 ) -> schemas.CalculationSheetsTrackResponse:
     excel_service = ExcelService(exports_dir=get_project_export_dir(project_id))
     removed_notices: List[str] = []
+    subproject_updates: List[dict] = []
     sheets_updated = 0
     sheets_skipped = 0
     entries_updated = 0
@@ -638,7 +841,7 @@ def _track_sheets(
 
     for sheet in sheets:
         entries_refreshed, error, push_result = refresh_calculation_sheet_from_disk(
-            sheet, excel_service, db, removed_notices
+            sheet, excel_service, db, removed_notices, subproject_updates
         )
         if error:
             sheets_skipped += 1
@@ -676,6 +879,7 @@ def _track_sheets(
         sheets_skipped=sheets_skipped,
         entries_updated=entries_updated,
         errors=errors,
+        subproject_updates=subproject_updates,
     )
 
 

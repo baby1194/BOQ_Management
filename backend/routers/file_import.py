@@ -26,6 +26,7 @@ from services.non_boq_service import (
     reconcile_missing_non_boq_items,
     register_non_boq_items_from_calculation_entries,
 )
+from services.subproject_calc_sync import capture_sheet_entries, note_transferred_changes
 from services.approved_signed_qty_pdf_service import (
     build_boq_section_number,
     extract_approved_signed_invoice_date,
@@ -107,6 +108,7 @@ def import_calculation_sheet_from_disk(
     file_path: Path,
     db: Session,
     excel_service: ExcelService,
+    subproject_updates: Optional[list] = None,
 ) -> tuple[int, int, bool, CalcSheetPushResult]:
     """
     Import or update one calculation sheet from a file on disk.
@@ -126,6 +128,7 @@ def import_calculation_sheet_from_disk(
             f"Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}"
         )
         previous_calculation_sheet_no = existing_sheet.calculation_sheet_no
+        before_entries = capture_sheet_entries(db, existing_sheet.id)
         previous_path = existing_sheet.source_file_path
         if previous_path and source_paths_differ(previous_path, source_file_path):
             location_change = {
@@ -147,6 +150,7 @@ def import_calculation_sheet_from_disk(
         was_existing = True
     else:
         previous_calculation_sheet_no = None
+        before_entries = []
         logger.info(
             f"Creating new calculation sheet: {file_path.name} - "
             f"Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}"
@@ -184,6 +188,14 @@ def import_calculation_sheet_from_disk(
         entries_created += 1
 
     register_non_boq_items_from_calculation_entries(db, sheet_data["entries"])
+    note_transferred_changes(
+        db,
+        sheet_data["calculation_sheet_no"],
+        previous_calculation_sheet_no or sheet_data["calculation_sheet_no"],
+        before_entries,
+        sheet_data["entries"],
+        subproject_updates,
+    )
     reconcile_missing_non_boq_items(db)
 
     push_result = push_calculation_sheet_to_concentration_entries(
@@ -858,6 +870,7 @@ async def import_calculation_sheets_from_paths(
     all_errors = []
     push_results: list[CalcSheetPushResult] = []
     import_location_changes: list[dict] = []
+    subproject_updates: list[dict] = []
 
     for path_str in request.file_paths:
         file_path = Path(path_str)
@@ -869,7 +882,7 @@ async def import_calculation_sheets_from_paths(
             continue
         try:
             entries_created, _, _, push_result, location_change = import_calculation_sheet_from_disk(
-                file_path, db, excel_service
+                file_path, db, excel_service, subproject_updates
             )
             total_sheets_imported += 1
             total_entries_imported += entries_created
@@ -921,6 +934,7 @@ async def import_calculation_sheets_from_paths(
         entries_imported=total_entries_imported,
         errors=all_errors,
         location_changed=location_changed,
+        subproject_updates=subproject_updates,
     )
 
 
@@ -945,12 +959,13 @@ async def import_calculation_sheets_from_folder(
     all_errors = []
     push_results: list[CalcSheetPushResult] = []
     import_location_changes: list[dict] = []
+    subproject_updates: list[dict] = []
 
     for path_str in excel_files:
         file_path = Path(path_str)
         try:
             entries_created, _, _, push_result, location_change = import_calculation_sheet_from_disk(
-                file_path, db, excel_service
+                file_path, db, excel_service, subproject_updates
             )
             total_sheets_imported += 1
             total_entries_imported += entries_created
@@ -992,6 +1007,7 @@ async def import_calculation_sheets_from_folder(
         entries_imported=total_entries_imported,
         errors=all_errors,
         location_changed=location_changed,
+        subproject_updates=subproject_updates,
     )
 
 @router.post("/import-calculation-sheets/", response_model=schemas.CalculationImportResponse)
@@ -1030,6 +1046,7 @@ async def import_calculation_sheets(
         all_errors = []
         push_results: list[CalcSheetPushResult] = []
         import_location_changes: list[dict] = []
+        subproject_updates: list[dict] = []
         relative_paths_map: Dict[str, str] = {}
         if file_relative_paths:
             try:
@@ -1076,11 +1093,13 @@ async def import_calculation_sheets(
                 
                 previous_calculation_sheet_no = None
                 previous_path = None
+                before_entries = []
                 if existing_sheet:
                     # Update existing calculation sheet with new data
                     logger.info(f"Updating existing calculation sheet: {file.filename} - Sheet No: {sheet_data['calculation_sheet_no']}, Drawing No: {sheet_data['drawing_no']}")
                     
                     previous_calculation_sheet_no = existing_sheet.calculation_sheet_no
+                    before_entries = capture_sheet_entries(db, existing_sheet.id)
                     previous_path = existing_sheet.source_file_path
                     existing_sheet.file_name = file.filename
                     existing_sheet.calculation_sheet_no = sheet_data['calculation_sheet_no']
@@ -1138,6 +1157,14 @@ async def import_calculation_sheets(
 
                 register_non_boq_items_from_calculation_entries(
                     db, sheet_data["entries"]
+                )
+                note_transferred_changes(
+                    db,
+                    sheet_data["calculation_sheet_no"],
+                    previous_calculation_sheet_no or sheet_data["calculation_sheet_no"],
+                    before_entries,
+                    sheet_data["entries"],
+                    subproject_updates,
                 )
 
                 push_result = push_calculation_sheet_to_concentration_entries(
@@ -1234,6 +1261,7 @@ async def import_calculation_sheets(
             entries_imported=total_entries_imported,
             errors=all_errors,
             location_changed=location_changed,
+            subproject_updates=subproject_updates,
         )
     except Exception as e:
         db.rollback()

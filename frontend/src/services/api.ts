@@ -21,6 +21,8 @@ import {
   CalculationEntry,
   CalculationImportResponse,
   CalculationSheetLocationChange,
+  SubprojectCalcUpdate,
+  SubprojectSheetCopy,
   PopulateConcentrationEntriesResponse,
   NonBoqItem,
   ProjectInfo,
@@ -369,6 +371,7 @@ export const concentrationApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
+        subproject_updates?: SubprojectCalcUpdate[];
       }>(`/concentration/${sheetId}/track-calculation-sheets`, autoExportColumnsBody(), {
         params: { language: language || "en" },
       })
@@ -387,12 +390,12 @@ export const calculationSheetsApi = {
   printPdfs: (settings: {
     orientation: "landscape" | "portrait";
     margin_mm: number;
-    include_invoice: boolean;
   }) =>
     api
-      .post<{ count: number; files: string[] }>(
+      .post<{ count: number; failed: number; files: string[]; errors: string[] }>(
         "/calculation-sheets/print-pdfs",
-        settings
+        settings,
+        { timeout: 0 }
       )
       .then((res) => res.data),
 
@@ -432,10 +435,14 @@ export const calculationSheetsApi = {
       .get<CalculationSheetWithEntries>(`/calculation-sheets/${id}/entries`)
       .then((res) => res.data),
 
-  delete: (id: number) =>
-    api.delete(`/calculation-sheets/${id}`).then((res) => res.data),
+  delete: (id: number, alsoDeleteSubprojects = false) =>
+    api
+      .delete(`/calculation-sheets/${id}`, {
+        params: { also_delete_subprojects: alsoDeleteSubprojects },
+      })
+      .then((res) => res.data),
 
-  bulkDelete: (sheetIds: number[]) =>
+  bulkDelete: (sheetIds: number[], alsoDeleteSubprojects = false) =>
     api
       .post<{
         success: boolean;
@@ -444,7 +451,39 @@ export const calculationSheetsApi = {
         total_entries_deleted: number;
         total_boq_items_updated: number;
         errors: string[];
-      }>("/calculation-sheets/bulk-delete", { sheet_ids: sheetIds })
+        subprojects_deleted?: number;
+        subproject_errors?: string[];
+      }>("/calculation-sheets/bulk-delete", {
+        sheet_ids: sheetIds,
+        also_delete_subprojects: alsoDeleteSubprojects,
+      })
+      .then((res) => res.data),
+
+  subprojectCopies: (sheetIds: number[]) =>
+    api
+      .post<{ copies: SubprojectSheetCopy[] }>(
+        "/calculation-sheets/subproject-copies",
+        { sheet_ids: sheetIds }
+      )
+      .then((res) => res.data.copies),
+
+  applySubprojectUpdates: (
+    updates: {
+      project_id: string;
+      calculation_sheet_no: string;
+      previous_calculation_sheet_no: string;
+      section_number: string;
+      update_quantity: boolean;
+      update_price: boolean;
+    }[]
+  ) =>
+    api
+      .post<{
+        success: boolean;
+        message: string;
+        updated: number;
+        errors: string[];
+      }>("/calculation-sheets/apply-subproject-updates", { updates })
       .then((res) => res.data),
 
   updateComment: (id: number, comment: string) =>
@@ -538,6 +577,7 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
+        subproject_updates?: SubprojectCalcUpdate[];
       }>(
         "/calculation-sheets/track-selected",
         { ...autoExportColumnsBody(), sheet_ids: sheetIds },
@@ -554,6 +594,7 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
+        subproject_updates?: SubprojectCalcUpdate[];
       }>("/calculation-sheets/track", autoExportColumnsBody(), {
         params: { language: language || "en" },
       })
@@ -568,6 +609,7 @@ export const calculationSheetsApi = {
         sheets_skipped: number;
         entries_updated: number;
         errors: string[];
+        subproject_updates?: SubprojectCalcUpdate[];
       }>(`/calculation-sheets/${sheetId}/track`, autoExportColumnsBody(), {
         params: { language: language || "en" },
       })
