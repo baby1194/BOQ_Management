@@ -383,6 +383,14 @@ const ConcentrationSheets: React.FC = () => {
       ),
     [visibleEntries, expandedBreakdownEntryIds],
   );
+  const visibleEntriesEstimatedTotal = useMemo(
+    () =>
+      visibleEntries.reduce(
+        (sum, entry) => sum + (entry.estimated_quantity || 0),
+        0
+      ),
+    [visibleEntries]
+  );
   const visibleEntriesApprovedTotal = useMemo(
     () =>
       visibleEntries.reduce(
@@ -391,6 +399,12 @@ const ConcentrationSheets: React.FC = () => {
       ),
     [visibleEntries]
   );
+  const estimatedApprovedTotalsMismatch =
+    qtyMismatchMode === "estimated" &&
+    quantitiesMismatch(
+      visibleEntriesEstimatedTotal,
+      visibleEntriesApprovedTotal
+    );
   const boqApprovedSignedQuantity =
     selectedSheet?.boq_item.approved_signed_quantity ?? 0;
   const approvedSignedMismatch =
@@ -2477,23 +2491,20 @@ const ConcentrationSheets: React.FC = () => {
                                 const currentDrawingKey = `${entry.id}:${
                                   currentPeriod || "current"
                                 }`;
-                                const compareQty =
-                                  qtyMismatchMode === "submitted"
-                                    ? isEditingRow
-                                      ? editDraft.quantity_submitted
-                                      : entry.quantity_submitted
-                                    : isEditingRow
-                                      ? editDraft.estimated_quantity
-                                      : entry.estimated_quantity;
                                 const approvedQtyValue = isEditingRow
                                   ? numberDraftToValue(
                                       editDraft.approved_by_project_manager
                                     )
                                   : currentFields.approved_by_project_manager;
-                                const qtyMismatch = quantitiesMismatch(
-                                  compareQty,
-                                  approvedQtyValue
-                                );
+                                const submittedQtyValue = isEditingRow
+                                  ? editDraft.quantity_submitted
+                                  : entry.quantity_submitted;
+                                const qtyMismatch =
+                                  qtyMismatchMode === "submitted" &&
+                                  quantitiesMismatch(
+                                    submittedQtyValue,
+                                    approvedQtyValue
+                                  );
 
                                 return (
                                   <React.Fragment key={entry.id}>
@@ -2502,6 +2513,9 @@ const ConcentrationSheets: React.FC = () => {
                                         entry={entry}
                                         columnCount={visibleEntryColumnCount}
                                         columns={breakdownColumns}
+                                        highlightQuantityMismatch={
+                                          qtyMismatchMode === "submitted"
+                                        }
                                         isRTL={isRTL}
                                         saving={saving}
                                         periodEdit={periodEdit}
@@ -2789,14 +2803,7 @@ const ConcentrationSheets: React.FC = () => {
                                       </td>
                                       )}
                                       {showEntryCol("estimated_quantity") && (
-                                      <td
-                                        className={`px-3 py-2 whitespace-nowrap text-sm align-top ${
-                                          qtyMismatch &&
-                                          qtyMismatchMode === "estimated"
-                                            ? "text-red-600 font-semibold"
-                                            : "text-gray-500"
-                                        }`}
-                                      >
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 align-top">
                                         {manualEditable ? (
                                           <input
                                             type="number"
@@ -3150,14 +3157,21 @@ const ConcentrationSheets: React.FC = () => {
                                 </td>
                                 )}
                                 {showEntryCol("estimated_quantity") && (
-                                <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                                  {formatNumber(
-                                    visibleEntries.reduce(
-                                      (sum, entry) =>
-                                        sum + entry.estimated_quantity,
-                                      0
-                                    )
-                                  )}
+                                <td
+                                  className={`px-3 py-3 text-sm font-bold ${
+                                    estimatedApprovedTotalsMismatch
+                                      ? "text-red-600"
+                                      : "text-gray-900"
+                                  }`}
+                                  title={
+                                    estimatedApprovedTotalsMismatch
+                                      ? t(
+                                          "concentration.estimatedApprovedTotalsMismatch"
+                                        )
+                                      : undefined
+                                  }
+                                >
+                                  {formatNumber(visibleEntriesEstimatedTotal)}
                                 </td>
                                 )}
                                 {showEntryCol("submission_percentage") && (
@@ -3184,24 +3198,29 @@ const ConcentrationSheets: React.FC = () => {
                                 {showEntryCol("approved_qty") && (
                                 <td
                                   className={`px-3 py-3 text-sm font-bold ${
-                                    approvedSignedMismatch
+                                    approvedSignedMismatch ||
+                                    estimatedApprovedTotalsMismatch
                                       ? "text-red-600"
                                       : "text-gray-900"
                                   }`}
                                   title={
-                                    approvedSignedMismatch
+                                    estimatedApprovedTotalsMismatch
                                       ? t(
-                                          "concentration.approvedSignedMismatch",
-                                          {
-                                            sheetQty: formatNumber(
-                                              visibleEntriesApprovedTotal
-                                            ),
-                                            signedQty: formatNumber(
-                                              boqApprovedSignedQuantity
-                                            ),
-                                          }
+                                          "concentration.estimatedApprovedTotalsMismatch"
                                         )
-                                      : undefined
+                                      : approvedSignedMismatch
+                                        ? t(
+                                            "concentration.approvedSignedMismatch",
+                                            {
+                                              sheetQty: formatNumber(
+                                                visibleEntriesApprovedTotal
+                                              ),
+                                              signedQty: formatNumber(
+                                                boqApprovedSignedQuantity
+                                              ),
+                                            }
+                                          )
+                                        : undefined
                                   }
                                 >
                                   {formatNumber(visibleEntriesApprovedTotal)}

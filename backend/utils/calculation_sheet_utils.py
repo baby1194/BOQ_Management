@@ -1085,13 +1085,14 @@ def format_concentration_export_row_for_pdf(
 
 
 def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List[str]:
-    """Column names the screen paints red when approved quantity does not match."""
-    if compare == "estimated":
-        left_header = "Estimated Quantity"
-    elif compare == "submitted":
-        left_header = "Quantity Submitted"
-    else:
+    """Column names the screen paints red on an invoice row.
+
+    Approved versus submitted is a row comparison. Approved versus estimated
+    is compared on the totals row, so an estimated row is never red.
+    """
+    if compare != "submitted":
         return []
+    left_header = "Quantity Submitted"
     approved_header = "Approved by Project Manager"
     left = row_values.get(left_header)
     # A blank printed approved cell can still have the real figure saved
@@ -1119,6 +1120,39 @@ def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List
     return headers
 
 
+def _estimated_totals_red_cells(
+    entries: Iterable[Any],
+    export_rows: List[Dict[str, Any]],
+    filtered_headers: List[str],
+    entry_columns: Dict[str, Any],
+) -> List[Tuple[int, int]]:
+    """Color the totals row when total estimated quantity differs from total approved.
+
+    The index is one past the last invoice row, which is the totals row the
+    PDF and Excel append after export_rows.
+    """
+    from utils.period_details_utils import entry_total_approved_quantity
+
+    estimated_total = sum(
+        float(getattr(entry, "estimated_quantity", 0) or 0) for entry in entries
+    )
+    approved_total = sum(entry_total_approved_quantity(entry) for entry in entries)
+    if round_quantity(estimated_total) == round_quantity(approved_total):
+        return []
+    row_index = len(export_rows)
+    cells: List[Tuple[int, int]] = []
+    if "Estimated Quantity" in filtered_headers:
+        cells.append((row_index, filtered_headers.index("Estimated Quantity")))
+    if (
+        "Approved by Project Manager" in filtered_headers
+        and not entry_columns.get("blank_approved_quantity")
+    ):
+        cells.append(
+            (row_index, filtered_headers.index("Approved by Project Manager"))
+        )
+    return cells
+
+
 def concentration_export_red_cells(
     entries: Iterable[Any],
     export_rows: List[Dict[str, Any]],
@@ -1128,15 +1162,21 @@ def concentration_export_red_cells(
     """(export row, column) pairs to print in red. Empty unless red print is chosen.
 
     Indexes are 0-based in export_rows and filtered_headers, before any RTL reversal.
-    Every invoice line is colored, including older invoices, when approved
-    quantity does not match the compared quantity.
+    The totals row uses the index just after the last invoice row.
+
+    Submitted comparison colors each invoice line, including older invoices.
+    Estimated comparison colors only the totals row.
     """
     if not entry_columns or not entry_columns.get("print_unmatched_in_red"):
         return []
-    compare = entry_columns.get("mismatch_against") or "submitted"
+    compare = str(entry_columns.get("mismatch_against") or "submitted")
+    if compare == "estimated":
+        return _estimated_totals_red_cells(
+            entries, export_rows, filtered_headers, entry_columns
+        )
     cells: List[Tuple[int, int]] = []
     for row_index, row_values in enumerate(export_rows):
-        for header in unmatched_quantity_headers(row_values, str(compare)):
+        for header in unmatched_quantity_headers(row_values, compare):
             if header in filtered_headers:
                 cells.append((row_index, filtered_headers.index(header)))
     return cells

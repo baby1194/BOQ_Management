@@ -383,6 +383,89 @@ def _column_width(ws: Worksheet, column: int) -> float:
     return _DEFAULT_COLUMN_WIDTH
 
 
+def excel_width_to_points(width: float) -> float:
+    """Excel's character width as printed points, at the usual 96 dpi."""
+    width = float(width or _DEFAULT_COLUMN_WIDTH)
+    if width <= 0:
+        width = _DEFAULT_COLUMN_WIDTH
+    pixels = width * 12 if width < 1 else width * 7 + 5
+    return pixels * 72 / 96
+
+
+def fitted_column_widths(excel_widths: List[float], usable: float) -> List[float]:
+    """Keep each column at its Excel width, and shrink the row only to fit the page.
+
+    Stretching a short sheet out to the full page leaves the values floating in
+    wide empty cells.
+    """
+    points = [excel_width_to_points(width) for width in excel_widths] or [usable]
+    total = sum(points) or 1.0
+    if usable > 1 and total > usable:
+        scale = usable / total
+        points = [width * scale for width in points]
+    return points
+
+
+def _unbreakable(text: str) -> bool:
+    """A number or a code stays on one line. A sentence may wrap."""
+    compact = " ".join(str(text).split())
+    return bool(compact) and " " not in compact
+
+
+def content_column_widths(
+    grid: PrintGrid,
+    font_name: str,
+    font_size: float,
+    padding: float,
+    usable: float,
+) -> List[float]:
+    """Size each column to its text, and wrap a long sentence instead of widening the page."""
+    count = len(grid.rows[0]) if grid.rows else 0
+    if count <= 0:
+        return [usable]
+    empty = 8.0
+    cap = 90.0
+    pad = padding * 2 + 6
+    widths = [empty] * count
+    origin = {}
+    covered = set()
+    for (c0, r0), (c1, r1) in grid.spans:
+        origin[(c0, r0)] = (c0, min(c1, count - 1))
+        for column in range(c0, min(c1, count - 1) + 1):
+            for row_index in range(r0, r1 + 1):
+                covered.add((column, row_index))
+    span_needs = []
+    for row_index, row in enumerate(grid.rows):
+        for column, text in enumerate(row):
+            if not text or column >= count:
+                continue
+            if (column, row_index) in covered and (column, row_index) not in origin:
+                continue
+            widest = max(
+                pdfmetrics.stringWidth(line, font_name, font_size)
+                for line in str(text).split("\n")
+            )
+            need = widest + pad
+            if not _unbreakable(text):
+                need = min(need, cap)
+            if (column, row_index) in origin:
+                span_needs.append((origin[(column, row_index)][0], origin[(column, row_index)][1], need))
+            else:
+                widths[column] = max(widths[column], need)
+    for start, end, need in span_needs:
+        have = sum(widths[start:end + 1])
+        if have >= need:
+            continue
+        share = (need - have) / (end - start + 1)
+        for column in range(start, end + 1):
+            widths[column] += share
+    total = sum(widths) or 1.0
+    if usable > 1 and total > usable:
+        scale = usable / total
+        widths = [width * scale for width in widths]
+    return widths
+
+
 def filled_cell_boxes(
     rows: List[List[str]],
     spans: List[Tuple[Tuple[int, int], Tuple[int, int]]],
@@ -1076,11 +1159,10 @@ def write_sheet_pdf(
     )
     document.addPageTemplates([PageTemplate(frames=[frame])])
     usable = page[0] - (2 * margin)
-    total = sum(grid.widths) or 1.0
-    col_widths = [usable * width / total for width in grid.widths]
     font_name = _ensure_font()
     font_size = 8.0
     padding = 2
+    col_widths = content_column_widths(grid, font_name, font_size, padding, usable)
     frame_height = page[1] - (2 * margin)
     sizes = wrap_cells(
         grid, col_widths, font_name, font_size, padding, max_height=frame_height * 0.45

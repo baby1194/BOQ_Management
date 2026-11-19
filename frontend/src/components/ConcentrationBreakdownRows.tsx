@@ -64,6 +64,8 @@ interface ConcentrationBreakdownRowsProps {
   deletingAllDrawingKey: string | null;
   drawingFileName: (path: string) => string;
   drawingsCellStyle?: React.CSSProperties;
+  /** Row coloring for approved versus submitted. Estimated comparison uses the sheet totals. */
+  highlightQuantityMismatch?: boolean;
 }
 
 const TOTAL_ROW_CLASS = "bg-gray-200/80 text-gray-700";
@@ -94,6 +96,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
   deletingAllDrawingKey,
   drawingFileName,
   drawingsCellStyle,
+  highlightQuantityMismatch = true,
 }) => {
   const { t } = useTranslation();
   const rows = getBreakdownPeriodRows(entry).filter((row) => !row.isCurrent);
@@ -115,6 +118,7 @@ export const ConcentrationBreakdownPastRows: React.FC<
             ? numberDraftToValue(draft.approved_by_project_manager)
             : row.detail.approved_by_project_manager || 0;
         const pastMismatch =
+          highlightQuantityMismatch &&
           roundQuantity(row.qty || 0) !== roundQuantity(approvedValue || 0);
         const mismatchClass = pastMismatch
           ? "text-red-600 font-semibold"

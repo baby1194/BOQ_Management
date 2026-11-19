@@ -1024,12 +1024,21 @@ class ExcelService:
                             if isinstance(cell.value, (int, float)):
                                 cell.number_format = QUANTITY_EXCEL_FORMAT
                     red_font = Font(color="DC2626")
+                    totals_red_font = Font(bold=True, color="DC2626")
+                    totals_excel_row = (
+                        entries_block_header_1based + len(entries_data) - 1
+                    )
                     for row_index, col_index in red_quantity_cells:
+                        excel_row = entries_block_header_1based + 1 + row_index
                         cell = worksheet.cell(
-                            row=entries_block_header_1based + 1 + row_index,
+                            row=excel_row,
                             column=col_index + 1,
                         )
-                        cell.font = red_font
+                        cell.font = (
+                            totals_red_font
+                            if excel_row == totals_excel_row
+                            else red_font
+                        )
             
             logger.info(f"Generated concentration sheet Excel with single sheet RTL layout: {filepath}")
             if link_section:

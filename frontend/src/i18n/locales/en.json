@@ -466,6 +466,7 @@
     "doubleClickToEdit": "Double-click row to edit",
     "totals": "TOTALS",
     "approvedSignedMismatch": "Approved qty on this sheet ({{sheetQty}}) does not match the BOQ approved signed quantity ({{signedQty}}).",
+    "estimatedApprovedTotalsMismatch": "Estimated total does not match the approved total.",
     "editNotes": "Edit Notes",
     "populate": "Populate",
     "populateEntryTitle": "Copy entry to other BOQ items",

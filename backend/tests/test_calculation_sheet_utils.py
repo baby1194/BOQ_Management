@@ -784,6 +784,8 @@ def test_build_concentration_export_row_uses_period_details_when_present():
 
 
 def test_unmatched_quantity_line_can_print_in_red():
+    from types import SimpleNamespace
+
     from utils.calculation_sheet_utils import (
         concentration_export_red_cells,
         unmatched_quantity_headers,
@@ -798,10 +800,7 @@ def test_unmatched_quantity_line_can_print_in_red():
         "Quantity Submitted",
         "Approved by Project Manager",
     ]
-    assert unmatched_quantity_headers(row, "estimated") == [
-        "Estimated Quantity",
-        "Approved by Project Manager",
-    ]
+    assert unmatched_quantity_headers(row, "estimated") == []
     assert (
         unmatched_quantity_headers(
             {**row, "Approved by Project Manager": 194.69}, "submitted"
@@ -828,6 +827,31 @@ def test_unmatched_quantity_line_can_print_in_red():
         headers,
         {"print_unmatched_in_red": True, "mismatch_against": "submitted"},
     ) == [(0, 0), (0, 2)]
+    mismatched_entry = SimpleNamespace(
+        estimated_quantity=389.38,
+        approved_by_project_manager=180.0,
+        submission_breakdown=None,
+    )
+    assert concentration_export_red_cells(
+        [mismatched_entry],
+        [row],
+        headers,
+        {"print_unmatched_in_red": True, "mismatch_against": "estimated"},
+    ) == [(1, 1), (1, 2)]
+    balancing_entry = SimpleNamespace(
+        estimated_quantity=10.0,
+        approved_by_project_manager=219.38,
+        submission_breakdown=None,
+    )
+    assert (
+        concentration_export_red_cells(
+            [mismatched_entry, balancing_entry],
+            [row, row],
+            headers,
+            {"print_unmatched_in_red": True, "mismatch_against": "estimated"},
+        )
+        == []
+    )
 
 
 def test_old_invoice_is_red_when_approved_differs_from_submitted():

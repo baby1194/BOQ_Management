@@ -23,6 +23,38 @@ from services.sheet_print import (
 )
 
 
+def test_columns_follow_the_text_instead_of_a_wide_excel_column():
+    from services.sheet_print import PrintGrid, _ensure_font, content_column_widths
+
+    grid = PrintGrid(
+        rows=[["1.9", "תיאור ארוך של העבודה בשטח"], ["09", "N"]],
+        widths=[80.0, 80.0],
+        right_to_left=True,
+    )
+    widths = content_column_widths(grid, _ensure_font(), 8, 2, 700)
+    assert widths[0] < 50
+    assert widths[1] < 100
+    assert sum(widths) < 160
+
+
+def test_narrow_columns_stay_at_the_excel_width():
+    from services.sheet_print import excel_width_to_points, fitted_column_widths
+
+    natural = excel_width_to_points(8.43)
+    fitted = fitted_column_widths([8.43, 8.43], 700)
+    assert abs(fitted[0] - natural) < 0.01
+    assert abs(fitted[1] - natural) < 0.01
+    assert sum(fitted) < 200
+
+
+def test_wide_columns_shrink_to_the_page():
+    from services.sheet_print import fitted_column_widths
+
+    fitted = fitted_column_widths([80, 80, 80], 300)
+    assert abs(sum(fitted) - 300) < 0.1
+    assert abs(fitted[0] - fitted[1]) < 0.01
+
+
 def test_pdf_uses_the_workbook_name_in_the_same_folder():
     workbook = Path("C:/Fatina/1.02/17_1/sheet.xlsx")
     assert pdf_beside_workbook(workbook) == Path("C:/Fatina/1.02/17_1/sheet.pdf")

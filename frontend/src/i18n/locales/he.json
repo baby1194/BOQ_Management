@@ -466,6 +466,7 @@
     "doubleClickToEdit": "לחץ פעמיים על השורה לעריכה",
     "totals": "סה\"כ",
     "approvedSignedMismatch": "כמות מאושרת בדף הריכוז ({{sheetQty}}) אינה שווה לכמות המאושרת וחתומה בכתב הכמויות ({{signedQty}}).",
+    "estimatedApprovedTotalsMismatch": "הסה\"כ המחושב אינו תואם לסה\"כ המאושר.",
     "editNotes": "ערוך הערות",
     "populate": "מילוי",
     "populateEntryTitle": "העתק רשומה לפריטי BOQ נוספים",
