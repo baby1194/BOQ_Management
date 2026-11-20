@@ -313,34 +313,33 @@ def _workbook_in_dir(folder: Path, file_name: str) -> Path | None:
     return None
 
 
-def existing_workbook_pdf_destinations(
+def existing_calc_workbooks(
     section_numbers,
     calculation_sheet_no: str,
     file_name: str,
     fatina_root: Path | None = None,
     invoice_root: Path | None = None,
 ) -> list[Path]:
-    """PDF paths beside a workbook that is already in Fatina or Fatina Invoice.
+    """Workbook copies already saved under Fatina or Fatina Invoice.
 
-    A folder with no workbook is skipped. Invoice period folders count when
-    they already hold this workbook.
+    Printing reads these copies, so a hide or delete saved there is what the
+    PDF shows. The original calculation sheet is left unchanged.
     """
     sheet_no = sanitize_folder_name(str(calculation_sheet_no or "").strip())
     fatina = Path(fatina_root) if fatina_root is not None else FATINA_BASE_DIR
     invoice = Path(invoice_root) if invoice_root is not None else fatina_invoice_root(fatina)
-    destinations: list[Path] = []
+    found: list[Path] = []
     seen = set()
 
     def consider(folder: Path) -> None:
         workbook = _workbook_in_dir(folder, file_name)
         if workbook is None:
             return
-        dest = workbook.with_suffix(".pdf")
-        key = str(dest).lower()
+        key = str(workbook).lower()
         if key in seen:
             return
         seen.add(key)
-        destinations.append(dest)
+        found.append(workbook)
 
     for section in section_numbers:
         section_name = sanitize_folder_name(str(section or "").strip())
@@ -357,7 +356,27 @@ def existing_workbook_pdf_destinations(
             if child.name == sheet_no or child.name.endswith("_m"):
                 consider(child)
                 consider(child / sheet_no)
-    return destinations
+    return found
+
+
+def existing_workbook_pdf_destinations(
+    section_numbers,
+    calculation_sheet_no: str,
+    file_name: str,
+    fatina_root: Path | None = None,
+    invoice_root: Path | None = None,
+) -> list[Path]:
+    """PDF paths beside a workbook that is already in Fatina or Fatina Invoice."""
+    return [
+        workbook.with_suffix(".pdf")
+        for workbook in existing_calc_workbooks(
+            section_numbers,
+            calculation_sheet_no,
+            file_name,
+            fatina_root=fatina_root,
+            invoice_root=invoice_root,
+        )
+    ]
 
 
 def calculation_sheet_pdf_destinations(

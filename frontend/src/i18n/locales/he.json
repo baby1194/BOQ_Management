@@ -782,7 +782,7 @@
     "track": "עקוב",
     "printPdfs": "הדפס PDF",
     "printing": "מדפיס...",
-    "printDone": "נשמרו {{count}} קבצי PDF ליד קובצי האקסל של דפי החישוב שכבר נמצאים ב-Fatina וב-Fatina Invoice.",
+    "printDone": "נשמרו {{count}} קבצי PDF מתוך קובצי האקסל של דפי החישוב ב-Fatina וב-Fatina Invoice.",
     "printDoneWithErrors": "נשמרו {{count}} קבצי PDF. {{failed}} לא הודפסו. לוג השרת מציג את הקובץ ואת הסיבה.",
     "printFailed": "הדפסת דפי החישוב נכשלה",
     "printOrientation": "כיוון הדף",

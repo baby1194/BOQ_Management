@@ -394,6 +394,30 @@ def test_print_stops_before_a_phantom_millionth_row(tmp_path):
     assert any("09" in row for row in grid.rows)
 
 
+def test_each_saved_copy_is_printed_from_itself(tmp_path):
+    from services.sheet_print import print_saved_copy
+
+    def save(folder, value):
+        folder.mkdir()
+        book = Workbook()
+        book.active.title = "Calculation"
+        book.active["A1"] = value
+        path = folder / "12.xlsx"
+        book.save(path)
+        book.close()
+        return path
+
+    first = save(tmp_path / "fatina", "keep this row")
+    second = save(tmp_path / "invoice", "hidden in the original")
+
+    first_pdf = Path(print_saved_copy(first))
+    second_pdf = Path(print_saved_copy(second))
+
+    assert first_pdf == first.with_suffix(".pdf")
+    assert second_pdf == second.with_suffix(".pdf")
+    assert first_pdf.read_bytes() != second_pdf.read_bytes()
+
+
 def test_pdf_is_copied_only_beside_an_existing_workbook(tmp_path):
     from fatina_paths import existing_workbook_pdf_destinations
 

@@ -828,27 +828,41 @@ def test_unmatched_quantity_line_can_print_in_red():
         {"print_unmatched_in_red": True, "mismatch_against": "submitted"},
     ) == [(0, 0), (0, 2)]
     mismatched_entry = SimpleNamespace(
-        estimated_quantity=389.38,
-        approved_by_project_manager=180.0,
+        estimated_quantity=227.68,
+        approved_by_project_manager=0.0,
         submission_breakdown=None,
     )
+    matched_across_invoices = SimpleNamespace(
+        estimated_quantity=389.78,
+        approved_by_project_manager=194.89,
+        submission_breakdown={
+            "current_drawing_no": "07",
+            "periods": {"06": 194.89, "07": 194.89},
+            "period_details": {
+                "06": {"approved_by_project_manager": 194.89},
+                "07": {"approved_by_project_manager": 194.89},
+            },
+        },
+    )
+    columns = {"print_unmatched_in_red": True, "mismatch_against": "estimated"}
     assert concentration_export_red_cells(
         [mismatched_entry],
         [row],
         headers,
-        {"print_unmatched_in_red": True, "mismatch_against": "estimated"},
-    ) == [(1, 1), (1, 2)]
-    balancing_entry = SimpleNamespace(
-        estimated_quantity=10.0,
-        approved_by_project_manager=219.38,
-        submission_breakdown=None,
-    )
+        columns,
+    ) == [(0, 1), (0, 2)]
     assert (
         concentration_export_red_cells(
-            [mismatched_entry, balancing_entry],
-            [row, row],
+            [matched_across_invoices],
+            [
+                {
+                    "Quantity Submitted": 194.89,
+                    "Estimated Quantity": 389.78,
+                    "Approved by Project Manager": 194.89,
+                }
+            ],
             headers,
-            {"print_unmatched_in_red": True, "mismatch_against": "estimated"},
+            columns,
         )
         == []
     )

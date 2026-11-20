@@ -179,20 +179,18 @@ def _concentration_sections_by_calc_sheet(db: Session) -> dict:
 
 @router.post("/print-pdfs")
 def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
-    """Print the calculation sheets that exist in this project.
+    """Print the calculation sheets from the copies saved in Fatina and Fatina Invoice.
 
-    Each PDF is copied next to the calculation-sheet workbook where that workbook
-    already exists under C:/Fatina and C:/Fatina Invoice. A folder without the
-    workbook is left unchanged.
+    Each PDF is made from the workbook in that folder, so a hide or delete saved
+    there is what gets printed. The original calculation sheet is not read and
+    is left unchanged. A folder without the workbook is left unchanged.
 
     This stays a normal function so FastAPI runs it on a worker thread. An async
     endpoint would read the workbooks on the event loop and freeze every other
     request until the print finished.
     """
-    from pathlib import Path
-
-    from fatina_paths import existing_workbook_pdf_destinations
-    from services.sheet_print import publish_sheet_pdf
+    from fatina_paths import existing_calc_workbooks
+    from services.sheet_print import print_saved_copy
 
     orientation = body.get("orientation") or "landscape"
     if orientation not in ("landscape", "portrait"):
@@ -213,8 +211,8 @@ def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
         jobs = [
             {
                 "number": sheet.calculation_sheet_no,
-                "source": sheet.source_file_path,
-                "file_name": sheet.file_name,
+                "file_name": sheet.file_name
+                or (Path(sheet.source_file_path).name if sheet.source_file_path else ""),
                 "sections": sections_by_sheet.get(
                     str(sheet.calculation_sheet_no or "").strip(), []
                 ),
@@ -223,31 +221,24 @@ def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
         ]
         db.close()
         logger.info(
-            "Printing %s calculation sheet(s) from the project",
+            "Printing %s calculation sheet(s) from the Fatina copies",
             len(jobs),
         )
         files = []
         errors = []
         for index, job in enumerate(jobs, start=1):
             number = job["number"] or "(no number)"
-            source = job["source"]
             section_list = ", ".join(job["sections"]) or "none"
             logger.info(
-                "[%s/%s] %s source=%s concentration sections=%s",
+                "[%s/%s] %s file=%s concentration sections=%s",
                 index,
                 len(jobs),
                 number,
-                source or "missing",
+                job["file_name"] or "missing",
                 section_list,
             )
-            if not source:
-                message = f"{number}: no source workbook is stored"
-                logger.error(message)
-                errors.append(message)
-                continue
-            workbook = Path(source)
-            if not workbook.is_file():
-                message = f"{number}: source workbook not found: {source}"
+            if not job["file_name"]:
+                message = f"{number}: no workbook name is stored"
                 logger.error(message)
                 errors.append(message)
                 continue
@@ -259,12 +250,12 @@ def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
                 logger.error(message)
                 errors.append(message)
                 continue
-            destinations = existing_workbook_pdf_destinations(
+            copies = existing_calc_workbooks(
                 job["sections"],
                 job["number"],
-                job["file_name"] or workbook.name,
+                job["file_name"],
             )
-            if not destinations:
+            if not copies:
                 message = (
                     f"{number}: the workbook is not in a Fatina or "
                     "Fatina Invoice calculation-sheet folder"
@@ -272,18 +263,19 @@ def print_calculation_sheet_pdfs(body: dict, db: Session = Depends(get_db)):
                 logger.error(message)
                 errors.append(message)
                 continue
-            try:
-                written = publish_sheet_pdf(
-                    workbook,
-                    destinations,
-                    orientation=orientation,
-                    margin_mm=margin,
-                )
-            except Exception as exc:
-                logger.exception("Print failed for %s", number)
-                errors.append(f"{number}: {type(exc).__name__}: {exc}")
-                continue
-            files.extend(written)
+            for workbook in copies:
+                logger.info("Printing Fatina copy %s", workbook)
+                try:
+                    files.append(
+                        print_saved_copy(
+                            workbook,
+                            orientation=orientation,
+                            margin_mm=margin,
+                        )
+                    )
+                except Exception as exc:
+                    logger.exception("Print failed for %s", workbook)
+                    errors.append(f"{number}: {workbook}: {type(exc).__name__}: {exc}")
         logger.info(
             "Print finished: %s pdf(s), %s failed",
             len(files),

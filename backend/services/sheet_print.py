@@ -1235,6 +1235,18 @@ def write_sheet_pdf(
     )
 
 
+def print_saved_copy(
+    workbook: Path,
+    orientation: str = "landscape",
+    margin_mm: float = 10,
+) -> str:
+    """Print the PDF from this saved workbook and write it beside that file."""
+    source = Path(workbook)
+    destination = source.with_suffix(".pdf")
+    write_sheet_pdf(source, destination, orientation=orientation, margin_mm=margin_mm)
+    return str(destination)
+
+
 def publish_sheet_pdf(
     source: Path,
     destinations: Iterable[Path],

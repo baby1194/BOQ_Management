@@ -1087,8 +1087,9 @@ def format_concentration_export_row_for_pdf(
 def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List[str]:
     """Column names the screen paints red on an invoice row.
 
-    Approved versus submitted is a row comparison. Approved versus estimated
-    is compared on the totals row, so an estimated row is never red.
+    Approved versus submitted compares each invoice row. Approved versus
+    estimated compares an entry's estimated quantity with its total approved
+    quantity, so this row helper does not mark estimated rows.
     """
     if compare != "submitted":
         return []
@@ -1120,36 +1121,44 @@ def unmatched_quantity_headers(row_values: Dict[str, Any], compare: str) -> List
     return headers
 
 
-def _estimated_totals_red_cells(
+def _estimated_entry_red_cells(
     entries: Iterable[Any],
     export_rows: List[Dict[str, Any]],
     filtered_headers: List[str],
     entry_columns: Dict[str, Any],
 ) -> List[Tuple[int, int]]:
-    """Color the totals row when total estimated quantity differs from total approved.
+    """Color an entry when its estimated quantity differs from its total approved.
 
-    The index is one past the last invoice row, which is the totals row the
-    PDF and Excel append after export_rows.
+    Estimated quantity is printed once per entry. Approved quantity is colored
+    on the current invoice row. Older invoice rows stay uncolored.
     """
     from utils.period_details_utils import entry_total_approved_quantity
 
-    estimated_total = sum(
-        float(getattr(entry, "estimated_quantity", 0) or 0) for entry in entries
-    )
-    approved_total = sum(entry_total_approved_quantity(entry) for entry in entries)
-    if round_quantity(estimated_total) == round_quantity(approved_total):
-        return []
-    row_index = len(export_rows)
     cells: List[Tuple[int, int]] = []
-    if "Estimated Quantity" in filtered_headers:
-        cells.append((row_index, filtered_headers.index("Estimated Quantity")))
-    if (
-        "Approved by Project Manager" in filtered_headers
-        and not entry_columns.get("blank_approved_quantity")
-    ):
-        cells.append(
-            (row_index, filtered_headers.index("Approved by Project Manager"))
-        )
+    entry_list = list(entries)
+    groups = concentration_export_entry_row_groups(entry_list, entry_columns)
+    blank_approved = bool(entry_columns.get("blank_approved_quantity"))
+    for entry, (start, end) in zip(entry_list, groups):
+        estimated = float(getattr(entry, "estimated_quantity", 0) or 0)
+        approved_total = entry_total_approved_quantity(entry)
+        if round_quantity(estimated) == round_quantity(approved_total):
+            continue
+        if (
+            "Estimated Quantity" in filtered_headers
+            and start < len(export_rows)
+            and export_rows[start].get("Estimated Quantity") not in ("", None)
+        ):
+            cells.append((start, filtered_headers.index("Estimated Quantity")))
+        if (
+            not blank_approved
+            and "Approved by Project Manager" in filtered_headers
+            and end < len(export_rows)
+            and export_rows[end].get("Approved by Project Manager")
+            not in ("", None)
+        ):
+            cells.append(
+                (end, filtered_headers.index("Approved by Project Manager"))
+            )
     return cells
 
 
@@ -1165,13 +1174,14 @@ def concentration_export_red_cells(
     The totals row uses the index just after the last invoice row.
 
     Submitted comparison colors each invoice line, including older invoices.
-    Estimated comparison colors only the totals row.
+    Estimated comparison colors each entry whose estimated quantity differs
+    from that entry's total approved quantity.
     """
     if not entry_columns or not entry_columns.get("print_unmatched_in_red"):
         return []
     compare = str(entry_columns.get("mismatch_against") or "submitted")
     if compare == "estimated":
-        return _estimated_totals_red_cells(
+        return _estimated_entry_red_cells(
             entries, export_rows, filtered_headers, entry_columns
         )
     cells: List[Tuple[int, int]] = []

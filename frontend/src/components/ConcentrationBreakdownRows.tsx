@@ -350,7 +350,8 @@ export const ConcentrationBreakdownTotalRow: React.FC<{
   entry: ConcentrationEntry;
   columnCount: number;
   columns: BreakdownColumnVisibility;
-}> = ({ entry, columns }) => {
+  highlightApprovedMismatch?: boolean;
+}> = ({ entry, columns, highlightApprovedMismatch = false }) => {
   const { t } = useTranslation();
   if (!entry.submission_breakdown) {
     return null;
@@ -397,7 +398,11 @@ export const ConcentrationBreakdownTotalRow: React.FC<{
       )}
       {columns.approved_qty && (
       <td className="px-3 py-1.5 text-sm align-top whitespace-nowrap">
-        <span className="font-semibold text-gray-800">
+        <span
+          className={`font-semibold ${
+            highlightApprovedMismatch ? "text-red-600" : "text-gray-800"
+          }`}
+        >
           {formatNumber(totals.approvedTotal)}
         </span>
       </td>

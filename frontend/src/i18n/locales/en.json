@@ -782,7 +782,7 @@
     "track": "Track",
     "printPdfs": "Print PDFs",
     "printing": "Printing...",
-    "printDone": "Saved {{count}} PDF file(s) next to the calculation-sheet workbooks that are already in Fatina and Fatina Invoice.",
+    "printDone": "Saved {{count}} PDF file(s) from the calculation-sheet workbooks in Fatina and Fatina Invoice.",
     "printDoneWithErrors": "Saved {{count}} PDF file(s). {{failed}} could not be printed. The backend log has the file and the reason.",
     "printFailed": "Failed to print calculation sheets",
     "printOrientation": "Page orientation",
