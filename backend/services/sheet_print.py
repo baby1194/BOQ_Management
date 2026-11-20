@@ -56,6 +56,7 @@ class PrintGrid:
     spans: List[Tuple[Tuple[int, int], Tuple[int, int]]] = field(default_factory=list)
     numeric: List[Tuple[int, int]] = field(default_factory=list)
     centered: List[Tuple[int, int]] = field(default_factory=list)
+    backgrounds: List[Tuple[Tuple[int, int], Tuple[int, int], str]] = field(default_factory=list)
     repeat_rows: int = 0
     row_heights: List[float] = field(default_factory=list)
     table_start: Optional[int] = None
@@ -114,6 +115,144 @@ def _sheet_parts(path: Path, sheet_name: str) -> Tuple[bytes, Optional[str], str
     if match:
         dimension = match.group(1).decode("ascii", errors="replace")
     return xml, print_area, dimension
+
+
+def _tag_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _apply_tint(rgb: str, tint: float) -> str:
+    """Excel theme tint, from -1 (darker) to 1 (lighter)."""
+    channels = [int(rgb[index:index + 2], 16) / 255 for index in (0, 2, 4)]
+    mixed = []
+    for channel in channels:
+        if tint < 0:
+            channel = channel * (1 + tint)
+        else:
+            channel = channel * (1 - tint) + tint
+        mixed.append(max(0, min(255, int(round(channel * 255)))))
+    return "".join(f"{channel:02X}" for channel in mixed)
+
+
+def _theme_palette(book: zipfile.ZipFile) -> List[str]:
+    if "xl/theme/theme1.xml" not in book.namelist():
+        return []
+    root = ET.fromstring(book.read("xl/theme/theme1.xml"))
+    scheme = next((node for node in root.iter() if _tag_name(node.tag) == "clrScheme"), None)
+    if scheme is None:
+        return []
+    palette = []
+    for child in list(scheme):
+        color = "000000"
+        for node in child.iter():
+            name = _tag_name(node.tag)
+            if name == "srgbClr" and node.attrib.get("val"):
+                color = node.attrib["val"]
+            elif name == "sysClr" and node.attrib.get("lastClr"):
+                color = node.attrib["lastClr"]
+        palette.append(color[-6:].upper())
+    return palette
+
+
+def _fill_rgb(color_node, themes: List[str]) -> Optional[str]:
+    if color_node is None:
+        return None
+    rgb = color_node.attrib.get("rgb")
+    if rgb:
+        return rgb[-6:].upper()
+    indexed = color_node.attrib.get("indexed")
+    if indexed and indexed.isdigit():
+        from openpyxl.styles.colors import COLOR_INDEX
+
+        index = int(indexed)
+        if 0 <= index < len(COLOR_INDEX):
+            return str(COLOR_INDEX[index])[-6:].upper()
+    theme = color_node.attrib.get("theme")
+    if theme and theme.isdigit():
+        # Spreadsheet theme indexes are lt1, dk1, lt2, dk2, then the accents.
+        # The theme file lists those first four pairs the other way around.
+        index = int(theme)
+        if index < 4:
+            index = (1, 0, 3, 2)[index]
+        if 0 <= index < len(themes):
+            base = themes[index]
+            tint = color_node.attrib.get("tint")
+            if tint:
+                try:
+                    base = _apply_tint(base, float(tint))
+                except ValueError:
+                    pass
+            return base
+    return None
+
+
+def _style_fill_colors(path: Path) -> List[Optional[str]]:
+    """Background color for each cell style, or None when the cell is unfilled."""
+    with zipfile.ZipFile(path) as book:
+        if "xl/styles.xml" not in book.namelist():
+            return []
+        themes = _theme_palette(book)
+        root = ET.fromstring(book.read("xl/styles.xml"))
+    fills_element = root.find(f"{_MAIN_NS}fills")
+    fill_colors: List[Optional[str]] = []
+    for fill in list(fills_element) if fills_element is not None else []:
+        pattern = next((node for node in fill if _tag_name(node.tag) == "patternFill"), None)
+        if pattern is None or pattern.attrib.get("patternType") != "solid":
+            fill_colors.append(None)
+            continue
+        foreground = next((node for node in pattern if _tag_name(node.tag) == "fgColor"), None)
+        rgb = _fill_rgb(foreground, themes)
+        fill_colors.append(None if not rgb or rgb == "FFFFFF" else "#" + rgb)
+    styles = root.find(f"{_MAIN_NS}cellXfs")
+    colors: List[Optional[str]] = []
+    for style in list(styles) if styles is not None else []:
+        if style.attrib.get("applyFill") == "0":
+            colors.append(None)
+            continue
+        fill_id = int(style.attrib.get("fillId") or 0)
+        colors.append(fill_colors[fill_id] if 0 <= fill_id < len(fill_colors) else None)
+    return colors
+
+
+def _column_index(letters: str) -> int:
+    index = 0
+    for char in letters:
+        index = index * 26 + ord(char) - 64
+    return index
+
+
+def _cell_fills(xml: bytes, style_colors: List[Optional[str]], kept_rows: int, kept_cols: int) -> dict:
+    """Excel row and column to a background color, for the rows that are printed."""
+    fills = {}
+    if not style_colors:
+        return fills
+    for _, element in ET.iterparse(io.BytesIO(xml), events=("end",)):
+        name = _tag_name(element.tag)
+        if name == "row":
+            row_number = int(element.attrib.get("r") or 0)
+            element.clear()
+            if row_number > kept_rows:
+                break
+            continue
+        if name != "c":
+            continue
+        style_id = element.attrib.get("s")
+        ref = element.attrib.get("r") or ""
+        element.clear()
+        if not style_id or not style_id.isdigit() or not ref:
+            continue
+        index = int(style_id)
+        if index >= len(style_colors) or not style_colors[index]:
+            continue
+        match = re.match(r"([A-Z]+)(\d+)", ref)
+        if not match:
+            continue
+        column = _column_index(match.group(1))
+        row_number = int(match.group(2))
+        if row_number > kept_rows or column > kept_cols:
+            continue
+        fills[(row_number, column)] = style_colors[index]
+    return fills
 
 
 def _print_meta(xml: bytes, kept_rows: int, kept_cols: int) -> dict:
@@ -212,11 +351,13 @@ def load_print_workbook(path: Path):
     try:
         sheet_xml, print_area, dimension = _sheet_parts(path, sheet_name)
         meta = _print_meta(sheet_xml, max(kept_rows, 1), max(kept_cols, 1))
+        fills = _cell_fills(sheet_xml, _style_fill_colors(path), kept_rows, kept_cols)
     except Exception:
         logger.exception("Could not read the print layout of %s", path)
         print_area = None
         dimension = ""
         meta = _print_meta(b"<worksheet/>", 1, 1)
+        fills = {}
     if dimension and re.search(r"\d{5,}", dimension):
         logger.warning(
             "%s records used range %s; printing the first %s rows only",
@@ -235,6 +376,7 @@ def load_print_workbook(path: Path):
             if isinstance(value, str) and not value.strip():
                 continue
             sheet.cell(row=row_number, column=column, value=value)
+    sheet._print_fills = fills
     for column, width in meta["col_widths"].items():
         letter = get_column_letter(column)
         dimension_cell = sheet.column_dimensions[letter]
@@ -767,6 +909,26 @@ def _assemble_grid(ws, kept_rows, kept_cols, values, repeat_rows, table_excel_co
         widths = list(reversed(widths))
     for start, end in spans:
         _move_text_to_span_start(shown, start, end)
+    color_at = {}
+    stored_fills = getattr(ws, "_print_fills", {}) or {}
+    for row_index, excel_row in enumerate(kept_rows):
+        for column_index, excel_column in enumerate(kept_cols):
+            color = stored_fills.get((excel_row, excel_column))
+            if color:
+                color_at[(place(column_index), row_index)] = color
+    covered_by_span = set()
+    backgrounds = []
+    for (c0, r0), (c1, r1) in spans:
+        color = None
+        for row_index in range(r0, r1 + 1):
+            for column in range(c0, c1 + 1):
+                covered_by_span.add((column, row_index))
+                color = color or color_at.get((column, row_index))
+        if color:
+            backgrounds.append(((c0, r0), (c1, r1), color))
+    for cell, color in color_at.items():
+        if cell not in covered_by_span:
+            backgrounds.append((cell, cell, color))
     centered = []
     for row_index, excel_row in enumerate(kept_rows):
         if row_index >= len(shown) or excel_row > TABLE_START_ROW:
@@ -791,6 +953,7 @@ def _assemble_grid(ws, kept_rows, kept_cols, values, repeat_rows, table_excel_co
         spans=spans,
         numeric=numeric,
         centered=centered,
+        backgrounds=backgrounds,
         repeat_rows=repeat_rows,
         row_heights=row_heights,
         table_start=table_start,
@@ -1207,6 +1370,10 @@ def write_sheet_pdf(
             style.append(("FONTSIZE", (0, row_index), (-1, row_index), font_size * factor))
             style.append(("LEADING", (0, row_index), (-1, row_index), font_size * factor * 1.2))
     style += [("SPAN", start, end) for start, end in grid.spans]
+    style += [
+        ("BACKGROUND", start, end, colors.HexColor(color))
+        for start, end, color in grid.backgrounds
+    ]
     style += border_commands(grid)
     style += [("ALIGN", cell, cell, "CENTER") for cell in grid.numeric]
     style += [("ALIGN", cell, cell, "CENTER") for cell in grid.centered]

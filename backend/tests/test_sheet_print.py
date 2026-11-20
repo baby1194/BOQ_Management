@@ -55,6 +55,72 @@ def test_wide_columns_shrink_to_the_page():
     assert abs(fitted[0] - fitted[1]) < 0.01
 
 
+def test_cell_background_colors_are_kept(tmp_path):
+    from openpyxl.styles import PatternFill
+
+    book = Workbook()
+    ws = book.active
+    ws.title = "Calculation"
+    ws["B5"] = "yellow"
+    ws["B5"].fill = PatternFill("solid", fgColor="FFFF00")
+    ws["C6"] = "green"
+    ws["C6"].fill = PatternFill("solid", fgColor="92D050")
+    ws["D6"] = "plain"
+    path = tmp_path / "colored.xlsx"
+    book.save(path)
+    book.close()
+
+    loaded, _info = load_print_workbook(path)
+    try:
+        grid = build_print_grid(calculation_worksheet(loaded))
+    finally:
+        loaded.close()
+    painted = {
+        grid.rows[start[1]][start[0]]: color
+        for start, _end, color in grid.backgrounds
+    }
+    assert painted["yellow"] == "#FFFF00"
+    assert painted["green"] == "#92D050"
+    assert "plain" not in painted
+
+
+def test_excel_gray_theme_stays_gray(tmp_path):
+    from xml.etree import ElementTree as ET
+
+    from openpyxl.styles import PatternFill
+    from openpyxl.styles.colors import Color
+
+    from services.sheet_print import _fill_rgb
+
+    themes = ["000000", "FFFFFF", "44546A", "E7E6E6"]
+    light = ET.Element("fgColor", theme="0", tint="-0.0499893185216834")
+    darker = ET.Element("fgColor", theme="0", tint="-0.1499984740745262")
+    assert _fill_rgb(light, themes) == "F2F2F2"
+    assert _fill_rgb(darker, themes) == "D9D9D9"
+
+    book = Workbook()
+    ws = book.active
+    ws.title = "Calculation"
+    ws["B8"] = "4.76"
+    ws["B8"].fill = PatternFill(
+        "solid", fgColor=Color(theme=0, tint=-0.1499984740745262)
+    )
+    path = tmp_path / "gray.xlsx"
+    book.save(path)
+    book.close()
+
+    loaded, _info = load_print_workbook(path)
+    try:
+        grid = build_print_grid(calculation_worksheet(loaded))
+    finally:
+        loaded.close()
+    painted = {
+        grid.rows[start[1]][start[0]]: color
+        for start, _end, color in grid.backgrounds
+    }
+    assert painted["4.76"] == "#D9D9D9"
+
+
 def test_pdf_uses_the_workbook_name_in_the_same_folder():
     workbook = Path("C:/Fatina/1.02/17_1/sheet.xlsx")
     assert pdf_beside_workbook(workbook) == Path("C:/Fatina/1.02/17_1/sheet.pdf")
